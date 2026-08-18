@@ -1,6 +1,14 @@
-package ar/edu/itba/paw/services;
+package ar.edu.itba.paw.services;
 
-public interface UserService {
-    String findById(long id);
-    
+import org.springframework.stereotype.Service;
+
+@Service
+public class UserServiceImpl implements UserService {
+
+    @Override
+    public String findById(long id) {
+        return "PAW";
+    }
+
+
 }
