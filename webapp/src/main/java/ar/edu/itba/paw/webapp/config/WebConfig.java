@@ -1,20 +1,43 @@
 package ar.edu.itba.paw.webapp.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
-import org.springframework.web.servlet.config.annotation.EnableWebMvc;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.core.io.Resource;
+import org.springframework.jdbc.datasource.SimpleDriverDataSource;
+import org.springframework.jdbc.datasource.init.DataSourceInitializer;
+import org.springframework.jdbc.datasource.init.DatabasePopulator;
+import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 import org.springframework.web.servlet.ViewResolver;
+import org.springframework.web.servlet.config.annotation.EnableWebMvc;
+import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import org.springframework.web.servlet.view.InternalResourceViewResolver;
 import org.springframework.web.servlet.view.JstlView;
+
+import javax.sql.DataSource;
 
 @EnableWebMvc
 @ComponentScan({
         "ar.edu.itba.paw.services",
+        "ar.edu.itba.paw.persistence",
         "ar.edu.itba.paw.webapp.controller",
 })
 @Configuration
-public class WebConfig {
+public class WebConfig implements WebMvcConfigurer {
+
+    // TODO: al deployar en pampero, reemplazar por las credenciales del grupo.
+    // Localmente: crear la base con `createdb paw2026b`
+    private static final String DB_URL = "jdbc:postgresql://localhost/paw2026b";
+    private static final String DB_USERNAME = "solsommer";
+    private static final String DB_PASSWORD = "";
+
+    @Value("classpath:schema.sql")
+    private Resource schemaSql;
+
+    @Value("classpath:data.sql")
+    private Resource dataSql;
 
     @Bean
     public ViewResolver viewResolver() {
@@ -23,5 +46,40 @@ public class WebConfig {
         viewResolver.setPrefix("/WEB-INF/jsp/");
         viewResolver.setSuffix(".jsp");
         return viewResolver;
+    }
+
+    @Bean
+    public DataSource dataSource() {
+        final SimpleDriverDataSource ds = new SimpleDriverDataSource();
+        ds.setDriverClass(org.postgresql.Driver.class);
+        ds.setUrl(DB_URL);
+        ds.setUsername(DB_USERNAME);
+        ds.setPassword(DB_PASSWORD);
+        return ds;
+    }
+
+    @Bean
+    public DataSourceInitializer dataSourceInitializer(final DataSource ds) {
+        final DataSourceInitializer dsi = new DataSourceInitializer();
+        dsi.setDataSource(ds);
+        dsi.setDatabasePopulator(databasePopulator());
+        return dsi;
+    }
+
+    private DatabasePopulator databasePopulator() {
+        final ResourceDatabasePopulator dbp = new ResourceDatabasePopulator();
+        dbp.addScript(schemaSql);
+        dbp.addScript(dataSql);
+        return dbp;
+    }
+
+    // Esto es lo que mostro Sotuyo en clase: le dice a Spring que las carpetas
+    // /css, /js e /images NO tienen que pasar por el Front Controller (DispatcherServlet).
+    // Son archivos estaticos, se sirven directo, no son una ruta nuestra (@RequestMapping).
+    @Override
+    public void addResourceHandlers(final ResourceHandlerRegistry registry) {
+        registry.addResourceHandler("/css/**").addResourceLocations("/css/");
+        registry.addResourceHandler("/js/**").addResourceLocations("/js/");
+        registry.addResourceHandler("/images/**").addResourceLocations("/images/");
     }
 }
