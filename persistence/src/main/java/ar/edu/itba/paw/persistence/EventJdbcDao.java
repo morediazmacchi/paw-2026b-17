@@ -45,7 +45,9 @@ public class EventJdbcDao implements EventDao {
         this.jdbcTemplate = new JdbcTemplate(ds);
         this.jdbcInsert = new SimpleJdbcInsert(ds)
                 .withTableName("evento")
-                .usingGeneratedKeyColumns("id");
+                .usingGeneratedKeyColumns("id")
+                .usingColumns("titulo", "descripcion", "fecha_evento", "direccion", "barrio",
+                        "imagen_url", "precio", "cupo_maximo", "creador_email", "categoria_id");
     }
 
     @Override

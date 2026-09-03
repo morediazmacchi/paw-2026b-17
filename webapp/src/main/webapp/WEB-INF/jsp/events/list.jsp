@@ -5,56 +5,54 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Eventos</title>
+    <title>Plancito &middot; Eventos</title>
     <link rel="stylesheet" href="${pageContext.request.contextPath}/css/style.css">
 </head>
 <body>
 
-<h1>Eventos</h1>
-
-<c:if test="${not empty rsvp}">
-    <c:choose>
-        <c:when test="${rsvp == 'confirmada'}">
-            <p class="alert">Listo, quedaste confirmado.</p>
-        </c:when>
-        <c:when test="${rsvp == 'espera'}">
-            <p class="alert">El evento esta lleno, quedaste en lista de espera.</p>
-        </c:when>
-    </c:choose>
-</c:if>
-
-<form action="<c:url value='/eventos'/>" method="get">
-    <label for="categoria">Categoria</label>
-    <select id="categoria" name="categoria" onchange="this.form.submit()">
-        <option value="">Todas</option>
+<header class="navbar">
+    <a class="logo" href="<c:url value='/eventos'/>">p<span class="logo-dot">.</span> plancito</a>
+    <nav class="pills">
+        <a class="pill ${empty selectedCategoria ? 'pill-active' : ''}" href="<c:url value='/eventos'/>">Todos</a>
         <c:forEach var="cat" items="${categories}">
-            <option value="${cat.id}" ${cat.id == selectedCategoria ? 'selected' : ''}><c:out value="${cat.nombre}"/></option>
+            <a class="pill ${cat.id == selectedCategoria ? 'pill-active' : ''}"
+               href="<c:url value='/eventos'><c:param name='categoria' value='${cat.id}'/></c:url>">
+                <c:out value="${cat.nombre}"/>
+            </a>
         </c:forEach>
-    </select>
-</form>
+    </nav>
+    <a class="btn btn-medium btn-accent" href="<c:url value='/eventos/publicar'/>">+ Añadir evento</a>
+</header>
 
-<c:forEach var="event" items="${events}">
-    <c:set var="cardPrecio" value="${event.precio == 0 ? null : event.precio}" />
-    <paw:card nombre="${event.titulo}" precio="${cardPrecio}" fecha="${event.fechaEvento}" />
-    <p>
-        <fmt:formatDate value="${event.fechaEvento}" pattern="HH:mm" /> hs
-        - <c:out value="${event.direccion}"/><c:if test="${not empty event.barrio}"> (<c:out value="${event.barrio}"/>)</c:if>
-        - <c:out value="${event.categoriaNombre}"/>
-    </p>
-    <c:if test="${not empty event.imagenUrl}">
-        <img src="${event.imagenUrl}" alt="" width="200" />
+<main class="page">
+    <c:if test="${not empty rsvp}">
+        <c:choose>
+            <c:when test="${rsvp == 'confirmada'}">
+                <p class="alert">Listo, quedaste confirmado.</p>
+            </c:when>
+            <c:when test="${rsvp == 'espera'}">
+                <p class="alert">El evento esta lleno, quedaste en lista de espera.</p>
+            </c:when>
+        </c:choose>
     </c:if>
-    <p><c:out value="${event.descripcion}"/></p>
 
-    <form action="<c:url value='/eventos/${event.id}/quiero-ir'/>" method="post">
-        <paw:input name="email" label="Tu email" type="email" />
-        <paw:input name="nombre" label="Tu nombre (opcional)" type="text" required="${false}" />
-        <paw:button text="Quiero ir" />
-    </form>
-    <hr/>
-</c:forEach>
-
-<p><a href="<c:url value='/eventos/publicar'/>">Publicar un evento</a></p>
+    <c:choose>
+        <c:when test="${empty events}">
+            <p class="empty-state">Todavía no hay eventos<c:if test="${not empty selectedCategoria}"> en esta categoría</c:if>.</p>
+        </c:when>
+        <c:otherwise>
+            <div class="card-grid">
+                <c:forEach var="event" items="${events}">
+                    <c:set var="cardPrecio" value="${event.precio == 0 ? null : event.precio}" />
+                    <c:set var="cardUbicacion" value="${empty event.barrio ? event.direccion : event.barrio}" />
+                    <paw:card id="${event.id}" nombre="${event.titulo}" precio="${cardPrecio}"
+                              fecha="${event.fechaEvento}" categoria="${event.categoriaNombre}"
+                              ubicacion="${cardUbicacion}" />
+                </c:forEach>
+            </div>
+        </c:otherwise>
+    </c:choose>
+</main>
 
 </body>
 </html>

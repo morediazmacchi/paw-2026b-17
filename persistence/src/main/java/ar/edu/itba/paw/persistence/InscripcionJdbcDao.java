@@ -34,7 +34,8 @@ public class InscripcionJdbcDao implements InscripcionDao {
         this.jdbcTemplate = new JdbcTemplate(ds);
         this.jdbcInsert = new SimpleJdbcInsert(ds)
                 .withTableName("inscripcion")
-                .usingGeneratedKeyColumns("id");
+                .usingGeneratedKeyColumns("id")
+                .usingColumns("evento_id", "email", "nombre", "estado");
     }
 
     @Override

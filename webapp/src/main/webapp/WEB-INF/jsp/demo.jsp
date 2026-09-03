@@ -1,7 +1,7 @@
 <%@ page contentType="text/html;charset=UTF-8" pageEncoding="UTF-8" %>
 <%@ taglib prefix="paw" tagdir="/WEB-INF/tags" %>
 <html>
-<head>
+<head>git clone https://mdiazmacchi@bitbucket.org/itba/paw-2026b-17.git
     <meta charset="UTF-8">
     <title>Demo custom tags</title>
 </head>
@@ -18,7 +18,7 @@
 
 <h1>Inputs</h1>
 <paw:input name="email" label="Email" type="email" />
-<paw:input name="edad" label="Edad" type="number" errorMessage="Debe ser un número positivo" />
+<paw:input name="edad" label="Edad" type="number"  />
 <paw:input name="password" label="Contraseña" type="password" />
 
 </body>

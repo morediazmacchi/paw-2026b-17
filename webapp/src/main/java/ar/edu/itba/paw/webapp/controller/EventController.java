@@ -47,6 +47,19 @@ public class EventController {
         return mav;
     }
 
+    @RequestMapping(value = "/eventos/{id}", method = RequestMethod.GET)
+    public ModelAndView detail(@PathVariable final long id,
+                                @RequestParam(value = "rsvp", required = false) final String rsvp) {
+        return eventService.findById(id)
+                .map(event -> {
+                    final ModelAndView mav = new ModelAndView("events/detail");
+                    mav.addObject("event", event);
+                    mav.addObject("rsvp", rsvp);
+                    return mav;
+                })
+                .orElseGet(() -> new ModelAndView("redirect:/eventos"));
+    }
+
     @RequestMapping(value = "/eventos/publicar", method = RequestMethod.GET)
     public ModelAndView publishForm() {
         final ModelAndView mav = new ModelAndView("events/publish");
@@ -82,6 +95,6 @@ public class EventController {
                               @RequestParam final String email,
                               @RequestParam(required = false) final String nombre) {
         final String estado = inscripcionService.register(id, email, nombre);
-        return new ModelAndView("redirect:/eventos?rsvp=" + estado);
+        return new ModelAndView("redirect:/eventos/" + id + "?rsvp=" + estado);
     }
 }
