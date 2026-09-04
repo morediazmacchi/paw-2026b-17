@@ -17,7 +17,7 @@
         <c:forEach var="cat" items="${categories}">
             <a class="pill ${cat.id == selectedCategoria ? 'pill-active' : ''}"
                href="<c:url value='/eventos'><c:param name='categoria' value='${cat.id}'/></c:url>">
-                <c:out value="${cat.nombre}"/>
+                <c:out value="${cat.name}"/>
             </a>
         </c:forEach>
     </nav>
@@ -27,10 +27,10 @@
 <main class="page">
     <c:if test="${not empty rsvp}">
         <c:choose>
-            <c:when test="${rsvp == 'confirmada'}">
+            <c:when test="${rsvp == 'confirmed'}">
                 <p class="alert">Listo, quedaste confirmado.</p>
             </c:when>
-            <c:when test="${rsvp == 'espera'}">
+            <c:when test="${rsvp == 'waitlisted'}">
                 <p class="alert">El evento esta lleno, quedaste en lista de espera.</p>
             </c:when>
         </c:choose>
@@ -43,10 +43,10 @@
         <c:otherwise>
             <div class="card-grid">
                 <c:forEach var="event" items="${events}">
-                    <c:set var="cardPrecio" value="${event.precio == 0 ? null : event.precio}" />
-                    <c:set var="cardUbicacion" value="${empty event.barrio ? event.direccion : event.barrio}" />
-                    <paw:card id="${event.id}" nombre="${event.titulo}" precio="${cardPrecio}"
-                              fecha="${event.fechaEvento}" categoria="${event.categoriaNombre}"
+                    <c:set var="cardPrecio" value="${event.price == 0 ? null : event.price}" />
+                    <c:set var="cardUbicacion" value="${empty event.neighborhood ? event.address : event.neighborhood}" />
+                    <paw:card id="${event.id}" nombre="${event.title}" precio="${cardPrecio}"
+                              fecha="${event.eventDate}" categoria="${event.categoryName}"
                               ubicacion="${cardUbicacion}" />
                 </c:forEach>
             </div>

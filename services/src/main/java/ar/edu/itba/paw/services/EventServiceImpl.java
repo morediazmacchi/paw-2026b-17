@@ -25,5 +25,5 @@ public class EventServiceImpl implements EventService {
     @Override
     public List<Event> findAll() { return eventDao.findAll(); }
     @Override
-    public List<Event> findByCategoria(final long categoriaId) { return eventDao.findByCategoria(categoriaId); }
+    public List<Event> findByCategory(final long categoryId) { return eventDao.findByCategory(categoryId); }
 }

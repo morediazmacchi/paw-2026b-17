@@ -1,6 +1,6 @@
-INSERT INTO categoria (nombre) VALUES ('Musica') ON CONFLICT (nombre) DO NOTHING;
-INSERT INTO categoria (nombre) VALUES ('Deportes') ON CONFLICT (nombre) DO NOTHING;
-INSERT INTO categoria (nombre) VALUES ('Arte') ON CONFLICT (nombre) DO NOTHING;
-INSERT INTO categoria (nombre) VALUES ('Tecnologia') ON CONFLICT (nombre) DO NOTHING;
-INSERT INTO categoria (nombre) VALUES ('Gastronomia') ON CONFLICT (nombre) DO NOTHING;
-INSERT INTO categoria (nombre) VALUES ('Otros') ON CONFLICT (nombre) DO NOTHING;
+INSERT INTO category (name) VALUES ('Musica') ON CONFLICT (name) DO NOTHING;
+INSERT INTO category (name) VALUES ('Deportes') ON CONFLICT (name) DO NOTHING;
+INSERT INTO category (name) VALUES ('Arte') ON CONFLICT (name) DO NOTHING;
+INSERT INTO category (name) VALUES ('Tecnologia') ON CONFLICT (name) DO NOTHING;
+INSERT INTO category (name) VALUES ('Gastronomia') ON CONFLICT (name) DO NOTHING;
+INSERT INTO category (name) VALUES ('Otros') ON CONFLICT (name) DO NOTHING;

@@ -16,7 +16,7 @@ public class CategoryJdbcDao implements CategoryDao {
     private static final RowMapper<Category> ROW_MAPPER = (rs, rowNum) -> {
         final Category category = new Category();
         category.setId(rs.getLong("id"));
-        category.setNombre(rs.getString("nombre"));
+        category.setName(rs.getString("name"));
         return category;
     };
 
@@ -29,12 +29,12 @@ public class CategoryJdbcDao implements CategoryDao {
 
     @Override
     public List<Category> findAll() {
-        return jdbcTemplate.query("SELECT * FROM categoria ORDER BY nombre", ROW_MAPPER);
+        return jdbcTemplate.query("SELECT * FROM category ORDER BY name", ROW_MAPPER);
     }
 
     @Override
     public Optional<Category> findById(final long id) {
-        return jdbcTemplate.query("SELECT * FROM categoria WHERE id = ?", ROW_MAPPER, id)
+        return jdbcTemplate.query("SELECT * FROM category WHERE id = ?", ROW_MAPPER, id)
                 .stream().findFirst();
     }
 }

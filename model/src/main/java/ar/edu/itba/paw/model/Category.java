@@ -3,17 +3,17 @@ package ar.edu.itba.paw.model;
 public class Category {
 
     private long id;
-    private String nombre;
+    private String name;
 
     public Category() {
     }
 
-    public Category(final String nombre) {
-        this.nombre = nombre;
+    public Category(final String name) {
+        this.name = name;
     }
 
     public long getId() { return id; }
     public void setId(final long id) { this.id = id; }
-    public String getNombre() { return nombre; }
-    public void setNombre(final String nombre) { this.nombre = nombre; }
+    public String getName() { return name; }
+    public void setName(final String name) { this.name = name; }
 }

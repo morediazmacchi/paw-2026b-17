@@ -9,5 +9,5 @@ public interface EventDao {
     Event create(Event event);
     Optional<Event> findById(long id);
     List<Event> findAll();
-    List<Event> findByCategoria(long categoriaId);
+    List<Event> findByCategory(long categoryId);
 }

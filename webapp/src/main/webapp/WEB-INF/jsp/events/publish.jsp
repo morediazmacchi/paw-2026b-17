@@ -26,7 +26,7 @@
                 <label for="categoriaId">Categoría</label>
                 <select id="categoriaId" name="categoriaId">
                     <c:forEach var="cat" items="${categories}">
-                        <option value="${cat.id}"><c:out value="${cat.nombre}"/></option>
+                        <option value="${cat.id}"><c:out value="${cat.name}"/></option>
                     </c:forEach>
                 </select>
             </div>
@@ -34,7 +34,6 @@
             <paw:input name="fechaEvento" label="Fecha y horario" type="datetime-local" />
             <paw:input name="direccion" label="Dirección" type="text" />
             <paw:input name="barrio" label="Barrio (opcional)" type="text" required="${false}" />
-            <paw:input name="imagenUrl" label="URL de imagen (opcional)" type="text" required="${false}" />
             <paw:input name="precio" label="Precio (vacío = gratis)" type="number" required="${false}" />
             <paw:input name="cupoMaximo" label="Cupo máximo (vacío = sin límite)" type="number" required="${false}" />
             <paw:input name="creadorEmail" label="Tu email" type="email" />

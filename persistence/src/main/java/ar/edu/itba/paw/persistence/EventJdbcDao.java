@@ -17,23 +17,23 @@ import java.util.Optional;
 public class EventJdbcDao implements EventDao {
 
     private static final String SELECT_BASE =
-            "SELECT e.*, c.nombre AS categoria_nombre FROM evento e JOIN categoria c ON e.categoria_id = c.id";
+            "SELECT e.*, c.name AS category_name FROM event e JOIN category c ON e.category_id = c.id";
 
     private static final RowMapper<Event> ROW_MAPPER = (rs, rowNum) -> {
         final Event event = new Event();
         event.setId(rs.getLong("id"));
-        event.setTitulo(rs.getString("titulo"));
-        event.setDescripcion(rs.getString("descripcion"));
-        event.setFechaEvento(rs.getTimestamp("fecha_evento"));
-        event.setDireccion(rs.getString("direccion"));
-        event.setBarrio(rs.getString("barrio"));
-        event.setImagenUrl(rs.getString("imagen_url"));
-        event.setPrecio(rs.getDouble("precio"));
-        event.setCupoMaximo(rs.getObject("cupo_maximo", Integer.class));
-        event.setCreadorEmail(rs.getString("creador_email"));
-        event.setCategoriaId(rs.getLong("categoria_id"));
-        event.setCategoriaNombre(rs.getString("categoria_nombre"));
-        event.setFechaCreacion(rs.getTimestamp("fecha_creacion"));
+        event.setTitle(rs.getString("title"));
+        event.setDescription(rs.getString("description"));
+        event.setEventDate(rs.getTimestamp("event_date"));
+        event.setAddress(rs.getString("address"));
+        event.setNeighborhood(rs.getString("neighborhood"));
+        event.setImageId(rs.getObject("image_id", Long.class));
+        event.setPrice(rs.getDouble("price"));
+        event.setMaxCapacity(rs.getObject("max_capacity", Integer.class));
+        event.setCreatorEmail(rs.getString("creator_email"));
+        event.setCategoryId(rs.getLong("category_id"));
+        event.setCategoryName(rs.getString("category_name"));
+        event.setCreatedAt(rs.getTimestamp("created_at"));
         return event;
     };
 
@@ -44,25 +44,25 @@ public class EventJdbcDao implements EventDao {
     public EventJdbcDao(final DataSource ds) {
         this.jdbcTemplate = new JdbcTemplate(ds);
         this.jdbcInsert = new SimpleJdbcInsert(ds)
-                .withTableName("evento")
+                .withTableName("event")
                 .usingGeneratedKeyColumns("id")
-                .usingColumns("titulo", "descripcion", "fecha_evento", "direccion", "barrio",
-                        "imagen_url", "precio", "cupo_maximo", "creador_email", "categoria_id");
+                .usingColumns("title", "description", "event_date", "address", "neighborhood",
+                        "image_id", "price", "max_capacity", "creator_email", "category_id");
     }
 
     @Override
     public Event create(final Event event) {
         final Map<String, Object> args = new HashMap<>();
-        args.put("titulo", event.getTitulo());
-        args.put("descripcion", event.getDescripcion());
-        args.put("fecha_evento", new java.sql.Timestamp(event.getFechaEvento().getTime()));
-        args.put("direccion", event.getDireccion());
-        args.put("barrio", event.getBarrio());
-        args.put("imagen_url", event.getImagenUrl());
-        args.put("precio", event.getPrecio());
-        args.put("cupo_maximo", event.getCupoMaximo());
-        args.put("creador_email", event.getCreadorEmail());
-        args.put("categoria_id", event.getCategoriaId());
+        args.put("title", event.getTitle());
+        args.put("description", event.getDescription());
+        args.put("event_date", new java.sql.Timestamp(event.getEventDate().getTime()));
+        args.put("address", event.getAddress());
+        args.put("neighborhood", event.getNeighborhood());
+        args.put("image_id", event.getImageId());
+        args.put("price", event.getPrice());
+        args.put("max_capacity", event.getMaxCapacity());
+        args.put("creator_email", event.getCreatorEmail());
+        args.put("category_id", event.getCategoryId());
 
         final Number id = jdbcInsert.executeAndReturnKey(args);
         event.setId(id.longValue());
@@ -77,12 +77,12 @@ public class EventJdbcDao implements EventDao {
 
     @Override
     public List<Event> findAll() {
-        return jdbcTemplate.query(SELECT_BASE + " ORDER BY e.fecha_evento", ROW_MAPPER);
+        return jdbcTemplate.query(SELECT_BASE + " ORDER BY e.event_date", ROW_MAPPER);
     }
 
     @Override
-    public List<Event> findByCategoria(final long categoriaId) {
-        return jdbcTemplate.query(SELECT_BASE + " WHERE e.categoria_id = ? ORDER BY e.fecha_evento",
-                ROW_MAPPER, categoriaId);
+    public List<Event> findByCategory(final long categoryId) {
+        return jdbcTemplate.query(SELECT_BASE + " WHERE e.category_id = ? ORDER BY e.event_date",
+                ROW_MAPPER, categoryId);
     }
 }

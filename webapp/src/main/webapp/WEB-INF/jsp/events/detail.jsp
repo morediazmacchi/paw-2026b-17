@@ -5,7 +5,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Plancito &middot; <c:out value="${event.titulo}"/></title>
+    <title>Plancito &middot; <c:out value="${event.title}"/></title>
     <link rel="stylesheet" href="${pageContext.request.contextPath}/css/style.css">
 </head>
 <body>
@@ -18,10 +18,10 @@
 <main class="page page-narrow">
     <c:if test="${not empty rsvp}">
         <c:choose>
-            <c:when test="${rsvp == 'confirmada'}">
+            <c:when test="${rsvp == 'confirmed'}">
                 <p class="alert">Listo, quedaste confirmado.</p>
             </c:when>
-            <c:when test="${rsvp == 'espera'}">
+            <c:when test="${rsvp == 'waitlisted'}">
                 <p class="alert">El evento esta lleno, quedaste en lista de espera.</p>
             </c:when>
         </c:choose>
@@ -31,26 +31,26 @@
         <div class="detail-placeholder">
             <span class="detail-precio">
                 <c:choose>
-                    <c:when test="${event.precio == 0}">Gratis</c:when>
-                    <c:otherwise>$<fmt:formatNumber value="${event.precio}" type="number" minFractionDigits="0" maxFractionDigits="0" /></c:otherwise>
+                    <c:when test="${event.price == 0}">Gratis</c:when>
+                    <c:otherwise>$<fmt:formatNumber value="${event.price}" type="number" minFractionDigits="0" maxFractionDigits="0" /></c:otherwise>
                 </c:choose>
             </span>
         </div>
 
-        <c:if test="${not empty event.categoriaNombre}">
-            <span class="card-categoria"><c:out value="${event.categoriaNombre}"/></span>
+        <c:if test="${not empty event.categoryName}">
+            <span class="card-categoria"><c:out value="${event.categoryName}"/></span>
         </c:if>
-        <h1 class="detail-titulo"><c:out value="${event.titulo}"/></h1>
+        <h1 class="detail-titulo"><c:out value="${event.title}"/></h1>
         <p class="detail-meta">
-            <fmt:formatDate value="${event.fechaEvento}" pattern="EEEE dd/MM/yyyy · HH:mm" />hs
-            &middot; <c:out value="${event.direccion}"/><c:if test="${not empty event.barrio}"> (<c:out value="${event.barrio}"/>)</c:if>
+            <fmt:formatDate value="${event.eventDate}" pattern="EEEE dd/MM/yyyy · HH:mm" />hs
+            &middot; <c:out value="${event.address}"/><c:if test="${not empty event.neighborhood}"> (<c:out value="${event.neighborhood}"/>)</c:if>
         </p>
-        <c:if test="${not empty event.cupoMaximo}">
-            <p class="detail-meta">Cupo máximo: <c:out value="${event.cupoMaximo}"/> personas</p>
+        <c:if test="${not empty event.maxCapacity}">
+            <p class="detail-meta">Cupo máximo: <c:out value="${event.maxCapacity}"/> personas</p>
         </c:if>
 
-        <c:if test="${not empty event.descripcion}">
-            <p class="detail-descripcion"><c:out value="${event.descripcion}"/></p>
+        <c:if test="${not empty event.description}">
+            <p class="detail-descripcion"><c:out value="${event.description}"/></p>
         </c:if>
 
         <section class="rsvp-box">
