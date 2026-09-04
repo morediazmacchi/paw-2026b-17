@@ -1,3 +1,4 @@
+// Contrato de servicio para inscripciones. Implementacion: RegistrationServiceImpl (modulo services).
 package ar.edu.itba.paw.services;
 
 public interface RegistrationService {

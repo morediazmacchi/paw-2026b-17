@@ -1,3 +1,4 @@
+// Implementa el contrato CategoryService (modulo services-contracts).
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Category;

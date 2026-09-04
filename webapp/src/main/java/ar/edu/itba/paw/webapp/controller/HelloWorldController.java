@@ -4,14 +4,14 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.servlet.ModelAndView;
 import org.springframework.beans.factory.annotation.Autowired;
-import ar.edu.itba.paw.services.UserServiceImpl;
+import ar.edu.itba.paw.services.UserService;
 
 @Controller
 public class HelloWorldController {
-    private final UserServiceImpl us;
+    private final UserService us;
 
     @Autowired
-    public HelloWorldController(final UserServiceImpl us) {
+    public HelloWorldController(final UserService us) {
         this.us = us;
     }
 

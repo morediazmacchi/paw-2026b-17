@@ -1,3 +1,4 @@
+// Implementa el contrato RegistrationService (modulo services-contracts).
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;

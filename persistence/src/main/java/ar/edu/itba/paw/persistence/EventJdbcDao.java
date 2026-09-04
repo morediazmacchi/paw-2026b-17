@@ -1,3 +1,4 @@
+// Implementa el contrato EventDao (modulo persistence-contracts).
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.Event;

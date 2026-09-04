@@ -1,3 +1,4 @@
+// Implementa el contrato RegistrationDao (modulo persistence-contracts).
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.Registration;

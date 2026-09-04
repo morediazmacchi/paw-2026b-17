@@ -7,7 +7,9 @@
   <name>paw2026b</name>
   <modules>
     <module>model</module>
+    <module>persistence-contracts</module>
     <module>persistence</module>
+    <module>services-contracts</module>
     <module>services</module>
     <module>webapp</module>
   </modules>

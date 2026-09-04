@@ -1,3 +1,4 @@
+// Contrato de servicio para Category. Implementacion: CategoryServiceImpl (modulo services).
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Category;

@@ -1,3 +1,4 @@
+// Implementa el contrato UserService (modulo services-contracts).
 package ar.edu.itba.paw.services;
 
 import org.springframework.stereotype.Service;
