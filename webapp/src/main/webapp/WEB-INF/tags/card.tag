@@ -5,11 +5,15 @@
 <%@ attribute name="fecha" required="true" type="java.util.Date" %>
 <%@ attribute name="categoria" required="false" %>
 <%@ attribute name="ubicacion" required="false" %>
+<%@ attribute name="imagenId" required="false" type="java.lang.Long" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <%@ taglib prefix="fmt" uri="http://java.sun.com/jsp/jstl/fmt" %>
 
 <a class="card" href="<c:url value='/eventos/${id}'/>">
     <div class="card-placeholder">
+        <c:if test="${not empty imagenId}">
+            <img class="card-img" src="<c:url value='/image/${imagenId}'/>" alt="<c:out value='${nombre}'/>" />
+        </c:if>
         <span class="card-precio">
             <c:choose>
                 <c:when test="${empty precio or precio == 0}">Gratis</c:when>

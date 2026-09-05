@@ -47,7 +47,7 @@
                     <c:set var="cardUbicacion" value="${empty event.neighborhood ? event.address : event.neighborhood}" />
                     <paw:card id="${event.id}" nombre="${event.title}" precio="${cardPrecio}"
                               fecha="${event.eventDate}" categoria="${event.categoryName}"
-                              ubicacion="${cardUbicacion}" />
+                              ubicacion="${cardUbicacion}" imagenId="${event.imageId}" />
                 </c:forEach>
             </div>
         </c:otherwise>
