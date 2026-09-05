@@ -82,6 +82,12 @@ public class EventJdbcDao implements EventDao {
     }
 
     @Override
+    public Optional<Event> findByIdForUpdate(final long id) {
+        return jdbcTemplate.query(SELECT_BASE + " WHERE e.id = ? FOR UPDATE OF e", ROW_MAPPER, id)
+                .stream().findFirst();
+    }
+
+    @Override
     public List<Event> findAll() {
         return jdbcTemplate.query(SELECT_BASE + " ORDER BY e.event_date", ROW_MAPPER);
     }

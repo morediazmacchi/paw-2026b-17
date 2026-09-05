@@ -5,6 +5,7 @@ import ar.edu.itba.paw.model.Category;
 import ar.edu.itba.paw.persistence.CategoryDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -19,6 +20,7 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Category> findAll() {
         return categoryDao.findAll();
     }

@@ -30,8 +30,11 @@
             <c:when test="${rsvp == 'confirmed'}">
                 <p class="alert">Listo, quedaste confirmado.</p>
             </c:when>
-            <c:when test="${rsvp == 'waitlisted'}">
-                <p class="alert">El evento esta lleno, quedaste en lista de espera.</p>
+            <c:when test="${rsvp == 'ya-anotado'}">
+                <p class="alert">Ya estabas anotado.</p>
+            </c:when>
+            <c:when test="${rsvp == 'lleno'}">
+                <p class="alert">El evento ya esta lleno, no te pudimos anotar.</p>
             </c:when>
         </c:choose>
     </c:if>

@@ -21,6 +21,7 @@
     <postgresql.version>42.7.4</postgresql.version>
     <hibernate-validator.version>6.2.5.Final</hibernate-validator.version>
     <javax-el.version>3.0.1-b12</javax-el.version>
+    <slf4j.version>1.7.36</slf4j.version>
   </properties>
   <dependencyManagement>
     <dependencies>
@@ -58,6 +59,11 @@
         <groupId>org.glassfish</groupId>
         <artifactId>javax.el</artifactId>
         <version>${javax-el.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.slf4j</groupId>
+        <artifactId>slf4j-api</artifactId>
+        <version>${slf4j.version}</version>
       </dependency>
     </dependencies>
   </dependencyManagement>

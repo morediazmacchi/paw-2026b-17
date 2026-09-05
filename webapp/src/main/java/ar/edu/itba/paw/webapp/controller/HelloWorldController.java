@@ -18,7 +18,7 @@ public class HelloWorldController {
     @RequestMapping("/")
     public ModelAndView helloWorld() {
         final ModelAndView mav = new ModelAndView("helloworld/index");
-        mav.addObject("username", us.findById(1l));
+        mav.addObject("username", us.findById(1l).map(u -> u.getName()).orElse("desconocido"));
         return mav;
     }
 }

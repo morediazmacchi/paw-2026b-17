@@ -47,3 +47,5 @@ CREATE TABLE IF NOT EXISTS registration (
                           CHECK (status IN ('confirmed', 'waitlisted')),
     UNIQUE (event_id, email)
 );
+
+ALTER TABLE users ALTER COLUMN name DROP NOT NULL;

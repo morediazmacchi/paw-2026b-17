@@ -7,6 +7,7 @@
     <meta charset="UTF-8">
     <title>Plancito &middot; <c:out value="${event.title}"/></title>
     <link rel="stylesheet" href="${pageContext.request.contextPath}/css/style.css">
+    <script src="<c:url value='/js/disable-on-submit.js'/>"></script>
 </head>
 <body>
 
@@ -21,8 +22,11 @@
             <c:when test="${rsvp == 'confirmed'}">
                 <p class="alert">Listo, quedaste confirmado.</p>
             </c:when>
-            <c:when test="${rsvp == 'waitlisted'}">
-                <p class="alert">El evento esta lleno, quedaste en lista de espera.</p>
+            <c:when test="${rsvp == 'ya-anotado'}">
+                <p class="alert">Ya estabas anotado.</p>
+            </c:when>
+            <c:when test="${rsvp == 'lleno'}">
+                <p class="alert">El evento ya esta lleno, no te pudimos anotar.</p>
             </c:when>
         </c:choose>
     </c:if>
@@ -58,11 +62,20 @@
 
         <section class="rsvp-box">
             <h2>Quiero ir</h2>
-            <form action="<c:url value='/eventos/${event.id}/quiero-ir'/>" method="post">
-                <paw:input name="email" label="Tu email" type="email" />
-                <paw:input name="nombre" label="Tu nombre (opcional)" type="text" required="${false}" />
-                <paw:button text="Quiero ir" cssClass="btn-accent" />
-            </form>
+            <c:choose>
+                <c:when test="${full}">
+                    <p class="alert">Evento a su capacidad.</p>
+                </c:when>
+                <c:otherwise>
+                    <form action="<c:url value='/eventos/${event.id}/quiero-ir'/>" method="post" novalidate="novalidate">
+                        <paw:input name="email" label="Tu email" type="email"
+                                   value="${registrationForm.email}" errorMessage="${fieldErrors.email}" />
+                        <paw:input name="nombre" label="Tu nombre" type="text"
+                                   value="${registrationForm.nombre}" errorMessage="${fieldErrors.nombre}" />
+                        <paw:button text="Quiero ir" cssClass="btn-accent" />
+                    </form>
+                </c:otherwise>
+            </c:choose>
         </section>
     </article>
 </main>

@@ -6,10 +6,13 @@ import ar.edu.itba.paw.model.Image;
 import ar.edu.itba.paw.services.CategoryService;
 import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.ImageService;
+import ar.edu.itba.paw.services.RegistrationResult;
 import ar.edu.itba.paw.services.RegistrationService;
 import ar.edu.itba.paw.webapp.exception.EventNotFoundException;
 import ar.edu.itba.paw.webapp.form.EventForm;
+import ar.edu.itba.paw.webapp.form.RegistrationForm;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
@@ -69,6 +72,7 @@ public class EventController {
                     final ModelAndView mav = new ModelAndView("events/detail");
                     mav.addObject("event", event);
                     mav.addObject("rsvp", rsvp);
+                    mav.addObject("full", registrationService.isFull(id));
                     return mav;
                 })
                 .orElseThrow(() -> new EventNotFoundException(id));
@@ -135,9 +139,7 @@ public class EventController {
         return mav;
     }
 
-    // "typeMismatch" es el codigo que usa Spring cuando no puede convertir el
-    // parametro del form al tipo del campo (hoy, solo pasa con categoriaId,
-    // que es el unico campo no-String). El mensaje default de Spring es ilegible.
+    // El mensaje default de Spring para "typeMismatch" es ilegible.
     private static String messageFor(final FieldError fieldError) {
         if ("typeMismatch".equals(fieldError.getCode()) && "categoriaId".equals(fieldError.getField())) {
             return "Elegi una categoria valida";
@@ -159,9 +161,45 @@ public class EventController {
 
     @RequestMapping(value = "/eventos/{id}/quiero-ir", method = RequestMethod.POST)
     public ModelAndView rsvp(@PathVariable final long id,
-                              @RequestParam final String email,
-                              @RequestParam(required = false) final String nombre) {
-        final String status = registrationService.register(id, email, nombre);
-        return new ModelAndView("redirect:/eventos/" + id + "?rsvp=" + status);
+                              @Valid final RegistrationForm form, final BindingResult errors) {
+        if (!eventService.findById(id).isPresent()) {
+            throw new EventNotFoundException(id);
+        }
+        if (errors.hasErrors()) {
+            return detailWithErrors(id, form, errors);
+        }
+        try {
+            final RegistrationResult result = registerRetryingOnConflict(id, form);
+            final String rsvpParam = result == RegistrationResult.ALREADY_REGISTERED ? "ya-anotado" : "confirmed";
+            return new ModelAndView("redirect:/eventos/" + id + "?rsvp=" + rsvpParam);
+        } catch (final IllegalStateException e) {
+            return new ModelAndView("redirect:/eventos/" + id + "?rsvp=lleno");
+        }
+    }
+
+    private RegistrationResult registerRetryingOnConflict(final long id, final RegistrationForm form) {
+        try {
+            return registrationService.register(id, form.getEmail(), form.getNombre());
+        } catch (final DataIntegrityViolationException e) {
+            // Reintento en una transaccion nueva: la anterior quedo abortada por el conflicto.
+            return registrationService.register(id, form.getEmail(), form.getNombre());
+        }
+    }
+
+    private ModelAndView detailWithErrors(final long id, final RegistrationForm form, final BindingResult errors) {
+        final Map<String, String> fieldErrors = new HashMap<>();
+        for (final FieldError fieldError : errors.getFieldErrors()) {
+            fieldErrors.put(fieldError.getField(), fieldError.getDefaultMessage());
+        }
+        return eventService.findById(id)
+                .map(event -> {
+                    final ModelAndView mav = new ModelAndView("events/detail");
+                    mav.addObject("event", event);
+                    mav.addObject("full", registrationService.isFull(id));
+                    mav.addObject("registrationForm", form);
+                    mav.addObject("fieldErrors", fieldErrors);
+                    return mav;
+                })
+                .orElseThrow(() -> new EventNotFoundException(id));
     }
 }
