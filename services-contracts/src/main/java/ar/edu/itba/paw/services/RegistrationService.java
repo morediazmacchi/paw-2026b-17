@@ -4,17 +4,14 @@ package ar.edu.itba.paw.services;
 public interface RegistrationService {
 
     /**
-     * Anota a alguien en un evento. Si ya estaba anotado con ese mail, no crea uno nuevo
-     * y devuelve el estado existente. Si el evento tiene cupo maximo y ya esta lleno,
-     * no lo anota y devuelve "full".
+     * Anota a alguien en un evento. Si ya estaba anotado con ese mail, no crea uno nuevo.
      *
-     * @return "confirmed" si quedo anotado, o "full" si el evento ya llego al cupo
+     * @throws IllegalStateException si el evento ya esta lleno
      */
-    String register(long eventId, String email, String name);
+    RegistrationResult register(long eventId, String email, String name);
 
     /**
-     * @return true si el evento tiene cupo maximo y ya se alcanzo.
-     *         Se usa para no mostrar el formulario de inscripcion.
+     * @return true si el evento ya alcanzo su cupo maximo (siempre false si no tiene limite)
      */
     boolean isFull(long eventId);
 }

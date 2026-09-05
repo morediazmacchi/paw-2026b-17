@@ -6,6 +6,7 @@
     <meta charset="UTF-8">
     <title>Plancito &middot; Publicar evento</title>
     <link rel="stylesheet" href="${pageContext.request.contextPath}/css/style.css">
+    <script src="<c:url value='/js/disable-on-submit.js'/>"></script>
 </head>
 <body>
 
