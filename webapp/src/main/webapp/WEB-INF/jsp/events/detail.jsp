@@ -21,8 +21,8 @@
             <c:when test="${rsvp == 'confirmed'}">
                 <p class="alert">Listo, quedaste confirmado.</p>
             </c:when>
-            <c:when test="${rsvp == 'waitlisted'}">
-                <p class="alert">El evento esta lleno, quedaste en lista de espera.</p>
+            <c:when test="${rsvp == 'full'}">
+                <p class="alert">Este evento ya llego a su cupo maximo, no pudimos anotarte.</p>
             </c:when>
         </c:choose>
     </c:if>
@@ -56,14 +56,24 @@
             <p class="detail-descripcion"><c:out value="${event.description}"/></p>
         </c:if>
 
-        <section class="rsvp-box">
-            <h2>Quiero ir</h2>
-            <form action="<c:url value='/eventos/${event.id}/quiero-ir'/>" method="post">
-                <paw:input name="email" label="Tu email" type="email" />
-                <paw:input name="nombre" label="Tu nombre (opcional)" type="text" required="${false}" />
-                <paw:button text="Quiero ir" cssClass="btn-accent" />
-            </form>
-        </section>
+        <c:choose>
+            <c:when test="${full}">
+                <section class="rsvp-box">
+                    <h2>Cupo completo</h2>
+                    <p class="empty-state">Este evento ya llego a su cupo maximo.</p>
+                </section>
+            </c:when>
+            <c:otherwise>
+                <section class="rsvp-box">
+                    <h2>Quiero ir</h2>
+                    <form action="<c:url value='/eventos/${event.id}/quiero-ir'/>" method="post">
+                        <paw:input name="email" label="Tu email" type="email" />
+                        <paw:input name="nombre" label="Tu nombre (opcional)" type="text" required="${false}" />
+                        <paw:button text="Quiero ir" cssClass="btn-accent" />
+                    </form>
+                </section>
+            </c:otherwise>
+        </c:choose>
     </article>
 </main>
 

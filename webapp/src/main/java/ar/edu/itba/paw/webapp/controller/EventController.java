@@ -69,6 +69,7 @@ public class EventController {
                     final ModelAndView mav = new ModelAndView("events/detail");
                     mav.addObject("event", event);
                     mav.addObject("rsvp", rsvp);
+                    mav.addObject("full", registrationService.isFull(id));
                     return mav;
                 })
                 .orElseThrow(() -> new EventNotFoundException(id));
