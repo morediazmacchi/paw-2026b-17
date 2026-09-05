@@ -44,7 +44,7 @@
             <div class="card-grid">
                 <c:forEach var="event" items="${events}">
                     <c:set var="cardPrecio" value="${event.price == 0 ? null : event.price}" />
-                    <c:set var="cardUbicacion" value="${empty event.neighborhood ? event.address : event.neighborhood}" />
+                    <c:set var="cardUbicacion" value="${empty event.neighborhood ? event.address : event.neighborhood.displayName}" />
                     <paw:card id="${event.id}" nombre="${event.title}" precio="${cardPrecio}"
                               fecha="${event.eventDate}" categoria="${event.categoryName}"
                               ubicacion="${cardUbicacion}" />

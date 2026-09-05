@@ -9,8 +9,8 @@ public class Event {
     private String description;
     private Date eventDate;
     private String address;
-    private String neighborhood;
-    private Long imageId;
+    private Barrio neighborhood;
+    private Integer imageId;
     private double price;
     private Integer maxCapacity;
     private String creatorEmail;
@@ -22,7 +22,7 @@ public class Event {
     }
 
     public Event(final String title, final String description, final Date eventDate, final String address,
-                 final String neighborhood, final Long imageId, final double price, final Integer maxCapacity,
+                 final Barrio neighborhood, final Integer imageId, final double price, final Integer maxCapacity,
                  final String creatorEmail, final long categoryId) {
         this.title = title;
         this.description = description;
@@ -46,10 +46,10 @@ public class Event {
     public void setEventDate(final Date eventDate) { this.eventDate = eventDate; }
     public String getAddress() { return address; }
     public void setAddress(final String address) { this.address = address; }
-    public String getNeighborhood() { return neighborhood; }
-    public void setNeighborhood(final String neighborhood) { this.neighborhood = neighborhood; }
-    public Long getImageId() { return imageId; }
-    public void setImageId(final Long imageId) { this.imageId = imageId; }
+    public Barrio getNeighborhood() { return neighborhood; }
+    public void setNeighborhood(final Barrio neighborhood) { this.neighborhood = neighborhood; }
+    public Integer getImageId() { return imageId; }
+    public void setImageId(final Integer imageId) { this.imageId = imageId; }
     public double getPrice() { return price; }
     public void setPrice(final double price) { this.price = price; }
     public Integer getMaxCapacity() { return maxCapacity; }

@@ -4,6 +4,7 @@ package ar.edu.itba.paw.services;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.persistence.EventDao;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -20,7 +21,13 @@ public class EventServiceImpl implements EventService {
     }
 
     @Override
-    public Event create(final Event event) { return eventDao.create(event); }
+    public Event create(final Event event) {
+        try {
+            return eventDao.create(event);
+        } catch (final DataIntegrityViolationException e) {
+            throw new IllegalArgumentException("La categoria elegida no existe", e);
+        }
+    }
     @Override
     public Optional<Event> findById(final long id) { return eventDao.findById(id); }
     @Override

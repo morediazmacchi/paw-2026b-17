@@ -1,6 +1,7 @@
 // Implementa el contrato EventDao (modulo persistence-contracts).
 package ar.edu.itba.paw.persistence;
 
+import ar.edu.itba.paw.model.Barrio;
 import ar.edu.itba.paw.model.Event;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -27,8 +28,9 @@ public class EventJdbcDao implements EventDao {
         event.setDescription(rs.getString("description"));
         event.setEventDate(rs.getTimestamp("event_date"));
         event.setAddress(rs.getString("address"));
-        event.setNeighborhood(rs.getString("neighborhood"));
-        event.setImageId(rs.getObject("image_id", Long.class));
+        final String neighborhoodName = rs.getString("neighborhood");
+        event.setNeighborhood(neighborhoodName == null ? null : Barrio.valueOf(neighborhoodName));
+        event.setImageId(rs.getObject("image_id", Integer.class));
         event.setPrice(rs.getDouble("price"));
         event.setMaxCapacity(rs.getObject("max_capacity", Integer.class));
         event.setCreatorEmail(rs.getString("creator_email"));
@@ -58,7 +60,7 @@ public class EventJdbcDao implements EventDao {
         args.put("description", event.getDescription());
         args.put("event_date", new java.sql.Timestamp(event.getEventDate().getTime()));
         args.put("address", event.getAddress());
-        args.put("neighborhood", event.getNeighborhood());
+        args.put("neighborhood", event.getNeighborhood() == null ? null : event.getNeighborhood().name());
         args.put("image_id", event.getImageId());
         args.put("price", event.getPrice());
         args.put("max_capacity", event.getMaxCapacity());

@@ -43,7 +43,7 @@
         <h1 class="detail-titulo"><c:out value="${event.title}"/></h1>
         <p class="detail-meta">
             <fmt:formatDate value="${event.eventDate}" pattern="EEEE dd/MM/yyyy · HH:mm" />hs
-            &middot; <c:out value="${event.address}"/><c:if test="${not empty event.neighborhood}"> (<c:out value="${event.neighborhood}"/>)</c:if>
+            &middot; <c:out value="${event.address}"/><c:if test="${not empty event.neighborhood}"> (<c:out value="${event.neighborhood.displayName}"/>)</c:if>
         </p>
         <c:if test="${not empty event.maxCapacity}">
             <p class="detail-meta">Cupo máximo: <c:out value="${event.maxCapacity}"/> personas</p>

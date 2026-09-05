@@ -18,25 +18,50 @@
     <div class="form-card">
         <h1>Publicar un evento</h1>
 
-        <form action="<c:url value='/eventos/publicar'/>" method="post">
-            <paw:input name="titulo" label="Título" type="text" />
-            <paw:input name="descripcion" label="Descripción" type="text" required="${false}" />
+        <form action="<c:url value='/eventos/publicar'/>" method="post" novalidate="novalidate">
+            <paw:input name="titulo" label="Título" type="text"
+                       value="${eventForm.titulo}" errorMessage="${fieldErrors.titulo}" />
+            <paw:input name="descripcion" label="Descripción" type="text" required="${false}"
+                       value="${eventForm.descripcion}" errorMessage="${fieldErrors.descripcion}" />
 
             <div class="form-group">
                 <label for="categoriaId">Categoría</label>
                 <select id="categoriaId" name="categoriaId">
                     <c:forEach var="cat" items="${categories}">
-                        <option value="${cat.id}"><c:out value="${cat.name}"/></option>
+                        <option value="${cat.id}" ${cat.id == eventForm.categoriaId ? 'selected' : ''}>
+                            <c:out value="${cat.name}"/>
+                        </option>
                     </c:forEach>
                 </select>
+                <c:if test="${not empty fieldErrors.categoriaId}">
+                    <span class="error-message"><c:out value="${fieldErrors.categoriaId}"/></span>
+                </c:if>
             </div>
 
-            <paw:input name="fechaEvento" label="Fecha y horario" type="datetime-local" />
-            <paw:input name="direccion" label="Dirección" type="text" />
-            <paw:input name="barrio" label="Barrio (opcional)" type="text" required="${false}" />
-            <paw:input name="precio" label="Precio (vacío = gratis)" type="number" required="${false}" />
-            <paw:input name="cupoMaximo" label="Cupo máximo (vacío = sin límite)" type="number" required="${false}" />
-            <paw:input name="creadorEmail" label="Tu email" type="email" />
+            <paw:input name="fechaEvento" label="Fecha y horario" type="datetime-local"
+                       value="${eventForm.fechaEvento}" errorMessage="${fieldErrors.fechaEvento}" />
+            <paw:input name="direccion" label="Dirección" type="text"
+                       value="${eventForm.direccion}" errorMessage="${fieldErrors.direccion}" />
+            <div class="form-group">
+                <label for="barrio">Barrio (opcional)</label>
+                <select id="barrio" name="barrio">
+                    <option value="">Sin especificar</option>
+                    <c:forEach var="b" items="${barrios}">
+                        <option value="${b}" ${b.name() == eventForm.barrio ? 'selected' : ''}>
+                            <c:out value="${b.displayName}"/>
+                        </option>
+                    </c:forEach>
+                </select>
+                <c:if test="${not empty fieldErrors.barrio}">
+                    <span class="error-message"><c:out value="${fieldErrors.barrio}"/></span>
+                </c:if>
+            </div>
+            <paw:input name="precio" label="Precio (si es evento gratuito, colocar 0)" type="number" min="0"
+                       value="${eventForm.precio}" errorMessage="${fieldErrors.precio}" />
+            <paw:input name="cupoMaximo" label="Cupo máximo (si no hay límite, colocar 0)" type="number" min="0"
+                       value="${eventForm.cupoMaximo}" errorMessage="${fieldErrors.cupoMaximo}" />
+            <paw:input name="creadorEmail" label="Tu email" type="email"
+                       value="${eventForm.creadorEmail}" errorMessage="${fieldErrors.creadorEmail}" />
 
             <paw:button text="Publicar" cssClass="btn-accent" />
         </form>

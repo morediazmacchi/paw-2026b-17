@@ -1,21 +1,28 @@
 package ar.edu.itba.paw.webapp.controller;
 
+import ar.edu.itba.paw.model.Barrio;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.services.CategoryService;
 import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.RegistrationService;
+import ar.edu.itba.paw.webapp.form.EventForm;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
+import org.springframework.validation.BindingResult;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.ModelAndView;
 
+import javax.validation.Valid;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Controller
 public class EventController {
@@ -64,31 +71,67 @@ public class EventController {
     public ModelAndView publishForm() {
         final ModelAndView mav = new ModelAndView("events/publish");
         mav.addObject("categories", categoryService.findAll());
+        mav.addObject("barrios", Barrio.values());
         return mav;
     }
 
     @RequestMapping(value = "/eventos/publicar", method = RequestMethod.POST)
-    public ModelAndView publish(
-            @RequestParam final String titulo,
-            @RequestParam(required = false) final String descripcion,
-            @RequestParam final long categoriaId,
-            @RequestParam final String fechaEvento,
-            @RequestParam final String direccion,
-            @RequestParam(required = false) final String barrio,
-            @RequestParam(required = false) final String precio,
-            @RequestParam(required = false) final String cupoMaximo,
-            @RequestParam final String creadorEmail) throws ParseException {
+    public ModelAndView publish(@Valid final EventForm form, final BindingResult errors) throws ParseException {
+        final Barrio parsedBarrio = parseBarrio(form.getBarrio(), errors);
 
-        final Date parsedDate = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm").parse(fechaEvento);
-        final double parsedPrice = (precio == null || precio.trim().isEmpty()) ? 0.0 : Double.parseDouble(precio);
-        final Integer parsedCapacity = (cupoMaximo == null || cupoMaximo.trim().isEmpty())
-                ? null : Integer.valueOf(cupoMaximo);
+        if (errors.hasErrors()) {
+            return publishFormWithErrors(form, errors);
+        }
+
+        final Date parsedDate = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm").parse(form.getFechaEvento());
+        final double parsedPrice = Double.parseDouble(form.getPrecio());
+        final Integer parsedCapacity = "0".equals(form.getCupoMaximo()) ? null : Integer.valueOf(form.getCupoMaximo());
 
         // imageId queda en null: la subida de imagenes es el proximo paso.
-        final Event event = new Event(titulo, descripcion, parsedDate, direccion, barrio, null,
-                parsedPrice, parsedCapacity, creadorEmail, categoriaId);
-        eventService.create(event);
+        final Event event = new Event(form.getTitulo(), form.getDescripcion(), parsedDate, form.getDireccion(),
+                parsedBarrio, null, parsedPrice, parsedCapacity, form.getCreadorEmail(), form.getCategoriaId());
+        try {
+            eventService.create(event);
+        } catch (final IllegalArgumentException e) {
+            errors.rejectValue("categoriaId", "categoria.invalida", e.getMessage());
+            return publishFormWithErrors(form, errors);
+        }
         return new ModelAndView("redirect:/eventos");
+    }
+
+    private ModelAndView publishFormWithErrors(final EventForm form, final BindingResult errors) {
+        final Map<String, String> fieldErrors = new HashMap<>();
+        for (final FieldError fieldError : errors.getFieldErrors()) {
+            fieldErrors.put(fieldError.getField(), messageFor(fieldError));
+        }
+        final ModelAndView mav = new ModelAndView("events/publish");
+        mav.addObject("categories", categoryService.findAll());
+        mav.addObject("barrios", Barrio.values());
+        mav.addObject("eventForm", form);
+        mav.addObject("fieldErrors", fieldErrors);
+        return mav;
+    }
+
+    // "typeMismatch" es el codigo que usa Spring cuando no puede convertir el
+    // parametro del form al tipo del campo (hoy, solo pasa con categoriaId,
+    // que es el unico campo no-String). El mensaje default de Spring es ilegible.
+    private static String messageFor(final FieldError fieldError) {
+        if ("typeMismatch".equals(fieldError.getCode()) && "categoriaId".equals(fieldError.getField())) {
+            return "Elegi una categoria valida";
+        }
+        return fieldError.getDefaultMessage();
+    }
+
+    private static Barrio parseBarrio(final String barrio, final BindingResult errors) {
+        if (barrio == null || barrio.isEmpty()) {
+            return null;
+        }
+        try {
+            return Barrio.valueOf(barrio);
+        } catch (final IllegalArgumentException e) {
+            errors.rejectValue("barrio", "barrio.invalido", "Elegi un barrio de la lista");
+            return null;
+        }
     }
 
     @RequestMapping(value = "/eventos/{id}/quiero-ir", method = RequestMethod.POST)
