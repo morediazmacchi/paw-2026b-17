@@ -2,9 +2,12 @@ package ar.edu.itba.paw.webapp.controller;
 
 import ar.edu.itba.paw.model.Barrio;
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.Image;
 import ar.edu.itba.paw.services.CategoryService;
 import ar.edu.itba.paw.services.EventService;
+import ar.edu.itba.paw.services.ImageService;
 import ar.edu.itba.paw.services.RegistrationService;
+import ar.edu.itba.paw.webapp.exception.EventNotFoundException;
 import ar.edu.itba.paw.webapp.form.EventForm;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
@@ -14,9 +17,11 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.ModelAndView;
 
 import javax.validation.Valid;
+import java.io.IOException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -30,13 +35,15 @@ public class EventController {
     private final EventService eventService;
     private final CategoryService categoryService;
     private final RegistrationService registrationService;
+    private final ImageService imageService;
 
     @Autowired
     public EventController(final EventService eventService, final CategoryService categoryService,
-                            final RegistrationService registrationService) {
+                            final RegistrationService registrationService, final ImageService imageService) {
         this.eventService = eventService;
         this.categoryService = categoryService;
         this.registrationService = registrationService;
+        this.imageService = imageService;
     }
 
     @RequestMapping(value = "/eventos", method = RequestMethod.GET)
@@ -64,7 +71,7 @@ public class EventController {
                     mav.addObject("rsvp", rsvp);
                     return mav;
                 })
-                .orElseGet(() -> new ModelAndView("redirect:/eventos"));
+                .orElseThrow(() -> new EventNotFoundException(id));
     }
 
     @RequestMapping(value = "/eventos/publicar", method = RequestMethod.GET)
@@ -76,30 +83,45 @@ public class EventController {
     }
 
     @RequestMapping(value = "/eventos/publicar", method = RequestMethod.POST)
-    public ModelAndView publish(@Valid final EventForm form, final BindingResult errors) throws ParseException {
+    public ModelAndView publish(@Valid final EventForm form, final BindingResult errors,
+                                 @RequestParam(value = "image", required = false) final MultipartFile image)
+            throws ParseException {
         final Barrio parsedBarrio = parseBarrio(form.getBarrio(), errors);
 
         if (errors.hasErrors()) {
-            return publishFormWithErrors(form, errors);
+            return publishFormWithErrors(form, errors, null);
         }
 
         final Date parsedDate = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm").parse(form.getFechaEvento());
         final double parsedPrice = Double.parseDouble(form.getPrecio());
         final Integer parsedCapacity = "0".equals(form.getCupoMaximo()) ? null : Integer.valueOf(form.getCupoMaximo());
 
-        // imageId queda en null: la subida de imagenes es el proximo paso.
+        Long imageId = null;
+        if (image != null && !image.isEmpty()) {
+            try {
+                final Image saved = imageService.create(
+                        image.getBytes(), image.getContentType(), image.getOriginalFilename());
+                imageId = saved.getId();
+            } catch (final IOException e) {
+                return publishFormWithErrors(form, errors, "No se pudo leer el archivo, proba de nuevo.");
+            } catch (final IllegalArgumentException e) {
+                return publishFormWithErrors(form, errors, e.getMessage());
+            }
+        }
+
         final Event event = new Event(form.getTitulo(), form.getDescripcion(), parsedDate, form.getDireccion(),
-                parsedBarrio, null, parsedPrice, parsedCapacity, form.getCreadorEmail(), form.getCategoriaId());
+                parsedBarrio, imageId, parsedPrice, parsedCapacity, form.getCreadorEmail(), form.getCategoriaId());
         try {
             eventService.create(event);
         } catch (final IllegalArgumentException e) {
             errors.rejectValue("categoriaId", "categoria.invalida", e.getMessage());
-            return publishFormWithErrors(form, errors);
+            return publishFormWithErrors(form, errors, null);
         }
         return new ModelAndView("redirect:/eventos");
     }
 
-    private ModelAndView publishFormWithErrors(final EventForm form, final BindingResult errors) {
+    private ModelAndView publishFormWithErrors(final EventForm form, final BindingResult errors,
+                                                final String imageError) {
         final Map<String, String> fieldErrors = new HashMap<>();
         for (final FieldError fieldError : errors.getFieldErrors()) {
             fieldErrors.put(fieldError.getField(), messageFor(fieldError));
@@ -109,6 +131,7 @@ public class EventController {
         mav.addObject("barrios", Barrio.values());
         mav.addObject("eventForm", form);
         mav.addObject("fieldErrors", fieldErrors);
+        mav.addObject("imageError", imageError);
         return mav;
     }
 

@@ -30,7 +30,10 @@ public class EventJdbcDao implements EventDao {
         event.setAddress(rs.getString("address"));
         final String neighborhoodName = rs.getString("neighborhood");
         event.setNeighborhood(neighborhoodName == null ? null : Barrio.valueOf(neighborhoodName));
-        event.setImageId(rs.getObject("image_id", Integer.class));
+        // image_id es INTEGER (int4) en la base y Long en Java. El driver de Postgres
+        // no convierte int4 -> Long directo, hay que pasar por Integer.
+        final Integer rawImageId = rs.getObject("image_id", Integer.class);
+        event.setImageId(rawImageId == null ? null : rawImageId.longValue());
         event.setPrice(rs.getDouble("price"));
         event.setMaxCapacity(rs.getObject("max_capacity", Integer.class));
         event.setCreatorEmail(rs.getString("creator_email"));

@@ -18,7 +18,11 @@
     <div class="form-card">
         <h1>Publicar un evento</h1>
 
-        <form action="<c:url value='/eventos/publicar'/>" method="post" novalidate="novalidate">
+        <c:if test="${not empty imageError}">
+            <p class="alert"><c:out value="${imageError}"/></p>
+        </c:if>
+
+        <form action="<c:url value='/eventos/publicar'/>" method="post" enctype="multipart/form-data" novalidate="novalidate">
             <paw:input name="titulo" label="Título" type="text"
                        value="${eventForm.titulo}" errorMessage="${fieldErrors.titulo}" />
             <paw:input name="descripcion" label="Descripción" type="text" required="${false}"
@@ -62,6 +66,11 @@
                        value="${eventForm.cupoMaximo}" errorMessage="${fieldErrors.cupoMaximo}" />
             <paw:input name="creadorEmail" label="Tu email" type="email"
                        value="${eventForm.creadorEmail}" errorMessage="${fieldErrors.creadorEmail}" />
+
+            <div class="form-group">
+                <label for="image">Imagen (opcional, hasta 5 MB)</label>
+                <input type="file" id="image" name="image" accept="image/*" />
+            </div>
 
             <paw:button text="Publicar" cssClass="btn-accent" />
         </form>

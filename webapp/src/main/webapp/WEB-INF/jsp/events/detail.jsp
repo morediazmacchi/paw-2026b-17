@@ -29,6 +29,9 @@
 
     <article class="detail">
         <div class="detail-placeholder">
+            <c:if test="${not empty event.imageId}">
+                <img class="detail-img" src="<c:url value='/image/${event.imageId}'/>" alt="<c:out value='${event.title}'/>" />
+            </c:if>
             <span class="detail-precio">
                 <c:choose>
                     <c:when test="${event.price == 0}">Gratis</c:when>
