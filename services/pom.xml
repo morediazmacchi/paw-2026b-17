@@ -53,6 +53,10 @@
       <groupId>com.sun.mail</groupId>
       <artifactId>javax.mail</artifactId>
     </dependency>
+    <dependency>
+      <groupId>org.thymeleaf</groupId>
+      <artifactId>thymeleaf</artifactId>
+    </dependency>
     <!-- Testing (lo agrego Lucas) -->
     <dependency>
       <groupId>junit</groupId>

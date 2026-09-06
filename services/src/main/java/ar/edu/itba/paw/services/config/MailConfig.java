@@ -4,9 +4,14 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.PropertySource;
+import org.springframework.context.MessageSource;
 import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
+import org.springframework.context.support.ReloadableResourceBundleMessageSource;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
+import org.thymeleaf.TemplateEngine;
+import org.thymeleaf.templatemode.TemplateMode;
+import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
 
 import java.util.Properties;
 
@@ -71,6 +76,54 @@ public class MailConfig {
         props.put("mail.smtp.starttls.enable", String.valueOf(starttls));
 
         return sender;
+    }
+
+    /**
+     * De donde salen los TEXTOS de los mails.
+     *
+     * El basename no lleva ni el idioma ni el .properties: Spring le agrega
+     * "_es" o "_en" segun el Locale que le pasemos, y busca
+     * i18n/mail-messages_es.properties o i18n/mail-messages_en.properties.
+     *
+     * Se llama mailMessageSource y no messageSource a proposito: ese nombre
+     * exacto es especial para Spring, y ademas mas adelante el sitio va a
+     * tener el suyo para los JSP. Que no se pisen.
+     */
+    @Bean
+    public MessageSource mailMessageSource() {
+        final ReloadableResourceBundleMessageSource ms = new ReloadableResourceBundleMessageSource();
+        ms.setBasename("classpath:i18n/mail-messages");
+        ms.setDefaultEncoding("UTF-8");
+        // Sin esto, si falta el idioma pedido usaria el del sistema operativo
+        // del servidor, que en pampero puede ser cualquier cosa.
+        ms.setFallbackToSystemLocale(false);
+        return ms;
+    }
+
+    /**
+     * El motor de plantillas: recibe una plantilla + unos datos y devuelve el HTML final.
+     *
+     * OJO: esto NO reemplaza a los JSP. Las paginas del sitio siguen siendo JSP.
+     * Thymeleaf lo usamos solo para los mails, porque un JSP necesita un servidor
+     * web que lo ejecute y un mail se arma sin que haya ninguna pagina de por medio.
+     */
+    @Bean
+    public TemplateEngine mailTemplateEngine() {
+        final ClassLoaderTemplateResolver resolver = new ClassLoaderTemplateResolver();
+        // Con este prefijo, pedir la plantilla "event-created" busca
+        // el archivo mails/event-created.html adentro del jar.
+        resolver.setPrefix("mails/");
+        resolver.setSuffix(".html");
+        resolver.setTemplateMode(TemplateMode.HTML);
+        resolver.setCharacterEncoding("UTF-8");
+        resolver.setCacheable(true);
+
+        final TemplateEngine engine = new TemplateEngine();
+        engine.setTemplateResolver(resolver);
+        // Aca enchufamos el puente: los #{...} de las plantillas van a parar
+        // al MessageSource de arriba.
+        engine.setMessageResolver(new SpringMessageResolver(mailMessageSource()));
+        return engine;
     }
 
     /**
