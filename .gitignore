@@ -48,3 +48,6 @@ Thumbs.db
 *.mov
 *.wmv
 _to_delete/
+
+# Planes de trabajo locales (no se comparten con el equipo)
+planes/

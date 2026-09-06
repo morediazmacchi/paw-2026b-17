@@ -44,6 +44,7 @@
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
     </dependency>
+<<<<<<< HEAD
     <!-- Mailing: la capa de servicios es la que manda los mails (lo pidio la catedra) -->
     <dependency>
       <groupId>org.springframework</groupId>
@@ -52,6 +53,17 @@
     <dependency>
       <groupId>com.sun.mail</groupId>
       <artifactId>javax.mail</artifactId>
+=======
+    <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-core</artifactId>
+      <scope>test</scope>
+>>>>>>> 60ebb5045945f9ab7bcef90437b8f0f6a66fc174
     </dependency>
   </dependencies>
 
