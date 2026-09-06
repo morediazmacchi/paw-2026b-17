@@ -51,6 +51,11 @@ public class EventController {
         this.imageService = imageService;
     }
 
+    @RequestMapping(value = "/", method = RequestMethod.GET)
+    public ModelAndView home() {
+        return new ModelAndView("redirect:/eventos");
+    }
+
     @RequestMapping(value = "/eventos", method = RequestMethod.GET)
     public ModelAndView list(@RequestParam(value = "categoria", required = false) final String categoria,
                               @RequestParam(value = "precioMin", required = false) final String precioMin,
