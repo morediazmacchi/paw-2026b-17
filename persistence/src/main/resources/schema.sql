@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS event (
     address         VARCHAR(200) NOT NULL,
     neighborhood    VARCHAR(80),
     image_id        INTEGER, -- soft reference to image.id, intentionally not a FK
-    price           NUMERIC(10,2) NOT NULL DEFAULT 0
+    price           NUMERIC(10,2) DEFAULT 0 NOT NULL
                         CHECK (price >= 0),
     max_capacity    INTEGER
                         CHECK (max_capacity IS NULL OR max_capacity > 0),
@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS registration (
     email             VARCHAR(150) NOT NULL,
     name              VARCHAR(150),
     registered_at     TIMESTAMP NOT NULL DEFAULT now(),
-    status            VARCHAR(20) NOT NULL DEFAULT 'confirmed'
+    status            VARCHAR(20) DEFAULT 'confirmed' NOT NULL
                           CHECK (status IN ('confirmed', 'waitlisted')),
     UNIQUE (event_id, email)
 );
