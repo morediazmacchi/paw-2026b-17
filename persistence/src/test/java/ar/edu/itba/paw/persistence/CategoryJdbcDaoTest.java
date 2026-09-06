@@ -1,0 +1,82 @@
+package ar.edu.itba.paw.persistence;
+
+import ar.edu.itba.paw.model.Category;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.annotation.Rollback;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.springframework.transaction.annotation.Transactional;
+
+import javax.sql.DataSource;
+import java.util.List;
+import java.util.Optional;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = TestConfig.class)
+@Transactional
+@Rollback
+public class CategoryJdbcDaoTest {
+
+    @Autowired
+    private DataSource ds;
+
+    @Autowired
+    private CategoryDao categoryDao;
+
+    private JdbcTemplate jdbcTemplate;
+
+    @Before
+    public void setUp() {
+        jdbcTemplate = new JdbcTemplate(ds);
+    }
+
+    private long insertCategory(final String name) {
+        jdbcTemplate.update("INSERT INTO category (name) VALUES (?)", name);
+        return jdbcTemplate.queryForObject("SELECT id FROM category WHERE name = ?", Long.class, name);
+    }
+
+    @Test
+    public void testFindAllReturnsTheCategoriesOrderedByName() {
+        // A proposito insertadas al reves del orden alfabetico esperado.
+        insertCategory("Musica");
+        insertCategory("Deportes");
+
+        final List<Category> result = categoryDao.findAll();
+
+        assertEquals(2, result.size());
+        assertEquals("Deportes", result.get(0).getName());
+        assertEquals("Musica", result.get(1).getName());
+    }
+
+    @Test
+    public void testFindAllReturnsAnEmptyListWhenThereAreNoCategories() {
+        final List<Category> result = categoryDao.findAll();
+
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    public void testFindByIdReturnsThePresentCategory() {
+        final long id = insertCategory("Musica");
+
+        final Optional<Category> result = categoryDao.findById(id);
+
+        assertTrue(result.isPresent());
+        assertEquals("Musica", result.get().getName());
+    }
+
+    @Test
+    public void testFindByIdReturnsEmptyWhenTheCategoryDoesNotExist() {
+        final Optional<Category> result = categoryDao.findById(-1);
+
+        assertFalse(result.isPresent());
+    }
+}
