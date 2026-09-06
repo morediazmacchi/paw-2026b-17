@@ -2,6 +2,7 @@
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.EventSearchCriteria;
 
 import java.util.List;
 import java.util.Optional;
@@ -15,4 +16,7 @@ public interface EventDao {
 
     List<Event> findAll();
     List<Event> findByCategory(long categoryId);
+
+    // Combina todos los filtros con AND; un campo en null en criteria significa "sin filtrar por esto".
+    List<Event> search(EventSearchCriteria criteria);
 }

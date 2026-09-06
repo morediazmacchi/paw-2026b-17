@@ -3,6 +3,7 @@ package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.Barrio;
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.EventSearchCriteria;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -10,6 +11,8 @@ import org.springframework.jdbc.core.simple.SimpleJdbcInsert;
 import org.springframework.stereotype.Repository;
 
 import javax.sql.DataSource;
+import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -96,5 +99,39 @@ public class EventJdbcDao implements EventDao {
     public List<Event> findByCategory(final long categoryId) {
         return jdbcTemplate.query(SELECT_BASE + " WHERE e.category_id = ? ORDER BY e.event_date",
                 ROW_MAPPER, categoryId);
+    }
+
+    @Override
+    public List<Event> search(final EventSearchCriteria criteria) {
+        final StringBuilder sql = new StringBuilder(SELECT_BASE).append(" WHERE 1=1");
+        final List<Object> params = new ArrayList<>();
+
+        if (criteria.getCategoryId() != null) {
+            sql.append(" AND e.category_id = ?");
+            params.add(criteria.getCategoryId());
+        }
+        if (criteria.getMinPrice() != null) {
+            sql.append(" AND e.price >= ?");
+            params.add(criteria.getMinPrice());
+        }
+        if (criteria.getMaxPrice() != null) {
+            sql.append(" AND e.price <= ?");
+            params.add(criteria.getMaxPrice());
+        }
+        if (criteria.getFromDate() != null) {
+            sql.append(" AND e.event_date >= ?");
+            params.add(new Timestamp(criteria.getFromDate().getTime()));
+        }
+        if (criteria.getToDate() != null) {
+            sql.append(" AND e.event_date < ?");
+            params.add(new Timestamp(criteria.getToDate().getTime()));
+        }
+        if (criteria.getBarrio() != null) {
+            sql.append(" AND e.neighborhood = ?");
+            params.add(criteria.getBarrio().name());
+        }
+        sql.append(" ORDER BY e.event_date");
+
+        return jdbcTemplate.query(sql.toString(), ROW_MAPPER, params.toArray());
     }
 }

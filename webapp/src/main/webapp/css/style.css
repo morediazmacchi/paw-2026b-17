@@ -255,6 +255,33 @@ a {
     margin-top: 4px;
 }
 
+/* Barra de filtros del listado de eventos */
+.filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 24px;
+    padding: 16px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+}
+
+.filter-bar .form-group {
+    margin-bottom: 0;
+}
+
+/* El boton y el link no tienen label arriba: los bajamos para que
+   queden a la altura de los inputs, no de las labels. */
+.filter-bar > button, .filter-bar > a.btn {
+    margin-top: 22px;
+}
+
+.filter-bar input, .filter-bar select {
+    max-width: 160px;
+}
+
 input, select, textarea {
     padding: 8px 10px;
     width: 100%;

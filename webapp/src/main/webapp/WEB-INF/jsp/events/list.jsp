@@ -13,10 +13,24 @@
 <header class="navbar">
     <a class="logo" href="<c:url value='/eventos'/>">p<span class="logo-dot">.</span> plancito</a>
     <nav class="pills">
-        <a class="pill ${empty selectedCategoria ? 'pill-active' : ''}" href="<c:url value='/eventos'/>">Todos</a>
+        <a class="pill ${empty selectedCategoria ? 'pill-active' : ''}"
+           href="<c:url value='/eventos'>
+                   <c:param name='precioMin' value='${precioMin}'/>
+                   <c:param name='precioMax' value='${precioMax}'/>
+                   <c:param name='fechaDesde' value='${fechaDesde}'/>
+                   <c:param name='fechaHasta' value='${fechaHasta}'/>
+                   <c:param name='barrio' value='${barrio}'/>
+                 </c:url>">Todos</a>
         <c:forEach var="cat" items="${categories}">
             <a class="pill ${cat.id == selectedCategoria ? 'pill-active' : ''}"
-               href="<c:url value='/eventos'><c:param name='categoria' value='${cat.id}'/></c:url>">
+               href="<c:url value='/eventos'>
+                       <c:param name='categoria' value='${cat.id}'/>
+                       <c:param name='precioMin' value='${precioMin}'/>
+                       <c:param name='precioMax' value='${precioMax}'/>
+                       <c:param name='fechaDesde' value='${fechaDesde}'/>
+                       <c:param name='fechaHasta' value='${fechaHasta}'/>
+                       <c:param name='barrio' value='${barrio}'/>
+                     </c:url>">
                 <c:out value="${cat.name}"/>
             </a>
         </c:forEach>
@@ -25,6 +39,31 @@
 </header>
 
 <main class="page">
+    <form method="get" action="<c:url value='/eventos'/>" class="filter-bar">
+        <input type="hidden" name="categoria" value="${selectedCategoria}"/>
+        <paw:input name="precioMin" label="Precio desde" type="number" min="0" required="${false}"
+                   value="${precioMin}"/>
+        <paw:input name="precioMax" label="Precio hasta" type="number" min="0" required="${false}"
+                   value="${precioMax}" errorMessage="${filterErrors.precioMax}"/>
+        <paw:input name="fechaDesde" label="Fecha desde" type="date" required="${false}"
+                   value="${fechaDesde}"/>
+        <paw:input name="fechaHasta" label="Fecha hasta" type="date" required="${false}"
+                   value="${fechaHasta}" errorMessage="${filterErrors.fechaHasta}"/>
+        <div class="form-group">
+            <label for="barrio">Barrio</label>
+            <select id="barrio" name="barrio">
+                <option value="">Todos</option>
+                <c:forEach var="b" items="${barrios}">
+                    <option value="${b}" ${b.name() == barrio ? 'selected' : ''}>
+                        <c:out value="${b.displayName}"/>
+                    </option>
+                </c:forEach>
+            </select>
+        </div>
+        <paw:button text="Filtrar" cssClass="btn-accent"/>
+        <a class="btn btn-medium" href="<c:url value='/eventos'/>">Limpiar filtros</a>
+    </form>
+
     <c:if test="${not empty rsvp}">
         <c:choose>
             <c:when test="${rsvp == 'confirmed'}">
@@ -41,7 +80,7 @@
 
     <c:choose>
         <c:when test="${empty events}">
-            <p class="empty-state">Todavía no hay eventos<c:if test="${not empty selectedCategoria}"> en esta categoría</c:if>.</p>
+            <p class="empty-state">No hay eventos que coincidan con lo que buscás.</p>
         </c:when>
         <c:otherwise>
             <div class="card-grid">

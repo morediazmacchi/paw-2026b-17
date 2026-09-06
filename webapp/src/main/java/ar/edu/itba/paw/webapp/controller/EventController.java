@@ -2,6 +2,7 @@ package ar.edu.itba.paw.webapp.controller;
 
 import ar.edu.itba.paw.model.Barrio;
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.Image;
 import ar.edu.itba.paw.services.CategoryService;
 import ar.edu.itba.paw.services.EventService;
@@ -27,6 +28,7 @@ import javax.validation.Valid;
 import java.io.IOException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -51,17 +53,112 @@ public class EventController {
 
     @RequestMapping(value = "/eventos", method = RequestMethod.GET)
     public ModelAndView list(@RequestParam(value = "categoria", required = false) final String categoria,
+                              @RequestParam(value = "precioMin", required = false) final String precioMin,
+                              @RequestParam(value = "precioMax", required = false) final String precioMax,
+                              @RequestParam(value = "fechaDesde", required = false) final String fechaDesde,
+                              @RequestParam(value = "fechaHasta", required = false) final String fechaHasta,
+                              @RequestParam(value = "barrio", required = false) final String barrio,
                               @RequestParam(value = "rsvp", required = false) final String rsvp) {
+        final Long categoryId = parseLong(categoria);
+        final Map<String, String> filterErrors = new HashMap<>();
+
+        Double minPrice = parseDouble(precioMin);
+        Double maxPrice = parseDouble(precioMax);
+        if (minPrice != null && maxPrice != null && minPrice > maxPrice) {
+            filterErrors.put("precioMax", "Tiene que ser mayor o igual al precio desde");
+            minPrice = null;
+            maxPrice = null;
+        }
+
+        Date fromDate = parseDate(fechaDesde);
+        Date toDate = parseDateEndOfDay(fechaHasta);
+        final Date toDateRaw = parseDate(fechaHasta);
+        if (fromDate != null && toDateRaw != null && toDateRaw.before(fromDate)) {
+            filterErrors.put("fechaHasta", "Tiene que ser posterior a la fecha desde");
+            fromDate = null;
+            toDate = null;
+        }
+
+        final EventSearchCriteria criteria = new EventSearchCriteria();
+        criteria.setCategoryId(categoryId);
+        criteria.setMinPrice(minPrice);
+        criteria.setMaxPrice(maxPrice);
+        criteria.setFromDate(fromDate);
+        criteria.setToDate(toDate);
+        criteria.setBarrio(parseBarrioFilter(barrio));
+
         final ModelAndView mav = new ModelAndView("events/list");
-        final Long categoryId = (categoria == null || categoria.isEmpty()) ? null : Long.valueOf(categoria);
-        final List<Event> events = (categoryId == null)
-                ? eventService.findAll()
-                : eventService.findByCategory(categoryId);
-        mav.addObject("events", events);
+        mav.addObject("events", eventService.search(criteria));
         mav.addObject("categories", categoryService.findAll());
+        mav.addObject("barrios", Barrio.values());
         mav.addObject("selectedCategoria", categoryId);
+        mav.addObject("precioMin", precioMin);
+        mav.addObject("precioMax", precioMax);
+        mav.addObject("fechaDesde", fechaDesde);
+        mav.addObject("fechaHasta", fechaHasta);
+        mav.addObject("barrio", barrio);
+        mav.addObject("filterErrors", filterErrors);
         mav.addObject("rsvp", rsvp);
         return mav;
+    }
+
+    // Los filtros son de la barra de busqueda: si vienen mal formados, se ignoran
+    // (como si no se hubieran cargado) en vez de romper la pagina con un 500.
+    private static Long parseLong(final String value) {
+        if (value == null || value.isEmpty()) {
+            return null;
+        }
+        try {
+            return Long.valueOf(value);
+        } catch (final NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private static Double parseDouble(final String value) {
+        if (value == null || value.isEmpty()) {
+            return null;
+        }
+        try {
+            return Double.valueOf(value);
+        } catch (final NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private static Date parseDate(final String value) {
+        if (value == null || value.isEmpty()) {
+            return null;
+        }
+        try {
+            return new SimpleDateFormat("yyyy-MM-dd").parse(value);
+        } catch (final ParseException e) {
+            return null;
+        }
+    }
+
+    // "Hasta" tiene que incluir todo ese dia: se corre al dia siguiente a las 00:00
+    // y en la query se compara con "<", no "<=".
+    private static Date parseDateEndOfDay(final String value) {
+        final Date date = parseDate(value);
+        if (date == null) {
+            return null;
+        }
+        final Calendar calendar = Calendar.getInstance();
+        calendar.setTime(date);
+        calendar.add(Calendar.DAY_OF_MONTH, 1);
+        return calendar.getTime();
+    }
+
+    private static Barrio parseBarrioFilter(final String value) {
+        if (value == null || value.isEmpty()) {
+            return null;
+        }
+        try {
+            return Barrio.valueOf(value);
+        } catch (final IllegalArgumentException e) {
+            return null;
+        }
     }
 
     @RequestMapping(value = "/eventos/{id}", method = RequestMethod.GET)

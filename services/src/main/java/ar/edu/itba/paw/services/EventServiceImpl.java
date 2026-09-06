@@ -2,6 +2,7 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.persistence.EventDao;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,4 +53,7 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional(readOnly = true)
     public List<Event> findByCategory(final long categoryId) { return eventDao.findByCategory(categoryId); }
+    @Override
+    @Transactional(readOnly = true)
+    public List<Event> search(final EventSearchCriteria criteria) { return eventDao.search(criteria); }
 }
