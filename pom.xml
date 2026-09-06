@@ -22,6 +22,7 @@
     <hibernate-validator.version>6.2.5.Final</hibernate-validator.version>
     <javax-el.version>3.0.1-b12</javax-el.version>
     <slf4j.version>1.7.36</slf4j.version>
+    <javax-mail.version>1.6.2</javax-mail.version>
   </properties>
   <dependencyManagement>
     <dependencies>
@@ -64,6 +65,20 @@
         <groupId>org.slf4j</groupId>
         <artifactId>slf4j-api</artifactId>
         <version>${slf4j.version}</version>
+      </dependency>
+      <!-- Mailing -->
+      <!-- spring-context-support: trae JavaMailSender / JavaMailSenderImpl (la parte de Spring) -->
+      <dependency>
+        <groupId>org.springframework</groupId>
+        <artifactId>spring-context-support</artifactId>
+        <version>${spring.version}</version>
+      </dependency>
+      <!-- javax.mail: la implementacion que realmente habla SMTP.
+           OJO: javax, NO jakarta. Spring 5.3 usa javax.* -->
+      <dependency>
+        <groupId>com.sun.mail</groupId>
+        <artifactId>javax.mail</artifactId>
+        <version>${javax-mail.version}</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
