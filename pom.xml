@@ -22,12 +22,9 @@
     <hibernate-validator.version>6.2.5.Final</hibernate-validator.version>
     <javax-el.version>3.0.1-b12</javax-el.version>
     <slf4j.version>1.7.36</slf4j.version>
-<<<<<<< HEAD
     <javax-mail.version>1.6.2</javax-mail.version>
-=======
     <junit.version>4.13.2</junit.version>
     <mockito.version>5.11.0</mockito.version>
->>>>>>> 60ebb5045945f9ab7bcef90437b8f0f6a66fc174
   </properties>
   <dependencyManagement>
     <dependencies>
@@ -71,7 +68,6 @@
         <artifactId>slf4j-api</artifactId>
         <version>${slf4j.version}</version>
       </dependency>
-<<<<<<< HEAD
       <!-- Mailing -->
       <!-- spring-context-support: trae JavaMailSender / JavaMailSenderImpl (la parte de Spring) -->
       <dependency>
@@ -85,7 +81,8 @@
         <groupId>com.sun.mail</groupId>
         <artifactId>javax.mail</artifactId>
         <version>${javax-mail.version}</version>
-=======
+      </dependency>
+      <!-- Testing (lo agrego Lucas) -->
       <dependency>
         <groupId>junit</groupId>
         <artifactId>junit</artifactId>
@@ -95,7 +92,6 @@
         <groupId>org.mockito</groupId>
         <artifactId>mockito-core</artifactId>
         <version>${mockito.version}</version>
->>>>>>> 60ebb5045945f9ab7bcef90437b8f0f6a66fc174
       </dependency>
     </dependencies>
   </dependencyManagement>
