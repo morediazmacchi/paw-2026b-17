@@ -34,15 +34,15 @@ import javax.sql.DataSource;
 public class WebConfig implements WebMvcConfigurer {
 
     // LOCAL (desarrollo)
-    private static final String DB_URL = "jdbc:postgresql://localhost/paw2026b";
-    private static final String DB_USERNAME = "paw";
-    private static final String DB_PASSWORD = "paw";
+  //  private static final String DB_URL = "jdbc:postgresql://localhost/paw2026b";
+  //  private static final String DB_USERNAME = "paw";
+  //  private static final String DB_PASSWORD = "paw";
 
     // PAMPERO (deploy)
     // Para deployar en pampero: comentar el bloque LOCAL de arriba, descomentar este
-//    private static final String DB_URL = "jdbc:postgresql://10.16.1.110/paw-2026b-17";
-//    private static final String DB_USERNAME = "paw-2026b-17";
-//    private static final String DB_PASSWORD = "cla65LjaE";
+  private static final String DB_URL = "jdbc:postgresql://10.16.1.110/paw-2026b-17";
+   private static final String DB_USERNAME = "paw-2026b-17";
+   private static final String DB_PASSWORD = "cla65LjaE";
 
     @Value("classpath:schema.sql")
     private Resource schemaSql;

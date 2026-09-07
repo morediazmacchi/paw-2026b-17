@@ -3,6 +3,7 @@ package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventSearchCriteria;
+import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.persistence.EventDao;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,11 +22,14 @@ public class EventServiceImpl implements EventService {
 
     private final EventDao eventDao;
     private final UserService userService;
+    private final NotificationService notificationService;
 
     @Autowired
-    public EventServiceImpl(final EventDao eventDao, final UserService userService) {
+    public EventServiceImpl(final EventDao eventDao, final UserService userService,
+                            final NotificationService notificationService) {
         this.eventDao = eventDao;
         this.userService = userService;
+        this.notificationService = notificationService;
     }
 
     @Override
@@ -37,11 +41,14 @@ public class EventServiceImpl implements EventService {
         } catch (final DataIntegrityViolationException e) {
             throw new IllegalArgumentException("La categoria elegida no existe", e);
         }
+        User creator = null;
         try {
-            userService.findOrCreate(created.getCreatorEmail(), null);
+            creator = userService.findOrCreate(created.getCreatorEmail(), null);
         } catch (final RuntimeException e) {
             LOGGER.warn("No se pudo crear/actualizar el user para {}", created.getCreatorEmail(), e);
         }
+        // Devuelve enseguida: el mail sale en otro hilo (@Async).
+        notificationService.notifyEventCreated(created, creator == null ? null : creator.getName());
         return created;
     }
     @Override

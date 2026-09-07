@@ -31,6 +31,10 @@ public class RegistrationServiceImplTest {
     private EventDao mockEventDao;
     @Mock
     private UserService mockUserService;
+    // Necesario aunque ningun test lo use: @InjectMocks arma el objeto por
+    // constructor, y sin este mock le pasaria null -> NPE al notificar.
+    @Mock
+    private NotificationService mockNotificationService;
 
     @InjectMocks
     private RegistrationServiceImpl registrationService;

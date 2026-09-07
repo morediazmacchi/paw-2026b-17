@@ -9,6 +9,9 @@ import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
 import org.springframework.context.support.ReloadableResourceBundleMessageSource;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
+import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.core.task.TaskExecutor;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.templatemode.TemplateMode;
 import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
@@ -28,6 +31,9 @@ import java.util.Properties;
  */
 @Configuration
 @PropertySource("classpath:mail.properties")
+// Habilita @Async. Sin esta linea, los @Async de NotificationServiceImpl se
+// ignoran EN SILENCIO: el mail se manda igual, pero bloqueando al usuario.
+@EnableAsync
 public class MailConfig {
 
     // Cada @Value("${...}") lee una clave del mail.properties.
@@ -124,6 +130,29 @@ public class MailConfig {
         // al MessageSource de arriba.
         engine.setMessageResolver(new SpringMessageResolver(mailMessageSource()));
         return engine;
+    }
+
+    /**
+     * El pool de hilos donde se mandan los mails.
+     *
+     * El nombre del metodo importa: Spring busca un bean llamado exactamente
+     * "taskExecutor" para los @Async. Si no lo encuentra, crea uno nuevo por
+     * cada mail, sin limite -- con 50 inscripciones simultaneas eso son 50 hilos.
+     *
+     * Con la cola llena y los 5 hilos ocupados, CallerRunsPolicy hace que el
+     * mail lo mande el hilo que pidio (o sea, se vuelve bloqueante) en vez de
+     * descartarlo. Preferimos que el usuario espere antes que perder un mail.
+     */
+    @Bean
+    public TaskExecutor taskExecutor() {
+        final ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(5);
+        executor.setQueueCapacity(50);
+        executor.setThreadNamePrefix("mail-");
+        executor.setRejectedExecutionHandler(new java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy());
+        executor.initialize();
+        return executor;
     }
 
     /**

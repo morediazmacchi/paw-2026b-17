@@ -19,13 +19,16 @@ public class RegistrationServiceImpl implements RegistrationService {
     private final RegistrationDao registrationDao;
     private final EventDao eventDao;
     private final UserService userService;
+    private final NotificationService notificationService;
 
     @Autowired
     public RegistrationServiceImpl(final RegistrationDao registrationDao, final EventDao eventDao,
-                                    final UserService userService) {
+                                    final UserService userService,
+                                    final NotificationService notificationService) {
         this.registrationDao = registrationDao;
         this.eventDao = eventDao;
         this.userService = userService;
+        this.notificationService = notificationService;
     }
 
     @Override
@@ -57,6 +60,11 @@ public class RegistrationServiceImpl implements RegistrationService {
         } catch (final RuntimeException e) {
             LOGGER.warn("No se pudo crear/actualizar el user para {}", normalizedEmail, e);
         }
+
+        // Dos avisos, los dos en otro hilo: al que se anoto y al dueno del evento.
+        notificationService.notifyRegistrationConfirmed(event, registration);
+        notificationService.notifyNewRegistration(event, registration);
+
         return RegistrationResult.CONFIRMED;
     }
 
