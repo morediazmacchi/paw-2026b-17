@@ -1,8 +1,8 @@
 package ar.edu.itba.paw.webapp.controller;
 
 import ar.edu.itba.paw.webapp.exception.EventNotFoundException;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -16,7 +16,7 @@ import org.springframework.web.servlet.ModelAndView;
 @ControllerAdvice
 public class ErrorAdvice {
 
-    private static final Log LOGGER = LogFactory.getLog(ErrorAdvice.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(ErrorAdvice.class);
 
     @ExceptionHandler(EventNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)

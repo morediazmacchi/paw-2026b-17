@@ -65,6 +65,17 @@
       <version>1.2</version>
     </dependency>
     <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+    </dependency>
+    <!-- logback: la implementacion de SLF4J. Sin esto, SLF4J entra en modo
+         no-op y ninguna llamada a LOGGER.* escribe en ningun lado.
+         Trae logback-core de arrastre, no hace falta declararlo. -->
+    <dependency>
+      <groupId>ch.qos.logback</groupId>
+      <artifactId>logback-classic</artifactId>
+    </dependency>
+    <dependency>
       <groupId>javax.servlet</groupId>
       <artifactId>javax.servlet-api</artifactId>
       <version>4.0.1</version>
@@ -73,7 +84,7 @@
   </dependencies>
 
   <build>
-    <finalName>webapp</finalName>
+    <finalName>app</finalName>
     <pluginManagement><!-- lock down plugins versions to avoid using Maven defaults (may be moved to parent pom) -->
       <plugins>
         <plugin>

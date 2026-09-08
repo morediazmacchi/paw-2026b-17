@@ -214,6 +214,19 @@ public class EventController {
         }
 
         final Date parsedDate = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm").parse(form.getFechaEvento());
+        // No se puede publicar un evento que ya paso. El formato lo valida el @Pattern
+        // del form, pero "que sea futura" no se puede expresar con una expresion regular:
+        // hay que comparar contra el momento actual, y eso se hace aca.
+        if (parsedDate.before(new Date())) {
+            // El codigo "Future" hace que Spring busque la clave
+            // Future.eventForm.fechaEvento en los messages.properties, igual que
+            // hace con NotBlank y Pattern. El tercer argumento es el texto por
+            // defecto, para que no explote si falta la clave.
+            errors.rejectValue("fechaEvento", "Future",
+                    "La fecha del evento tiene que ser futura");
+            return publishFormWithErrors(form, errors, null);
+        }
+
         final double parsedPrice = Double.parseDouble(form.getPrecio());
         final Integer parsedCapacity = "0".equals(form.getCupoMaximo()) ? null : Integer.valueOf(form.getCupoMaximo());
 

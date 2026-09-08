@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Configuracion de logging para DESARROLLO.
+
+  Cuando logback encuentra los dos archivos en el classpath, logback-test.xml
+  le gana a logback.xml. Y este vive en src/test/resources, que Maven pone
+  SOLO en el classpath de test: nunca viaja dentro del .war.
+
+  En desarrollo se levanta igual porque el plugin de Jetty esta configurado
+  con <useTestScope>true</useTestScope> en webapp/pom.xml.
+-->
+<configuration>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <!-- Sin fecha completa ni nombre de hilo: en la consola de desarrollo
+                 lo unico que importa es el nivel, la clase corta y el mensaje. -->
+            <pattern>%-5level %logger{25} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Aca si DEBUG: en desarrollo queremos ver todo lo nuestro,
+         incluido el LOGGER.debug de MailServiceImpl. -->
+    <logger name="ar.edu.itba.paw" level="DEBUG"/>
+
+    <root level="WARN">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+
+</configuration>

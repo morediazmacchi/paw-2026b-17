@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Configuracion de logging para PRODUCCION (pampero).
+
+  Logback la encuentra sola: busca un logback.xml en el classpath al arrancar.
+  No hay que registrarla en ningun lado, ni en el web.xml ni en WebConfig.
+
+  Sale por consola (System.out) a proposito: en Tomcat la consola termina en
+  catalina.out, que es lo que sirve el visor de logs de la catedra en
+  http://pawserver.it.itba.edu.ar/logs/. Si escribieramos a un archivo propio,
+  los logs no apareceran ahi.
+-->
+<configuration>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <!-- %d fecha | %-5level nivel alineado a 5 caracteres | %logger{36} la clase
+                 (recortada a 36 chars) | %msg el mensaje | %n salto de linea.
+                 El %msg tambien imprime el stack trace cuando se le pasa una excepcion. -->
+            <pattern>%d{yyyy-MM-dd HH:mm:ss} %-5level [%thread] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Nuestro codigo: desde INFO para arriba (INFO, WARN, ERROR).
+         Los LOGGER.debug quedan afuera: en produccion son ruido. -->
+    <logger name="ar.edu.itba.paw" level="INFO"/>
+
+    <!-- Todo lo demas (Spring, Hibernate Validator, el driver de Postgres):
+         solo WARN y ERROR. Si no, cada arranque escupe cientos de lineas. -->
+    <root level="WARN">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+
+</configuration>

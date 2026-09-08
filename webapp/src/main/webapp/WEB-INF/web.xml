@@ -65,4 +65,24 @@
     <servlet-name>dispatcher</servlet-name>
     <url-pattern>/</url-pattern>
   </servlet-mapping>
+
+  <!-- Paginas de error propias en vez de las de Tomcat. Esto cubre lo que
+       ErrorAdvice no puede: una URL que no coincide con ningun controller nunca
+       llega a uno, asi que @ControllerAdvice no la ve. Apuntan a rutas de
+       ErrorPageController (no al JSP directo) para que la vista se renderice
+       con el contexto de Spring: los <spring:message> lo necesitan.
+       El 400 va a la pagina de "no encontrado" porque su texto ya cubre el caso
+       de un link mal escrito. -->
+  <error-page>
+    <error-code>400</error-code>
+    <location>/error/404</location>
+  </error-page>
+  <error-page>
+    <error-code>404</error-code>
+    <location>/error/404</location>
+  </error-page>
+  <error-page>
+    <error-code>500</error-code>
+    <location>/error/500</location>
+  </error-page>
 </web-app>

@@ -22,6 +22,7 @@
     <hibernate-validator.version>6.2.5.Final</hibernate-validator.version>
     <javax-el.version>3.0.1-b12</javax-el.version>
     <slf4j.version>1.7.36</slf4j.version>
+    <logback.version>1.2.13</logback.version>
     <javax-mail.version>1.6.2</javax-mail.version>
     <thymeleaf.version>3.0.15.RELEASE</thymeleaf.version>
     <junit.version>4.13.2</junit.version>
@@ -69,6 +70,13 @@
         <groupId>org.slf4j</groupId>
         <artifactId>slf4j-api</artifactId>
         <version>${slf4j.version}</version>
+      </dependency>
+      <!-- Implementacion de SLF4J. La version 1.2.x es la que corresponde a
+           slf4j-api 1.7.x (logback 1.3+ ya usa slf4j 2.x y no son compatibles). -->
+      <dependency>
+        <groupId>ch.qos.logback</groupId>
+        <artifactId>logback-classic</artifactId>
+        <version>${logback.version}</version>
       </dependency>
       <!-- Mailing -->
       <!-- spring-context-support: trae JavaMailSender / JavaMailSenderImpl (la parte de Spring) -->
