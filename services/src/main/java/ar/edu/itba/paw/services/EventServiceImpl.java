@@ -62,5 +62,15 @@ public class EventServiceImpl implements EventService {
     public List<Event> findByCategory(final long categoryId) { return eventDao.findByCategory(categoryId); }
     @Override
     @Transactional(readOnly = true)
-    public List<Event> search(final EventSearchCriteria criteria) { return eventDao.search(criteria); }
+    public PageResult<Event> search(final EventSearchCriteria criteria) {
+        final long totalElements = eventDao.countSearch(criteria);
+        final int totalPages = criteria.getPageSize() <= 0 ? 0
+                : (int) Math.ceil((double) totalElements / criteria.getPageSize());
+        // Si pidieron una pagina que no existe, cae a la ultima con resultados (nunca vacia por eso).
+        final int effectivePage = totalPages == 0 ? 1 : Math.min(Math.max(criteria.getPage(), 1), totalPages);
+        criteria.setPage(effectivePage);
+
+        final List<Event> content = eventDao.search(criteria);
+        return new PageResult<>(content, totalElements, effectivePage, criteria.getPageSize());
+    }
 }

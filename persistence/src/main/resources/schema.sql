@@ -49,3 +49,9 @@ CREATE TABLE IF NOT EXISTS registration (
 );
 
 ALTER TABLE users ALTER COLUMN name DROP NOT NULL;
+
+-- Indices para las columnas por las que filtra/ordena el listado de eventos (EventJdbcDao.search()).
+CREATE INDEX IF NOT EXISTS idx_event_category_id ON event(category_id);
+CREATE INDEX IF NOT EXISTS idx_event_price ON event(price);
+CREATE INDEX IF NOT EXISTS idx_event_event_date ON event(event_date);
+CREATE INDEX IF NOT EXISTS idx_event_neighborhood ON event(neighborhood);

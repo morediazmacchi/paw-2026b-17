@@ -3,10 +3,12 @@ package ar.edu.itba.paw.webapp.controller;
 import ar.edu.itba.paw.model.Barrio;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventSearchCriteria;
+import ar.edu.itba.paw.model.EventSort;
 import ar.edu.itba.paw.model.Image;
 import ar.edu.itba.paw.services.CategoryService;
 import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.ImageService;
+import ar.edu.itba.paw.services.PageResult;
 import ar.edu.itba.paw.services.RegistrationResult;
 import ar.edu.itba.paw.services.RegistrationService;
 import ar.edu.itba.paw.webapp.exception.EventNotFoundException;
@@ -38,6 +40,8 @@ import java.util.Map;
 
 @Controller
 public class EventController {
+
+    private static final int PAGE_SIZE = 12;
 
     private final EventService eventService;
     private final CategoryService categoryService;
@@ -78,6 +82,8 @@ public class EventController {
                               @RequestParam(value = "fechaDesde", required = false) final String fechaDesde,
                               @RequestParam(value = "fechaHasta", required = false) final String fechaHasta,
                               @RequestParam(value = "barrio", required = false) final String barrio,
+                              @RequestParam(value = "page", required = false) final String page,
+                              @RequestParam(value = "sort", required = false) final String sort,
                               @RequestParam(value = "rsvp", required = false) final String rsvp) {
         final Long categoryId = parseLong(categoria);
         final Map<String, String> filterErrors = new HashMap<>();
@@ -106,9 +112,17 @@ public class EventController {
         criteria.setFromDate(fromDate);
         criteria.setToDate(toDate);
         criteria.setBarrio(parseBarrioFilter(barrio));
+        criteria.setSort(parseSort(sort));
+        criteria.setPage(parsePage(page));
+        criteria.setPageSize(PAGE_SIZE);
+
+        final PageResult<Event> result = eventService.search(criteria);
 
         final ModelAndView mav = new ModelAndView("events/list");
-        mav.addObject("events", eventService.search(criteria));
+        mav.addObject("events", result.getContent());
+        mav.addObject("currentPage", result.getPage());
+        mav.addObject("totalPages", result.getTotalPages());
+        mav.addObject("totalElements", result.getTotalElements());
         mav.addObject("categories", categoryService.findAll());
         mav.addObject("barrios", Barrio.values());
         mav.addObject("selectedCategoria", categoryId);
@@ -117,6 +131,7 @@ public class EventController {
         mav.addObject("fechaDesde", fechaDesde);
         mav.addObject("fechaHasta", fechaHasta);
         mav.addObject("barrio", barrio);
+        mav.addObject("sort", sort);
         mav.addObject("filterErrors", filterErrors);
         mav.addObject("rsvp", rsvp);
         return mav;
@@ -178,6 +193,31 @@ public class EventController {
             return Barrio.valueOf(value);
         } catch (final IllegalArgumentException e) {
             return null;
+        }
+    }
+
+    // page=0, page=-1, page=abc caen a la primera pagina. Un page mas alla del
+    // total no se corrige aca (no se sabe el total todavia): lo ajusta el service.
+    private static int parsePage(final String value) {
+        if (value == null || value.isEmpty()) {
+            return 1;
+        }
+        try {
+            final int parsed = Integer.parseInt(value);
+            return parsed < 1 ? 1 : parsed;
+        } catch (final NumberFormatException e) {
+            return 1;
+        }
+    }
+
+    private static EventSort parseSort(final String value) {
+        if (value == null || value.isEmpty()) {
+            return EventSort.FECHA;
+        }
+        try {
+            return EventSort.valueOf(value);
+        } catch (final IllegalArgumentException e) {
+            return EventSort.FECHA;
         }
     }
 

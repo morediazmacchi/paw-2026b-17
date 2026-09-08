@@ -17,6 +17,10 @@ public interface EventDao {
     List<Event> findAll();
     List<Event> findByCategory(long categoryId);
 
-    // Combina todos los filtros con AND; un campo en null en criteria significa "sin filtrar por esto".
+    // Combina todos los filtros con AND (un campo en null en criteria significa "sin filtrar por
+    // esto"); solo eventos futuros; ordenado y paginado segun criteria.
     List<Event> search(EventSearchCriteria criteria);
+
+    // Mismos filtros que search() (mismo WHERE), sin orden ni paginado: el total para el paginador.
+    long countSearch(EventSearchCriteria criteria);
 }

@@ -12,5 +12,7 @@ public interface EventService {
     Optional<Event> findById(long id);
     List<Event> findAll();
     List<Event> findByCategory(long categoryId);
-    List<Event> search(EventSearchCriteria criteria);
+    // Pagina la respuesta: criteria.getPage() puede caer a la ultima pagina con
+    // resultados si pedis una que no existe.
+    PageResult<Event> search(EventSearchCriteria criteria);
 }

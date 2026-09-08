@@ -102,6 +102,42 @@
                               ubicacion="${cardUbicacion}" imagenId="${event.imageId}" />
                 </c:forEach>
             </div>
+
+            <c:if test="${totalPages > 1}">
+                <nav class="pager">
+                    <c:if test="${currentPage > 1}">
+                        <a class="btn btn-medium"
+                           href="<c:url value='/eventos'>
+                                   <c:param name='categoria' value='${selectedCategoria}'/>
+                                   <c:param name='precioMin' value='${precioMin}'/>
+                                   <c:param name='precioMax' value='${precioMax}'/>
+                                   <c:param name='fechaDesde' value='${fechaDesde}'/>
+                                   <c:param name='fechaHasta' value='${fechaHasta}'/>
+                                   <c:param name='barrio' value='${barrio}'/>
+                                   <c:param name='sort' value='${sort}'/>
+                                   <c:param name='page' value='${currentPage - 1}'/>
+                                 </c:url>"><spring:message code="event.list.pagePrevious"/></a>
+                    </c:if>
+
+                    <span class="pager-indicator">
+                        <spring:message code="event.list.pageIndicator" arguments="${currentPage},${totalPages}"/>
+                    </span>
+
+                    <c:if test="${currentPage < totalPages}">
+                        <a class="btn btn-medium"
+                           href="<c:url value='/eventos'>
+                                   <c:param name='categoria' value='${selectedCategoria}'/>
+                                   <c:param name='precioMin' value='${precioMin}'/>
+                                   <c:param name='precioMax' value='${precioMax}'/>
+                                   <c:param name='fechaDesde' value='${fechaDesde}'/>
+                                   <c:param name='fechaHasta' value='${fechaHasta}'/>
+                                   <c:param name='barrio' value='${barrio}'/>
+                                   <c:param name='sort' value='${sort}'/>
+                                   <c:param name='page' value='${currentPage + 1}'/>
+                                 </c:url>"><spring:message code="event.list.pageNext"/></a>
+                    </c:if>
+                </nav>
+            </c:if>
         </c:otherwise>
     </c:choose>
 </main>

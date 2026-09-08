@@ -4,6 +4,7 @@ package ar.edu.itba.paw.persistence;
 import ar.edu.itba.paw.model.Barrio;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventSearchCriteria;
+import ar.edu.itba.paw.model.EventSort;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Repository;
 import javax.sql.DataSource;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +25,17 @@ public class EventJdbcDao implements EventDao {
 
     private static final String SELECT_BASE =
             "SELECT e.*, c.name AS category_name FROM event e JOIN category c ON e.category_id = c.id";
+
+    private static final String COUNT_BASE =
+            "SELECT COUNT(*) FROM event e JOIN category c ON e.category_id = c.id";
+
+    // Whitelist: el "columna real" de cada opcion de orden vive solo aca adentro,
+    // nunca llega un string crudo del request hasta esta clase.
+    private static final Map<EventSort, String> SORT_COLUMNS = new EnumMap<>(EventSort.class);
+    static {
+        SORT_COLUMNS.put(EventSort.FECHA, "e.event_date ASC");
+        SORT_COLUMNS.put(EventSort.PRECIO, "e.price ASC");
+    }
 
     private static final RowMapper<Event> ROW_MAPPER = (rs, rowNum) -> {
         final Event event = new Event();
@@ -103,8 +116,32 @@ public class EventJdbcDao implements EventDao {
 
     @Override
     public List<Event> search(final EventSearchCriteria criteria) {
-        final StringBuilder sql = new StringBuilder(SELECT_BASE).append(" WHERE 1=1");
+        final WhereClause where = buildWhereClause(criteria);
+        final String sortColumn = SORT_COLUMNS.getOrDefault(criteria.getSort(), SORT_COLUMNS.get(EventSort.FECHA));
+
+        final String sql = SELECT_BASE + where.sql + " ORDER BY " + sortColumn + " LIMIT ? OFFSET ?";
+        final List<Object> params = new ArrayList<>(where.params);
+        params.add(criteria.getPageSize());
+        params.add((criteria.getPage() - 1) * criteria.getPageSize());
+
+        return jdbcTemplate.query(sql, ROW_MAPPER, params.toArray());
+    }
+
+    @Override
+    public long countSearch(final EventSearchCriteria criteria) {
+        final WhereClause where = buildWhereClause(criteria);
+        final Long count = jdbcTemplate.queryForObject(COUNT_BASE + where.sql, Long.class, where.params.toArray());
+        return count == null ? 0 : count;
+    }
+
+    // Arma el WHERE (y sus parametros) una sola vez, para que search() y countSearch()
+    // filtren exactamente lo mismo y nunca se desincronicen.
+    private WhereClause buildWhereClause(final EventSearchCriteria criteria) {
+        // Regla del listado publico (no del criteria): un evento ya ocurrido no aparece.
+        // findById/findByIdForUpdate no llevan este filtro: el detalle sigue siendo accesible.
+        final StringBuilder sql = new StringBuilder(" WHERE e.event_date >= ?");
         final List<Object> params = new ArrayList<>();
+        params.add(new Timestamp(System.currentTimeMillis()));
 
         if (criteria.getCategoryId() != null) {
             sql.append(" AND e.category_id = ?");
@@ -130,8 +167,17 @@ public class EventJdbcDao implements EventDao {
             sql.append(" AND e.neighborhood = ?");
             params.add(criteria.getBarrio().name());
         }
-        sql.append(" ORDER BY e.event_date");
 
-        return jdbcTemplate.query(sql.toString(), ROW_MAPPER, params.toArray());
+        return new WhereClause(sql.toString(), params);
+    }
+
+    private static final class WhereClause {
+        private final String sql;
+        private final List<Object> params;
+
+        private WhereClause(final String sql, final List<Object> params) {
+            this.sql = sql;
+            this.params = params;
+        }
     }
 }

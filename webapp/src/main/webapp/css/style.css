@@ -282,6 +282,20 @@ a {
     max-width: 160px;
 }
 
+/* Paginador del listado de eventos */
+.pager {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 32px;
+}
+
+.pager-indicator {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
 input, select, textarea {
     padding: 8px 10px;
     width: 100%;
