@@ -8,6 +8,7 @@
 <%@ attribute name="imagenId" required="false" type="java.lang.Long" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <%@ taglib prefix="fmt" uri="http://java.sun.com/jsp/jstl/fmt" %>
+<%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
 
 <a class="card" href="<c:url value='/eventos/${id}'/>">
     <div class="card-placeholder">
@@ -16,7 +17,7 @@
         </c:if>
         <span class="card-precio">
             <c:choose>
-                <c:when test="${empty precio or precio == 0}">Gratis</c:when>
+                <c:when test="${empty precio or precio == 0}"><spring:message code="event.price.free"/></c:when>
                 <c:otherwise>$<fmt:formatNumber value="${precio}" type="number" minFractionDigits="0" maxFractionDigits="0" /></c:otherwise>
             </c:choose>
         </span>

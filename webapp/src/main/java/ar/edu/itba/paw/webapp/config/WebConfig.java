@@ -1,9 +1,11 @@
 package ar.edu.itba.paw.webapp.config;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.support.ReloadableResourceBundleMessageSource;
 import org.springframework.core.io.Resource;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.SimpleDriverDataSource;
@@ -49,6 +51,20 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Value("classpath:data.sql")
     private Resource dataSql;
+
+    // Se llama messageSource (no otro nombre): es el nombre de bean que Spring
+    // busca por convencion para resolver <spring:message> en los JSP. El de los
+    // mails vive aparte, en services/MailConfig, como mailMessageSource.
+    @Bean
+    public MessageSource messageSource() {
+        final ReloadableResourceBundleMessageSource ms = new ReloadableResourceBundleMessageSource();
+        ms.setBasename("classpath:i18n/messages");
+        ms.setDefaultEncoding("UTF-8");
+        // Relee los .properties cada 5 segundos en vez de una sola vez al arrancar:
+        // conviene en desarrollo, y el costo en produccion es insignificante.
+        ms.setCacheSeconds(5);
+        return ms;
+    }
 
     @Bean
     public ViewResolver viewResolver() {

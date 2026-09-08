@@ -1,6 +1,7 @@
 <%@ page contentType="text/html;charset=UTF-8" pageEncoding="UTF-8" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <%@ taglib prefix="fmt" uri="http://java.sun.com/jsp/jstl/fmt" %>
+<%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
 <%@ taglib prefix="paw" tagdir="/WEB-INF/tags" %>
 <html>
 <head>
@@ -11,22 +12,23 @@
 </head>
 <body>
 
+<spring:message code="common.nav.backToEvents" var="backToEventsLabel"/>
 <header class="navbar">
     <a class="logo" href="<c:url value='/eventos'/>">p<span class="logo-dot">.</span> plancito</a>
-    <a class="btn btn-medium" href="<c:url value='/eventos'/>">&larr; Volver a eventos</a>
+    <a class="btn btn-medium" href="<c:url value='/eventos'/>">&larr; <c:out value="${backToEventsLabel}"/></a>
 </header>
 
 <main class="page page-narrow">
     <c:if test="${not empty rsvp}">
         <c:choose>
             <c:when test="${rsvp == 'confirmed'}">
-                <p class="alert">Listo, quedaste confirmado.</p>
+                <p class="alert"><spring:message code="event.rsvp.confirmed"/></p>
             </c:when>
             <c:when test="${rsvp == 'ya-anotado'}">
-                <p class="alert">Ya estabas anotado.</p>
+                <p class="alert"><spring:message code="event.rsvp.alreadyRegistered"/></p>
             </c:when>
             <c:when test="${rsvp == 'lleno'}">
-                <p class="alert">El evento ya esta lleno, no te pudimos anotar.</p>
+                <p class="alert"><spring:message code="event.rsvp.full"/></p>
             </c:when>
         </c:choose>
     </c:if>
@@ -38,7 +40,7 @@
             </c:if>
             <span class="detail-precio">
                 <c:choose>
-                    <c:when test="${event.price == 0}">Gratis</c:when>
+                    <c:when test="${event.price == 0}"><spring:message code="event.price.free"/></c:when>
                     <c:otherwise>$<fmt:formatNumber value="${event.price}" type="number" minFractionDigits="0" maxFractionDigits="0" /></c:otherwise>
                 </c:choose>
             </span>
@@ -53,7 +55,7 @@
             &middot; <c:out value="${event.address}"/><c:if test="${not empty event.neighborhood}"> (<c:out value="${event.neighborhood.displayName}"/>)</c:if>
         </p>
         <c:if test="${not empty event.maxCapacity}">
-            <p class="detail-meta">Cupo máximo: <c:out value="${event.maxCapacity}"/> personas</p>
+            <p class="detail-meta"><spring:message code="event.detail.maxCapacity" arguments="${event.maxCapacity}"/></p>
         </c:if>
 
         <c:if test="${not empty event.description}">
@@ -61,18 +63,21 @@
         </c:if>
 
         <section class="rsvp-box">
-            <h2>Quiero ir</h2>
+            <h2><spring:message code="event.detail.rsvpHeading"/></h2>
             <c:choose>
                 <c:when test="${full}">
-                    <p class="alert">Evento a su capacidad.</p>
+                    <p class="alert"><spring:message code="event.detail.eventFull"/></p>
                 </c:when>
                 <c:otherwise>
+                    <spring:message code="event.detail.emailLabel" var="emailLabel"/>
+                    <spring:message code="event.detail.nameLabel" var="nameLabel"/>
+                    <spring:message code="event.detail.rsvpButton" var="rsvpButtonLabel"/>
                     <form action="<c:url value='/eventos/${event.id}/quiero-ir'/>" method="post" novalidate="novalidate">
-                        <paw:input name="email" label="Tu email" type="email"
+                        <paw:input name="email" label="${emailLabel}" type="email"
                                    value="${registrationForm.email}" errorMessage="${fieldErrors.email}" />
-                        <paw:input name="nombre" label="Tu nombre" type="text"
+                        <paw:input name="nombre" label="${nameLabel}" type="text"
                                    value="${registrationForm.nombre}" errorMessage="${fieldErrors.nombre}" />
-                        <paw:button text="Quiero ir" cssClass="btn-accent" />
+                        <paw:button text="${rsvpButtonLabel}" cssClass="btn-accent" />
                     </form>
                 </c:otherwise>
             </c:choose>

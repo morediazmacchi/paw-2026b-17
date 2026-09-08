@@ -13,6 +13,8 @@ import ar.edu.itba.paw.webapp.exception.EventNotFoundException;
 import ar.edu.itba.paw.webapp.form.EventForm;
 import ar.edu.itba.paw.webapp.form.RegistrationForm;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindingResult;
@@ -41,14 +43,27 @@ public class EventController {
     private final CategoryService categoryService;
     private final RegistrationService registrationService;
     private final ImageService imageService;
+    private final MessageSource messageSource;
 
     @Autowired
     public EventController(final EventService eventService, final CategoryService categoryService,
-                            final RegistrationService registrationService, final ImageService imageService) {
+                            final RegistrationService registrationService, final ImageService imageService,
+                            final MessageSource messageSource) {
         this.eventService = eventService;
         this.categoryService = categoryService;
         this.registrationService = registrationService;
         this.imageService = imageService;
+        this.messageSource = messageSource;
+    }
+
+    // Todos los mensajes que se muestran en pantalla (errores de validacion,
+    // errores de negocio) se resuelven aca contra el idioma del pedido actual.
+    private String message(final String code, final Object... args) {
+        return messageSource.getMessage(code, args, LocaleContextHolder.getLocale());
+    }
+
+    private String messageFor(final FieldError fieldError) {
+        return messageSource.getMessage(fieldError, LocaleContextHolder.getLocale());
     }
 
     @RequestMapping(value = "/", method = RequestMethod.GET)
@@ -70,7 +85,7 @@ public class EventController {
         Double minPrice = parseDouble(precioMin);
         Double maxPrice = parseDouble(precioMax);
         if (minPrice != null && maxPrice != null && minPrice > maxPrice) {
-            filterErrors.put("precioMax", "Tiene que ser mayor o igual al precio desde");
+            filterErrors.put("precioMax", message("event.list.priceRangeInvalid"));
             minPrice = null;
             maxPrice = null;
         }
@@ -79,7 +94,7 @@ public class EventController {
         Date toDate = parseDateEndOfDay(fechaHasta);
         final Date toDateRaw = parseDate(fechaHasta);
         if (fromDate != null && toDateRaw != null && toDateRaw.before(fromDate)) {
-            filterErrors.put("fechaHasta", "Tiene que ser posterior a la fecha desde");
+            filterErrors.put("fechaHasta", message("event.list.dateRangeInvalid"));
             fromDate = null;
             toDate = null;
         }
@@ -209,7 +224,7 @@ public class EventController {
                         image.getBytes(), image.getContentType(), image.getOriginalFilename());
                 imageId = saved.getId();
             } catch (final IOException e) {
-                return publishFormWithErrors(form, errors, "No se pudo leer el archivo, proba de nuevo.");
+                return publishFormWithErrors(form, errors, message("event.publish.imageReadError"));
             } catch (final IllegalArgumentException e) {
                 return publishFormWithErrors(form, errors, e.getMessage());
             }
@@ -241,22 +256,14 @@ public class EventController {
         return mav;
     }
 
-    // El mensaje default de Spring para "typeMismatch" es ilegible.
-    private static String messageFor(final FieldError fieldError) {
-        if ("typeMismatch".equals(fieldError.getCode()) && "categoriaId".equals(fieldError.getField())) {
-            return "Elegi una categoria valida";
-        }
-        return fieldError.getDefaultMessage();
-    }
-
-    private static Barrio parseBarrio(final String barrio, final BindingResult errors) {
+    private Barrio parseBarrio(final String barrio, final BindingResult errors) {
         if (barrio == null || barrio.isEmpty()) {
             return null;
         }
         try {
             return Barrio.valueOf(barrio);
         } catch (final IllegalArgumentException e) {
-            errors.rejectValue("barrio", "barrio.invalido", "Elegi un barrio de la lista");
+            errors.rejectValue("barrio", "barrio.invalido", message("barrio.invalido"));
             return null;
         }
     }
@@ -291,7 +298,7 @@ public class EventController {
     private ModelAndView detailWithErrors(final long id, final RegistrationForm form, final BindingResult errors) {
         final Map<String, String> fieldErrors = new HashMap<>();
         for (final FieldError fieldError : errors.getFieldErrors()) {
-            fieldErrors.put(fieldError.getField(), fieldError.getDefaultMessage());
+            fieldErrors.put(fieldError.getField(), messageFor(fieldError));
         }
         return eventService.findById(id)
                 .map(event -> {
