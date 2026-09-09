@@ -47,7 +47,7 @@
         </div>
 
         <c:if test="${not empty event.categoryName}">
-            <span class="card-categoria"><c:out value="${event.categoryName}"/></span>
+            <span class="card-categoria"><spring:message code="category.${event.categoryName}" text="${event.categoryName}" htmlEscape="true"/></span>
         </c:if>
         <h1 class="detail-titulo"><c:out value="${event.title}"/></h1>
         <p class="detail-meta">

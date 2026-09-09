@@ -48,7 +48,7 @@
                 <select id="categoriaId" name="categoriaId">
                     <c:forEach var="cat" items="${categories}">
                         <option value="${cat.id}" ${cat.id == eventForm.categoriaId ? 'selected' : ''}>
-                            <c:out value="${cat.name}"/>
+                            <spring:message code="category.${cat.name}" text="${cat.name}" htmlEscape="true"/>
                         </option>
                     </c:forEach>
                 </select>

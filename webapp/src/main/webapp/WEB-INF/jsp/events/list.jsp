@@ -32,7 +32,7 @@
                        <c:param name='fechaHasta' value='${fechaHasta}'/>
                        <c:param name='barrio' value='${barrio}'/>
                      </c:url>">
-                <c:out value="${cat.name}"/>
+                <spring:message code="category.${cat.name}" text="${cat.name}" htmlEscape="true"/>
             </a>
         </c:forEach>
     </nav>
@@ -97,8 +97,9 @@
                 <c:forEach var="event" items="${events}">
                     <c:set var="cardPrecio" value="${event.price == 0 ? null : event.price}" />
                     <c:set var="cardUbicacion" value="${empty event.neighborhood ? event.address : event.neighborhood.displayName}" />
+                    <spring:message code="category.${event.categoryName}" text="${event.categoryName}" var="cardCategoria"/>
                     <paw:card id="${event.id}" nombre="${event.title}" precio="${cardPrecio}"
-                              fecha="${event.eventDate}" categoria="${event.categoryName}"
+                              fecha="${event.eventDate}" categoria="${cardCategoria}"
                               ubicacion="${cardUbicacion}" imagenId="${event.imageId}" />
                 </c:forEach>
             </div>
