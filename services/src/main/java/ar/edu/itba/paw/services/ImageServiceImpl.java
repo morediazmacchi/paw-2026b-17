@@ -28,13 +28,13 @@ public class ImageServiceImpl implements ImageService {
     @Transactional
     public Image create(final byte[] data, final String contentType, final String fileName) {
         if (data == null || data.length == 0) {
-            throw new IllegalArgumentException("El archivo esta vacio.");
+            throw new IllegalArgumentException("event.publish.imageEmpty");
         }
         if (data.length > MAX_SIZE_BYTES) {
-            throw new IllegalArgumentException("La imagen no puede pesar mas de 5 MB.");
+            throw new IllegalArgumentException("event.publish.imageTooLarge");
         }
         if (contentType == null || !contentType.startsWith("image/")) {
-            throw new IllegalArgumentException("El archivo tiene que ser una imagen.");
+            throw new IllegalArgumentException("event.publish.imageNotAnImage");
         }
 
         final Image image = new Image(data, contentType, fileName, data.length, checksum(data));

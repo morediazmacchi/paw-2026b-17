@@ -245,15 +245,27 @@ public class EventController {
 
     @RequestMapping(value = "/eventos/publicar", method = RequestMethod.POST)
     public ModelAndView publish(@Valid final EventForm form, final BindingResult errors,
-                                 @RequestParam(value = "image", required = false) final MultipartFile image)
-            throws ParseException {
+                                 @RequestParam(value = "image", required = false) final MultipartFile image) {
         final Barrio parsedBarrio = parseBarrio(form.getBarrio(), errors);
 
         if (errors.hasErrors()) {
             return publishFormWithErrors(form, errors, null);
         }
 
-        final Date parsedDate = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm").parse(form.getFechaEvento());
+        final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm");
+        // Sin setLenient(false), SimpleDateFormat "desborda" las fechas imposibles en
+        // silencio: 2026-13-45T99:99 pasa el @Pattern del form (que solo valida la forma)
+        // y se convierte en 2027-02-18 04:39.
+        dateFormat.setLenient(false);
+        final Date parsedDate;
+        try {
+            parsedDate = dateFormat.parse(form.getFechaEvento());
+        } catch (final ParseException e) {
+            // Codigo "Pattern": reusa la clave Pattern.eventForm.fechaEvento que ya existe.
+            errors.rejectValue("fechaEvento", "Pattern",
+                    "La fecha y horario no tienen un formato valido");
+            return publishFormWithErrors(form, errors, null);
+        }
         // No se puede publicar un evento que ya paso. El formato lo valida el @Pattern
         // del form, pero "que sea futura" no se puede expresar con una expresion regular:
         // hay que comparar contra el momento actual, y eso se hace aca.
@@ -279,7 +291,7 @@ public class EventController {
             } catch (final IOException e) {
                 return publishFormWithErrors(form, errors, message("event.publish.imageReadError"));
             } catch (final IllegalArgumentException e) {
-                return publishFormWithErrors(form, errors, e.getMessage());
+                return publishFormWithErrors(form, errors, message(e.getMessage()));
             }
         }
 
