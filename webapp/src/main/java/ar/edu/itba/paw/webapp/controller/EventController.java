@@ -236,10 +236,13 @@ public class EventController {
     }
 
     @RequestMapping(value = "/eventos/publicar", method = RequestMethod.GET)
-    public ModelAndView publishForm() {
+    public ModelAndView publishForm(@RequestParam(value = "imageError", required = false) final String imageError) {
         final ModelAndView mav = new ModelAndView("events/publish");
         mav.addObject("categories", categoryService.findAll());
         mav.addObject("barrios", Barrio.values());
+        if (imageError != null) {
+            mav.addObject("imageError", message("event.publish.imageTooLargeError"));
+        }
         return mav;
     }
 

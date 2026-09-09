@@ -53,10 +53,14 @@
     <load-on-startup>1</load-on-startup>
     <multipart-config>
       <!-- Muro duro del servidor. La regla que se le muestra al usuario (5 MB) esta
-           en ImageServiceImpl: dejamos margen aca para que salte esa validacion
-           con un mensaje claro, en vez de una excepcion cruda del servidor. -->
-      <max-file-size>6291456</max-file-size>
-      <max-request-size>8388608</max-request-size>
+           en ImageServiceImpl: dejamos bastante margen aca (15/16 MB) para que
+           practicamente cualquier foto "de mas" caiga en esa validacion prolija
+           (que conserva lo que el usuario ya escribio en el formulario) en vez
+           de romper el parseo del multipart entero, que pierde todos los campos
+           y en Pampero se ve como un 502 crudo de Apache. ErrorAdvice atrapa el
+           caso extremo (mas de 15/16 MB) como red de contencion. -->
+      <max-file-size>15728640</max-file-size>
+      <max-request-size>16777216</max-request-size>
       <file-size-threshold>0</file-size-threshold>
     </multipart-config>
   </servlet>

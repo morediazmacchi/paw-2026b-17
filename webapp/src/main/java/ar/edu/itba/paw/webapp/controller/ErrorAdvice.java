@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.servlet.ModelAndView;
 
 /**
@@ -23,6 +24,15 @@ public class ErrorAdvice {
     public ModelAndView eventNotFound(final EventNotFoundException e) {
         // No se loguea como error: que alguien escriba un id inexistente es normal.
         return new ModelAndView("errors/404");
+    }
+
+    // El archivo supera el limite duro del servidor (web.xml, <multipart-config>).
+    // Sin esto, la request se corta antes de llegar a ImageServiceImpl: en Pampero
+    // (Apache adelante de Tomcat) eso se ve como un 502 Bad Gateway crudo.
+    // No se loguea como error: que alguien suba un archivo muy pesado es normal.
+    @ExceptionHandler(MultipartException.class)
+    public ModelAndView imageTooLarge(final MultipartException e) {
+        return new ModelAndView("redirect:/eventos/publicar?imageError=true");
     }
 
     @ExceptionHandler(Exception.class)
