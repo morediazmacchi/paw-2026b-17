@@ -6,6 +6,9 @@
 <%@ attribute name="required" required="false" type="java.lang.Boolean" %>
 <%@ attribute name="min" required="false" %>
 <%@ attribute name="value" required="false" %>
+<%-- Texto de un atajo opcional al lado de la etiqueta (ej: "Gratis", "Sin limite").
+     Si no se pasa, no se dibuja ningun boton y el campo queda como siempre. --%>
+<%@ attribute name="toggleText" required="false" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions" %>
 
@@ -13,9 +16,15 @@
 <c:set var="isRequired" value="${empty required ? true : required}" />
 
 <div class="form-group">
-    <c:if test="${not empty label}">
-        <label for="${name}"><c:out value="${label}" /></label>
-    </c:if>
+    <div class="label-row">
+        <c:if test="${not empty label}">
+            <label for="${name}"><c:out value="${label}" /></label>
+        </c:if>
+        <c:if test="${not empty toggleText}">
+            <button type="button" class="chip-toggle" data-target="${name}"
+                    aria-pressed="false"><c:out value="${toggleText}" /></button>
+        </c:if>
+    </div>
 
     <c:choose>
         <c:when test="${inputType == 'email'}">
@@ -48,6 +57,13 @@
                    <c:if test="${isRequired}">required="required"</c:if> />
         </c:otherwise>
     </c:choose>
+
+    <c:if test="${not empty toggleText}">
+        <%-- Lo que se ve en lugar del campo cuando el atajo esta activo. El input
+             de arriba sigue existiendo, oculto, con el 0 adentro: el atributo
+             hidden esconde pero NO impide que el valor viaje en el POST. --%>
+        <div class="preset-display" hidden><c:out value="${toggleText}" /></div>
+    </c:if>
 
     <c:if test="${not empty errorMessage}">
         <span class="error-message"><c:out value="${errorMessage}" /></span>
