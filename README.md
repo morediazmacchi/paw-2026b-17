@@ -37,4 +37,4 @@ From the `webapp/` directory:
 ```
 This starts the app on **http://localhost:8080/**.
 
-Stop the server with `Ctrl+C`.
+Stop the server with `Ctrl+C`. 
