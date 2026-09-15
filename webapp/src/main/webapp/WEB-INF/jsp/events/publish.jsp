@@ -8,6 +8,7 @@
     <title>Plancito &middot; <spring:message code="event.publish.title"/></title>
     <link rel="stylesheet" href="${pageContext.request.contextPath}/css/style.css">
     <script src="<c:url value='/js/disable-on-submit.js'/>"></script>
+    <script src="<c:url value='/js/quick-options.js'/>"></script>
 </head>
 <body>
 
@@ -36,6 +37,8 @@
         <spring:message code="event.publish.capacityLabel" var="capacityLabel"/>
         <spring:message code="event.publish.emailLabel" var="emailLabel"/>
         <spring:message code="event.publish.imageLabel" var="imageLabel"/>
+        <spring:message code="event.publish.freeOption" var="freeOptionLabel"/>
+        <spring:message code="event.publish.noLimitOption" var="noLimitOptionLabel"/>
         <spring:message code="event.publish.submitButton" var="submitButtonLabel"/>
         <form action="<c:url value='/eventos/publicar'/>" method="post" enctype="multipart/form-data" novalidate="novalidate">
             <paw:input name="titulo" label="${titleLabel}" type="text"
@@ -76,9 +79,12 @@
                 </c:if>
             </div>
             <paw:input name="precio" label="${priceLabel}" type="number" min="0"
-                       value="${eventForm.precio}" errorMessage="${fieldErrors.precio}" />
+                       value="${eventForm.precio}" errorMessage="${fieldErrors.precio}"
+                       toggleText="${freeOptionLabel}" />
             <paw:input name="cupoMaximo" label="${capacityLabel}" type="number" min="0"
-                       value="${eventForm.cupoMaximo}" errorMessage="${fieldErrors.cupoMaximo}" />
+                       value="${eventForm.cupoMaximo}" errorMessage="${fieldErrors.cupoMaximo}"
+                       toggleText="${noLimitOptionLabel}" />
+
             <paw:input name="creadorEmail" label="${emailLabel}" type="email"
                        value="${eventForm.creadorEmail}" errorMessage="${fieldErrors.creadorEmail}" />
 

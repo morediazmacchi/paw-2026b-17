@@ -880,3 +880,174 @@ input:focus, select:focus, textarea:focus {
 .results-clear:hover {
     text-decoration: underline;
 }
+
+/* ==========================================================================
+   Formulario de publicar un evento (publish.jsp).
+   Todo esta scopeado a ".form-card form", que existe unicamente ahi: no toca
+   la barra de filtros del listado ni el formulario de "Quiero ir" del detalle.
+   Es solo presentacion: ningun name=, ninguna validacion, ningun JSP.
+   ========================================================================== */
+
+/* Dos columnas, para que los campos cortos compartan fila. */
+.form-card form {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    align-items: start;
+}
+
+/* Los que ocupan el ancho completo. El orden es el de publish.jsp:
+   1 titulo | 2 descripcion | 3 categoria | 4 fecha | 5 direccion | 6 barrio
+   7 precio | 8 cupo | 9 email | 10 imagen | 11 boton
+   Queda apareado solo categoria+fecha: precio y cupo van uno encima del
+   otro porque cada uno lleva su pill de atajo al lado de la etiqueta. */
+.form-card form > .form-group:nth-child(1),
+.form-card form > .form-group:nth-child(2),
+.form-card form > .form-group:nth-child(5),
+.form-card form > .form-group:nth-child(6),
+.form-card form > .form-group:nth-child(7),
+.form-card form > .form-group:nth-child(8),
+.form-card form > .form-group:nth-child(9),
+.form-card form > .form-group:nth-child(10),
+.form-card form > button {
+    grid-column: 1 / -1;
+}
+
+/* La separacion la da el gap del grid. */
+.form-card form > .form-group {
+    margin-bottom: 0;
+}
+
+/* Adentro del form los campos llenan su celda en vez de cortarse en 420px. */
+.form-card form input,
+.form-card form select,
+.form-card form textarea {
+    max-width: none;
+    padding: 10px 12px;
+}
+
+/* Foco mas visible: el borde de acento mas un halo tenue. */
+.form-card form input:focus,
+.form-card form select:focus,
+.form-card form textarea:focus {
+    box-shadow: 0 0 0 3px rgba(198, 255, 58, 0.14);
+}
+
+.form-card form .form-group label {
+    font-size: 0.84rem;
+    margin-bottom: 6px;
+}
+
+/* El input de archivo: el boton nativo pasa a parecerse a los de la app. */
+.form-card form input[type=file] {
+    color: var(--text-muted);
+    font-size: 0.88rem;
+}
+
+.form-card form input[type=file]::file-selector-button {
+    margin-right: 12px;
+    padding: 6px 14px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--bg-elevated);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.form-card form input[type=file]::file-selector-button:hover {
+    border-color: var(--accent);
+}
+
+/* El boton de publicar: a la derecha y con mas presencia. */
+.form-card form > button {
+    justify-self: end;
+    padding: 11px 32px;
+    font-size: 0.95rem;
+    margin-top: 4px;
+}
+
+/* La tarjeta respira un poco mas (pisa el padding de la regla de arriba). */
+.form-card {
+    padding: 28px 30px 30px;
+}
+
+.form-card > h1 {
+    margin-bottom: 22px;
+}
+
+/* En pantalla angosta, una sola columna y el boton a todo el ancho. */
+@media (max-width: 620px) {
+    .form-card form {
+        grid-template-columns: 1fr;
+    }
+    .form-card form > button {
+        justify-self: stretch;
+    }
+}
+
+/* --------------------------------------------------------------------------
+   Fila etiqueta + atajo, y el pill de "Gratis" / "Sin limite".
+   El pill es un <button type="button">: no manda nada al servidor, solo escribe
+   un 0 en el campo (ver js/quick-options.js).
+   -------------------------------------------------------------------------- */
+
+/* Global, porque input.tag la dibuja en los 14 campos del proyecto. Con un solo
+   hijo (los 12 que no llevan atajo) se ve igual que una etiqueta suelta. */
+.label-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+/* Solo en el formulario de publicar la etiqueta lleva un poco mas de aire. */
+.form-card form .label-row label {
+    margin-bottom: 6px;
+}
+
+.chip-toggle {
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text-muted);
+    border-radius: 999px;
+    padding: 3px 12px;
+    font-family: inherit;
+    font-size: 0.76rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    margin-bottom: 6px;
+    transition: color 0.12s, border-color 0.12s, background 0.12s;
+}
+
+.chip-toggle:hover {
+    border-color: var(--accent);
+    color: var(--text);
+}
+
+.chip-toggle.is-on {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-text);
+}
+
+.chip-toggle:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(198, 255, 58, 0.14);
+}
+
+/* El cartel que reemplaza al campo cuando el atajo esta activo. Borde punteado
+   para que se lea como "esto no se edita". */
+.preset-display {
+    padding: 10px 12px;
+    width: 100%;
+    box-sizing: border-box;
+    background: var(--bg);
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+}
