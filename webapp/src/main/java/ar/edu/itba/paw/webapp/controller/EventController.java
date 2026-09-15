@@ -32,16 +32,20 @@ import javax.validation.Valid;
 import java.io.IOException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Controller
 public class EventController {
 
     private static final int PAGE_SIZE = 12;
+    private static final int FEATURED_COUNT = 5;
 
     private final EventService eventService;
     private final CategoryService categoryService;
@@ -76,16 +80,17 @@ public class EventController {
     }
 
     @RequestMapping(value = "/eventos", method = RequestMethod.GET)
-    public ModelAndView list(@RequestParam(value = "categoria", required = false) final String categoria,
+    public ModelAndView list(@RequestParam(value = "categoria", required = false) final List<String> categoria,
                               @RequestParam(value = "precioMin", required = false) final String precioMin,
                               @RequestParam(value = "precioMax", required = false) final String precioMax,
                               @RequestParam(value = "fechaDesde", required = false) final String fechaDesde,
                               @RequestParam(value = "fechaHasta", required = false) final String fechaHasta,
-                              @RequestParam(value = "barrio", required = false) final String barrio,
+                              @RequestParam(value = "barrio", required = false) final List<String> barrio,
                               @RequestParam(value = "page", required = false) final String page,
                               @RequestParam(value = "sort", required = false) final String sort,
                               @RequestParam(value = "rsvp", required = false) final String rsvp) {
-        final Long categoryId = parseLong(categoria);
+        final List<Long> categoryIds = parseLongList(categoria);
+        final List<Barrio> barrios = parseBarrioList(barrio);
         final Map<String, String> filterErrors = new HashMap<>();
 
         Double minPrice = parseDouble(precioMin);
@@ -106,35 +111,80 @@ public class EventController {
         }
 
         final EventSearchCriteria criteria = new EventSearchCriteria();
-        criteria.setCategoryId(categoryId);
+        criteria.setCategoryIds(categoryIds);
         criteria.setMinPrice(minPrice);
         criteria.setMaxPrice(maxPrice);
         criteria.setFromDate(fromDate);
         criteria.setToDate(toDate);
-        criteria.setBarrio(parseBarrioFilter(barrio));
+        criteria.setBarrios(barrios);
         criteria.setSort(parseSort(sort));
         criteria.setPage(parsePage(page));
         criteria.setPageSize(PAGE_SIZE);
 
         final PageResult<Event> result = eventService.search(criteria);
 
+        // "N eventos encontrados" / "Limpiar filtros" solo tienen sentido si el
+        // usuario realmente filtro algo. Se mira lo que vino crudo del request,
+        // no lo ya parseado: un rango invalido (que se resetea a null arriba)
+        // igual cuenta como "hay algo para limpiar".
+        final boolean hasActiveFilters = categoryIds != null || barrios != null
+                || (precioMin != null && !precioMin.isEmpty())
+                || (precioMax != null && !precioMax.isEmpty())
+                || (fechaDesde != null && !fechaDesde.isEmpty())
+                || (fechaHasta != null && !fechaHasta.isEmpty());
+
+        // Banner destacado: los proximos eventos por fecha, sin los filtros de arriba.
+        final EventSearchCriteria featuredCriteria = new EventSearchCriteria();
+        featuredCriteria.setPageSize(FEATURED_COUNT);
+        final List<Event> featured = eventService.search(featuredCriteria).getContent();
+
         final ModelAndView mav = new ModelAndView("events/list");
         mav.addObject("events", result.getContent());
+        mav.addObject("featuredEvents", featured);
         mav.addObject("currentPage", result.getPage());
         mav.addObject("totalPages", result.getTotalPages());
+        mav.addObject("pageNumbers", buildPageNumbers(result.getPage(), result.getTotalPages()));
         mav.addObject("totalElements", result.getTotalElements());
         mav.addObject("categories", categoryService.findAll());
         mav.addObject("barrios", Barrio.values());
-        mav.addObject("selectedCategoria", categoryId);
+        mav.addObject("selectedCategorias", categoryIds);
         mav.addObject("precioMin", precioMin);
         mav.addObject("precioMax", precioMax);
         mav.addObject("fechaDesde", fechaDesde);
         mav.addObject("fechaHasta", fechaHasta);
-        mav.addObject("barrio", barrio);
+        mav.addObject("selectedBarrios", barrios);
+        mav.addObject("hasActiveFilters", hasActiveFilters);
         mav.addObject("sort", sort);
         mav.addObject("filterErrors", filterErrors);
         mav.addObject("rsvp", rsvp);
         return mav;
+    }
+
+    // Numeros de pagina a mostrar en el paginador. Con pocas paginas se muestran
+    // todas; con muchas, primera + ultima + una ventana alrededor de la actual,
+    // con null como marcador de "..." (el JSP lo detecta con <c:if test="${empty p}">).
+    private static List<Integer> buildPageNumbers(final int currentPage, final int totalPages) {
+        final List<Integer> pages = new ArrayList<>();
+        if (totalPages <= 7) {
+            for (int i = 1; i <= totalPages; i++) {
+                pages.add(i);
+            }
+            return pages;
+        }
+        pages.add(1);
+        if (currentPage > 3) {
+            pages.add(null);
+        }
+        final int start = Math.max(2, currentPage - 1);
+        final int end = Math.min(totalPages - 1, currentPage + 1);
+        for (int i = start; i <= end; i++) {
+            pages.add(i);
+        }
+        if (currentPage < totalPages - 2) {
+            pages.add(null);
+        }
+        pages.add(totalPages);
+        return pages;
     }
 
     // Los filtros son de la barra de busqueda: si vienen mal formados, se ignoran
@@ -148,6 +198,30 @@ public class EventController {
         } catch (final NumberFormatException e) {
             return null;
         }
+    }
+
+    // Multi-seleccion: cada elemento se parsea por separado, el que este mal
+    // formado se descarta solo (no invalida los demas). Lista vacia = sin filtro.
+    private static List<Long> parseLongList(final List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return null;
+        }
+        final List<Long> result = values.stream()
+                .map(EventController::parseLong)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        return result.isEmpty() ? null : result;
+    }
+
+    private static List<Barrio> parseBarrioList(final List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return null;
+        }
+        final List<Barrio> result = values.stream()
+                .map(EventController::parseBarrioFilter)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        return result.isEmpty() ? null : result;
     }
 
     private static Double parseDouble(final String value) {
@@ -230,6 +304,7 @@ public class EventController {
                     mav.addObject("event", event);
                     mav.addObject("rsvp", rsvp);
                     mav.addObject("full", registrationService.isFull(id));
+                    mav.addObject("availableSpots", registrationService.availableSpots(id));
                     return mav;
                 })
                 .orElseThrow(() -> new EventNotFoundException(id));
@@ -373,6 +448,7 @@ public class EventController {
                     final ModelAndView mav = new ModelAndView("events/detail");
                     mav.addObject("event", event);
                     mav.addObject("full", registrationService.isFull(id));
+                    mav.addObject("availableSpots", registrationService.availableSpots(id));
                     mav.addObject("registrationForm", form);
                     mav.addObject("fieldErrors", fieldErrors);
                     return mav;

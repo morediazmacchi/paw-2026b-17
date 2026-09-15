@@ -80,4 +80,16 @@ public class RegistrationServiceImpl implements RegistrationService {
         return event.getMaxCapacity() != null
                 && registrationDao.countConfirmed(event.getId()) >= event.getMaxCapacity();
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Integer availableSpots(final long eventId) {
+        final Event event = eventDao.findById(eventId)
+                .orElseThrow(() -> new IllegalArgumentException("Evento inexistente: " + eventId));
+        if (event.getMaxCapacity() == null) {
+            return null;
+        }
+        final long confirmed = registrationDao.countConfirmed(eventId);
+        return (int) Math.max(0, event.getMaxCapacity() - confirmed);
+    }
 }

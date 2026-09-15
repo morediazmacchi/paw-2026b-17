@@ -143,7 +143,7 @@ a {
     padding: 10px;
 }
 
-.card-precio, .detail-precio {
+.card-precio {
     background: var(--accent);
     color: var(--accent-text);
     font-size: 0.8rem;
@@ -178,51 +178,266 @@ a {
 
 /* Detail page */
 
-.detail {
+.detail-page {
+    max-width: 1100px;
+}
+
+.detail-alert {
+    margin-top: 20px;
+}
+
+.detail-hero {
+    position: relative;
+    height: 420px;
+    overflow: hidden;
+    background: linear-gradient(135deg, #1f2a0d, #0d0d0d 70%);
+}
+
+.detail-hero-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.detail-hero-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0.25) 40%, rgba(0, 0, 0, 0.85) 100%);
+}
+
+.detail-hero-back {
+    position: absolute;
+    top: 24px;
+    left: 32px;
+    z-index: 2;
+    display: inline-block;
+    padding: 8px 18px;
+    border-radius: 999px;
+    background: rgba(13, 13, 13, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    font-weight: 600;
+}
+
+.detail-hero-badge {
+    position: absolute;
+    top: 24px;
+    right: 32px;
+    z-index: 2;
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: rgba(13, 13, 13, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.detail-hero-title {
+    position: absolute;
+    bottom: 28px;
+    left: 32px;
+    right: 32px;
+    z-index: 2;
+    font-size: 2.2rem;
+    line-height: 1.15;
+    margin: 0;
+}
+
+.detail-meta-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 28px;
+    padding: 20px 0;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+}
+
+.detail-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.detail-meta-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
     background: var(--bg-elevated);
     border: 1px solid var(--border);
-    border-radius: 16px;
-    overflow: hidden;
-    padding-bottom: 28px;
-}
-
-.detail-placeholder {
-    height: 160px;
-    background: linear-gradient(135deg, #1f2a0d, #0d0d0d 70%);
-    display: flex;
-    align-items: flex-start;
-    justify-content: flex-end;
-    padding: 16px;
-}
-
-.detail-precio {
-    font-size: 0.9rem;
-}
-
-.detail > .card-categoria, .detail-titulo, .detail-meta, .detail-descripcion, .rsvp-box {
-    margin-left: 24px;
-    margin-right: 24px;
-}
-
-.detail-titulo {
-    margin-top: 16px;
-    font-size: 1.6rem;
-}
-
-.detail-meta {
     color: var(--text-muted);
-    margin: 0 24px 6px;
+}
+
+/* Iconos de linea (paw:icon): heredan el color de texto que los rodea. */
+.icon {
+    width: 18px;
+    height: 18px;
+    display: inline-block;
+    vertical-align: -4px;
+    flex-shrink: 0;
+}
+
+.detail-meta-item div {
+    display: flex;
+    flex-direction: column;
+}
+
+.detail-meta-label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+}
+
+.detail-meta-value {
+    font-weight: 700;
+}
+
+.detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 40px;
+    align-items: start;
+    padding-top: 24px;
+}
+
+.detail-section-heading {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin-top: 28px;
+}
+
+.detail-section-heading:first-child {
+    margin-top: 0;
 }
 
 .detail-descripcion {
-    margin-top: 16px;
-    line-height: 1.5;
+    line-height: 1.6;
+    color: var(--text);
 }
 
-.rsvp-box {
-    margin-top: 28px;
-    padding-top: 20px;
-    border-top: 1px solid var(--border);
+.detail-address {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.detail-address-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.detail-address-line {
+    font-weight: 700;
+    margin: 0;
+}
+
+.detail-address-sub {
+    color: var(--text-muted);
+    margin: 2px 0 0;
+}
+
+.detail-side {
+    position: sticky;
+    top: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.detail-price-card, .detail-rsvp-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+}
+
+.detail-price-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding-bottom: 16px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+.detail-price-big {
+    display: block;
+    font-size: 1.8rem;
+    font-weight: 700;
+}
+
+.detail-price-sub {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+.detail-spots-badge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 6px 14px;
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 1.1rem;
+}
+
+.detail-spots-badge-label {
+    color: var(--text-muted);
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.detail-price-card-bottom {
+    display: flex;
+    gap: 18px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    flex-wrap: wrap;
+}
+
+.detail-rsvp-heading {
+    font-size: 1.05rem;
+}
+
+.detail-rsvp-submit {
+    width: 100%;
+    margin-top: 10px;
+}
+
+.detail-rsvp-note {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    text-align: center;
+    margin: 10px 0 0;
+}
+
+@media (max-width: 800px) {
+    .detail-grid {
+        grid-template-columns: 1fr;
+    }
+    .detail-side {
+        position: static;
+    }
 }
 
 /* Form card (publish page) */
@@ -286,14 +501,39 @@ a {
 .pager {
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 16px;
+    justify-content: flex-end;
+    gap: 8px;
     margin-top: 32px;
 }
 
-.pager-indicator {
-    color: var(--text-muted);
+.pager-arrow, .pager-number {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 36px;
+    height: 36px;
+    padding: 0 6px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--bg-elevated);
+    color: var(--text);
     font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.pager-arrow:hover, .pager-number:hover {
+    border-color: var(--accent);
+}
+
+.pager-number-active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-text);
+}
+
+.pager-ellipsis {
+    color: var(--text-muted);
+    padding: 0 4px;
 }
 
 input, select, textarea {
@@ -354,12 +594,12 @@ input:focus, select:focus, textarea:focus {
 
 /* Imagenes de eventos (se agregan al final: no modifican las reglas de arriba) */
 
-.card-placeholder, .detail-placeholder {
+.card-placeholder {
     position: relative;
     overflow: hidden;
 }
 
-.card-img, .detail-img {
+.card-img {
     position: absolute;
     inset: 0;
     width: 100%;
@@ -369,12 +609,274 @@ input:focus, select:focus, textarea:focus {
     object-fit: contain;
 }
 
-.card-precio, .detail-precio {
+.card-precio {
     position: relative;
     z-index: 1;
 }
 
-/* Recuadros mas altos que los originales (110px y 160px): con la foto entera
-   adentro, en el alto original quedaba demasiado chica. */
+/* Recuadro mas alto que el original (110px): con la foto entera adentro, en
+   el alto original quedaba demasiado chica. */
 .card-placeholder { height: 190px; }
-.detail-placeholder { height: 260px; }
+
+/* Banner destacado (hero) del listado de eventos */
+.hero {
+    position: relative;
+    height: 440px;
+    overflow: hidden;
+    background: linear-gradient(135deg, #1f2a0d, #0d0d0d 70%);
+}
+
+.hero-slide {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.6s ease;
+}
+
+.hero-slide-active {
+    opacity: 1;
+    visibility: visible;
+    z-index: 1;
+}
+
+.hero-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.hero-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, rgba(0, 0, 0, 0.9) 15%, rgba(0, 0, 0, 0.55) 55%, rgba(0, 0, 0, 0.15));
+}
+
+.hero-content {
+    position: relative;
+    z-index: 2;
+    height: 100%;
+    max-width: 620px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 40px 48px;
+}
+
+.hero-badges {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.hero-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: var(--text);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.hero-badge-accent {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-text);
+}
+
+.hero-title {
+    font-size: 2.4rem;
+    line-height: 1.15;
+    margin: 0 0 12px;
+}
+
+.hero-description {
+    color: var(--text-muted);
+    margin: 0 0 18px;
+    line-height: 1.5;
+    max-width: 520px;
+}
+
+.hero-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    align-items: center;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    margin-bottom: 22px;
+}
+
+.hero-price {
+    background: var(--accent);
+    color: var(--accent-text);
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 999px;
+}
+
+.hero-dots {
+    position: absolute;
+    bottom: 20px;
+    left: 48px;
+    z-index: 3;
+    display: flex;
+    gap: 6px;
+}
+
+.hero-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.3);
+    transition: background 0.2s ease, width 0.2s ease;
+}
+
+.hero-dot-active {
+    background: var(--accent);
+    width: 22px;
+    border-radius: 999px;
+}
+
+/* Barra de filtros v2: dropdowns nativos (<details>), multi-seleccion de
+   categoria/barrio con checkboxes. Sin JS propio: el navegador maneja el
+   abrir/cerrar de cada <details> solo. */
+.filter-bar-v2 {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+    padding: 10px 14px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+}
+
+/* Filtrar + Limpiar todo van pegados a la derecha de la barra; los dropdowns
+   de filtro quedan agrupados a la izquierda. */
+.filter-bar-v2 .btn-accent {
+    margin-left: auto;
+}
+
+.filter-dropdown {
+    position: relative;
+}
+
+.filter-dropdown summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+.filter-dropdown summary::-webkit-details-marker {
+    display: none;
+}
+
+.filter-dropdown summary::after {
+    content: "\25BE";
+    margin-left: 2px;
+    color: var(--text-muted);
+    font-size: 0.7rem;
+}
+
+.filter-dropdown[open] summary {
+    border-color: var(--accent);
+}
+
+.filter-dropdown-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.filter-dropdown-value {
+    font-size: 0.9rem;
+    color: var(--text);
+}
+
+.filter-dropdown-panel {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    z-index: 10;
+    min-width: 220px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.filter-dropdown-panel-scroll {
+    max-height: 280px;
+    overflow-y: auto;
+}
+
+.filter-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+.filter-checkbox input {
+    width: auto;
+    accent-color: var(--accent);
+}
+
+.filter-dropdown-panel .form-group {
+    margin-bottom: 0;
+}
+
+.filter-dropdown-panel input {
+    max-width: 160px;
+}
+
+.filter-clear-all {
+    color: var(--text-muted);
+}
+
+.filter-clear-all:hover {
+    color: var(--text);
+}
+
+/* Encabezado de resultados: cantidad de eventos + limpiar filtros */
+.results-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.results-count {
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.results-clear {
+    color: var(--accent);
+    font-size: 0.9rem;
+}
+
+.results-clear:hover {
+    text-decoration: underline;
+}

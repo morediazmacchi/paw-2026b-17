@@ -14,4 +14,10 @@ public interface RegistrationService {
      * @return true si el evento ya alcanzo su cupo maximo (siempre false si no tiene limite)
      */
     boolean isFull(long eventId);
+
+    /**
+     * @return cupos que todavia quedan libres (cupo maximo menos confirmados),
+     *         o null si el evento no tiene limite de cupo
+     */
+    Integer availableSpots(long eventId);
 }

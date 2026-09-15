@@ -143,9 +143,9 @@ public class EventJdbcDao implements EventDao {
         final List<Object> params = new ArrayList<>();
         params.add(new Timestamp(System.currentTimeMillis()));
 
-        if (criteria.getCategoryId() != null) {
-            sql.append(" AND e.category_id = ?");
-            params.add(criteria.getCategoryId());
+        if (criteria.getCategoryIds() != null && !criteria.getCategoryIds().isEmpty()) {
+            sql.append(" AND e.category_id IN (").append(placeholders(criteria.getCategoryIds().size())).append(")");
+            params.addAll(criteria.getCategoryIds());
         }
         if (criteria.getMinPrice() != null) {
             sql.append(" AND e.price >= ?");
@@ -163,12 +163,24 @@ public class EventJdbcDao implements EventDao {
             sql.append(" AND e.event_date < ?");
             params.add(new Timestamp(criteria.getToDate().getTime()));
         }
-        if (criteria.getBarrio() != null) {
-            sql.append(" AND e.neighborhood = ?");
-            params.add(criteria.getBarrio().name());
+        if (criteria.getBarrios() != null && !criteria.getBarrios().isEmpty()) {
+            sql.append(" AND e.neighborhood IN (").append(placeholders(criteria.getBarrios().size())).append(")");
+            criteria.getBarrios().forEach(b -> params.add(b.name()));
         }
 
         return new WhereClause(sql.toString(), params);
+    }
+
+    // "?, ?, ?" para un IN (...) de n elementos.
+    private static String placeholders(final int count) {
+        final StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < count; i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            sb.append("?");
+        }
+        return sb.toString();
     }
 
     private static final class WhereClause {
