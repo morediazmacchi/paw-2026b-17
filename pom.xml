@@ -28,6 +28,7 @@
     <junit.version>4.13.2</junit.version>
     <mockito.version>5.11.0</mockito.version>
     <hsqldb.version>2.7.3</hsqldb.version>
+    <spring-security.version>5.7.11</spring-security.version>
   </properties>
   <dependencyManagement>
     <dependencies>
@@ -121,6 +122,30 @@
         <groupId>org.hsqldb</groupId>
         <artifactId>hsqldb</artifactId>
         <version>${hsqldb.version}</version>
+      </dependency>
+      <!-- Autenticacion. spring-security-core (UserDetailsService, PasswordEncoder)
+           va en services; spring-security-web/config (filtros, @EnableWebSecurity)
+           van en webapp: services nunca depende de nada de servlets/web. -->
+      <dependency>
+        <groupId>org.springframework.security</groupId>
+        <artifactId>spring-security-core</artifactId>
+        <version>${spring-security.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.springframework.security</groupId>
+        <artifactId>spring-security-web</artifactId>
+        <version>${spring-security.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.springframework.security</groupId>
+        <artifactId>spring-security-config</artifactId>
+        <version>${spring-security.version}</version>
+      </dependency>
+      <!-- <sec:authorize> en los JSP (navbar: mostrar login o logout segun el estado). -->
+      <dependency>
+        <groupId>org.springframework.security</groupId>
+        <artifactId>spring-security-taglibs</artifactId>
+        <version>${spring-security.version}</version>
       </dependency>
     </dependencies>
   </dependencyManagement>

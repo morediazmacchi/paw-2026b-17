@@ -12,11 +12,10 @@
 </head>
 <body>
 
-<spring:message code="common.nav.backToEvents" var="backToEventsLabel"/>
-<header class="navbar">
-    <a class="logo" href="<c:url value='/eventos'/>">p<span class="logo-dot">.</span> plancito</a>
+<paw:navbar>
+    <spring:message code="common.nav.backToEvents" var="backToEventsLabel"/>
     <a class="btn btn-medium" href="<c:url value='/eventos'/>">&larr; <c:out value="${backToEventsLabel}"/></a>
-</header>
+</paw:navbar>
 
 <main class="page page-narrow">
     <div class="form-card">
@@ -35,7 +34,6 @@
         <spring:message code="event.publish.neighborhoodNone" var="neighborhoodNoneLabel"/>
         <spring:message code="event.publish.priceLabel" var="priceLabel"/>
         <spring:message code="event.publish.capacityLabel" var="capacityLabel"/>
-        <spring:message code="event.publish.emailLabel" var="emailLabel"/>
         <spring:message code="event.publish.imageLabel" var="imageLabel"/>
         <spring:message code="event.publish.freeOption" var="freeOptionLabel"/>
         <spring:message code="event.publish.noLimitOption" var="noLimitOptionLabel"/>
@@ -84,9 +82,6 @@
             <paw:input name="cupoMaximo" label="${capacityLabel}" type="number" min="0"
                        value="${eventForm.cupoMaximo}" errorMessage="${fieldErrors.cupoMaximo}"
                        toggleText="${noLimitOptionLabel}" />
-
-            <paw:input name="creadorEmail" label="${emailLabel}" type="email"
-                       value="${eventForm.creadorEmail}" errorMessage="${fieldErrors.creadorEmail}" />
 
             <div class="form-group">
                 <label for="image"><c:out value="${imageLabel}"/></label>

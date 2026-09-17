@@ -30,6 +30,7 @@ import org.springframework.web.servlet.ModelAndView;
 
 import javax.validation.Valid;
 import java.io.IOException;
+import java.security.Principal;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -323,7 +324,8 @@ public class EventController {
 
     @RequestMapping(value = "/eventos/publicar", method = RequestMethod.POST)
     public ModelAndView publish(@Valid final EventForm form, final BindingResult errors,
-                                 @RequestParam(value = "image", required = false) final MultipartFile image) {
+                                 @RequestParam(value = "image", required = false) final MultipartFile image,
+                                 final Principal principal) {
         final Barrio parsedBarrio = parseBarrio(form.getBarrio(), errors);
 
         if (errors.hasErrors()) {
@@ -373,8 +375,10 @@ public class EventController {
             }
         }
 
+        // El creador es quien esta logueado, nunca un campo del form: si viniera del
+        // form, cualquiera podria publicar un evento a nombre de otro email.
         final Event event = new Event(form.getTitulo(), form.getDescripcion(), parsedDate, form.getDireccion(),
-                parsedBarrio, imageId, parsedPrice, parsedCapacity, form.getCreadorEmail(), form.getCategoriaId());
+                parsedBarrio, imageId, parsedPrice, parsedCapacity, principal.getName(), form.getCategoriaId());
         try {
             eventService.create(event);
         } catch (final IllegalArgumentException e) {

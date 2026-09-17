@@ -50,6 +50,13 @@ a {
     white-space: nowrap;
 }
 
+.navbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
 .logo-dot {
     color: var(--accent);
 }
@@ -1050,4 +1057,309 @@ input:focus, select:focus, textarea:focus {
     border-radius: 8px;
     color: var(--text-muted);
     font-size: 0.95rem;
+}
+
+/* ==========================================================================
+   Login / registro (auth/login.jsp, auth/register.jsp). Tarjeta propia (no
+   .form-card): esa clase trae un grid de 2 columnas pensado para el form de
+   publicar, que rompe la pinta de un form corto de 2-4 campos en una columna.
+   ========================================================================== */
+
+.auth-card {
+    max-width: 420px;
+    margin: 0 auto;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px 30px 30px;
+}
+
+.auth-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 22px;
+}
+
+.auth-tab {
+    flex: 1;
+    text-align: center;
+    padding: 8px 14px;
+}
+
+.auth-card h1 {
+    margin-bottom: 6px;
+}
+
+.auth-subheading {
+    color: var(--text-muted);
+    margin-bottom: 22px;
+}
+
+.auth-card form .form-group {
+    margin-bottom: 16px;
+}
+
+.auth-card form > button {
+    width: 100%;
+    padding: 11px 0;
+    font-size: 0.95rem;
+    margin-top: 4px;
+}
+
+.auth-footer {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    margin-top: 18px;
+}
+
+/* ==========================================================================
+   Layout de "Mi perfil": sidebar (accountSidebar.tag) + contenido a la
+   derecha. Comun a auth/perfil.jsp y auth/inscripciones.jsp (y a Mis
+   eventos/Favoritos cuando se agreguen).
+   ========================================================================== */
+
+.account-layout {
+    display: flex;
+    align-items: flex-start;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.account-sidebar {
+    width: 280px;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    border-right: 1px solid var(--border);
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    min-height: calc(100vh - 65px);
+}
+
+.account-sidebar-identity {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-bottom: 20px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+.account-sidebar-name {
+    font-weight: 700;
+}
+
+.account-sidebar-email {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    word-break: break-all;
+}
+
+.account-sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.account-sidebar-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.account-sidebar-link:hover {
+    color: var(--text);
+    border-color: transparent;
+}
+
+.account-sidebar-link-active {
+    background: rgba(198, 255, 58, 0.12);
+    color: var(--accent);
+}
+
+.account-sidebar-badge {
+    margin-left: auto;
+    background: var(--bg);
+    color: var(--text-muted);
+    border-radius: 999px;
+    padding: 1px 9px;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.account-sidebar-link-active .account-sidebar-badge {
+    background: rgba(198, 255, 58, 0.18);
+    color: var(--accent);
+}
+
+.account-sidebar-logout {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 12px 0;
+    margin-top: auto;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    border-top: 1px solid var(--border);
+}
+
+.account-sidebar-logout:hover {
+    color: var(--text);
+}
+
+.account-main {
+    flex: 1;
+    min-width: 0;
+    padding: 24px 32px 64px;
+}
+
+.account-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px 30px 30px;
+    max-width: 640px;
+}
+
+@media (max-width: 860px) {
+    .account-layout {
+        flex-direction: column;
+    }
+    .account-sidebar {
+        width: 100%;
+        min-height: 0;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+    }
+}
+
+.profile-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--accent-text);
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+.profile-section-title {
+    font-size: 1rem;
+    margin-bottom: 14px;
+}
+
+.profile-divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 28px 0;
+}
+
+/* Boton "peligroso": Cancelar / Eliminar. Mismo pill que .btn, distinto color.
+   OJO: no es --danger-bg/--danger-border (esas son verdes, para .alert). */
+.btn-danger {
+    background: rgba(255, 90, 90, 0.1);
+    border-color: rgba(255, 90, 90, 0.4);
+    color: #ff8080;
+}
+
+.btn-danger:hover {
+    border-color: #ff8080;
+}
+
+/* ==========================================================================
+   Fila horizontal de evento (eventRow.tag): Mis inscripciones, Mis eventos,
+   Favoritos. Miniatura + titulo + metadata a la izquierda (linkean al
+   detalle), el body del tag (los botones de accion) a la derecha.
+   ========================================================================== */
+
+.event-row-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.event-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 16px;
+}
+
+.event-row-link {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+    flex: 1;
+}
+
+.event-row-thumb {
+    flex-shrink: 0;
+    width: 64px;
+    height: 64px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #1f2a0d, #0d0d0d 70%);
+    overflow: hidden;
+    position: relative;
+}
+
+.event-row-thumb img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.event-row-info {
+    min-width: 0;
+}
+
+.event-row-title {
+    font-size: 1rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.event-row-meta {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.event-row-price {
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.event-row-actions {
+    flex-shrink: 0;
+    display: flex;
+    gap: 8px;
+}
+
+@media (max-width: 620px) {
+    .event-row {
+        flex-wrap: wrap;
+    }
+    .event-row-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
 }

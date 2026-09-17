@@ -1,6 +1,7 @@
 <%@ page contentType="text/html;charset=UTF-8" pageEncoding="UTF-8" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
+<%@ taglib prefix="paw" tagdir="/WEB-INF/tags" %>
 <html>
 <head>
     <meta charset="UTF-8">
@@ -9,11 +10,10 @@
 </head>
 <body>
 
-<spring:message code="common.nav.backToEvents" var="backToEventsLabel"/>
-<header class="navbar">
-    <a class="logo" href="<c:url value='/eventos'/>">p<span class="logo-dot">.</span> plancito</a>
+<paw:navbar>
+    <spring:message code="common.nav.backToEvents" var="backToEventsLabel"/>
     <a class="btn btn-medium" href="<c:url value='/eventos'/>">&larr; <c:out value="${backToEventsLabel}"/></a>
-</header>
+</paw:navbar>
 
 <main class="page page-narrow">
     <h1><spring:message code="error.notFound.heading"/></h1>

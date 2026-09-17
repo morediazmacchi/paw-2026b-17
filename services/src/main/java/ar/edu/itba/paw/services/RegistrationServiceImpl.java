@@ -11,6 +11,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+import java.util.Optional;
+
 @Service
 public class RegistrationServiceImpl implements RegistrationService {
 
@@ -91,5 +94,22 @@ public class RegistrationServiceImpl implements RegistrationService {
         }
         final long confirmed = registrationDao.countConfirmed(eventId);
         return (int) Math.max(0, event.getMaxCapacity() - confirmed);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Registration> findByEmail(final String email) {
+        return registrationDao.findByEmail(email);
+    }
+
+    @Override
+    @Transactional
+    public boolean cancel(final long registrationId, final String email) {
+        final Optional<Registration> registration = registrationDao.findById(registrationId);
+        if (!registration.isPresent() || !registration.get().getEmail().equalsIgnoreCase(email.trim())) {
+            return false;
+        }
+        registrationDao.delete(registrationId);
+        return true;
     }
 }

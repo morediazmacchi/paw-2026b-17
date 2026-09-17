@@ -1,6 +1,10 @@
 // Contrato de servicio para inscripciones. Implementacion: RegistrationServiceImpl (modulo services).
 package ar.edu.itba.paw.services;
 
+import ar.edu.itba.paw.model.Registration;
+
+import java.util.List;
+
 public interface RegistrationService {
 
     /**
@@ -20,4 +24,16 @@ public interface RegistrationService {
      *         o null si el evento no tiene limite de cupo
      */
     Integer availableSpots(long eventId);
+
+    /**
+     * "Mis inscripciones": las de ese email, mas recientes primero.
+     */
+    List<Registration> findByEmail(String email);
+
+    /**
+     * Cancela una inscripcion propia. Devuelve false (y no borra nada) si no
+     * existe o si es de otro email: cancelar la inscripcion de otra persona
+     * conociendo solo su id no tiene que ser posible.
+     */
+    boolean cancel(long registrationId, String email);
 }

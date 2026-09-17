@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import javax.sql.DataSource;
 import java.sql.Timestamp;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
@@ -107,5 +108,52 @@ public class RegistrationJdbcDaoTest {
         registrationDao.create(new Registration(eventId, "espera@mail.com", NAME, Registration.STATUS_WAITLISTED));
 
         assertEquals(1, registrationDao.countConfirmed(eventId));
+    }
+
+    // ---- findById() ----
+
+    @Test
+    public void testFindByIdReturnsEmptyWhenItDoesNotExist() {
+        assertFalse(registrationDao.findById(-1).isPresent());
+    }
+
+    @Test
+    public void testFindByIdReturnsTheRegistration() {
+        final Registration created = registrationDao.create(someRegistration(eventId));
+
+        final Optional<Registration> found = registrationDao.findById(created.getId());
+
+        assertTrue(found.isPresent());
+        assertEquals(EMAIL, found.get().getEmail());
+    }
+
+    // ---- findByEmail() ("Mis inscripciones") ----
+
+    @Test
+    public void testFindByEmailReturnsOnlyThatEmailsRegistrations() {
+        registrationDao.create(someRegistration(eventId));
+        registrationDao.create(new Registration(eventId, "otro@mail.com", "Otro", Registration.STATUS_CONFIRMED));
+
+        final List<Registration> found = registrationDao.findByEmail(EMAIL);
+
+        assertEquals(1, found.size());
+        assertEquals(EMAIL, found.get(0).getEmail());
+    }
+
+    @Test
+    public void testFindByEmailReturnsEmptyWhenNeverRegistered() {
+        assertTrue(registrationDao.findByEmail(EMAIL).isEmpty());
+    }
+
+    // ---- delete() ----
+
+    @Test
+    public void testDeleteRemovesTheRegistration() {
+        final Registration created = registrationDao.create(someRegistration(eventId));
+
+        registrationDao.delete(created.getId());
+
+        assertFalse(registrationDao.findById(created.getId()).isPresent());
+        assertEquals(0, registrationDao.countConfirmed(eventId));
     }
 }

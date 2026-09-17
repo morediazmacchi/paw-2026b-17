@@ -1,0 +1,43 @@
+<%@ tag language="java" pageEncoding="UTF-8" %>
+<%@ attribute name="active" required="true" %>
+<%@ attribute name="registrationsCount" required="false" type="java.lang.Integer" %>
+<%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
+<%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions" %>
+<%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
+<%@ taglib prefix="paw" tagdir="/WEB-INF/tags" %>
+
+<%-- Barra lateral de "Mi perfil": identidad + navegacion entre subpaginas.
+     "user" no es un atributo del tag: lo toma del request (ya lo pone
+     ProfileController en el model de las tres paginas que la usan). Cuando
+     se agreguen Mis eventos/Favoritos, sus links van aca y aparecen en todas
+     las pantallas de la cuenta a la vez. --%>
+<aside class="account-sidebar">
+    <div class="account-sidebar-identity">
+        <span class="profile-avatar"><c:out value="${fn:toUpperCase(fn:substring(user.name, 0, 1))}"/></span>
+        <div>
+            <p class="account-sidebar-name"><c:out value="${user.name}"/></p>
+            <p class="account-sidebar-email"><c:out value="${user.email}"/></p>
+        </div>
+    </div>
+
+    <nav class="account-sidebar-nav">
+        <spring:message code="profile.tabs.data" var="dataLabel"/>
+        <a class="account-sidebar-link ${active == 'data' ? 'account-sidebar-link-active' : ''}"
+           href="<c:url value='/perfil'/>">
+            <paw:icon name="user"/> <c:out value="${dataLabel}"/>
+        </a>
+        <spring:message code="profile.tabs.registrations" var="registrationsLabel"/>
+        <a class="account-sidebar-link ${active == 'registrations' ? 'account-sidebar-link-active' : ''}"
+           href="<c:url value='/perfil/inscripciones'/>">
+            <paw:icon name="check-square"/> <c:out value="${registrationsLabel}"/>
+            <c:if test="${not empty registrationsCount}">
+                <span class="account-sidebar-badge"><c:out value="${registrationsCount}"/></span>
+            </c:if>
+        </a>
+    </nav>
+
+    <spring:message code="common.nav.logout" var="logoutLabel"/>
+    <a class="account-sidebar-logout" href="<c:url value='/logout'/>">
+        <paw:icon name="logout"/> <c:out value="${logoutLabel}"/>
+    </a>
+</aside>

@@ -10,11 +10,15 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @RunWith(MockitoJUnitRunner.class)
@@ -132,5 +136,54 @@ public class RegistrationServiceImplTest {
         when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.empty());
 
         registrationService.isFull(EVENT_ID);
+    }
+
+    // ---- findByEmail() ----
+
+    @Test
+    public void testFindByEmailDelegatesToTheDao() {
+        final List<Registration> registrations = Collections.singletonList(
+                new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, Registration.STATUS_CONFIRMED));
+        when(mockRegistrationDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(registrations);
+
+        final List<Registration> result = registrationService.findByEmail(NORMALIZED_EMAIL);
+
+        assertEquals(registrations, result);
+    }
+
+    // ---- cancel() ----
+
+    @Test
+    public void testCancelDeletesWhenTheEmailOwnsTheRegistration() {
+        final Registration registration = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, Registration.STATUS_CONFIRMED);
+        registration.setId(5);
+        when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
+
+        final boolean result = registrationService.cancel(5, NORMALIZED_EMAIL);
+
+        assertTrue(result);
+        verify(mockRegistrationDao).delete(5);
+    }
+
+    @Test
+    public void testCancelReturnsFalseWhenTheRegistrationDoesNotExist() {
+        when(mockRegistrationDao.findById(5)).thenReturn(Optional.empty());
+
+        final boolean result = registrationService.cancel(5, NORMALIZED_EMAIL);
+
+        assertFalse(result);
+        verify(mockRegistrationDao, never()).delete(5);
+    }
+
+    @Test
+    public void testCancelReturnsFalseWhenTheRegistrationBelongsToSomeoneElse() {
+        final Registration registration = new Registration(EVENT_ID, "otro@mail.com", NAME, Registration.STATUS_CONFIRMED);
+        registration.setId(5);
+        when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
+
+        final boolean result = registrationService.cancel(5, NORMALIZED_EMAIL);
+
+        assertFalse(result);
+        verify(mockRegistrationDao, never()).delete(5);
     }
 }

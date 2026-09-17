@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 
 import javax.sql.DataSource;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -64,5 +65,23 @@ public class RegistrationJdbcDao implements RegistrationDao {
                 "SELECT COUNT(*) FROM registration WHERE event_id = ? AND status = ?",
                 Long.class, eventId, Registration.STATUS_CONFIRMED);
         return count == null ? 0 : count;
+    }
+
+    @Override
+    public Optional<Registration> findById(final long id) {
+        return jdbcTemplate.query("SELECT * FROM registration WHERE id = ?", ROW_MAPPER, id)
+                .stream().findFirst();
+    }
+
+    @Override
+    public List<Registration> findByEmail(final String email) {
+        return jdbcTemplate.query(
+                "SELECT * FROM registration WHERE email = ? ORDER BY registered_at DESC",
+                ROW_MAPPER, email);
+    }
+
+    @Override
+    public void delete(final long id) {
+        jdbcTemplate.update("DELETE FROM registration WHERE id = ?", id);
     }
 }

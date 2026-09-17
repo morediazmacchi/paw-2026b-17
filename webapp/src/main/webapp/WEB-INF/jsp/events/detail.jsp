@@ -12,9 +12,7 @@
 </head>
 <body>
 
-<header class="navbar">
-    <a class="logo" href="<c:url value='/eventos'/>">p<span class="logo-dot">.</span> plancito</a>
-</header>
+<paw:navbar/>
 
 <spring:message code="event.detail.backButton" var="backLabel"/>
 <section class="detail-hero">

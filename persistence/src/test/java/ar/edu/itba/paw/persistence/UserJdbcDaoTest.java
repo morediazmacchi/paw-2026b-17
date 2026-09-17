@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -91,5 +92,76 @@ public class UserJdbcDaoTest {
         // "findOrCreate nunca pisa un user existente" (UserServiceImplTest, paso 5).
         userDao.create(new User(EMAIL, NAME));
         userDao.create(new User(EMAIL, "Otro Nombre"));
+    }
+
+    // ---- roles (LEFT JOIN en findById/findByEmail) ----
+
+    @Test
+    public void testFindByIdReturnsRolesWhenTheUserHasThem() {
+        final User created = userDao.create(new User(EMAIL, NAME));
+        userDao.addRole(created.getId(), "ROLE_USER");
+        userDao.addRole(created.getId(), "ROLE_ADMIN");
+
+        final Optional<User> found = userDao.findById(created.getId());
+
+        assertTrue(found.isPresent());
+        final Set<String> roles = found.get().getRoles();
+        assertEquals(2, roles.size());
+        assertTrue(roles.contains("ROLE_USER"));
+        assertTrue(roles.contains("ROLE_ADMIN"));
+    }
+
+    @Test
+    public void testAddRoleTwiceIsIdempotent() {
+        // No hay ON CONFLICT (no es portable a HSQLDB): addRole() depende de que
+        // el PRIMARY KEY compuesto absorba el duplicado sin explotar.
+        final User created = userDao.create(new User(EMAIL, NAME));
+
+        userDao.addRole(created.getId(), "ROLE_USER");
+        userDao.addRole(created.getId(), "ROLE_USER");
+
+        assertEquals(1, userDao.findRoles(created.getId()).size());
+    }
+
+    @Test
+    public void testFindByEmailReturnsEmptySetWhenTheUserHasNoRoles() {
+        // El LEFT JOIN es lo que hace que este usuario aparezca igual (con
+        // set vacio) en vez de desaparecer del resultado por no tener fila
+        // en user_role: son los tres usuarios creados antes de que existiera login.
+        userDao.create(new User(EMAIL, NAME));
+
+        final Optional<User> found = userDao.findByEmail(EMAIL);
+
+        assertTrue(found.isPresent());
+        assertTrue(found.get().getRoles().isEmpty());
+    }
+
+    // ---- setPassword() ----
+
+    @Test
+    public void testSetPasswordOnAUserWithoutOneSetsIt() {
+        // Este es el caso "usuario fantasma" (creado por publicar/inscribirse sin
+        // login) que despues se registra de verdad: hasta aca password es null.
+        final User created = userDao.create(new User(EMAIL, NAME));
+
+        userDao.setPassword(created.getId(), "hashed-password");
+
+        final Optional<User> found = userDao.findById(created.getId());
+        assertTrue(found.isPresent());
+        assertEquals("hashed-password", found.get().getPassword());
+    }
+
+    // ---- updateProfile() ----
+
+    @Test
+    public void testUpdateProfileChangesNameAndEmail() {
+        final User created = userDao.create(new User(EMAIL, NAME));
+
+        userDao.updateProfile(created.getId(), "Nuevo Nombre", "nuevo@mail.com");
+
+        final Optional<User> found = userDao.findById(created.getId());
+        assertTrue(found.isPresent());
+        assertEquals("Nuevo Nombre", found.get().getName());
+        assertEquals("nuevo@mail.com", found.get().getEmail());
     }
 }

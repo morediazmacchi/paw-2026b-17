@@ -50,4 +50,12 @@ CREATE TABLE IF NOT EXISTS registration (
 
 ALTER TABLE users ALTER COLUMN name DROP NOT NULL;
 
+-- Autenticacion. Nullable: ya hay filas de usuarios creadas antes de que existiera login.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password VARCHAR(100);
+
+CREATE TABLE IF NOT EXISTS user_role (
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role        VARCHAR(30) NOT NULL,
+    PRIMARY KEY (user_id, role)
+);
 

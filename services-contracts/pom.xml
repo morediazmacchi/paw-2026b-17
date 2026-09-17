@@ -16,5 +16,12 @@
       <artifactId>model</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <!-- Solo para AuthenticationException (PasswordNotSetException la extiende):
+         webapp necesita esa clase en tiempo de compilacion, y webapp compila
+         contra services-contracts, nunca contra services (ver pom.xml raiz). -->
+    <dependency>
+      <groupId>org.springframework.security</groupId>
+      <artifactId>spring-security-core</artifactId>
+    </dependency>
   </dependencies>
 </project>

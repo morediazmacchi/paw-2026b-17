@@ -57,6 +57,12 @@
       <groupId>org.thymeleaf</groupId>
       <artifactId>thymeleaf</artifactId>
     </dependency>
+    <!-- Autenticacion: solo el nucleo (UserDetailsService, UserDetails,
+         PasswordEncoder). Nada de web/filtros aca, eso va en webapp. -->
+    <dependency>
+      <groupId>org.springframework.security</groupId>
+      <artifactId>spring-security-core</artifactId>
+    </dependency>
     <!-- Testing (lo agrego Lucas) -->
     <dependency>
       <groupId>junit</groupId>

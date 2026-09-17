@@ -13,11 +13,10 @@
 </head>
 <body>
 
-<header class="navbar">
-    <a class="logo" href="<c:url value='/eventos'/>">p<span class="logo-dot">.</span> plancito</a>
+<paw:navbar>
     <spring:message code="event.list.addButton" var="addButtonLabel"/>
     <a class="btn btn-medium btn-accent" href="<c:url value='/eventos/publicar'/>"><c:out value="${addButtonLabel}"/></a>
-</header>
+</paw:navbar>
 
 <c:if test="${not empty featuredEvents}">
     <section class="hero">

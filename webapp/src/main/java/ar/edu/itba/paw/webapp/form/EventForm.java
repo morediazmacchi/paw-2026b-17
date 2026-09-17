@@ -1,7 +1,6 @@
 // Datos del formulario de publicar evento, validados con JSR-303.
 package ar.edu.itba.paw.webapp.form;
 
-import javax.validation.constraints.Email;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
 import javax.validation.constraints.Pattern;
@@ -38,10 +37,6 @@ public class EventForm {
     @Pattern(regexp = "^[0-9]+$", message = "El cupo maximo tiene que ser un numero entero")
     private String cupoMaximo;
 
-    @NotBlank(message = "El email es obligatorio")
-    @Email(message = "El email no tiene un formato valido")
-    private String creadorEmail;
-
     public EventForm() {
     }
 
@@ -68,7 +63,4 @@ public class EventForm {
 
     public String getCupoMaximo() { return cupoMaximo; }
     public void setCupoMaximo(final String cupoMaximo) { this.cupoMaximo = cupoMaximo; }
-
-    public String getCreadorEmail() { return creadorEmail; }
-    public void setCreadorEmail(final String creadorEmail) { this.creadorEmail = creadorEmail; }
 }

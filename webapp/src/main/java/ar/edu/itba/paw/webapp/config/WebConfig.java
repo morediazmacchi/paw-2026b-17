@@ -5,6 +5,7 @@ import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.support.ReloadableResourceBundleMessageSource;
 import org.springframework.core.io.Resource;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
@@ -32,6 +33,10 @@ import javax.sql.DataSource;
         "ar.edu.itba.paw.persistence",
         "ar.edu.itba.paw.webapp.controller",
 })
+// WebAuthConfig esta en este mismo paquete (webapp.config), que el
+// @ComponentScan de arriba no barre (ni siquiera a esta clase: WebConfig se
+// carga porque web.xml la nombra explicitamente, no por component-scan).
+@Import(WebAuthConfig.class)
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
