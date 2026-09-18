@@ -22,6 +22,13 @@ public interface RegistrationDao {
     /** Para pasar de 'waitlisted' a 'confirmed' cuando alguien acepta su invitacion. */
     void updateStatus(long id, String status);
 
+    /**
+     * Ids de los eventos futuros, con cupo limitado, que tienen gente en lista de
+     * espera. Es lo unico que necesita mirar la tarea periodica: si no hay nadie
+     * esperando, no hay nada que reconciliar.
+     */
+    List<Long> findEventIdsWithWaitlist(java.util.Date now);
+
     // "Mis inscripciones": mas recientes primero.
     List<Registration> findByEmail(String email);
 

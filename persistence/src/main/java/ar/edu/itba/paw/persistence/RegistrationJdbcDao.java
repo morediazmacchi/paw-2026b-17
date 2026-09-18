@@ -95,6 +95,15 @@ public class RegistrationJdbcDao implements RegistrationDao {
     }
 
     @Override
+    public List<Long> findEventIdsWithWaitlist(final java.util.Date now) {
+        return jdbcTemplate.queryForList(
+                "SELECT DISTINCT r.event_id FROM registration r "
+                        + "JOIN event e ON e.id = r.event_id "
+                        + "WHERE r.status = ? AND e.max_capacity IS NOT NULL AND e.event_date > ?",
+                Long.class, Registration.STATUS_WAITLISTED, new java.sql.Timestamp(now.getTime()));
+    }
+
+    @Override
     public void updateStatus(final long id, final String status) {
         jdbcTemplate.update("UPDATE registration SET status = ? WHERE id = ?", status, id);
     }

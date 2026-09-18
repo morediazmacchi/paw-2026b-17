@@ -131,6 +131,12 @@ public class WaitlistServiceImpl implements WaitlistService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<Long> findEventsNeedingReconcile() {
+        return registrationDao.findEventIdsWithWaitlist(new Date());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Optional<InvitationDetail> findByToken(final String token) {
         return invitationDao.findByToken(token)
                 .flatMap(invitation -> registrationDao.findById(invitation.getRegistrationId())

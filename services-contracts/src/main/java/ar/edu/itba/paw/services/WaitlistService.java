@@ -2,6 +2,7 @@
 // WaitlistServiceImpl (modulo services).
 package ar.edu.itba.paw.services;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface WaitlistService {
@@ -25,6 +26,14 @@ public interface WaitlistService {
      * alguien decide, su lugar no se le puede dar a otro.
      */
     long countReserved(long eventId);
+
+    /**
+     * Los eventos que la tarea periodica tiene que revisar: futuros, con cupo
+     * limitado y con gente esperando. El resto del tiempo reconcile() se dispara
+     * solo, cuando alguien cancela, acepta o rechaza; esto cubre el unico caso en
+     * el que nadie aprieta nada: una invitacion que se vence sola.
+     */
+    List<Long> findEventsNeedingReconcile();
 
     /**
      * La invitacion de ese token, para dibujar la pagina del link. Solo lee: no
