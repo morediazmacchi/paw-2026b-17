@@ -9,6 +9,13 @@ import java.util.Optional;
 
 public interface EventDao {
     Event create(Event event);
+
+    // event.getId() tiene que venir seteado (identifica la fila a actualizar).
+    // No toca creator_email ni created_at -- quien creo el evento y cuando no
+    // se editan. Devuelve void a proposito, mismo patron que UserDao.updateProfile:
+    // no hay ningun dato generado que devolver como si fuera un create().
+    void update(Event event);
+
     Optional<Event> findById(long id);
 
     // SELECT ... FOR UPDATE: usar solo dentro de un @Transactional que chequee cupo.

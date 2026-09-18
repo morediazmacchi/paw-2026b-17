@@ -103,6 +103,54 @@ public class EventJdbcDaoTest {
         eventDao.create(someEvent(categoryId + 1000));
     }
 
+    // ---- update() ----
+
+    @Test
+    public void testUpdateChangesTheStoredFields() {
+        final Event created = eventDao.create(someEvent(categoryId));
+        final long otherCategoryId = insertCategory(OTHER_CATEGORY_NAME);
+
+        final Event changes = someEvent(otherCategoryId);
+        changes.setId(created.getId());
+        changes.setTitle("Titulo nuevo");
+        changes.setAddress("Direccion nueva 123");
+        changes.setPrice(2500.0);
+        changes.setMaxCapacity(30);
+        eventDao.update(changes);
+
+        final Event found = eventDao.findById(created.getId()).orElseThrow(AssertionError::new);
+        assertEquals("Titulo nuevo", found.getTitle());
+        assertEquals("Direccion nueva 123", found.getAddress());
+        assertEquals(2500.0, found.getPrice(), 0.001);
+        assertEquals(Integer.valueOf(30), found.getMaxCapacity());
+        assertEquals(OTHER_CATEGORY_NAME, found.getCategoryName());
+    }
+
+    @Test
+    public void testUpdateDoesNotChangeTheCreatorEmail() {
+        final Event created = eventDao.create(someEvent(categoryId));
+
+        // A proposito le paso un creatorEmail distinto: update() no deberia
+        // tocar esa columna aunque el objeto Event lo traiga seteado (el DAO
+        // ni siquiera lo lee -- ver la query en EventJdbcDao.update()).
+        final Event changes = someEvent(categoryId);
+        changes.setId(created.getId());
+        changes.setCreatorEmail("otro@mail.com");
+        eventDao.update(changes);
+
+        final Event found = eventDao.findById(created.getId()).orElseThrow(AssertionError::new);
+        assertEquals(CREATOR_EMAIL, found.getCreatorEmail());
+    }
+
+    @Test(expected = DataAccessException.class)
+    public void testUpdateWithNonexistentCategoryThrowsDataAccessException() {
+        final Event created = eventDao.create(someEvent(categoryId));
+
+        final Event changes = someEvent(categoryId + 1000);
+        changes.setId(created.getId());
+        eventDao.update(changes);
+    }
+
     // ---- findByIdForUpdate(): el SELECT ... FOR UPDATE que usa el lock de cupo ----
 
     @Test

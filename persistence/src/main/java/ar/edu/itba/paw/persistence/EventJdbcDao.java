@@ -92,6 +92,16 @@ public class EventJdbcDao implements EventDao {
     }
 
     @Override
+    public void update(final Event event) {
+        jdbcTemplate.update(
+                "UPDATE event SET title = ?, description = ?, event_date = ?, address = ?, neighborhood = ?, "
+                        + "image_id = ?, price = ?, max_capacity = ?, category_id = ? WHERE id = ?",
+                event.getTitle(), event.getDescription(), new Timestamp(event.getEventDate().getTime()),
+                event.getAddress(), event.getNeighborhood() == null ? null : event.getNeighborhood().name(),
+                event.getImageId(), event.getPrice(), event.getMaxCapacity(), event.getCategoryId(), event.getId());
+    }
+
+    @Override
     public Optional<Event> findById(final long id) {
         return jdbcTemplate.query(SELECT_BASE + " WHERE e.id = ?", ROW_MAPPER, id)
                 .stream().findFirst();

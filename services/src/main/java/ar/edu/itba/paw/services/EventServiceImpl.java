@@ -5,6 +5,7 @@ import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.persistence.EventDao;
+import ar.edu.itba.paw.persistence.RegistrationDao;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,13 +24,15 @@ public class EventServiceImpl implements EventService {
     private final EventDao eventDao;
     private final UserService userService;
     private final NotificationService notificationService;
+    private final RegistrationDao registrationDao;
 
     @Autowired
     public EventServiceImpl(final EventDao eventDao, final UserService userService,
-                            final NotificationService notificationService) {
+                            final NotificationService notificationService, final RegistrationDao registrationDao) {
         this.eventDao = eventDao;
         this.userService = userService;
         this.notificationService = notificationService;
+        this.registrationDao = registrationDao;
     }
 
     @Override
@@ -77,5 +80,20 @@ public class EventServiceImpl implements EventService {
 
         final List<Event> content = eventDao.search(criteria);
         return new PageResult<>(content, totalElements, effectivePage, criteria.getPageSize());
+    }
+
+    @Override
+    @Transactional
+    public EventUpdateResult update(final long eventId, final Event changes, final String callerEmail) {
+        final Optional<Event> existing = eventDao.findById(eventId);
+        if (!existing.isPresent() || !existing.get().getCreatorEmail().equalsIgnoreCase(callerEmail)) {
+            return EventUpdateResult.NOT_FOUND;
+        }
+        if (changes.getMaxCapacity() != null && changes.getMaxCapacity() < registrationDao.countConfirmed(eventId)) {
+            return EventUpdateResult.CAPACITY_TOO_LOW;
+        }
+        changes.setId(eventId);
+        eventDao.update(changes);
+        return EventUpdateResult.UPDATED;
     }
 }

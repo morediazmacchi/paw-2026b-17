@@ -10,6 +10,7 @@ import ar.edu.itba.paw.model.Review;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.CategoryService;
 import ar.edu.itba.paw.services.EventService;
+import ar.edu.itba.paw.services.EventUpdateResult;
 import ar.edu.itba.paw.services.FavoriteService;
 import ar.edu.itba.paw.services.ImageService;
 import ar.edu.itba.paw.services.PageResult;
@@ -558,20 +559,139 @@ public class EventController {
         return new ModelAndView("redirect:/eventos/" + id + "?rsvp=" + (wasWaitlisted ? "baja-waitlist" : "baja"));
     }
 
-    // Solo el creador del evento puede ver esta lista. Si no lo es (o el
-    // evento no existe), tira el mismo EventNotFoundException en los dos
-    // casos -- no hay que confirmarle a nadie que un evento ajeno existe.
-    @RequestMapping(value = "/eventos/{id}/inscriptos", method = RequestMethod.GET)
-    public ModelAndView inscriptos(@PathVariable final long id, final Principal principal) {
+    // Busca el evento y confirma que quien esta pidiendolo es su creador. Si no
+    // existe, o existe pero no es el dueño, tira el mismo EventNotFoundException
+    // en los dos casos -- no hay que confirmarle a nadie que un evento ajeno
+    // existe. La usan "ver inscriptos" y "editar", que comparten este mismo chequeo.
+    private Event eventForOwner(final long id, final Principal principal) {
         final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
-        final User user = currentUser(principal);
-        if (!event.getCreatorEmail().equalsIgnoreCase(user.getEmail())) {
+        if (!event.getCreatorEmail().equalsIgnoreCase(currentUser(principal).getEmail())) {
             throw new EventNotFoundException(id);
         }
+        return event;
+    }
 
+    @RequestMapping(value = "/eventos/{id}/inscriptos", method = RequestMethod.GET)
+    public ModelAndView inscriptos(@PathVariable final long id, final Principal principal) {
+        final Event event = eventForOwner(id, principal);
         final ModelAndView mav = new ModelAndView("events/inscriptos");
         mav.addObject("event", event);
         mav.addObject("registrations", registrationService.findByEventId(id));
+        return mav;
+    }
+
+    @RequestMapping(value = "/eventos/{id}/editar", method = RequestMethod.GET)
+    public ModelAndView editarForm(@PathVariable final long id, final Principal principal) {
+        final Event event = eventForOwner(id, principal);
+        final ModelAndView mav = new ModelAndView("events/editar");
+        mav.addObject("eventId", id);
+        mav.addObject("categories", categoryService.findAll());
+        mav.addObject("barrios", Barrio.values());
+        mav.addObject("eventForm", formFrom(event));
+        return mav;
+    }
+
+    private static EventForm formFrom(final Event event) {
+        final EventForm form = new EventForm();
+        form.setTitulo(event.getTitle());
+        form.setDescripcion(event.getDescription());
+        form.setCategoriaId(event.getCategoryId());
+        form.setFechaEvento(new SimpleDateFormat("yyyy-MM-dd'T'HH:mm").format(event.getEventDate()));
+        form.setDireccion(event.getAddress());
+        form.setBarrio(event.getNeighborhood() == null ? null : event.getNeighborhood().name());
+        form.setPrecio(formatDecimal(event.getPrice()));
+        // "0" es el valor que usa el atajo "Sin limite" (quick-options.js lo
+        // detecta por igualdad exacta de string) -- mismo criterio que publish().
+        form.setCupoMaximo(event.getMaxCapacity() == null ? "0" : String.valueOf(event.getMaxCapacity()));
+        return form;
+    }
+
+    // 2500.0 -> "2500" (sin decimales de sobra), 1500.5 -> "1500.5". Los dos
+    // formatos matchean el @Pattern de EventForm.precio. 0 es un caso aparte:
+    // BigDecimal.ZERO.stripTrailingZeros() no es confiable entre versiones de
+    // Java (bug historico que a veces devuelve "0E-...").
+    private static String formatDecimal(final double value) {
+        if (value == 0) {
+            return "0";
+        }
+        return java.math.BigDecimal.valueOf(value).stripTrailingZeros().toPlainString();
+    }
+
+    @RequestMapping(value = "/eventos/{id}/editar", method = RequestMethod.POST)
+    public ModelAndView editar(@PathVariable final long id, @Valid final EventForm form, final BindingResult errors,
+                                @RequestParam(value = "image", required = false) final MultipartFile image,
+                                final Principal principal) {
+        // Mismo chequeo que el GET: si no sos el dueño, ni siquiera llega a
+        // mirar el resto del form.
+        final Event existing = eventForOwner(id, principal);
+        final Barrio parsedBarrio = parseBarrio(form.getBarrio(), errors);
+
+        if (errors.hasErrors()) {
+            return editarFormWithErrors(id, form, errors, null);
+        }
+
+        final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm");
+        dateFormat.setLenient(false);
+        final Date parsedDate;
+        try {
+            parsedDate = dateFormat.parse(form.getFechaEvento());
+        } catch (final ParseException e) {
+            errors.rejectValue("fechaEvento", "Pattern", "La fecha y horario no tienen un formato valido");
+            return editarFormWithErrors(id, form, errors, null);
+        }
+        if (parsedDate.before(new Date())) {
+            errors.rejectValue("fechaEvento", "Future", "La fecha del evento tiene que ser futura");
+            return editarFormWithErrors(id, form, errors, null);
+        }
+
+        final double parsedPrice = Double.parseDouble(form.getPrecio());
+        final Integer parsedCapacity = "0".equals(form.getCupoMaximo()) ? null : Integer.valueOf(form.getCupoMaximo());
+
+        // Si no se subio un archivo nuevo, la imagen que ya tenia el evento se mantiene.
+        Long imageId = existing.getImageId();
+        if (image != null && !image.isEmpty()) {
+            try {
+                final Image saved = imageService.create(
+                        image.getBytes(), image.getContentType(), image.getOriginalFilename());
+                imageId = saved.getId();
+            } catch (final IOException e) {
+                return editarFormWithErrors(id, form, errors, message("event.publish.imageReadError"));
+            } catch (final IllegalArgumentException e) {
+                return editarFormWithErrors(id, form, errors, message(e.getMessage()));
+            }
+        }
+
+        final Event changes = new Event(form.getTitulo(), form.getDescripcion(), parsedDate, form.getDireccion(),
+                parsedBarrio, imageId, parsedPrice, parsedCapacity, existing.getCreatorEmail(), form.getCategoriaId());
+        final EventUpdateResult result = eventService.update(id, changes, principal.getName());
+        switch (result) {
+            case CAPACITY_TOO_LOW:
+                errors.rejectValue("cupoMaximo", "cupo.muyBajo",
+                        "El cupo maximo no puede ser menor a la cantidad de inscriptos ya confirmados");
+                return editarFormWithErrors(id, form, errors, null);
+            case NOT_FOUND:
+                // Ya se confirmo el ownership arriba en eventForOwner(): solo se
+                // llegaria aca si el evento se borro justo entre medio.
+                throw new EventNotFoundException(id);
+            case UPDATED:
+            default:
+                return new ModelAndView("redirect:/perfil/eventos");
+        }
+    }
+
+    private ModelAndView editarFormWithErrors(final long id, final EventForm form, final BindingResult errors,
+                                               final String imageError) {
+        final Map<String, String> fieldErrors = new HashMap<>();
+        for (final FieldError fieldError : errors.getFieldErrors()) {
+            fieldErrors.put(fieldError.getField(), messageFor(fieldError));
+        }
+        final ModelAndView mav = new ModelAndView("events/editar");
+        mav.addObject("eventId", id);
+        mav.addObject("categories", categoryService.findAll());
+        mav.addObject("barrios", Barrio.values());
+        mav.addObject("eventForm", form);
+        mav.addObject("fieldErrors", fieldErrors);
+        mav.addObject("imageError", imageError);
         return mav;
     }
 

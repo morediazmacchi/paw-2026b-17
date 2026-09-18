@@ -64,8 +64,9 @@
                             <a class="btn btn-medium" href="<c:url value='/eventos/${event.id}/inscriptos'/>">
                                 <c:out value="${attendeesButtonLabel}"/>
                             </a>
-                            <%-- Sin funcionalidad todavia: lo conecta una companera despues. --%>
-                            <paw:button text="${editButtonLabel}" type="button" cssClass="btn-accent"/>
+                            <a class="btn btn-medium btn-accent" href="<c:url value='/eventos/${event.id}/editar'/>">
+                                <c:out value="${editButtonLabel}"/>
+                            </a>
                         </paw:eventRow>
                     </c:forEach>
                 </div>

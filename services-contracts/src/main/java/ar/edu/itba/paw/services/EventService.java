@@ -18,4 +18,13 @@ public interface EventService {
 
     // "Mis eventos": todos los creados por este email, mas recientes primero.
     List<Event> findByCreatorEmail(String email);
+
+    /**
+     * Edita un evento existente. No cambia quien lo creo ni cuando se creo
+     * (esos campos de "changes" se ignoran).
+     *
+     * @param changes los valores nuevos; su propio id se ignora, se usa el
+     *                eventId del primer parametro
+     */
+    EventUpdateResult update(long eventId, Event changes, String callerEmail);
 }
