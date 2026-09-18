@@ -2,6 +2,7 @@ package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.Barrio;
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.EventSearchCriteria;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -51,6 +52,16 @@ public class EventJdbcDaoTest {
     private long insertCategory(final String name) {
         jdbcTemplate.update("INSERT INTO category (name) VALUES (?)", name);
         return jdbcTemplate.queryForObject("SELECT id FROM category WHERE name = ?", Long.class, name);
+    }
+
+    private long insertUser(final String email) {
+        jdbcTemplate.update("INSERT INTO users (email, name) VALUES (?, ?)", email, "Reviewer");
+        return jdbcTemplate.queryForObject("SELECT id FROM users WHERE email = ?", Long.class, email);
+    }
+
+    private void insertReview(final long eventId, final long userId, final int rating) {
+        jdbcTemplate.update("INSERT INTO review (event_id, user_id, rating) VALUES (?, ?, ?)",
+                eventId, userId, rating);
     }
 
     private static Event someEvent(final long categoryId) {
@@ -186,5 +197,74 @@ public class EventJdbcDaoTest {
         final List<Event> result = eventDao.findByCreatorEmail(CREATOR_EMAIL);
 
         assertTrue(result.isEmpty());
+    }
+
+    // ---- search(): filtro por puntaje del organizador ----
+
+    @Test
+    public void testSearchFiltersByMinimumOrganizerRating() {
+        final String highRatedCreator = "alto@mail.com";
+        final String lowRatedCreator = "bajo@mail.com";
+        final long reviewerId = insertUser("reviewer@mail.com");
+        final Date future = new Date(System.currentTimeMillis() + 86_400_000L);
+
+        final long highRatedEventId = eventDao.create(new Event(TITLE, null, future, "Direccion A",
+                Barrio.PALERMO, null, 0, null, highRatedCreator, categoryId)).getId();
+        final long lowRatedEventId = eventDao.create(new Event(TITLE, null, future, "Direccion B",
+                Barrio.PALERMO, null, 0, null, lowRatedCreator, categoryId)).getId();
+        insertReview(highRatedEventId, reviewerId, 5);
+        insertReview(lowRatedEventId, reviewerId, 2);
+
+        final EventSearchCriteria criteria = new EventSearchCriteria();
+        criteria.setMinOrganizerRating(4);
+        criteria.setPageSize(10);
+
+        final List<Event> result = eventDao.search(criteria);
+
+        assertEquals(1, result.size());
+        assertEquals(highRatedCreator, result.get(0).getCreatorEmail());
+    }
+
+    @Test
+    public void testCountSearchMatchesSearchWhenFilteringByOrganizerRating() {
+        final String highRatedCreator = "alto@mail.com";
+        final long reviewerId = insertUser("reviewer@mail.com");
+        final Date future = new Date(System.currentTimeMillis() + 86_400_000L);
+
+        final long eventId = eventDao.create(new Event(TITLE, null, future, "Direccion A",
+                Barrio.PALERMO, null, 0, null, highRatedCreator, categoryId)).getId();
+        insertReview(eventId, reviewerId, 5);
+
+        final EventSearchCriteria criteria = new EventSearchCriteria();
+        criteria.setMinOrganizerRating(4);
+        criteria.setPageSize(10);
+
+        assertEquals(1, eventDao.countSearch(criteria));
+    }
+
+    @Test
+    public void testSearchWithMinimumOrganizerRatingExcludesCreatorsBelowIt() {
+        final long reviewerId = insertUser("reviewer@mail.com");
+        final Date future = new Date(System.currentTimeMillis() + 86_400_000L);
+        final long eventId = eventDao.create(new Event(TITLE, null, future, "Direccion A",
+                Barrio.PALERMO, null, 0, null, CREATOR_EMAIL, categoryId)).getId();
+        insertReview(eventId, reviewerId, 3);
+
+        final EventSearchCriteria criteria = new EventSearchCriteria();
+        criteria.setMinOrganizerRating(4);
+        criteria.setPageSize(10);
+
+        assertTrue(eventDao.search(criteria).isEmpty());
+    }
+
+    @Test
+    public void testSearchWithoutMinimumOrganizerRatingIgnoresTheFilter() {
+        eventDao.create(new Event(TITLE, null, new Date(System.currentTimeMillis() + 86_400_000L), "Direccion A",
+                Barrio.PALERMO, null, 0, null, CREATOR_EMAIL, categoryId));
+
+        final EventSearchCriteria criteria = new EventSearchCriteria();
+        criteria.setPageSize(10);
+
+        assertEquals(1, eventDao.search(criteria).size());
     }
 }

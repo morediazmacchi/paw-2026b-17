@@ -26,6 +26,7 @@ public class EventForm {
     @Size(max = 200, message = "La direccion no puede superar los 200 caracteres")
     private String direccion;
 
+    @NotBlank(message = "Elegí un barrio")
     @Size(max = 80, message = "El barrio no puede superar los 80 caracteres")
     private String barrio;
 

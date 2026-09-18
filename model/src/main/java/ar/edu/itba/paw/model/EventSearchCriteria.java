@@ -11,6 +11,9 @@ public class EventSearchCriteria {
     private Date fromDate;
     private Date toDate;
     private List<Barrio> barrios;
+    // Solo eventos cuyo creador tenga un promedio de estrellas (entre todos sus
+    // eventos, ver ReviewDao.findByCreatorEmail) mayor o igual a este valor.
+    private Integer minOrganizerRating;
     private EventSort sort = EventSort.FECHA;
     private int page = 1;
     private int pageSize = 12;
@@ -27,6 +30,8 @@ public class EventSearchCriteria {
     public void setToDate(final Date toDate) { this.toDate = toDate; }
     public List<Barrio> getBarrios() { return barrios; }
     public void setBarrios(final List<Barrio> barrios) { this.barrios = barrios; }
+    public Integer getMinOrganizerRating() { return minOrganizerRating; }
+    public void setMinOrganizerRating(final Integer minOrganizerRating) { this.minOrganizerRating = minOrganizerRating; }
     public EventSort getSort() { return sort; }
     public void setSort(final EventSort sort) { this.sort = sort; }
     public int getPage() { return page; }

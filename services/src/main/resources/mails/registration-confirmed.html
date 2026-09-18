@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   MAIL 2: alguien se anoto -> le llega a esa persona con los datos del evento.
-  Variables: personName, eventTitle, eventDate, eventPlace, eventPrice, eventUrl
+  Variables: personName, eventTitle, eventDate, eventPlace, eventPrice, registrationsUrl
 -->
 <html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::content})}">
 <body>
@@ -39,7 +39,7 @@
 
   <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0 0;">
     <tr><td style="background-color:#111827; border-radius:8px;">
-      <a th:href="${eventUrl}" href="#"
+      <a th:href="${registrationsUrl}" href="#"
          style="display:inline-block; padding:12px 22px; color:#ffffff;
                 text-decoration:none; font-size:15px; font-weight:600;"
          th:text="#{mail.registrationConfirmed.cta}">Ver el evento</a>

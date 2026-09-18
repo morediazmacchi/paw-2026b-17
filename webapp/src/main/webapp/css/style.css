@@ -500,15 +500,6 @@ a {
     }
 }
 
-/* Form card (publish page) */
-
-.form-card {
-    background: var(--bg-elevated);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 24px 28px 8px;
-}
-
 /* Forms */
 
 .form-group {
@@ -528,6 +519,30 @@ a {
     color: #d33;
     font-size: 0.85rem;
     margin-top: 4px;
+}
+
+/* El "ojito" para mostrar/ocultar la contraseña (paw:input type="password") */
+.password-field {
+    position: relative;
+    max-width: 420px;
+}
+
+.password-field input {
+    max-width: 100%;
+    padding-right: 40px;
+}
+
+.password-toggle {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    padding: 4px;
+    color: var(--text-muted);
+    cursor: pointer;
+    line-height: 0;
 }
 
 /* Barra de filtros del listado de eventos */
@@ -955,113 +970,6 @@ button.btn-accent {
     text-decoration: underline;
 }
 
-/* ==========================================================================
-   Formulario de publicar un evento (publish.jsp).
-   Todo esta scopeado a ".form-card form", que existe unicamente ahi: no toca
-   la barra de filtros del listado ni el formulario de "Quiero ir" del detalle.
-   Es solo presentacion: ningun name=, ninguna validacion, ningun JSP.
-   ========================================================================== */
-
-/* Dos columnas, para que los campos cortos compartan fila. */
-.form-card form {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 18px;
-    align-items: start;
-}
-
-/* Los que ocupan el ancho completo. El orden es el de publish.jsp:
-   1 titulo | 2 descripcion | 3 categoria | 4 fecha | 5 direccion | 6 barrio
-   7 precio | 8 cupo | 9 email | 10 imagen | 11 boton
-   Queda apareado solo categoria+fecha: precio y cupo van uno encima del
-   otro porque cada uno lleva su pill de atajo al lado de la etiqueta. */
-.form-card form > .form-group:nth-child(1),
-.form-card form > .form-group:nth-child(2),
-.form-card form > .form-group:nth-child(5),
-.form-card form > .form-group:nth-child(6),
-.form-card form > .form-group:nth-child(7),
-.form-card form > .form-group:nth-child(8),
-.form-card form > .form-group:nth-child(9),
-.form-card form > .form-group:nth-child(10),
-.form-card form > button {
-    grid-column: 1 / -1;
-}
-
-/* La separacion la da el gap del grid. */
-.form-card form > .form-group {
-    margin-bottom: 0;
-}
-
-/* Adentro del form los campos llenan su celda en vez de cortarse en 420px. */
-.form-card form input,
-.form-card form select,
-.form-card form textarea {
-    max-width: none;
-    padding: 10px 12px;
-}
-
-/* Foco mas visible: el borde de acento mas un halo tenue. */
-.form-card form input:focus,
-.form-card form select:focus,
-.form-card form textarea:focus {
-    box-shadow: 0 0 0 3px rgba(198, 255, 58, 0.14);
-}
-
-.form-card form .form-group label {
-    font-size: 0.84rem;
-    margin-bottom: 6px;
-}
-
-/* El input de archivo: el boton nativo pasa a parecerse a los de la app. */
-.form-card form input[type=file] {
-    color: var(--text-muted);
-    font-size: 0.88rem;
-}
-
-.form-card form input[type=file]::file-selector-button {
-    margin-right: 12px;
-    padding: 6px 14px;
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    background: var(--bg-elevated);
-    color: var(--text);
-    font-family: inherit;
-    font-size: 0.85rem;
-    font-weight: 600;
-    cursor: pointer;
-}
-
-.form-card form input[type=file]::file-selector-button:hover {
-    border-color: var(--accent);
-}
-
-/* El boton de publicar: a la derecha y con mas presencia. */
-.form-card form > button {
-    justify-self: end;
-    padding: 11px 32px;
-    font-size: 0.95rem;
-    margin-top: 4px;
-}
-
-/* La tarjeta respira un poco mas (pisa el padding de la regla de arriba). */
-.form-card {
-    padding: 28px 30px 30px;
-}
-
-.form-card > h1 {
-    margin-bottom: 22px;
-}
-
-/* En pantalla angosta, una sola columna y el boton a todo el ancho. */
-@media (max-width: 620px) {
-    .form-card form {
-        grid-template-columns: 1fr;
-    }
-    .form-card form > button {
-        justify-self: stretch;
-    }
-}
-
 /* --------------------------------------------------------------------------
    Fila etiqueta + atajo, y el pill de "Gratis" / "Sin limite".
    El pill es un <button type="button">: no manda nada al servidor, solo escribe
@@ -1077,9 +985,213 @@ button.btn-accent {
     gap: 12px;
 }
 
-/* Solo en el formulario de publicar la etiqueta lleva un poco mas de aire. */
-.form-card form .label-row label {
-    margin-bottom: 6px;
+/* ==========================================================================
+   Wizard de "Publicar evento" (publish.jsp): 5 pasos en el mismo <form>,
+   uno visible a la vez (event-wizard.js). Todo escopeado a .wizard-*, no
+   toca ningun otro formulario de la app.
+   ========================================================================== */
+
+.wizard-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px 30px 30px;
+    max-width: 560px;
+    margin: 0 auto;
+}
+
+.wizard-card > h1 {
+    margin-bottom: 22px;
+}
+
+.wizard-progress {
+    display: flex;
+    align-items: center;
+    margin-bottom: 28px;
+}
+
+.wizard-progress-step {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.wizard-progress-step-active {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--accent-text);
+}
+
+.wizard-progress-step-done {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.wizard-progress-line {
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+    margin: 0 4px;
+}
+
+.wizard-step-heading {
+    margin-bottom: 20px;
+}
+
+.wizard-step-heading h2 {
+    margin-bottom: 4px;
+}
+
+.wizard-step-heading p {
+    color: var(--text-muted);
+    margin: 0;
+}
+
+.wizard-step .form-group {
+    margin-bottom: 16px;
+}
+
+.wizard-field-hint {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin: 6px 0 0;
+}
+
+.wizard-datetime-row {
+    display: flex;
+    gap: 12px;
+}
+
+.wizard-datetime-row > input {
+    flex: 1;
+    min-width: 0;
+}
+
+.wizard-time-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+}
+
+.wizard-time-row input {
+    flex: 1;
+    min-width: 0;
+    text-align: center;
+}
+
+.wizard-time-separator {
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.wizard-dropzone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 24px;
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    color: var(--text-muted);
+    text-align: center;
+    cursor: pointer;
+}
+
+.wizard-dropzone:hover {
+    border-color: var(--accent);
+}
+
+.wizard-dropzone .icon {
+    width: 28px;
+    height: 28px;
+}
+
+.wizard-dropzone-label {
+    font-size: 0.85rem;
+}
+
+.wizard-dropzone-filename {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text);
+}
+
+/* El input real queda invisible pero sigue ahi (por eso no display:none: el
+   <label for="image"> de arriba tiene que poder seguir abriendolo). */
+.wizard-dropzone-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+}
+
+.wizard-review {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+}
+
+.wizard-review-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.9rem;
+}
+
+.wizard-review-row:last-child {
+    border-bottom: none;
+}
+
+.wizard-review-label {
+    color: var(--text-muted);
+}
+
+.wizard-review-value {
+    font-weight: 600;
+    text-align: right;
+}
+
+.wizard-review-image {
+    max-width: 120px;
+    max-height: 80px;
+    border-radius: 8px;
+    object-fit: cover;
+}
+
+.wizard-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-top: 24px;
+}
+
+/* Mismo motivo que .event-row-actions .btn-accent: el margin-top pensado para
+   separar de un campo de formulario no tiene sentido en una fila de acciones,
+   y descentraba el boton respecto a "Atrás"/"Cancelar". */
+.wizard-actions .btn-accent {
+    margin-top: 0;
+}
+
+@media (max-width: 480px) {
+    .wizard-card {
+        padding: 22px 18px 24px;
+    }
 }
 
 .chip-toggle {
@@ -1499,7 +1611,16 @@ button.btn-accent {
 .event-row-actions {
     flex-shrink: 0;
     display: flex;
+    align-items: center;
     gap: 8px;
+}
+
+/* button.btn-accent trae un margin-top pensado para separarlo del ultimo campo
+   de un form (ver la regla de mas abajo): adentro de una fila de evento no hay
+   ningun campo arriba, asi que ese margen solo corria el boton hacia abajo y
+   lo descentraba respecto al resto de la card. */
+.event-row-actions .btn-accent {
+    margin-top: 0;
 }
 
 @media (max-width: 620px) {
@@ -1565,9 +1686,9 @@ button.btn-accent {
 .star-picker {
     display: flex;
     flex-direction: row-reverse;
-    justify-content: flex-end;
+    justify-content: center;
     gap: 6px;
-    margin-bottom: 4px;
+    margin-bottom: 16px;
 }
 
 .star-picker input {
@@ -1584,8 +1705,8 @@ button.btn-accent {
 }
 
 .star-picker label .icon {
-    width: 30px;
-    height: 30px;
+    width: 32px;
+    height: 32px;
 }
 
 .star-picker label:hover,
@@ -1594,16 +1715,11 @@ button.btn-accent {
     color: var(--accent);
 }
 
-.star-picker-zero {
+/* El boton de submit del popup de reseña, centrado (a diferencia de los demas
+   forms de la app, que van alineados a la izquierda). */
+.review-form > .btn {
     display: block;
-    color: var(--text-muted);
-    font-size: 0.85rem;
-    cursor: pointer;
-    margin-bottom: 16px;
-}
-
-.star-picker-zero input {
-    margin-right: 4px;
+    margin: 4px auto 0;
 }
 
 .review-display-heading {
@@ -1619,7 +1735,7 @@ button.btn-accent {
     font-size: 0.9rem;
 }
 
-/* Puntaje del promotor: detalle de evento y "Mis eventos" */
+/* Puntaje del organizador: detalle de evento y "Mis eventos" */
 .creator-rating {
     display: flex;
     align-items: center;
@@ -1628,10 +1744,23 @@ button.btn-accent {
     margin: 4px 0 20px;
 }
 
+/* Dentro de .creator-rating el margin-bottom de .review-display-heading (pensado
+   para cuando va arriba de un bloque, ej. el panel de reseña) sumaba una caja
+   mas alta que sus hermanos (las estrellas, el conteo): eso corria el texto
+   hacia arriba en vez de quedar centrado con el resto de la fila. */
+.creator-rating .review-display-heading {
+    margin-bottom: 0;
+}
+
 .creator-rating-count {
     color: var(--text-muted);
     font-size: 0.9rem;
     line-height: 1;
+}
+
+.creator-add-event {
+    text-align: center;
+    margin: 0 0 24px;
 }
 
 .creator-rating-empty {

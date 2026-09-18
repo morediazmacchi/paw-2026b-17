@@ -71,6 +71,10 @@ public class NotificationServiceImpl implements NotificationService {
         try {
             final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
             variables.put("personName", displayName(registration.getName(), registration.getEmail()));
+            // El CTA manda a "Mis inscripciones", no al evento: quien se anoto ya
+            // esta viendo estos datos en este mismo mail, lo util es llevarlo a
+            // donde puede gestionar (o mas adelante reseñar) sus inscripciones.
+            variables.put("registrationsUrl", baseUrl + "/perfil/inscripciones");
 
             mailService.send(registration.getEmail(),
                     "registration-confirmed",

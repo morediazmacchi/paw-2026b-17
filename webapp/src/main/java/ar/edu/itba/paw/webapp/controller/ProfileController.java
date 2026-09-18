@@ -296,6 +296,16 @@ public class ProfileController {
         mav.addObject("eventsCount", createdEvents.size());
         mav.addObject("creatorAverageRating", averageRating(myReviews));
         mav.addObject("creatorReviewCount", myReviews.size());
+        if (!myReviews.isEmpty()) {
+            // Para el popup "Ver mis reseñas": mismo patron que
+            // EventController.addCreatorReputation, pero disparado desde ac.
+            mav.addObject("myCreatorReviews", myReviews);
+            final Map<Long, Event> reviewEventsById = new HashMap<>();
+            for (final Review review : myReviews) {
+                eventService.findById(review.getEventId()).ifPresent(e -> reviewEventsById.put(e.getId(), e));
+            }
+            mav.addObject("reviewEventsById", reviewEventsById);
+        }
         return mav;
     }
 

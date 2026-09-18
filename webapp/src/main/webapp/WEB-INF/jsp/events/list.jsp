@@ -82,6 +82,7 @@
     <spring:message code="event.list.dateFilterLabel" var="dateFilterLabel"/>
     <spring:message code="event.list.priceFilterLabel" var="priceFilterLabel"/>
     <spring:message code="event.list.categoryAll" var="allLabel"/>
+    <spring:message code="event.list.organizerRatingLabel" var="organizerRatingLabel"/>
     <spring:message code="event.list.filterButton" var="filterButtonLabel"/>
     <spring:message code="event.list.clearFiltersButton" var="clearFiltersLabel"/>
     <spring:message code="event.list.clearAllButton" var="clearAllLabel"/>
@@ -165,6 +166,34 @@
             </div>
         </details>
 
+        <details class="filter-dropdown" name="filter-group">
+            <summary>
+                <span class="filter-dropdown-label"><c:out value="${organizerRatingLabel}"/></span>
+                <span class="filter-dropdown-value">
+                    <c:choose>
+                        <c:when test="${empty puntajeMin}"><c:out value="${allLabel}"/></c:when>
+                        <c:when test="${puntajeMin == '5'}"><spring:message code="event.list.organizerRating5"/></c:when>
+                        <c:otherwise><spring:message code="event.list.organizerRatingPlus" arguments="${puntajeMin}"/></c:otherwise>
+                    </c:choose>
+                </span>
+            </summary>
+            <div class="filter-dropdown-panel">
+                <label class="filter-checkbox">
+                    <input type="radio" name="puntajeMin" value="" ${empty puntajeMin ? 'checked="checked"' : ''}/>
+                    <c:out value="${allLabel}"/>
+                </label>
+                <c:forEach var="n" begin="3" end="5">
+                    <label class="filter-checkbox">
+                        <input type="radio" name="puntajeMin" value="${n}" ${puntajeMin == n ? 'checked="checked"' : ''}/>
+                        <c:choose>
+                            <c:when test="${n == 5}"><spring:message code="event.list.organizerRating5"/></c:when>
+                            <c:otherwise><spring:message code="event.list.organizerRatingPlus" arguments="${n}"/></c:otherwise>
+                        </c:choose>
+                    </label>
+                </c:forEach>
+            </div>
+        </details>
+
         <paw:button text="${filterButtonLabel}" cssClass="btn-accent"/>
         <c:if test="${hasActiveFilters}">
             <a class="btn btn-medium filter-clear-all" href="<c:url value='/eventos'/>">&times; <c:out value="${clearAllLabel}"/></a>
@@ -223,6 +252,7 @@
                                    <c:param name='precioMax' value='${precioMax}'/>
                                    <c:param name='fechaDesde' value='${fechaDesde}'/>
                                    <c:param name='fechaHasta' value='${fechaHasta}'/>
+                                   <c:param name='puntajeMin' value='${puntajeMin}'/>
                                    <c:param name='sort' value='${sort}'/>
                                    <c:param name='page' value='${currentPage - 1}'/>
                                  </c:url>"><c:out value="${prevPageLabel}"/></a>
@@ -245,6 +275,7 @@
                                            <c:param name='precioMax' value='${precioMax}'/>
                                            <c:param name='fechaDesde' value='${fechaDesde}'/>
                                            <c:param name='fechaHasta' value='${fechaHasta}'/>
+                                           <c:param name='puntajeMin' value='${puntajeMin}'/>
                                            <c:param name='sort' value='${sort}'/>
                                            <c:param name='page' value='${p}'/>
                                          </c:url>"><c:out value="${p}"/></a>
@@ -261,6 +292,7 @@
                                    <c:param name='precioMax' value='${precioMax}'/>
                                    <c:param name='fechaDesde' value='${fechaDesde}'/>
                                    <c:param name='fechaHasta' value='${fechaHasta}'/>
+                                   <c:param name='puntajeMin' value='${puntajeMin}'/>
                                    <c:param name='sort' value='${sort}'/>
                                    <c:param name='page' value='${currentPage + 1}'/>
                                  </c:url>"><c:out value="${nextPageLabel}"/></a>

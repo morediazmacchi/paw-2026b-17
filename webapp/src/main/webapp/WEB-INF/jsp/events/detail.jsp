@@ -66,6 +66,9 @@
             <c:when test="${rsvp == 'baja'}">
                 <p class="alert detail-alert"><spring:message code="event.rsvp.unregistered"/></p>
             </c:when>
+            <c:when test="${rsvp == 'finalizado'}">
+                <p class="alert detail-alert"><spring:message code="event.detail.eventFinished"/></p>
+            </c:when>
         </c:choose>
     </c:if>
 
@@ -177,8 +180,13 @@
             <div class="detail-rsvp-card">
                 <h2 class="detail-rsvp-heading"><spring:message code="event.detail.registerCardHeading"/></h2>
                 <c:choose>
-                    <%-- Lleno solo importa si todavia no tenes lugar: alguien ya
-                         anotado se tiene que poder dar de baja igual. --%>
+                    <%-- Finalizado gana incluso si estabas anotado: ya paso, no tiene
+                         sentido "darse de baja" de algo que ya sucedio. Lleno en cambio
+                         solo importa si todavia no tenes lugar: alguien ya anotado se
+                         tiene que poder dar de baja de un evento que SI sigue vigente. --%>
+                    <c:when test="${finished}">
+                        <p class="alert"><spring:message code="event.detail.eventFinished"/></p>
+                    </c:when>
                     <c:when test="${full and !registered}">
                         <p class="alert"><spring:message code="event.detail.eventFull"/></p>
                     </c:when>
@@ -238,7 +246,7 @@
                     <div class="creator-review-item">
                         <c:if test="${not empty reviewedEvent}">
                             <div class="creator-review-event">
-                                <a href="<c:url value='/eventos/${reviewedEvent.id}'/>"><c:out value="${reviewedEvent.title}"/></a>
+                                <span class="creator-review-event-title"><c:out value="${reviewedEvent.title}"/></span>
                                 <span class="creator-review-date"><fmt:formatDate value="${reviewedEvent.eventDate}" pattern="dd/MM/yyyy"/></span>
                             </div>
                         </c:if>

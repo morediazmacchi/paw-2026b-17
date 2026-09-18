@@ -106,6 +106,7 @@ public class EventController {
                               @RequestParam(value = "fechaDesde", required = false) final String fechaDesde,
                               @RequestParam(value = "fechaHasta", required = false) final String fechaHasta,
                               @RequestParam(value = "barrio", required = false) final List<String> barrio,
+                              @RequestParam(value = "puntajeMin", required = false) final String puntajeMin,
                               @RequestParam(value = "page", required = false) final String page,
                               @RequestParam(value = "sort", required = false) final String sort,
                               @RequestParam(value = "rsvp", required = false) final String rsvp,
@@ -138,6 +139,7 @@ public class EventController {
         criteria.setFromDate(fromDate);
         criteria.setToDate(toDate);
         criteria.setBarrios(barrios);
+        criteria.setMinOrganizerRating(parseInteger(puntajeMin));
         criteria.setSort(parseSort(sort));
         criteria.setPage(parsePage(page));
         criteria.setPageSize(PAGE_SIZE);
@@ -152,7 +154,8 @@ public class EventController {
                 || (precioMin != null && !precioMin.isEmpty())
                 || (precioMax != null && !precioMax.isEmpty())
                 || (fechaDesde != null && !fechaDesde.isEmpty())
-                || (fechaHasta != null && !fechaHasta.isEmpty());
+                || (fechaHasta != null && !fechaHasta.isEmpty())
+                || (puntajeMin != null && !puntajeMin.isEmpty());
 
         // Banner destacado: los proximos eventos por fecha, sin los filtros de arriba.
         final EventSearchCriteria featuredCriteria = new EventSearchCriteria();
@@ -174,6 +177,7 @@ public class EventController {
         mav.addObject("fechaDesde", fechaDesde);
         mav.addObject("fechaHasta", fechaHasta);
         mav.addObject("selectedBarrios", barrios);
+        mav.addObject("puntajeMin", puntajeMin);
         mav.addObject("hasActiveFilters", hasActiveFilters);
         mav.addObject("sort", sort);
         mav.addObject("filterErrors", filterErrors);
@@ -215,6 +219,17 @@ public class EventController {
 
     // Los filtros son de la barra de busqueda: si vienen mal formados, se ignoran
     // (como si no se hubieran cargado) en vez de romper la pagina con un 500.
+    private static Integer parseInteger(final String value) {
+        if (value == null || value.isEmpty()) {
+            return null;
+        }
+        try {
+            return Integer.valueOf(value);
+        } catch (final NumberFormatException e) {
+            return null;
+        }
+    }
+
     private static Long parseLong(final String value) {
         if (value == null || value.isEmpty()) {
             return null;
@@ -331,6 +346,7 @@ public class EventController {
                     mav.addObject("event", event);
                     mav.addObject("rsvp", rsvp);
                     mav.addObject("full", registrationService.isFull(id));
+                    mav.addObject("finished", event.getEventDate().before(new Date()));
                     mav.addObject("availableSpots", registrationService.availableSpots(id));
                     if (principal != null) {
                         final User user = currentUser(principal);
@@ -470,8 +486,11 @@ public class EventController {
     // Principal siempre presente en este metodo implica un User existente.
     @RequestMapping(value = "/eventos/{id}/quiero-ir", method = RequestMethod.POST)
     public ModelAndView rsvp(@PathVariable final long id, final Principal principal) {
-        if (!eventService.findById(id).isPresent()) {
-            throw new EventNotFoundException(id);
+        final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
+        // La UI ya esconde el boton en este caso (ver detail.jsp), pero un POST
+        // directo igual no tiene que poder anotarte a algo que ya paso.
+        if (event.getEventDate().before(new Date())) {
+            return new ModelAndView("redirect:/eventos/" + id + "?rsvp=finalizado");
         }
         // Quien se inscribe es quien esta logueado, nunca un campo del form:
         // mismo motivo que el creator_email de publish().
@@ -499,8 +518,11 @@ public class EventController {
     // cancela, en vez de recibir el id de la inscripcion por parametro.
     @RequestMapping(value = "/eventos/{id}/darme-de-baja", method = RequestMethod.POST)
     public ModelAndView unregister(@PathVariable final long id, final Principal principal) {
-        if (!eventService.findById(id).isPresent()) {
-            throw new EventNotFoundException(id);
+        final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
+        // La UI ya esconde el boton en este caso (ver detail.jsp): un evento que
+        // ya paso no se puede "des-anotar", ya sucedio.
+        if (event.getEventDate().before(new Date())) {
+            return new ModelAndView("redirect:/eventos/" + id + "?rsvp=finalizado");
         }
         final User user = currentUser(principal);
         registrationService.findByEventAndEmail(id, user.getEmail())

@@ -14,7 +14,7 @@ public class ReviewForm {
     @Max(value = 5, message = "La calificación tiene que ser entre 0 y 5")
     private Integer rating;
 
-    @Size(max = 1000, message = "El comentario no puede superar los 1000 caracteres")
+    @Size(max = 100, message = "El comentario no puede superar los 100 caracteres")
     private String comment;
 
     public ReviewForm() {

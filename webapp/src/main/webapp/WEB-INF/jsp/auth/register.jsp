@@ -9,6 +9,7 @@
     <link rel="icon" type="image/svg+xml" href="${pageContext.request.contextPath}/favicon.svg">
     <link rel="stylesheet" href="${pageContext.request.contextPath}/css/style.css">
     <script src="<c:url value='/js/disable-on-submit.js'/>"></script>
+    <script src="<c:url value='/js/password-toggle.js'/>"></script>
 </head>
 <body>
 

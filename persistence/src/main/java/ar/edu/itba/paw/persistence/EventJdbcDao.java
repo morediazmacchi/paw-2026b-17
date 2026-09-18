@@ -173,6 +173,15 @@ public class EventJdbcDao implements EventDao {
             sql.append(" AND e.neighborhood IN (").append(placeholders(criteria.getBarrios().size())).append(")");
             criteria.getBarrios().forEach(b -> params.add(b.name()));
         }
+        if (criteria.getMinOrganizerRating() != null) {
+            // El promedio es de TODAS las reseñas del creador (todos sus eventos),
+            // el mismo numero que se muestra en el detalle y en "Mis eventos"
+            // (ver ReviewDao.findByCreatorEmail): no es el promedio de este evento solo.
+            sql.append(" AND e.creator_email IN ("
+                    + "SELECT e2.creator_email FROM review r2 JOIN event e2 ON e2.id = r2.event_id "
+                    + "GROUP BY e2.creator_email HAVING AVG(r2.rating) >= ?)");
+            params.add(criteria.getMinOrganizerRating());
+        }
 
         return new WhereClause(sql.toString(), params);
     }

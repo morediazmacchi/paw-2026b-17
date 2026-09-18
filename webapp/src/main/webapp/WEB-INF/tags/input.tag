@@ -11,6 +11,8 @@
 <%@ attribute name="toggleText" required="false" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions" %>
+<%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
+<%@ taglib prefix="paw" tagdir="/WEB-INF/tags" %>
 
 <c:set var="inputType" value="${empty type ? 'text' : type}" />
 <c:set var="isRequired" value="${empty required ? true : required}" />
@@ -38,7 +40,14 @@
                    <c:if test="${not empty min}">min="${min}"</c:if> step="any" />
         </c:when>
         <c:when test="${inputType == 'password'}">
-            <input type="password" id="${name}" name="${name}" <c:if test="${isRequired}">required="required"</c:if> minlength="8" />
+            <spring:message code="common.showPassword" var="showPasswordLabel"/>
+            <div class="password-field">
+                <input type="password" id="${name}" name="${name}" <c:if test="${isRequired}">required="required"</c:if> minlength="8" />
+                <button type="button" class="password-toggle" data-toggle-password="${name}" aria-label="${showPasswordLabel}">
+                    <span class="password-icon-show"><paw:icon name="eye"/></span>
+                    <span class="password-icon-hide" hidden><paw:icon name="eye-off"/></span>
+                </button>
+            </div>
         </c:when>
         <c:when test="${inputType == 'date'}">
             <input type="date" id="${name}" name="${name}" value="${fn:escapeXml(value)}"

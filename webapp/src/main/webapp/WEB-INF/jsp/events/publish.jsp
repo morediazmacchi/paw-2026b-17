@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="${pageContext.request.contextPath}/css/style.css">
     <script src="<c:url value='/js/disable-on-submit.js'/>"></script>
     <script src="<c:url value='/js/quick-options.js'/>"></script>
+    <script src="<c:url value='/js/event-wizard.js'/>"></script>
 </head>
 <body>
 
@@ -19,8 +20,17 @@
 </paw:navbar>
 
 <main class="page page-narrow">
-    <div class="form-card">
+    <div class="wizard-card">
         <h1><spring:message code="event.publish.heading"/></h1>
+
+        <%-- 5 circulos conectados: event-wizard.js les agrega/saca las clases
+             -active/-done segun el paso en que este parado. --%>
+        <div class="wizard-progress">
+            <c:forEach var="n" begin="1" end="5">
+                <span class="wizard-progress-step" data-step-indicator="${n}">${n}</span>
+                <c:if test="${n < 5}"><span class="wizard-progress-line"></span></c:if>
+            </c:forEach>
+        </div>
 
         <c:if test="${not empty imageError}">
             <p class="alert"><c:out value="${imageError}"/></p>
@@ -32,64 +42,187 @@
         <spring:message code="event.publish.dateLabel" var="dateLabel"/>
         <spring:message code="event.publish.addressLabel" var="addressLabel"/>
         <spring:message code="event.publish.neighborhoodLabel" var="neighborhoodLabel"/>
-        <spring:message code="event.publish.neighborhoodNone" var="neighborhoodNoneLabel"/>
         <spring:message code="event.publish.priceLabel" var="priceLabel"/>
         <spring:message code="event.publish.capacityLabel" var="capacityLabel"/>
         <spring:message code="event.publish.imageLabel" var="imageLabel"/>
         <spring:message code="event.publish.freeOption" var="freeOptionLabel"/>
         <spring:message code="event.publish.noLimitOption" var="noLimitOptionLabel"/>
         <spring:message code="event.publish.submitButton" var="submitButtonLabel"/>
-        <form action="<c:url value='/eventos/publicar'/>" method="post" enctype="multipart/form-data" novalidate="novalidate">
-            <paw:input name="titulo" label="${titleLabel}" type="text"
-                       value="${eventForm.titulo}" errorMessage="${fieldErrors.titulo}" />
-            <paw:input name="descripcion" label="${descriptionLabel}" type="text" required="${false}"
-                       value="${eventForm.descripcion}" errorMessage="${fieldErrors.descripcion}" />
+        <spring:message code="event.publish.nextButton" var="nextButtonLabel"/>
+        <spring:message code="event.publish.backButton" var="backButtonLabel"/>
+        <spring:message code="event.publish.cancelButton" var="cancelButtonLabel"/>
 
-            <div class="form-group">
-                <label for="categoriaId"><c:out value="${categoryLabel}"/></label>
-                <select id="categoriaId" name="categoriaId">
-                    <c:forEach var="cat" items="${categories}">
-                        <option value="${cat.id}" ${cat.id == eventForm.categoriaId ? 'selected' : ''}>
-                            <spring:message code="category.${cat.name}" text="${cat.name}" htmlEscape="true"/>
-                        </option>
-                    </c:forEach>
-                </select>
-                <c:if test="${not empty fieldErrors.categoriaId}">
-                    <span class="error-message"><c:out value="${fieldErrors.categoriaId}"/></span>
-                </c:if>
+        <form class="wizard-form" action="<c:url value='/eventos/publicar'/>" method="post"
+              enctype="multipart/form-data" novalidate="novalidate">
+
+            <%-- ---- Paso 1: informacion basica ---- --%>
+            <div class="wizard-step" data-step="1">
+                <div class="wizard-step-heading">
+                    <h2><spring:message code="event.publish.step1Heading"/></h2>
+                    <p><spring:message code="event.publish.step1Subheading"/></p>
+                </div>
+                <paw:input name="titulo" label="${titleLabel}" type="text"
+                           value="${eventForm.titulo}" errorMessage="${fieldErrors.titulo}" />
+                <paw:input name="descripcion" label="${descriptionLabel}" type="text" required="${false}"
+                           value="${eventForm.descripcion}" errorMessage="${fieldErrors.descripcion}" />
             </div>
 
-            <paw:input name="fechaEvento" label="${dateLabel}" type="datetime-local"
-                       value="${eventForm.fechaEvento}" errorMessage="${fieldErrors.fechaEvento}" />
-            <paw:input name="direccion" label="${addressLabel}" type="text"
-                       value="${eventForm.direccion}" errorMessage="${fieldErrors.direccion}" />
-            <div class="form-group">
-                <label for="barrio"><c:out value="${neighborhoodLabel}"/></label>
-                <select id="barrio" name="barrio">
-                    <option value=""><c:out value="${neighborhoodNoneLabel}"/></option>
-                    <c:forEach var="b" items="${barrios}">
-                        <option value="${b}" ${b.name() == eventForm.barrio ? 'selected' : ''}>
-                            <c:out value="${b.displayName}"/>
-                        </option>
-                    </c:forEach>
-                </select>
-                <c:if test="${not empty fieldErrors.barrio}">
-                    <span class="error-message"><c:out value="${fieldErrors.barrio}"/></span>
-                </c:if>
+            <%-- ---- Paso 2: categoria y fecha ---- --%>
+            <div class="wizard-step" data-step="2" hidden>
+                <div class="wizard-step-heading">
+                    <h2><spring:message code="event.publish.step2Heading"/></h2>
+                    <p><spring:message code="event.publish.step2Subheading"/></p>
+                </div>
+                <div class="form-group">
+                    <label for="categoriaId"><c:out value="${categoryLabel}"/></label>
+                    <select id="categoriaId" name="categoriaId" required="required">
+                        <option value="" disabled="disabled" ${empty eventForm.categoriaId ? 'selected="selected"' : ''}></option>
+                        <c:forEach var="cat" items="${categories}">
+                            <option value="${cat.id}" ${cat.id == eventForm.categoriaId ? 'selected' : ''}>
+                                <spring:message code="category.${cat.name}" text="${cat.name}" htmlEscape="true"/>
+                            </option>
+                        </c:forEach>
+                    </select>
+                    <c:if test="${not empty fieldErrors.categoriaId}">
+                        <span class="error-message"><c:out value="${fieldErrors.categoriaId}"/></span>
+                    </c:if>
+                </div>
+                <div class="form-group">
+                    <label for="fechaEventoDate"><c:out value="${dateLabel}"/></label>
+                    <div class="wizard-datetime-row">
+                        <input type="date" id="fechaEventoDate" required="required"/>
+                        <%-- Nada de <input type="time">: ese widget depende de la
+                             configuracion regional del navegador y en muchas
+                             termina mostrando AM/PM igual. Dos campos numéricos
+                             (0-23 / 0-59) no tienen ese problema: son solo numeros. --%>
+                        <div class="wizard-time-row">
+                            <input type="number" id="fechaEventoHours" min="0" max="23"
+                                   placeholder="HH" inputmode="numeric" required="required"/>
+                            <span class="wizard-time-separator">:</span>
+                            <input type="number" id="fechaEventoMinutes" min="0" max="59"
+                                   placeholder="MM" inputmode="numeric" required="required"/>
+                        </div>
+                    </div>
+                    <p class="wizard-field-hint"><spring:message code="event.publish.timeFormatHint"/></p>
+                    <c:if test="${not empty fieldErrors.fechaEvento}">
+                        <span class="error-message"><c:out value="${fieldErrors.fechaEvento}"/></span>
+                    </c:if>
+                    <%-- Lo que realmente viaja al servidor: event-wizard.js lo arma
+                         combinando los campos de arriba (el server sigue
+                         esperando un solo string "yyyy-MM-ddTHH:mm", no cambio
+                         EventForm ni el controller por esto). --%>
+                    <input type="hidden" id="fechaEvento" name="fechaEvento" value="${eventForm.fechaEvento}"/>
+                </div>
             </div>
-            <paw:input name="precio" label="${priceLabel}" type="number" min="0"
-                       value="${eventForm.precio}" errorMessage="${fieldErrors.precio}"
-                       toggleText="${freeOptionLabel}" />
-            <paw:input name="cupoMaximo" label="${capacityLabel}" type="number" min="0"
-                       value="${eventForm.cupoMaximo}" errorMessage="${fieldErrors.cupoMaximo}"
-                       toggleText="${noLimitOptionLabel}" />
 
-            <div class="form-group">
-                <label for="image"><c:out value="${imageLabel}"/></label>
-                <input type="file" id="image" name="image" accept="image/*" />
+            <%-- ---- Paso 3: ubicacion ---- --%>
+            <div class="wizard-step" data-step="3" hidden>
+                <div class="wizard-step-heading">
+                    <h2><spring:message code="event.publish.step3Heading"/></h2>
+                    <p><spring:message code="event.publish.step3Subheading"/></p>
+                </div>
+                <paw:input name="direccion" label="${addressLabel}" type="text"
+                           value="${eventForm.direccion}" errorMessage="${fieldErrors.direccion}" />
+                <div class="form-group">
+                    <label for="barrio"><c:out value="${neighborhoodLabel}"/></label>
+                    <select id="barrio" name="barrio" required="required">
+                        <option value="" disabled="disabled" ${empty eventForm.barrio ? 'selected="selected"' : ''}></option>
+                        <c:forEach var="b" items="${barrios}">
+                            <option value="${b}" ${b.name() == eventForm.barrio ? 'selected' : ''}>
+                                <c:out value="${b.displayName}"/>
+                            </option>
+                        </c:forEach>
+                    </select>
+                    <c:if test="${not empty fieldErrors.barrio}">
+                        <span class="error-message"><c:out value="${fieldErrors.barrio}"/></span>
+                    </c:if>
+                </div>
             </div>
 
-            <paw:button text="${submitButtonLabel}" cssClass="btn-accent" />
+            <%-- ---- Paso 4: imagen y precio ---- --%>
+            <div class="wizard-step" data-step="4" hidden>
+                <div class="wizard-step-heading">
+                    <h2><spring:message code="event.publish.step4Heading"/></h2>
+                    <p><spring:message code="event.publish.step4Subheading"/></p>
+                </div>
+                <div class="form-group">
+                    <label><c:out value="${imageLabel}"/></label>
+                    <label class="wizard-dropzone" for="image">
+                        <paw:icon name="image"/>
+                        <span class="wizard-dropzone-label"><spring:message code="event.publish.imageDropHint"/></span>
+                        <span class="wizard-dropzone-filename" hidden></span>
+                    </label>
+                    <input type="file" id="image" name="image" accept="image/*" class="wizard-dropzone-input"/>
+                </div>
+                <paw:input name="precio" label="${priceLabel}" type="number" min="0"
+                           value="${eventForm.precio}" errorMessage="${fieldErrors.precio}"
+                           toggleText="${freeOptionLabel}" />
+                <paw:input name="cupoMaximo" label="${capacityLabel}" type="number" min="0"
+                           value="${eventForm.cupoMaximo}" errorMessage="${fieldErrors.cupoMaximo}"
+                           toggleText="${noLimitOptionLabel}" />
+            </div>
+
+            <%-- ---- Paso 5: revisar y publicar ---- --%>
+            <div class="wizard-step" data-step="5" hidden>
+                <div class="wizard-step-heading">
+                    <h2><spring:message code="event.publish.step5Heading"/></h2>
+                    <p><spring:message code="event.publish.step5Subheading"/></p>
+                </div>
+                <%-- event-wizard.js completa esto con lo que se cargo en los pasos
+                     anteriores justo antes de mostrar este paso. --%>
+                <div class="wizard-review">
+                    <div class="wizard-review-row">
+                        <span class="wizard-review-label"><c:out value="${titleLabel}"/></span>
+                        <span class="wizard-review-value" data-review="titulo"></span>
+                    </div>
+                    <div class="wizard-review-row">
+                        <span class="wizard-review-label"><c:out value="${categoryLabel}"/></span>
+                        <span class="wizard-review-value" data-review="categoria"></span>
+                    </div>
+                    <div class="wizard-review-row">
+                        <span class="wizard-review-label"><c:out value="${dateLabel}"/></span>
+                        <span class="wizard-review-value" data-review="fecha"></span>
+                    </div>
+                    <div class="wizard-review-row">
+                        <span class="wizard-review-label"><c:out value="${addressLabel}"/></span>
+                        <span class="wizard-review-value" data-review="direccion"></span>
+                    </div>
+                    <div class="wizard-review-row">
+                        <span class="wizard-review-label"><c:out value="${priceLabel}"/></span>
+                        <span class="wizard-review-value" data-review="precio"></span>
+                    </div>
+                    <div class="wizard-review-row">
+                        <span class="wizard-review-label"><c:out value="${capacityLabel}"/></span>
+                        <span class="wizard-review-value" data-review="cupo"></span>
+                    </div>
+                    <div class="wizard-review-row" data-review-image-row hidden>
+                        <span class="wizard-review-label"><c:out value="${imageLabel}"/></span>
+                        <img class="wizard-review-image" data-review-image alt=""/>
+                    </div>
+                </div>
+            </div>
+
+            <%-- event-wizard.js la muestra cuando "Siguiente" encuentra algo
+                 invalido en el paso actual: un mensaje propio, siempre visible,
+                 en vez de depender de la burbuja nativa del navegador (que en
+                 algunos casos - el ejemplo real: una fecha pasada - es facil
+                 que pase desapercibida). --%>
+            <p class="alert wizard-step-error" hidden></p>
+
+            <div class="wizard-actions">
+                <a class="btn btn-medium wizard-cancel" href="<c:url value='/eventos'/>">
+                    <c:out value="${cancelButtonLabel}"/>
+                </a>
+                <button type="button" class="btn btn-medium wizard-back" data-wizard-back hidden>
+                    <c:out value="${backButtonLabel}"/>
+                </button>
+                <button type="button" class="btn btn-medium btn-accent wizard-next" data-wizard-next>
+                    <c:out value="${nextButtonLabel}"/>
+                </button>
+                <span class="wizard-submit" hidden>
+                    <paw:button text="${submitButtonLabel}" cssClass="btn-accent" />
+                </span>
+            </div>
         </form>
     </div>
 </main>

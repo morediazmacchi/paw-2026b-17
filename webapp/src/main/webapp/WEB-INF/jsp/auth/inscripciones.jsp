@@ -69,41 +69,46 @@
                             <div>
                                 <paw:eventRow id="${event.id}" nombre="${event.title}" fecha="${event.eventDate}"
                                               ubicacion="${event.neighborhood.displayName}" precio="${event.price}"
-                                              imagenId="${event.imageId}"/>
-                                <div class="review-panel">
-                                    <c:choose>
-                                        <c:when test="${not empty myReview}">
-                                            <span class="review-display-heading"><spring:message code="auth.registrations.myReviewHeading"/></span>
-                                            <paw:stars rating="${myReview.rating}"/>
-                                            <c:if test="${not empty myReview.comment}">
-                                                <p class="review-comment"><c:out value="${myReview.comment}"/></p>
-                                            </c:if>
-                                        </c:when>
-                                        <c:otherwise>
-                                            <button type="button" class="btn btn-medium btn-accent" data-open-modal="reviewModal-${event.id}">
-                                                <c:out value="${reviewButtonLabel}"/>
-                                            </button>
-                                            <div class="modal-overlay" id="reviewModal-${event.id}" hidden>
-                                                <div class="modal-box">
-                                                    <div class="modal-header">
-                                                        <h2><spring:message code="auth.registrations.reviewHeading"/></h2>
-                                                        <button type="button" class="modal-close" data-close-modal aria-label="${closeButtonLabel}">
-                                                            <paw:icon name="close"/>
-                                                        </button>
-                                                    </div>
-                                                    <form class="review-form" action="<c:url value='/perfil/inscripciones/${event.id}/resena'/>" method="post" novalidate="novalidate">
-                                                        <paw:starPicker fieldId="review-${event.id}"/>
-                                                        <div class="form-group">
-                                                            <label for="comment-${event.id}"><spring:message code="auth.registrations.commentLabel"/></label>
-                                                            <textarea id="comment-${event.id}" name="comment" maxlength="1000"></textarea>
-                                                        </div>
-                                                        <paw:button text="${reviewButtonLabel}" cssClass="btn-accent"/>
-                                                    </form>
-                                                </div>
+                                              imagenId="${event.imageId}">
+                                    <%-- Integrado en la misma card, a la derecha, como el resto de los
+                                         botones de accion (Cancelar en los eventos que vienen). --%>
+                                    <c:if test="${empty myReview}">
+                                        <button type="button" class="btn btn-medium btn-accent" data-open-modal="reviewModal-${event.id}">
+                                            <c:out value="${reviewButtonLabel}"/>
+                                        </button>
+                                    </c:if>
+                                </paw:eventRow>
+
+                                <c:if test="${not empty myReview}">
+                                    <div class="review-panel">
+                                        <span class="review-display-heading"><spring:message code="auth.registrations.myReviewHeading"/></span>
+                                        <paw:stars rating="${myReview.rating}"/>
+                                        <c:if test="${not empty myReview.comment}">
+                                            <p class="review-comment"><c:out value="${myReview.comment}"/></p>
+                                        </c:if>
+                                    </div>
+                                </c:if>
+
+                                <c:if test="${empty myReview}">
+                                    <div class="modal-overlay" id="reviewModal-${event.id}" hidden>
+                                        <div class="modal-box">
+                                            <div class="modal-header">
+                                                <h2><spring:message code="auth.registrations.reviewHeading"/></h2>
+                                                <button type="button" class="modal-close" data-close-modal aria-label="${closeButtonLabel}">
+                                                    <paw:icon name="close"/>
+                                                </button>
                                             </div>
-                                        </c:otherwise>
-                                    </c:choose>
-                                </div>
+                                            <form class="review-form" action="<c:url value='/perfil/inscripciones/${event.id}/resena'/>" method="post" novalidate="novalidate">
+                                                <paw:starPicker fieldId="review-${event.id}"/>
+                                                <div class="form-group">
+                                                    <label for="comment-${event.id}"><spring:message code="auth.registrations.commentLabel"/></label>
+                                                    <textarea id="comment-${event.id}" name="comment" maxlength="100"></textarea>
+                                                </div>
+                                                <paw:button text="${reviewButtonLabel}" cssClass="btn-accent"/>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </c:if>
                             </div>
                         </c:forEach>
                     </div>
