@@ -55,11 +55,15 @@
             </c:when>
             <c:otherwise>
                 <spring:message code="auth.events.editButton" var="editButtonLabel"/>
+                <spring:message code="auth.events.attendeesButton" var="attendeesButtonLabel"/>
                 <div class="event-row-list">
                     <c:forEach var="event" items="${createdEvents}">
                         <paw:eventRow id="${event.id}" nombre="${event.title}" fecha="${event.eventDate}"
                                       ubicacion="${event.neighborhood.displayName}" precio="${event.price}"
                                       imagenId="${event.imageId}">
+                            <a class="btn btn-medium" href="<c:url value='/eventos/${event.id}/inscriptos'/>">
+                                <c:out value="${attendeesButtonLabel}"/>
+                            </a>
                             <%-- Sin funcionalidad todavia: lo conecta una companera despues. --%>
                             <paw:button text="${editButtonLabel}" type="button" cssClass="btn-accent"/>
                         </paw:eventRow>

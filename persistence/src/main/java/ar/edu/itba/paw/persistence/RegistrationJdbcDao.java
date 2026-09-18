@@ -81,6 +81,13 @@ public class RegistrationJdbcDao implements RegistrationDao {
     }
 
     @Override
+    public List<Registration> findByEventId(final long eventId) {
+        return jdbcTemplate.query(
+                "SELECT * FROM registration WHERE event_id = ? ORDER BY registered_at ASC",
+                ROW_MAPPER, eventId);
+    }
+
+    @Override
     public void delete(final long id) {
         jdbcTemplate.update("DELETE FROM registration WHERE id = ?", id);
     }

@@ -530,6 +530,23 @@ public class EventController {
         return new ModelAndView("redirect:/eventos/" + id + "?rsvp=baja");
     }
 
+    // Solo el creador del evento puede ver esta lista. Si no lo es (o el
+    // evento no existe), tira el mismo EventNotFoundException en los dos
+    // casos -- no hay que confirmarle a nadie que un evento ajeno existe.
+    @RequestMapping(value = "/eventos/{id}/inscriptos", method = RequestMethod.GET)
+    public ModelAndView inscriptos(@PathVariable final long id, final Principal principal) {
+        final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
+        final User user = currentUser(principal);
+        if (!event.getCreatorEmail().equalsIgnoreCase(user.getEmail())) {
+            throw new EventNotFoundException(id);
+        }
+
+        final ModelAndView mav = new ModelAndView("events/inscriptos");
+        mav.addObject("event", event);
+        mav.addObject("registrations", registrationService.findByEventId(id));
+        return mav;
+    }
+
     // returnTo viaja como hidden en el form del corazon (paw:card/detail.jsp):
     // desde el listado tiene que volver al listado (con sus filtros), no
     // siempre al detalle. Sin el, o si viene manipulado a una URL ajena

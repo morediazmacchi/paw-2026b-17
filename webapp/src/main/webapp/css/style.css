@@ -1849,3 +1849,33 @@ button.btn-accent {
     color: var(--text-muted);
     white-space: nowrap;
 }
+
+/* Tabla de inscriptos (EventController.inscriptos / events/inscriptos.jsp) */
+
+.attendees-table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+}
+
+.attendees-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.attendees-table th, .attendees-table td {
+    text-align: left;
+    padding: 12px 16px;
+    white-space: nowrap;
+}
+
+.attendees-table thead {
+    background: var(--bg-elevated);
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.attendees-table tbody tr {
+    border-top: 1px solid var(--border);
+}
