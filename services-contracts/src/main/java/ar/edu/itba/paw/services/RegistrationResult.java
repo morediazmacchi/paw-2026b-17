@@ -2,6 +2,12 @@
 package ar.edu.itba.paw.services;
 
 public enum RegistrationResult {
+    /** Habia lugar: la persona quedo adentro. */
     CONFIRMED,
-    ALREADY_REGISTERED
+    /** El evento estaba lleno: la persona quedo en la lista de espera. */
+    WAITLISTED,
+    /** Ya tenia su lugar confirmado. No se creo nada. */
+    ALREADY_REGISTERED,
+    /** Ya estaba en la lista de espera. No se creo nada. */
+    ALREADY_WAITLISTED
 }

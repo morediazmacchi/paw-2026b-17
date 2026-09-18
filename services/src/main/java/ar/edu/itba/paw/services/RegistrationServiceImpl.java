@@ -23,15 +23,18 @@ public class RegistrationServiceImpl implements RegistrationService {
     private final EventDao eventDao;
     private final UserService userService;
     private final NotificationService notificationService;
+    private final WaitlistService waitlistService;
 
     @Autowired
     public RegistrationServiceImpl(final RegistrationDao registrationDao, final EventDao eventDao,
                                     final UserService userService,
-                                    final NotificationService notificationService) {
+                                    final NotificationService notificationService,
+                                    final WaitlistService waitlistService) {
         this.registrationDao = registrationDao;
         this.eventDao = eventDao;
         this.userService = userService;
         this.notificationService = notificationService;
+        this.waitlistService = waitlistService;
     }
 
     @Override
@@ -42,20 +45,25 @@ public class RegistrationServiceImpl implements RegistrationService {
 
         final Registration existing = registrationDao.findByEventAndEmail(eventId, normalizedEmail).orElse(null);
         if (existing != null) {
-            return RegistrationResult.ALREADY_REGISTERED;
+            // Se distingue el caso porque el cartel no dice lo mismo: "ya estabas
+            // anotado" (tenes lugar) vs "ya estas en la lista de espera" (no lo tenes).
+            return Registration.STATUS_WAITLISTED.equals(existing.getStatus())
+                    ? RegistrationResult.ALREADY_WAITLISTED
+                    : RegistrationResult.ALREADY_REGISTERED;
         }
 
         // Bloquea la fila para que dos registros concurrentes no se pisen.
         final Event event = eventDao.findByIdForUpdate(eventId)
                 .orElseThrow(() -> new IllegalArgumentException("Evento inexistente: " + eventId));
 
-        // waitlist: pendiente para otro sprint
-        if (isFull(event)) {
-            throw new IllegalStateException("El evento ya esta lleno");
-        }
+        // Que el evento este lleno ya no es un error: la persona entra a la lista
+        // de espera. El orden de la lista sale de registration.registered_at, que
+        // la base completa sola, asi que no hay ninguna posicion que guardar.
+        final boolean full = isFull(event);
+        final String status = full ? Registration.STATUS_WAITLISTED : Registration.STATUS_CONFIRMED;
 
         // Si viola el UNIQUE(event_id, email), se propaga: quien llama reintenta en otra transaccion.
-        final Registration registration = new Registration(eventId, normalizedEmail, name, Registration.STATUS_CONFIRMED);
+        final Registration registration = new Registration(eventId, normalizedEmail, name, status);
         registrationDao.create(registration);
 
         try {
@@ -64,11 +72,19 @@ public class RegistrationServiceImpl implements RegistrationService {
             LOGGER.warn("No se pudo crear/actualizar el user para {}", normalizedEmail, e);
         }
 
-        // Dos avisos, los dos en otro hilo: al que se anoto y al dueno del evento.
-        notificationService.notifyRegistrationConfirmed(event, registration);
-        notificationService.notifyNewRegistration(event, registration);
+        // Dos avisos en los dos casos, siempre en otro hilo: uno a la persona y
+        // otro al dueno del evento. Lo que cambia es el texto, no la logica. Sin
+        // este if, a quien quedo en lista de espera le llegaria un mail que dice
+        // "confirmamos tu lugar", que es justo lo que no paso.
+        if (full) {
+            notificationService.notifyWaitlistJoined(event, registration);
+            notificationService.notifyNewWaitlistEntry(event, registration);
+        } else {
+            notificationService.notifyRegistrationConfirmed(event, registration);
+            notificationService.notifyNewRegistration(event, registration);
+        }
 
-        return RegistrationResult.CONFIRMED;
+        return full ? RegistrationResult.WAITLISTED : RegistrationResult.CONFIRMED;
     }
 
     @Override
@@ -80,8 +96,18 @@ public class RegistrationServiceImpl implements RegistrationService {
     }
 
     private boolean isFull(final Event event) {
-        return event.getMaxCapacity() != null
-                && registrationDao.countConfirmed(event.getId()) >= event.getMaxCapacity();
+        return event.getMaxCapacity() != null && occupied(event.getId()) >= event.getMaxCapacity();
+    }
+
+    /**
+     * Un cupo puede estar ocupado (alguien confirmado) o RESERVADO (alguien con
+     * una invitacion de lista de espera que todavia no contesto). Los dos cuentan
+     * como lleno: si mirramos solo los confirmados, mientras la persona invitada
+     * decide, otra se anotaria desde la pagina y terminariamos con mas gente que
+     * lugares.
+     */
+    private long occupied(final long eventId) {
+        return registrationDao.countConfirmed(eventId) + waitlistService.countReserved(eventId);
     }
 
     @Override
@@ -92,8 +118,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         if (event.getMaxCapacity() == null) {
             return null;
         }
-        final long confirmed = registrationDao.countConfirmed(eventId);
-        return (int) Math.max(0, event.getMaxCapacity() - confirmed);
+        return (int) Math.max(0, event.getMaxCapacity() - occupied(eventId));
     }
 
     @Override
@@ -109,7 +134,12 @@ public class RegistrationServiceImpl implements RegistrationService {
         if (!registration.isPresent() || !registration.get().getEmail().equalsIgnoreCase(email.trim())) {
             return false;
         }
+        final long eventId = registration.get().getEventId();
         registrationDao.delete(registrationId);
+        // El cupo que se acaba de soltar se le ofrece enseguida al primero de la
+        // lista de espera. Va en la misma transaccion: o pasan las dos cosas o
+        // no pasa ninguna.
+        waitlistService.reconcile(eventId);
         return true;
     }
 

@@ -5,6 +5,7 @@ import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.EventSort;
 import ar.edu.itba.paw.model.Image;
+import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.Review;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.CategoryService;
@@ -46,6 +47,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Controller
@@ -351,7 +353,14 @@ public class EventController {
                     if (principal != null) {
                         final User user = currentUser(principal);
                         mav.addObject("favorite", favoriteService.isFavorite(user.getId(), id));
-                        mav.addObject("registered", registrationService.findByEventAndEmail(id, user.getEmail()).isPresent());
+                        // No alcanza con saber SI esta anotada: el boton dice "Darme de
+                        // baja" o "Salir de la lista de espera" segun en que estado quedo.
+                        final Optional<Registration> myRegistration =
+                                registrationService.findByEventAndEmail(id, user.getEmail());
+                        mav.addObject("registered", myRegistration.isPresent());
+                        mav.addObject("waitlisted", myRegistration
+                                .map(r -> Registration.STATUS_WAITLISTED.equals(r.getStatus()))
+                                .orElse(false));
                     }
                     addCreatorReputation(mav, event.getCreatorEmail());
                     return mav;
@@ -495,12 +504,25 @@ public class EventController {
         // Quien se inscribe es quien esta logueado, nunca un campo del form:
         // mismo motivo que el creator_email de publish().
         final User user = currentUser(principal);
-        try {
-            final RegistrationResult result = registerRetryingOnConflict(id, user);
-            final String rsvpParam = result == RegistrationResult.ALREADY_REGISTERED ? "ya-anotado" : "confirmed";
-            return new ModelAndView("redirect:/eventos/" + id + "?rsvp=" + rsvpParam);
-        } catch (final IllegalStateException e) {
-            return new ModelAndView("redirect:/eventos/" + id + "?rsvp=lleno");
+        // Ya no hace falta atrapar IllegalStateException: el service dejo de
+        // lanzarla cuando el evento esta lleno, ahora devuelve WAITLISTED.
+        final RegistrationResult result = registerRetryingOnConflict(id, user);
+        return new ModelAndView("redirect:/eventos/" + id + "?rsvp=" + rsvpParam(result));
+    }
+
+    // Los 4 finales posibles del RSVP viajan como parametro en la URL
+    // (POST-Redirect-GET) y detail.jsp elige el cartel a partir de esto.
+    private static String rsvpParam(final RegistrationResult result) {
+        switch (result) {
+            case WAITLISTED:
+                return "waitlist";
+            case ALREADY_REGISTERED:
+                return "ya-anotado";
+            case ALREADY_WAITLISTED:
+                return "ya-en-waitlist";
+            case CONFIRMED:
+            default:
+                return "confirmed";
         }
     }
 
@@ -525,9 +547,15 @@ public class EventController {
             return new ModelAndView("redirect:/eventos/" + id + "?rsvp=finalizado");
         }
         final User user = currentUser(principal);
-        registrationService.findByEventAndEmail(id, user.getEmail())
-                .ifPresent(registration -> registrationService.cancel(registration.getId(), user.getEmail()));
-        return new ModelAndView("redirect:/eventos/" + id + "?rsvp=baja");
+        final Optional<Registration> registration = registrationService.findByEventAndEmail(id, user.getEmail());
+        // Se mira ANTES de borrar: despues la fila ya no existe y no hay forma
+        // de saber si el cartel tiene que decir "te diste de baja del evento"
+        // o "saliste de la lista de espera".
+        final boolean wasWaitlisted = registration
+                .map(r -> Registration.STATUS_WAITLISTED.equals(r.getStatus()))
+                .orElse(false);
+        registration.ifPresent(r -> registrationService.cancel(r.getId(), user.getEmail()));
+        return new ModelAndView("redirect:/eventos/" + id + "?rsvp=" + (wasWaitlisted ? "baja-waitlist" : "baja"));
     }
 
     // returnTo viaja como hidden en el form del corazon (paw:card/detail.jsp):

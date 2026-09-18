@@ -109,6 +109,73 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Async
     @Override
+    public void notifyWaitlistJoined(final Event event, final Registration registration) {
+        try {
+            final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
+            variables.put("personName", displayName(registration.getName(), registration.getEmail()));
+            // Mismo CTA que el mail de inscripcion confirmada: desde "Mis
+            // inscripciones" puede salirse de la lista si ya no le interesa.
+            variables.put("registrationsUrl", baseUrl + "/perfil/inscripciones");
+
+            mailService.send(registration.getEmail(),
+                    "waitlist-joined",
+                    "mail.waitlistJoined.subject",
+                    new Object[]{ event.getTitle() },
+                    variables,
+                    DEFAULT_LOCALE);
+        } catch (final RuntimeException e) {
+            LOGGER.error("Fallo la notificacion de lista de espera, evento {}", event.getId(), e);
+        }
+    }
+
+    @Async
+    @Override
+    public void notifyNewWaitlistEntry(final Event event, final Registration registration) {
+        try {
+            final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
+            variables.put("personName", displayName(null, event.getCreatorEmail()));
+            variables.put("registrantName", displayName(registration.getName(), registration.getEmail()));
+            variables.put("registrantEmail", registration.getEmail());
+
+            mailService.send(event.getCreatorEmail(),
+                    "waitlist-new-entry",
+                    "mail.waitlistNewEntry.subject",
+                    new Object[]{ event.getTitle() },
+                    variables,
+                    DEFAULT_LOCALE);
+        } catch (final RuntimeException e) {
+            LOGGER.error("Fallo el aviso de lista de espera al creador, evento {}", event.getId(), e);
+        }
+    }
+
+    @Async
+    @Override
+    public void notifyWaitlistInvitation(final Event event, final Registration registration,
+                                          final String token, final java.util.Date expiresAt) {
+        try {
+            final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
+            variables.put("personName", displayName(registration.getName(), registration.getEmail()));
+            // El link NO acepta por si solo: abre una pagina con dos botones. Un
+            // GET que cambiara estado se ejecutaria solo cuando el antivirus del
+            // correo abre los links para escanearlos.
+            variables.put("invitationUrl", baseUrl + "/invitacion/" + token);
+            variables.put("deadline", DateFormat
+                    .getDateTimeInstance(DateFormat.FULL, DateFormat.SHORT, DEFAULT_LOCALE)
+                    .format(expiresAt));
+
+            mailService.send(registration.getEmail(),
+                    "waitlist-invitation",
+                    "mail.waitlistInvitation.subject",
+                    new Object[]{ event.getTitle() },
+                    variables,
+                    DEFAULT_LOCALE);
+        } catch (final RuntimeException e) {
+            LOGGER.error("Fallo la invitacion de lista de espera, evento {}", event.getId(), e);
+        }
+    }
+
+    @Async
+    @Override
     public void notifyAccountVerification(final User user, final String token) {
         try {
             final Map<String, Object> variables = new HashMap<>();

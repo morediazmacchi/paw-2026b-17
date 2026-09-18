@@ -6,6 +6,7 @@ import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.RegistrationDao;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
@@ -39,6 +40,11 @@ public class RegistrationServiceImplTest {
     // constructor, y sin este mock le pasaria null -> NPE al notificar.
     @Mock
     private NotificationService mockNotificationService;
+    // Idem: RegistrationServiceImpl le pregunta cuantos cupos estan reservados
+    // por invitaciones sin contestar. Sin stubear, un nice mock devuelve 0,
+    // que es justo el caso "no hay ninguna invitacion dando vueltas".
+    @Mock
+    private WaitlistService mockWaitlistService;
 
     @InjectMocks
     private RegistrationServiceImpl registrationService;
@@ -70,13 +76,40 @@ public class RegistrationServiceImplTest {
         registrationService.register(EVENT_ID, EMAIL, NAME);
     }
 
-    @Test(expected = IllegalStateException.class)
-    public void testRegisterWhenTheEventIsFullThrowsIllegalStateException() {
+    @Test
+    public void testRegisterWhenTheEventIsFullReturnsWaitlisted() {
+        when(mockRegistrationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_EMAIL)).thenReturn(Optional.empty());
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(2)));
+        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(2L);
+
+        final RegistrationResult result = registrationService.register(EVENT_ID, EMAIL, NAME);
+
+        assertEquals(RegistrationResult.WAITLISTED, result);
+    }
+
+    @Test
+    public void testRegisterWhenTheEventIsFullSavesTheRegistrationAsWaitlisted() {
         when(mockRegistrationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_EMAIL)).thenReturn(Optional.empty());
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(2)));
         when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(2L);
 
         registrationService.register(EVENT_ID, EMAIL, NAME);
+
+        // Lo que se guarda es parte del contrato: una fila en estado waitlisted
+        // es lo que despues deja armar la lista de espera en orden.
+        final ArgumentCaptor<Registration> saved = ArgumentCaptor.forClass(Registration.class);
+        verify(mockRegistrationDao).create(saved.capture());
+        assertEquals(Registration.STATUS_WAITLISTED, saved.getValue().getStatus());
+    }
+
+    @Test
+    public void testRegisterWhenAlreadyOnTheWaitlistReturnsAlreadyWaitlisted() {
+        final Registration existing = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, Registration.STATUS_WAITLISTED);
+        when(mockRegistrationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_EMAIL)).thenReturn(Optional.of(existing));
+
+        final RegistrationResult result = registrationService.register(EVENT_ID, EMAIL, NAME);
+
+        assertEquals(RegistrationResult.ALREADY_WAITLISTED, result);
     }
 
     @Test
@@ -120,6 +153,42 @@ public class RegistrationServiceImplTest {
         final boolean result = registrationService.isFull(EVENT_ID);
 
         assertFalse(result);
+    }
+
+    /**
+     * EL TEST QUE IMPIDE SOBREVENDER. Con cupo 2, 1 confirmado y 1 invitacion de
+     * lista de espera sin contestar, el evento esta LLENO: ese segundo lugar esta
+     * reservado mientras la persona invitada decide. Si esto devolviera false,
+     * alguien de la calle se quedaria con el lugar que le estamos ofreciendo.
+     */
+    @Test
+    public void testIsFullCountsSpotsHeldByPendingInvitations() {
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(2)));
+        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(1L);
+        when(mockWaitlistService.countReserved(EVENT_ID)).thenReturn(1L);
+
+        assertTrue(registrationService.isFull(EVENT_ID));
+    }
+
+    @Test
+    public void testAvailableSpotsDiscountsSpotsHeldByPendingInvitations() {
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(10)));
+        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(7L);
+        when(mockWaitlistService.countReserved(EVENT_ID)).thenReturn(2L);
+
+        // 10 - 7 ocupados - 2 reservados = 1. Es el numero que ve la gente en
+        // pantalla: si mostrara 3, tres personas creerian que hay lugar.
+        assertEquals(Integer.valueOf(1), registrationService.availableSpots(EVENT_ID));
+    }
+
+    @Test
+    public void testRegisterGoesToTheWaitlistWhenThelastSpotIsHeldByAnInvitation() {
+        when(mockRegistrationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_EMAIL)).thenReturn(Optional.empty());
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(2)));
+        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(1L);
+        when(mockWaitlistService.countReserved(EVENT_ID)).thenReturn(1L);
+
+        assertEquals(RegistrationResult.WAITLISTED, registrationService.register(EVENT_ID, EMAIL, NAME));
     }
 
     @Test

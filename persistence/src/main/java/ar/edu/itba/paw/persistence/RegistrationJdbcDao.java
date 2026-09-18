@@ -81,6 +81,25 @@ public class RegistrationJdbcDao implements RegistrationDao {
     }
 
     @Override
+    public List<Registration> findNextWaitlisted(final long eventId, final int limit) {
+        // El LEFT JOIN + "i.id IS NULL" es la regla "una oportunidad por persona":
+        // quien ya tiene invitacion (pendiente o aceptada) no vuelve a aparecer.
+        // Al que rechazo o se le vencio ya se le borro la inscripcion entera, asi
+        // que tampoco esta. El orden sale de registered_at: el que llego primero.
+        return jdbcTemplate.query(
+                "SELECT r.* FROM registration r "
+                        + "LEFT JOIN waitlist_invitation i ON i.registration_id = r.id "
+                        + "WHERE r.event_id = ? AND r.status = ? AND i.id IS NULL "
+                        + "ORDER BY r.registered_at LIMIT ?",
+                ROW_MAPPER, eventId, Registration.STATUS_WAITLISTED, limit);
+    }
+
+    @Override
+    public void updateStatus(final long id, final String status) {
+        jdbcTemplate.update("UPDATE registration SET status = ? WHERE id = ?", status, id);
+    }
+
+    @Override
     public void delete(final long id) {
         jdbcTemplate.update("DELETE FROM registration WHERE id = ?", id);
     }

@@ -13,6 +13,15 @@ public interface RegistrationDao {
 
     Optional<Registration> findById(long id);
 
+    /**
+     * Los proximos de la lista de espera de este evento a los que todavia NO se
+     * les ofrecio el lugar, del que llego primero al que llego ultimo.
+     */
+    List<Registration> findNextWaitlisted(long eventId, int limit);
+
+    /** Para pasar de 'waitlisted' a 'confirmed' cuando alguien acepta su invitacion. */
+    void updateStatus(long id, String status);
+
     // "Mis inscripciones": mas recientes primero.
     List<Registration> findByEmail(String email);
 
