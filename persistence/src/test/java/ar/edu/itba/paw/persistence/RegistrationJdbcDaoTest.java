@@ -145,6 +145,36 @@ public class RegistrationJdbcDaoTest {
         assertTrue(registrationDao.findByEmail(EMAIL).isEmpty());
     }
 
+    // ---- findByEventId() ("Ver inscriptos" del organizador) ----
+
+    @Test
+    public void testFindByEventIdReturnsAllRegistrationsForThatEvent() {
+        registrationDao.create(someRegistration(eventId));
+        registrationDao.create(new Registration(eventId, "otro@mail.com", "Otro", Registration.STATUS_CONFIRMED));
+
+        final List<Registration> found = registrationDao.findByEventId(eventId);
+
+        assertEquals(2, found.size());
+    }
+
+    @Test
+    public void testFindByEventIdDoesNotReturnRegistrationsOfOtherEvents() {
+        final long otherCategoryId = insertCategory("Deportes");
+        final long otherEventId = insertEvent(otherCategoryId);
+        registrationDao.create(someRegistration(eventId));
+        registrationDao.create(new Registration(otherEventId, "otro@mail.com", "Otro", Registration.STATUS_CONFIRMED));
+
+        final List<Registration> found = registrationDao.findByEventId(eventId);
+
+        assertEquals(1, found.size());
+        assertEquals(EMAIL, found.get(0).getEmail());
+    }
+
+    @Test
+    public void testFindByEventIdReturnsEmptyWhenNobodyIsRegistered() {
+        assertTrue(registrationDao.findByEventId(eventId).isEmpty());
+    }
+
     // ---- delete() ----
 
     @Test

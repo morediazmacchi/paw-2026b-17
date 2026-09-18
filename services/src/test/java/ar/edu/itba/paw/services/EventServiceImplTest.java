@@ -2,6 +2,7 @@ package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.persistence.EventDao;
+import ar.edu.itba.paw.persistence.RegistrationDao;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.InjectMocks;
@@ -20,6 +21,8 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @RunWith(MockitoJUnitRunner.class)
@@ -29,6 +32,8 @@ public class EventServiceImplTest {
     private static final long CATEGORY_ID = 7;
     private static final String CREATOR_EMAIL = "creador@mail.com";
 
+    private static final String OTHER_EMAIL = "otro@mail.com";
+
     @Mock
     private EventDao mockEventDao;
     @Mock
@@ -37,6 +42,8 @@ public class EventServiceImplTest {
     // constructor, y sin este mock le pasaria null -> NPE al notificar.
     @Mock
     private NotificationService mockNotificationService;
+    @Mock
+    private RegistrationDao mockRegistrationDao;
 
     @InjectMocks
     private EventServiceImpl eventService;
@@ -136,5 +143,75 @@ public class EventServiceImplTest {
         eventService.findByCreatorEmail("  CREADOR@Mail.com ");
 
         org.mockito.Mockito.verify(mockEventDao).findByCreatorEmail(CREATOR_EMAIL);
+    }
+
+    @Test
+    public void testUpdateSucceedsAndReturnsUpdated() {
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(someEvent()));
+        final Event changes = someEvent();
+        changes.setMaxCapacity(20);
+        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(5L);
+
+        final EventUpdateResult result = eventService.update(EVENT_ID, changes, CREATOR_EMAIL);
+
+        assertEquals(EventUpdateResult.UPDATED, result);
+        verify(mockEventDao).update(changes);
+    }
+
+    @Test
+    public void testUpdateWhenCallerIsNotTheCreatorReturnsNotFound() {
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(someEvent()));
+
+        final EventUpdateResult result = eventService.update(EVENT_ID, someEvent(), OTHER_EMAIL);
+
+        assertEquals(EventUpdateResult.NOT_FOUND, result);
+        verify(mockEventDao, never()).update(any(Event.class));
+    }
+
+    @Test
+    public void testUpdateWhenTheEventDoesNotExistReturnsNotFound() {
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.empty());
+
+        final EventUpdateResult result = eventService.update(EVENT_ID, someEvent(), CREATOR_EMAIL);
+
+        assertEquals(EventUpdateResult.NOT_FOUND, result);
+        verify(mockEventDao, never()).update(any(Event.class));
+    }
+
+    @Test
+    public void testUpdateWhenNewCapacityIsBelowConfirmedReturnsCapacityTooLow() {
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(someEvent()));
+        final Event changes = someEvent();
+        changes.setMaxCapacity(3);
+        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(5L);
+
+        final EventUpdateResult result = eventService.update(EVENT_ID, changes, CREATOR_EMAIL);
+
+        assertEquals(EventUpdateResult.CAPACITY_TOO_LOW, result);
+        verify(mockEventDao, never()).update(any(Event.class));
+    }
+
+    @Test
+    public void testUpdateWhenNewCapacityEqualsConfirmedSucceeds() {
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(someEvent()));
+        final Event changes = someEvent();
+        changes.setMaxCapacity(5);
+        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(5L);
+
+        final EventUpdateResult result = eventService.update(EVENT_ID, changes, CREATOR_EMAIL);
+
+        assertEquals(EventUpdateResult.UPDATED, result);
+    }
+
+    @Test
+    public void testUpdateWhenNewCapacityIsNullSucceedsWithoutCheckingConfirmed() {
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(someEvent()));
+        final Event changes = someEvent();
+        changes.setMaxCapacity(null);
+
+        final EventUpdateResult result = eventService.update(EVENT_ID, changes, CREATOR_EMAIL);
+
+        assertEquals(EventUpdateResult.UPDATED, result);
+        verify(mockRegistrationDao, never()).countConfirmed(EVENT_ID);
     }
 }

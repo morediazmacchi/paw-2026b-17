@@ -81,6 +81,13 @@ public class RegistrationJdbcDao implements RegistrationDao {
     }
 
     @Override
+    public List<Registration> findByEventId(final long eventId) {
+        return jdbcTemplate.query(
+                "SELECT * FROM registration WHERE event_id = ? ORDER BY registered_at ASC",
+                ROW_MAPPER, eventId);
+    }
+
+    @Override
     public List<Registration> findNextWaitlisted(final long eventId, final int limit) {
         // El LEFT JOIN + "i.id IS NULL" es la regla "una oportunidad por persona":
         // quien ya tiene invitacion (pendiente o aceptada) no vuelve a aparecer.

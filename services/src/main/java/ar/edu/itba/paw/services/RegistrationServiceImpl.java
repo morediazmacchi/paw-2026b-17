@@ -148,4 +148,10 @@ public class RegistrationServiceImpl implements RegistrationService {
     public Optional<Registration> findByEventAndEmail(final long eventId, final String email) {
         return registrationDao.findByEventAndEmail(eventId, email.trim().toLowerCase());
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Registration> findByEventId(final long eventId) {
+        return registrationDao.findByEventId(eventId);
+    }
 }

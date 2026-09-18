@@ -277,4 +277,17 @@ public class RegistrationServiceImplTest {
 
         assertFalse(result.isPresent());
     }
+
+    // ---- findByEventId() ----
+
+    @Test
+    public void testFindByEventIdDelegatesToTheDao() {
+        final List<Registration> registrations = Collections.singletonList(
+                new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, Registration.STATUS_CONFIRMED));
+        when(mockRegistrationDao.findByEventId(EVENT_ID)).thenReturn(registrations);
+
+        final List<Registration> result = registrationService.findByEventId(EVENT_ID);
+
+        assertEquals(registrations, result);
+    }
 }

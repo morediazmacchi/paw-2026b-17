@@ -45,4 +45,17 @@ public interface RegistrationService {
      * este evento, para mostrar "Darme de baja" en vez de "Inscribirme".
      */
     Optional<Registration> findByEventAndEmail(long eventId, String email);
+
+    /**
+     * "Ver inscriptos" del organizador: todos los anotados a un evento, en
+     * orden de llegada.
+     *
+     * OJO: este metodo NO valida quien pregunta -- a diferencia de cancel(),
+     * que solo deja cancelar tu propia inscripcion, este eventId es un
+     * parametro arbitrario (viene de la URL, no del usuario logueado como
+     * findByEmail). Quien llama (EventController.inscriptos()) tiene que
+     * verificar que el que pregunta sea el creador del evento ANTES de
+     * mostrar esta lista.
+     */
+    List<Registration> findByEventId(long eventId);
 }
