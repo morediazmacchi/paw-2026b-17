@@ -11,7 +11,9 @@ public interface RegistrationService {
     /**
      * Anota a alguien en un evento. Si ya estaba anotado con ese mail, no crea uno nuevo.
      *
-     * @throws IllegalStateException si el evento ya esta lleno
+     * Si el evento esta lleno la inscripcion igual se crea, pero en estado
+     * "waitlisted": la persona queda en la lista de espera, ordenada por el
+     * momento en que se anoto.
      */
     RegistrationResult register(long eventId, String email, String name);
 

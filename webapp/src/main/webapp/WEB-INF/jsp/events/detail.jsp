@@ -60,11 +60,20 @@
             <c:when test="${rsvp == 'ya-anotado'}">
                 <p class="alert detail-alert"><spring:message code="event.rsvp.alreadyRegistered"/></p>
             </c:when>
+            <c:when test="${rsvp == 'waitlist'}">
+                <p class="alert detail-alert"><spring:message code="event.rsvp.waitlisted"/></p>
+            </c:when>
+            <c:when test="${rsvp == 'ya-en-waitlist'}">
+                <p class="alert detail-alert"><spring:message code="event.rsvp.alreadyWaitlisted"/></p>
+            </c:when>
             <c:when test="${rsvp == 'lleno'}">
                 <p class="alert detail-alert"><spring:message code="event.rsvp.full"/></p>
             </c:when>
             <c:when test="${rsvp == 'baja'}">
                 <p class="alert detail-alert"><spring:message code="event.rsvp.unregistered"/></p>
+            </c:when>
+            <c:when test="${rsvp == 'baja-waitlist'}">
+                <p class="alert detail-alert"><spring:message code="event.rsvp.leftWaitlist"/></p>
             </c:when>
             <c:when test="${rsvp == 'finalizado'}">
                 <p class="alert detail-alert"><spring:message code="event.detail.eventFinished"/></p>
@@ -181,18 +190,38 @@
                 <h2 class="detail-rsvp-heading"><spring:message code="event.detail.registerCardHeading"/></h2>
                 <c:choose>
                     <%-- Finalizado gana incluso si estabas anotado: ya paso, no tiene
-                         sentido "darse de baja" de algo que ya sucedio. Lleno en cambio
-                         solo importa si todavia no tenes lugar: alguien ya anotado se
-                         tiene que poder dar de baja de un evento que SI sigue vigente. --%>
+                         sentido "darse de baja" de algo que ya sucedio. Que este lleno,
+                         en cambio, ya no es un callejon sin salida: se avisa con el
+                         cartel y el mismo boton pasa a ser el de la lista de espera. --%>
                     <c:when test="${finished}">
                         <p class="alert"><spring:message code="event.detail.eventFinished"/></p>
                     </c:when>
-                    <c:when test="${full and !registered}">
-                        <p class="alert"><spring:message code="event.detail.eventFull"/></p>
-                    </c:when>
                     <c:otherwise>
-                        <spring:message code="event.detail.rsvpButton" var="rsvpButtonLabel"/>
-                        <spring:message code="event.detail.unregisterButton" var="unregisterButtonLabel"/>
+                        <%-- El cartel solo si todavia no tenes nada: quien ya esta
+                             confirmado o ya esta en la lista no necesita que le avisen. --%>
+                        <c:if test="${full and !registered}">
+                            <p class="alert"><spring:message code="event.detail.eventFull"/></p>
+                        </c:if>
+
+                        <%-- Las etiquetas se resuelven una sola vez aca arriba: abajo hay
+                             una rama para logueado y otra para anonimo, y no tiene sentido
+                             repetir el mismo c:choose en las dos. --%>
+                        <c:choose>
+                            <c:when test="${full}">
+                                <spring:message code="event.detail.waitlistButton" var="rsvpButtonLabel"/>
+                            </c:when>
+                            <c:otherwise>
+                                <spring:message code="event.detail.rsvpButton" var="rsvpButtonLabel"/>
+                            </c:otherwise>
+                        </c:choose>
+                        <c:choose>
+                            <c:when test="${waitlisted}">
+                                <spring:message code="event.detail.leaveWaitlistButton" var="unregisterButtonLabel"/>
+                            </c:when>
+                            <c:otherwise>
+                                <spring:message code="event.detail.unregisterButton" var="unregisterButtonLabel"/>
+                            </c:otherwise>
+                        </c:choose>
                         <sec:authorize access="isAuthenticated()">
                             <c:choose>
                                 <c:when test="${registered}">
@@ -221,7 +250,12 @@
                             </a>
                         </sec:authorize>
                         <c:if test="${not registered}">
-                            <p class="detail-rsvp-note"><spring:message code="event.detail.reserveNote"/></p>
+                            <p class="detail-rsvp-note">
+                                <c:choose>
+                                    <c:when test="${full}"><spring:message code="event.detail.waitlistNote"/></c:when>
+                                    <c:otherwise><spring:message code="event.detail.reserveNote"/></c:otherwise>
+                                </c:choose>
+                            </p>
                         </c:if>
                     </c:otherwise>
                 </c:choose>
