@@ -1,0 +1,61 @@
+// Implementa el contrato ReviewService (modulo services-contracts).
+package ar.edu.itba.paw.services;
+
+import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.Review;
+import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.persistence.ReviewDao;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Date;
+import java.util.List;
+import java.util.Optional;
+
+@Service
+public class ReviewServiceImpl implements ReviewService {
+
+    private final ReviewDao reviewDao;
+    private final EventService eventService;
+    private final RegistrationService registrationService;
+
+    @Autowired
+    public ReviewServiceImpl(final ReviewDao reviewDao, final EventService eventService,
+                             final RegistrationService registrationService) {
+        this.reviewDao = reviewDao;
+        this.eventService = eventService;
+        this.registrationService = registrationService;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<Review> findByEventAndUser(final long eventId, final long userId) {
+        return reviewDao.findByEventAndUser(eventId, userId);
+    }
+
+    @Override
+    @Transactional
+    public boolean create(final long eventId, final User user, final int rating, final String comment) {
+        // Ya la mando: no se puede editar ni volver a mandar (chequeo primero,
+        // antes de pedir el evento, es el caso mas comun de "no eligible").
+        if (reviewDao.findByEventAndUser(eventId, user.getId()).isPresent()) {
+            return false;
+        }
+        final Optional<Event> event = eventService.findById(eventId);
+        if (!event.isPresent() || !event.get().getEventDate().before(new Date())) {
+            return false;
+        }
+        if (!registrationService.findByEventAndEmail(eventId, user.getEmail()).isPresent()) {
+            return false;
+        }
+        reviewDao.create(new Review(eventId, user.getId(), rating, comment));
+        return true;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Review> findByCreatorEmail(final String creatorEmail) {
+        return reviewDao.findByCreatorEmail(creatorEmail);
+    }
+}

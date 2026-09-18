@@ -62,6 +62,11 @@ public class EventServiceImpl implements EventService {
     public List<Event> findByCategory(final long categoryId) { return eventDao.findByCategory(categoryId); }
     @Override
     @Transactional(readOnly = true)
+    public List<Event> findByCreatorEmail(final String email) {
+        return eventDao.findByCreatorEmail(email.trim().toLowerCase());
+    }
+    @Override
+    @Transactional(readOnly = true)
     public PageResult<Event> search(final EventSearchCriteria criteria) {
         final long totalElements = eventDao.countSearch(criteria);
         final int totalPages = criteria.getPageSize() <= 0 ? 0

@@ -186,4 +186,26 @@ public class RegistrationServiceImplTest {
         assertFalse(result);
         verify(mockRegistrationDao, never()).delete(5);
     }
+
+    // ---- findByEventAndEmail() ----
+
+    @Test
+    public void testFindByEventAndEmailNormalizesTheEmail() {
+        final Registration registration = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, Registration.STATUS_CONFIRMED);
+        when(mockRegistrationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_EMAIL)).thenReturn(Optional.of(registration));
+
+        final Optional<Registration> result = registrationService.findByEventAndEmail(EVENT_ID, EMAIL);
+
+        assertTrue(result.isPresent());
+        assertEquals(NORMALIZED_EMAIL, result.get().getEmail());
+    }
+
+    @Test
+    public void testFindByEventAndEmailReturnsEmptyWhenNotRegistered() {
+        when(mockRegistrationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_EMAIL)).thenReturn(Optional.empty());
+
+        final Optional<Registration> result = registrationService.findByEventAndEmail(EVENT_ID, EMAIL);
+
+        assertFalse(result.isPresent());
+    }
 }

@@ -2,6 +2,7 @@ package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.Registration;
+import ar.edu.itba.paw.model.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -99,6 +100,44 @@ public class NotificationServiceImpl implements NotificationService {
                     DEFAULT_LOCALE);
         } catch (final RuntimeException e) {
             LOGGER.error("Fallo la notificacion de inscripcion nueva, evento {}", event.getId(), e);
+        }
+    }
+
+    @Async
+    @Override
+    public void notifyAccountVerification(final User user, final String token) {
+        try {
+            final Map<String, Object> variables = new HashMap<>();
+            variables.put("personName", displayName(user.getName(), user.getEmail()));
+            variables.put("confirmUrl", baseUrl + "/confirmar-cuenta?token=" + token);
+
+            mailService.send(user.getEmail(),
+                    "account-verification",
+                    "mail.accountVerification.subject",
+                    null,
+                    variables,
+                    DEFAULT_LOCALE);
+        } catch (final RuntimeException e) {
+            LOGGER.error("Fallo el mail de confirmacion de cuenta, usuario {}", user.getId(), e);
+        }
+    }
+
+    @Async
+    @Override
+    public void notifyPasswordReset(final User user, final String token) {
+        try {
+            final Map<String, Object> variables = new HashMap<>();
+            variables.put("personName", displayName(user.getName(), user.getEmail()));
+            variables.put("resetUrl", baseUrl + "/login/restablecer?token=" + token);
+
+            mailService.send(user.getEmail(),
+                    "password-reset",
+                    "mail.passwordReset.subject",
+                    null,
+                    variables,
+                    DEFAULT_LOCALE);
+        } catch (final RuntimeException e) {
+            LOGGER.error("Fallo el mail de restablecer contraseña, usuario {}", user.getId(), e);
         }
     }
 

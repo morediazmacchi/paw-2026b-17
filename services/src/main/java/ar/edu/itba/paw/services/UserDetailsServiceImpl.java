@@ -38,9 +38,14 @@ public class UserDetailsServiceImpl implements UserDetailsService {
             throw new PasswordNotSetException(user.getEmail());
         }
 
+        // disabled=true si todavia no confirmo el mail: DaoAuthenticationProvider
+        // chequea esto ANTES de comparar la contraseña y tira DisabledException
+        // (WebAuthConfig.loginFailureHandler la distingue para mandarlo a
+        // "confirmá tu cuenta" en vez del error generico).
         return org.springframework.security.core.userdetails.User
                 .withUsername(user.getEmail())
                 .password(user.getPassword())
+                .disabled(!user.isVerified())
                 .authorities(toAuthorities(user))
                 .build();
     }

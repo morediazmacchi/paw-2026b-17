@@ -17,6 +17,10 @@ public interface EventDao {
     List<Event> findAll();
     List<Event> findByCategory(long categoryId);
 
+    // "Mis eventos": todos los del creador (pasados incluidos, a diferencia de
+    // search()), mas recientes primero.
+    List<Event> findByCreatorEmail(String email);
+
     // Combina todos los filtros con AND (un campo en null en criteria significa "sin filtrar por
     // esto"); solo eventos futuros; ordenado y paginado segun criteria.
     List<Event> search(EventSearchCriteria criteria);

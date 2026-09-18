@@ -15,4 +15,7 @@ public interface EventService {
     // Pagina la respuesta: criteria.getPage() puede caer a la ultima pagina con
     // resultados si pedis una que no existe.
     PageResult<Event> search(EventSearchCriteria criteria);
+
+    // "Mis eventos": todos los creados por este email, mas recientes primero.
+    List<Event> findByCreatorEmail(String email);
 }

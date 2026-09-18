@@ -115,6 +115,12 @@ public class EventJdbcDao implements EventDao {
     }
 
     @Override
+    public List<Event> findByCreatorEmail(final String email) {
+        return jdbcTemplate.query(SELECT_BASE + " WHERE e.creator_email = ? ORDER BY e.event_date DESC",
+                ROW_MAPPER, email);
+    }
+
+    @Override
     public List<Event> search(final EventSearchCriteria criteria) {
         final WhereClause where = buildWhereClause(criteria);
         final String sortColumn = SORT_COLUMNS.getOrDefault(criteria.getSort(), SORT_COLUMNS.get(EventSort.FECHA));

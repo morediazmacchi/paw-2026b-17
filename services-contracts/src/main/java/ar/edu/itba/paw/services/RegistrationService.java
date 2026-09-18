@@ -4,6 +4,7 @@ package ar.edu.itba.paw.services;
 import ar.edu.itba.paw.model.Registration;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface RegistrationService {
 
@@ -36,4 +37,10 @@ public interface RegistrationService {
      * conociendo solo su id no tiene que ser posible.
      */
     boolean cancel(long registrationId, String email);
+
+    /**
+     * Para el detalle de evento: si el usuario logueado ya esta anotado a
+     * este evento, para mostrar "Darme de baja" en vez de "Inscribirme".
+     */
+    Optional<Registration> findByEventAndEmail(long eventId, String email);
 }

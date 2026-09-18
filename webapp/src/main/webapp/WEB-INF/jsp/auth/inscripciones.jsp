@@ -6,18 +6,20 @@
 <head>
     <meta charset="UTF-8">
     <title>Plancito &middot; <spring:message code="auth.registrations.title"/></title>
+    <link rel="icon" type="image/svg+xml" href="${pageContext.request.contextPath}/favicon.svg">
     <link rel="stylesheet" href="${pageContext.request.contextPath}/css/style.css">
     <script src="<c:url value='/js/disable-on-submit.js'/>"></script>
+    <script src="<c:url value='/js/modal.js'/>"></script>
 </head>
 <body>
 
 <paw:navbar>
     <spring:message code="common.nav.backToEvents" var="backToEventsLabel"/>
-    <a class="btn btn-medium" href="<c:url value='/eventos'/>">&larr; <c:out value="${backToEventsLabel}"/></a>
+    <a class="btn btn-medium" href="<c:url value='/eventos'/>"><c:out value="${backToEventsLabel}"/></a>
 </paw:navbar>
 
 <div class="account-layout">
-    <paw:accountSidebar active="registrations" registrationsCount="${registrationsCount}"/>
+    <paw:accountSidebar active="registrations" registrationsCount="${registrationsCount}" favoritesCount="${favoritesCount}" eventsCount="${eventsCount}"/>
 
     <main class="account-main">
         <h1><spring:message code="auth.registrations.heading"/></h1>
@@ -26,17 +28,24 @@
         <c:if test="${cancelled}">
             <p class="alert"><spring:message code="auth.registrations.cancelledMessage"/></p>
         </c:if>
+        <c:if test="${reviewed}">
+            <p class="alert"><spring:message code="auth.registrations.reviewedMessage"/></p>
+        </c:if>
+        <c:if test="${reviewError}">
+            <p class="alert"><spring:message code="auth.registrations.reviewErrorMessage"/></p>
+        </c:if>
 
         <c:choose>
-            <c:when test="${empty registrations}">
+            <c:when test="${empty upcomingRegistrations and empty pastRegistrations}">
                 <p class="empty-state"><spring:message code="auth.registrations.empty"/></p>
             </c:when>
             <c:otherwise>
                 <spring:message code="auth.registrations.cancelButton" var="cancelButtonLabel"/>
-                <div class="event-row-list">
-                    <c:forEach var="registration" items="${registrations}">
-                        <c:set var="event" value="${eventsById[registration.eventId]}"/>
-                        <c:if test="${not empty event}">
+
+                <c:if test="${not empty upcomingRegistrations}">
+                    <div class="event-row-list">
+                        <c:forEach var="registration" items="${upcomingRegistrations}">
+                            <c:set var="event" value="${eventsById[registration.eventId]}"/>
                             <paw:eventRow id="${event.id}" nombre="${event.title}" fecha="${event.eventDate}"
                                           ubicacion="${event.neighborhood.displayName}" precio="${event.price}"
                                           imagenId="${event.imageId}">
@@ -44,9 +53,61 @@
                                     <paw:button text="${cancelButtonLabel}" cssClass="btn-danger"/>
                                 </form>
                             </paw:eventRow>
-                        </c:if>
-                    </c:forEach>
-                </div>
+                        </c:forEach>
+                    </div>
+                </c:if>
+
+                <c:if test="${not empty pastRegistrations}">
+                    <hr class="profile-divider"/>
+                    <h2 class="profile-section-title"><spring:message code="auth.registrations.pastHeading"/></h2>
+                    <spring:message code="auth.registrations.reviewButton" var="reviewButtonLabel"/>
+                    <spring:message code="event.detail.closeButton" var="closeButtonLabel"/>
+                    <div class="event-row-list event-row-list-past">
+                        <c:forEach var="registration" items="${pastRegistrations}">
+                            <c:set var="event" value="${eventsById[registration.eventId]}"/>
+                            <c:set var="myReview" value="${myReviewsByEventId[registration.eventId]}"/>
+                            <div>
+                                <paw:eventRow id="${event.id}" nombre="${event.title}" fecha="${event.eventDate}"
+                                              ubicacion="${event.neighborhood.displayName}" precio="${event.price}"
+                                              imagenId="${event.imageId}"/>
+                                <div class="review-panel">
+                                    <c:choose>
+                                        <c:when test="${not empty myReview}">
+                                            <span class="review-display-heading"><spring:message code="auth.registrations.myReviewHeading"/></span>
+                                            <paw:stars rating="${myReview.rating}"/>
+                                            <c:if test="${not empty myReview.comment}">
+                                                <p class="review-comment"><c:out value="${myReview.comment}"/></p>
+                                            </c:if>
+                                        </c:when>
+                                        <c:otherwise>
+                                            <button type="button" class="btn btn-medium btn-accent" data-open-modal="reviewModal-${event.id}">
+                                                <c:out value="${reviewButtonLabel}"/>
+                                            </button>
+                                            <div class="modal-overlay" id="reviewModal-${event.id}" hidden>
+                                                <div class="modal-box">
+                                                    <div class="modal-header">
+                                                        <h2><spring:message code="auth.registrations.reviewHeading"/></h2>
+                                                        <button type="button" class="modal-close" data-close-modal aria-label="${closeButtonLabel}">
+                                                            <paw:icon name="close"/>
+                                                        </button>
+                                                    </div>
+                                                    <form class="review-form" action="<c:url value='/perfil/inscripciones/${event.id}/resena'/>" method="post" novalidate="novalidate">
+                                                        <paw:starPicker fieldId="review-${event.id}"/>
+                                                        <div class="form-group">
+                                                            <label for="comment-${event.id}"><spring:message code="auth.registrations.commentLabel"/></label>
+                                                            <textarea id="comment-${event.id}" name="comment" maxlength="1000"></textarea>
+                                                        </div>
+                                                        <paw:button text="${reviewButtonLabel}" cssClass="btn-accent"/>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        </c:otherwise>
+                                    </c:choose>
+                                </div>
+                            </div>
+                        </c:forEach>
+                    </div>
+                </c:if>
             </c:otherwise>
         </c:choose>
     </main>

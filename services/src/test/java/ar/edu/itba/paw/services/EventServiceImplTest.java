@@ -117,4 +117,24 @@ public class EventServiceImplTest {
         assertEquals(1, result.size());
         assertEquals(CATEGORY_ID, result.get(0).getCategoryId());
     }
+
+    @Test
+    public void testFindByCreatorEmailReturnsWhatTheDaoReturns() {
+        final List<Event> events = Collections.singletonList(someEvent());
+        when(mockEventDao.findByCreatorEmail(CREATOR_EMAIL)).thenReturn(events);
+
+        final List<Event> result = eventService.findByCreatorEmail(CREATOR_EMAIL);
+
+        assertEquals(1, result.size());
+        assertEquals(CREATOR_EMAIL, result.get(0).getCreatorEmail());
+    }
+
+    @Test
+    public void testFindByCreatorEmailNormalizesTheEmail() {
+        when(mockEventDao.findByCreatorEmail(CREATOR_EMAIL)).thenReturn(Collections.singletonList(someEvent()));
+
+        eventService.findByCreatorEmail("  CREADOR@Mail.com ");
+
+        org.mockito.Mockito.verify(mockEventDao).findByCreatorEmail(CREATOR_EMAIL);
+    }
 }

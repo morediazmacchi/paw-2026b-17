@@ -112,4 +112,10 @@ public class RegistrationServiceImpl implements RegistrationService {
         registrationDao.delete(registrationId);
         return true;
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<Registration> findByEventAndEmail(final long eventId, final String email) {
+        return registrationDao.findByEventAndEmail(eventId, email.trim().toLowerCase());
+    }
 }

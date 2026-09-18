@@ -7,6 +7,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Plancito &middot; <spring:message code="auth.login.title"/></title>
+    <link rel="icon" type="image/svg+xml" href="${pageContext.request.contextPath}/favicon.svg">
     <link rel="stylesheet" href="${pageContext.request.contextPath}/css/style.css">
     <script src="<c:url value='/js/disable-on-submit.js'/>"></script>
 </head>
@@ -14,7 +15,7 @@
 
 <paw:navbar>
     <spring:message code="common.nav.backToEvents" var="backToEventsLabel"/>
-    <a class="btn btn-medium" href="<c:url value='/eventos'/>">&larr; <c:out value="${backToEventsLabel}"/></a>
+    <a class="btn btn-medium" href="<c:url value='/eventos'/>"><c:out value="${backToEventsLabel}"/></a>
 </paw:navbar>
 
 <main class="page page-narrow">
@@ -36,6 +37,9 @@
                 <spring:message code="auth.login.setPasswordButton" var="setPasswordButtonLabel"/>
                 <form action="<c:url value='/login/nueva-contrasena'/>" method="post" novalidate="novalidate">
                     <input type="hidden" name="email" value="${fn:escapeXml(setPasswordForm.email)}"/>
+                    <c:if test="${not empty redirectTo}">
+                        <input type="hidden" name="redirect" value="${fn:escapeXml(redirectTo)}"/>
+                    </c:if>
                     <paw:input name="password" label="${newPasswordLabel}" type="password"
                                errorMessage="${fieldErrors.password}"/>
                     <paw:input name="confirmarPassword" label="${confirmPasswordLabel}" type="password"
@@ -59,13 +63,40 @@
                 <c:if test="${passwordSet}">
                     <p class="alert"><spring:message code="auth.login.passwordSetSuccess"/></p>
                 </c:if>
+                <c:if test="${verified}">
+                    <p class="alert"><spring:message code="auth.login.verifiedMessage"/></p>
+                </c:if>
+                <c:if test="${verifyError}">
+                    <p class="alert"><spring:message code="auth.login.verifyErrorMessage"/></p>
+                </c:if>
+                <c:if test="${passwordReset}">
+                    <p class="alert"><spring:message code="auth.login.passwordResetMessage"/></p>
+                </c:if>
+                <c:if test="${resent}">
+                    <p class="alert"><spring:message code="auth.login.resentMessage"/></p>
+                </c:if>
+                <c:if test="${unverified}">
+                    <p class="alert"><spring:message code="auth.login.unverifiedMessage"/></p>
+                    <spring:message code="auth.login.resendButton" var="resendButtonLabel"/>
+                    <form class="auth-inline-form" action="<c:url value='/login/reenviar-confirmacion'/>" method="post" novalidate="novalidate">
+                        <input type="hidden" name="email" value="${fn:escapeXml(unverifiedEmail)}"/>
+                        <paw:button text="${resendButtonLabel}"/>
+                    </form>
+                </c:if>
 
                 <spring:message code="auth.login.emailLabel" var="emailLabel"/>
                 <spring:message code="auth.login.passwordLabel" var="passwordLabel"/>
                 <spring:message code="auth.login.submitButton" var="submitButtonLabel"/>
                 <form action="<c:url value='/login'/>" method="post" novalidate="novalidate">
+                    <c:if test="${not empty redirectTo}">
+                        <input type="hidden" name="redirect" value="${fn:escapeXml(redirectTo)}"/>
+                    </c:if>
                     <paw:input name="email" label="${emailLabel}" type="email"/>
                     <paw:input name="password" label="${passwordLabel}" type="password"/>
+                    <p class="auth-forgot-password">
+                        <spring:message code="auth.login.forgotPasswordLink" var="forgotPasswordLabel"/>
+                        <a href="<c:url value='/login/recuperar'/>"><c:out value="${forgotPasswordLabel}"/></a>
+                    </p>
                     <paw:button text="${submitButtonLabel}" cssClass="btn-accent"/>
                 </form>
 

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<!--
+  MAIL: te registraste (o completaste una cuenta fantasma) -> confirmar el mail.
+  Variables que espera: personName, confirmUrl
+-->
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::content})}">
+<body>
+<th:block th:fragment="content">
+
+  <h1 style="margin:0 0 8px; font-size:22px; line-height:1.3; color:#111827;"
+      th:text="#{mail.accountVerification.title}">Titulo</h1>
+
+  <p style="margin:0 0 4px; color:#6b7280;"
+     th:text="#{mail.accountVerification.greeting(${personName})}">Hola</p>
+
+  <p style="margin:0 0 20px;"
+     th:text="#{mail.accountVerification.body}">Cuerpo</p>
+
+  <!-- call to action (lo pidio la catedra: todo mail tiene que tener uno) -->
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0 0;">
+    <tr><td style="background-color:#111827; border-radius:8px;">
+      <a th:href="${confirmUrl}" href="#"
+         style="display:inline-block; padding:12px 22px; color:#ffffff;
+                text-decoration:none; font-size:15px; font-weight:600;"
+         th:text="#{mail.accountVerification.cta}">Confirmar mi cuenta</a>
+    </td></tr>
+  </table>
+
+</th:block>
+</body>
+</html>

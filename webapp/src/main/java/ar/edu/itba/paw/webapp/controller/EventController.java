@@ -5,15 +5,20 @@ import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.EventSort;
 import ar.edu.itba.paw.model.Image;
+import ar.edu.itba.paw.model.Review;
+import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.CategoryService;
 import ar.edu.itba.paw.services.EventService;
+import ar.edu.itba.paw.services.FavoriteService;
 import ar.edu.itba.paw.services.ImageService;
 import ar.edu.itba.paw.services.PageResult;
 import ar.edu.itba.paw.services.RegistrationResult;
 import ar.edu.itba.paw.services.RegistrationService;
+import ar.edu.itba.paw.services.ReviewService;
+import ar.edu.itba.paw.services.UserService;
 import ar.edu.itba.paw.webapp.exception.EventNotFoundException;
 import ar.edu.itba.paw.webapp.form.EventForm;
-import ar.edu.itba.paw.webapp.form.RegistrationForm;
+import ar.edu.itba.paw.webapp.util.SafeRedirect;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
@@ -37,6 +42,7 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -52,17 +58,30 @@ public class EventController {
     private final CategoryService categoryService;
     private final RegistrationService registrationService;
     private final ImageService imageService;
+    private final UserService userService;
+    private final FavoriteService favoriteService;
+    private final ReviewService reviewService;
     private final MessageSource messageSource;
 
     @Autowired
     public EventController(final EventService eventService, final CategoryService categoryService,
                             final RegistrationService registrationService, final ImageService imageService,
-                            final MessageSource messageSource) {
+                            final UserService userService, final FavoriteService favoriteService,
+                            final ReviewService reviewService, final MessageSource messageSource) {
         this.eventService = eventService;
         this.categoryService = categoryService;
         this.registrationService = registrationService;
         this.imageService = imageService;
+        this.userService = userService;
+        this.favoriteService = favoriteService;
+        this.reviewService = reviewService;
         this.messageSource = messageSource;
+    }
+
+    private User currentUser(final Principal principal) {
+        return userService.findByEmail(principal.getName())
+                .orElseThrow(() -> new IllegalStateException(
+                        "Usuario autenticado sin fila en la base: " + principal.getName()));
     }
 
     // Todos los mensajes que se muestran en pantalla (errores de validacion,
@@ -89,7 +108,8 @@ public class EventController {
                               @RequestParam(value = "barrio", required = false) final List<String> barrio,
                               @RequestParam(value = "page", required = false) final String page,
                               @RequestParam(value = "sort", required = false) final String sort,
-                              @RequestParam(value = "rsvp", required = false) final String rsvp) {
+                              @RequestParam(value = "rsvp", required = false) final String rsvp,
+                              final Principal principal) {
         final List<Long> categoryIds = parseLongList(categoria);
         final List<Barrio> barrios = parseBarrioList(barrio);
         final Map<String, String> filterErrors = new HashMap<>();
@@ -158,6 +178,11 @@ public class EventController {
         mav.addObject("sort", sort);
         mav.addObject("filterErrors", filterErrors);
         mav.addObject("rsvp", rsvp);
+        // Anonimo no ve el corazon de favorito (paw:card lo esconde con
+        // sec:authorize), asi que ni consultamos: nadie va a leer este set.
+        if (principal != null) {
+            mav.addObject("favoriteEventIds", new HashSet<>(favoriteService.findEventIdsByUser(currentUser(principal).getId())));
+        }
         return mav;
     }
 
@@ -298,7 +323,8 @@ public class EventController {
 
     @RequestMapping(value = "/eventos/{id}", method = RequestMethod.GET)
     public ModelAndView detail(@PathVariable final long id,
-                                @RequestParam(value = "rsvp", required = false) final String rsvp) {
+                                @RequestParam(value = "rsvp", required = false) final String rsvp,
+                                final Principal principal) {
         return eventService.findById(id)
                 .map(event -> {
                     final ModelAndView mav = new ModelAndView("events/detail");
@@ -306,9 +332,33 @@ public class EventController {
                     mav.addObject("rsvp", rsvp);
                     mav.addObject("full", registrationService.isFull(id));
                     mav.addObject("availableSpots", registrationService.availableSpots(id));
+                    if (principal != null) {
+                        final User user = currentUser(principal);
+                        mav.addObject("favorite", favoriteService.isFavorite(user.getId(), id));
+                        mav.addObject("registered", registrationService.findByEventAndEmail(id, user.getEmail()).isPresent());
+                    }
+                    addCreatorReputation(mav, event.getCreatorEmail());
                     return mav;
                 })
                 .orElseThrow(() -> new EventNotFoundException(id));
+    }
+
+    // Puntaje del promotor (todas sus reseñas, de todos sus eventos) + la lista
+    // completa para el popup "Ver reseñas de este promotor", con la mini info
+    // del evento reseñado en cada una (reviewEventsById).
+    private void addCreatorReputation(final ModelAndView mav, final String creatorEmail) {
+        final List<Review> creatorReviews = reviewService.findByCreatorEmail(creatorEmail);
+        mav.addObject("creatorReviewCount", creatorReviews.size());
+        if (!creatorReviews.isEmpty()) {
+            final double average = creatorReviews.stream().mapToInt(Review::getRating).average().orElse(0);
+            mav.addObject("creatorAverageRating", average);
+            mav.addObject("creatorReviews", creatorReviews);
+            final Map<Long, Event> reviewEventsById = new HashMap<>();
+            for (final Review review : creatorReviews) {
+                eventService.findById(review.getEventId()).ifPresent(e -> reviewEventsById.put(e.getId(), e));
+            }
+            mav.addObject("reviewEventsById", reviewEventsById);
+        }
     }
 
     @RequestMapping(value = "/eventos/publicar", method = RequestMethod.GET)
@@ -415,17 +465,19 @@ public class EventController {
         }
     }
 
+    // No hace falta antMatcher propio: esto no esta en el permitAll de
+    // WebAuthConfig, asi que ya cae bajo anyRequest().authenticated(). Un
+    // Principal siempre presente en este metodo implica un User existente.
     @RequestMapping(value = "/eventos/{id}/quiero-ir", method = RequestMethod.POST)
-    public ModelAndView rsvp(@PathVariable final long id,
-                              @Valid final RegistrationForm form, final BindingResult errors) {
+    public ModelAndView rsvp(@PathVariable final long id, final Principal principal) {
         if (!eventService.findById(id).isPresent()) {
             throw new EventNotFoundException(id);
         }
-        if (errors.hasErrors()) {
-            return detailWithErrors(id, form, errors);
-        }
+        // Quien se inscribe es quien esta logueado, nunca un campo del form:
+        // mismo motivo que el creator_email de publish().
+        final User user = currentUser(principal);
         try {
-            final RegistrationResult result = registerRetryingOnConflict(id, form);
+            final RegistrationResult result = registerRetryingOnConflict(id, user);
             final String rsvpParam = result == RegistrationResult.ALREADY_REGISTERED ? "ya-anotado" : "confirmed";
             return new ModelAndView("redirect:/eventos/" + id + "?rsvp=" + rsvpParam);
         } catch (final IllegalStateException e) {
@@ -433,30 +485,56 @@ public class EventController {
         }
     }
 
-    private RegistrationResult registerRetryingOnConflict(final long id, final RegistrationForm form) {
+    private RegistrationResult registerRetryingOnConflict(final long id, final User user) {
         try {
-            return registrationService.register(id, form.getEmail(), form.getNombre());
+            return registrationService.register(id, user.getEmail(), user.getName());
         } catch (final DataIntegrityViolationException e) {
             // Reintento en una transaccion nueva: la anterior quedo abortada por el conflicto.
-            return registrationService.register(id, form.getEmail(), form.getNombre());
+            return registrationService.register(id, user.getEmail(), user.getName());
         }
     }
 
-    private ModelAndView detailWithErrors(final long id, final RegistrationForm form, final BindingResult errors) {
-        final Map<String, String> fieldErrors = new HashMap<>();
-        for (final FieldError fieldError : errors.getFieldErrors()) {
-            fieldErrors.put(fieldError.getField(), messageFor(fieldError));
+    // Mismo mecanismo que "Cancelar" en Mis inscripciones (ProfileController),
+    // pero desde el detalle: busca la inscripcion propia de este evento y la
+    // cancela, en vez de recibir el id de la inscripcion por parametro.
+    @RequestMapping(value = "/eventos/{id}/darme-de-baja", method = RequestMethod.POST)
+    public ModelAndView unregister(@PathVariable final long id, final Principal principal) {
+        if (!eventService.findById(id).isPresent()) {
+            throw new EventNotFoundException(id);
         }
-        return eventService.findById(id)
-                .map(event -> {
-                    final ModelAndView mav = new ModelAndView("events/detail");
-                    mav.addObject("event", event);
-                    mav.addObject("full", registrationService.isFull(id));
-                    mav.addObject("availableSpots", registrationService.availableSpots(id));
-                    mav.addObject("registrationForm", form);
-                    mav.addObject("fieldErrors", fieldErrors);
-                    return mav;
-                })
-                .orElseThrow(() -> new EventNotFoundException(id));
+        final User user = currentUser(principal);
+        registrationService.findByEventAndEmail(id, user.getEmail())
+                .ifPresent(registration -> registrationService.cancel(registration.getId(), user.getEmail()));
+        return new ModelAndView("redirect:/eventos/" + id + "?rsvp=baja");
+    }
+
+    // returnTo viaja como hidden en el form del corazon (paw:card/detail.jsp):
+    // desde el listado tiene que volver al listado (con sus filtros), no
+    // siempre al detalle. Sin el, o si viene manipulado a una URL ajena
+    // (SafeRedirect), cae al detalle como default razonable.
+    @RequestMapping(value = "/eventos/{id}/favorito", method = RequestMethod.POST)
+    public ModelAndView addFavorite(@PathVariable final long id,
+                                     @RequestParam(value = "returnTo", required = false) final String returnTo,
+                                     final Principal principal) {
+        if (!eventService.findById(id).isPresent()) {
+            throw new EventNotFoundException(id);
+        }
+        favoriteService.add(currentUser(principal).getId(), id);
+        return new ModelAndView("redirect:" + safeReturnTo(returnTo, id));
+    }
+
+    @RequestMapping(value = "/eventos/{id}/favorito/quitar", method = RequestMethod.POST)
+    public ModelAndView removeFavorite(@PathVariable final long id,
+                                        @RequestParam(value = "returnTo", required = false) final String returnTo,
+                                        final Principal principal) {
+        if (!eventService.findById(id).isPresent()) {
+            throw new EventNotFoundException(id);
+        }
+        favoriteService.remove(currentUser(principal).getId(), id);
+        return new ModelAndView("redirect:" + safeReturnTo(returnTo, id));
+    }
+
+    private static String safeReturnTo(final String returnTo, final long id) {
+        return SafeRedirect.isSafe(returnTo) ? returnTo : "/eventos/" + id;
     }
 }

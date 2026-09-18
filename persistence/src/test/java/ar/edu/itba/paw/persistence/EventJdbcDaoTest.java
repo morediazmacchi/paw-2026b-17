@@ -143,4 +143,48 @@ public class EventJdbcDaoTest {
         assertEquals(1, result.size());
         assertEquals(categoryId, result.get(0).getCategoryId());
     }
+
+    // ---- findByCreatorEmail(): "Mis eventos" ----
+
+    @Test
+    public void testFindByCreatorEmailReturnsOnlyEventsOfThatCreator() {
+        final String otherEmail = "otro@mail.com";
+        final Event own = new Event(TITLE, null, new Date(), "Direccion A",
+                Barrio.PALERMO, null, 0, null, CREATOR_EMAIL, categoryId);
+        final Event other = new Event(TITLE, null, new Date(), "Direccion B",
+                Barrio.PALERMO, null, 0, null, otherEmail, categoryId);
+        eventDao.create(own);
+        eventDao.create(other);
+
+        final List<Event> result = eventDao.findByCreatorEmail(CREATOR_EMAIL);
+
+        assertEquals(1, result.size());
+        assertEquals(CREATOR_EMAIL, result.get(0).getCreatorEmail());
+    }
+
+    @Test
+    public void testFindByCreatorEmailOrdersMostRecentEventDateFirst() {
+        final Date earlierDate = new Date(1_000_000_000_000L); // 2001-09-09
+        final Date laterDate = new Date(2_000_000_000_000L);   // 2033-05-18
+        final Event earlier = new Event(TITLE, null, earlierDate, "Direccion A",
+                Barrio.PALERMO, null, 0, null, CREATOR_EMAIL, categoryId);
+        final Event later = new Event(TITLE, null, laterDate, "Direccion B",
+                Barrio.PALERMO, null, 0, null, CREATOR_EMAIL, categoryId);
+        // A proposito insertados en orden "incorrecto".
+        eventDao.create(earlier);
+        eventDao.create(later);
+
+        final List<Event> result = eventDao.findByCreatorEmail(CREATOR_EMAIL);
+
+        assertEquals(2, result.size());
+        assertEquals("Direccion B", result.get(0).getAddress());
+        assertEquals("Direccion A", result.get(1).getAddress());
+    }
+
+    @Test
+    public void testFindByCreatorEmailReturnsEmptyWhenNoEvents() {
+        final List<Event> result = eventDao.findByCreatorEmail(CREATOR_EMAIL);
+
+        assertTrue(result.isEmpty());
+    }
 }

@@ -164,4 +164,31 @@ public class UserJdbcDaoTest {
         assertEquals("Nuevo Nombre", found.get().getName());
         assertEquals("nuevo@mail.com", found.get().getEmail());
     }
+
+    // ---- verified ----
+
+    @Test
+    public void testNewUserIsVerifiedByDefault() {
+        // El DEFAULT TRUE de la columna es para las cuentas viejas (backfill):
+        // create() no manda verified, asi que tambien cae en ese default. Es
+        // UserServiceImpl.register() quien lo pisa a false a mano en las cuentas
+        // nuevas de verdad.
+        final User created = userDao.create(new User(EMAIL, NAME));
+
+        final Optional<User> found = userDao.findById(created.getId());
+
+        assertTrue(found.isPresent());
+        assertTrue(found.get().isVerified());
+    }
+
+    @Test
+    public void testSetVerifiedFalseThenTrue() {
+        final User created = userDao.create(new User(EMAIL, NAME));
+
+        userDao.setVerified(created.getId(), false);
+        assertFalse(userDao.findById(created.getId()).get().isVerified());
+
+        userDao.setVerified(created.getId(), true);
+        assertTrue(userDao.findById(created.getId()).get().isVerified());
+    }
 }

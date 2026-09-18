@@ -6,13 +6,14 @@
 <head>
     <meta charset="UTF-8">
     <title>Plancito &middot; <spring:message code="error.serverError.title"/></title>
+    <link rel="icon" type="image/svg+xml" href="${pageContext.request.contextPath}/favicon.svg">
     <link rel="stylesheet" href="${pageContext.request.contextPath}/css/style.css">
 </head>
 <body>
 
 <paw:navbar>
     <spring:message code="common.nav.backToEvents" var="backToEventsLabel"/>
-    <a class="btn btn-medium" href="<c:url value='/eventos'/>">&larr; <c:out value="${backToEventsLabel}"/></a>
+    <a class="btn btn-medium" href="<c:url value='/eventos'/>"><c:out value="${backToEventsLabel}"/></a>
 </paw:navbar>
 
 <main class="page page-narrow">

@@ -59,3 +59,41 @@ CREATE TABLE IF NOT EXISTS user_role (
     PRIMARY KEY (user_id, role)
 );
 
+CREATE TABLE IF NOT EXISTS favorite (
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    event_id    INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
+    created_at  TIMESTAMP NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, event_id)
+);
+
+-- DEFAULT TRUE es a proposito: solo afecta el backfill de las cuentas que ya
+-- existian (esta linea corre una unica vez, la primera vez que se agrega la
+-- columna). De ahi en mas, UserServiceImpl.register() siempre lo pisa a false
+-- a mano antes de mandar el mail de confirmacion: una cuenta nueva SI tiene
+-- que confirmar el mail.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS verified BOOLEAN NOT NULL DEFAULT TRUE;
+
+-- Un solo link a la vez por (usuario, proposito): antes de crear uno nuevo se
+-- borran los anteriores (ver VerificationTokenDao.deleteByUserAndPurpose).
+CREATE TABLE IF NOT EXISTS verification_token (
+    token       VARCHAR(64) PRIMARY KEY,
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    purpose     VARCHAR(20) NOT NULL
+                    CHECK (purpose IN ('VERIFY_EMAIL', 'RESET_PASSWORD')),
+    expires_at  TIMESTAMP NOT NULL,
+    created_at  TIMESTAMP NOT NULL DEFAULT now()
+);
+
+-- Una reseña por (evento, usuario): solo se puede dejar una vez que el evento
+-- termino y solo si estuvo anotado (ver ReviewServiceImpl), y no se puede editar
+-- despues de mandada.
+CREATE TABLE IF NOT EXISTS review (
+    id          SERIAL PRIMARY KEY,
+    event_id    INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    rating      INTEGER NOT NULL CHECK (rating BETWEEN 0 AND 5),
+    comment     VARCHAR(1000),
+    created_at  TIMESTAMP NOT NULL DEFAULT now(),
+    UNIQUE (event_id, user_id)
+);
+

@@ -141,6 +141,43 @@ a {
     border-color: var(--accent);
 }
 
+/* card.tag: el <a> de siempre mas el corazon de favorito superpuesto, que
+   necesita vivir fuera del <a> (ver comentario en el tag). */
+.card-wrapper {
+    position: relative;
+}
+
+.card-favorite-form {
+    position: absolute;
+    top: 10px;
+    /* Izquierda, no derecha: ahi ya vive el precio (.card-precio, dentro de
+       .card-placeholder con justify-content:flex-end) y se superponian. */
+    left: 10px;
+    z-index: 2;
+}
+
+.card-favorite-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    background: rgba(13, 13, 13, 0.55);
+    color: #fff;
+    cursor: pointer;
+}
+
+.card-favorite-btn:hover {
+    border-color: #ff8080;
+}
+
+.card-favorite-btn-active {
+    color: #ff8080;
+}
+
 .card-placeholder {
     height: 110px;
     background: linear-gradient(135deg, #1f2a0d, #0d0d0d 70%);
@@ -227,11 +264,18 @@ a {
     font-weight: 600;
 }
 
-.detail-hero-badge {
+/* Categoria + corazon de favorito, agrupados arriba a la derecha del hero. */
+.detail-hero-top-actions {
     position: absolute;
     top: 24px;
     right: 32px;
     z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.detail-hero-badge {
     padding: 6px 14px;
     border-radius: 999px;
     background: rgba(13, 13, 13, 0.6);
@@ -240,6 +284,11 @@ a {
     font-weight: 700;
     letter-spacing: 0.05em;
     text-transform: uppercase;
+}
+
+.detail-hero-favorite-btn {
+    width: 38px;
+    height: 38px;
 }
 
 .detail-hero-title {
@@ -429,6 +478,10 @@ a {
 .detail-rsvp-submit {
     width: 100%;
     margin-top: 10px;
+    /* Ahora tambien puede ser un <a> (anonimo, link a /login): el <button>
+       de siempre centra el texto solo, el link no. */
+    text-align: center;
+    box-sizing: border-box;
 }
 
 .detail-rsvp-note {
@@ -574,7 +627,15 @@ input:focus, select:focus, textarea:focus {
 /* Buttons */
 
 .btn {
-    display: inline-block;
+    /* inline-flex, no inline-block: un boton con icono (paw:icon) al lado del
+       texto (navbar: Iniciar sesion/Mi perfil) calculaba una caja de linea
+       mas alta que uno de solo texto (+ Añadir evento), por el vertical-align
+       manual del icono -- se veian de "distinto tamaño" uno al lado del otro.
+       Con flex, el alto lo da align-items:center, no la linea de texto. */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
     border: 1px solid var(--border);
     background: var(--bg-elevated);
     color: var(--text);
@@ -592,6 +653,12 @@ input:focus, select:focus, textarea:focus {
     background: var(--accent);
     border-color: var(--accent);
     color: var(--accent-text);
+}
+
+/* El margen es solo para el boton de submit al final de un form (separarlo
+   del ultimo campo): .btn-accent tambien se usa en <a> sueltos (navbar,
+   paginas de error), que no tienen que llevarlo. */
+button.btn-accent {
     margin-top: 6px;
 }
 
@@ -1113,6 +1180,24 @@ input:focus, select:focus, textarea:focus {
     margin-top: 18px;
 }
 
+.auth-forgot-password {
+    text-align: right;
+    margin: -8px 0 16px;
+    font-size: 0.85rem;
+}
+
+/* El mini-form de "reenviar mail de confirmacion" adentro del alert de cuenta
+   sin confirmar: no tiene que ocupar todo el ancho como el form de login. */
+.auth-inline-form {
+    margin: 10px 0 16px;
+}
+
+.auth-inline-form > button {
+    width: auto;
+    padding: 8px 16px;
+    font-size: 0.85rem;
+}
+
 /* ==========================================================================
    Layout de "Mi perfil": sidebar (accountSidebar.tag) + contenido a la
    derecha. Comun a auth/perfil.jsp y auth/inscripciones.jsp (y a Mis
@@ -1218,12 +1303,69 @@ input:focus, select:focus, textarea:focus {
     padding: 24px 32px 64px;
 }
 
-.account-card {
+/* auth/perfil.jsp: tarjeta de identidad separada arriba (avatar + nombre +
+   email), los campos van sueltos sobre el fondo de la pagina, sin tarjeta
+   propia (asi es como esta diseñado, no un form-card grande). */
+.account-identity-card {
+    display: flex;
+    align-items: center;
+    gap: 18px;
     background: var(--bg-elevated);
     border: 1px solid var(--border);
     border-radius: 16px;
-    padding: 28px 30px 30px;
+    padding: 24px;
     max-width: 640px;
+    margin-bottom: 28px;
+}
+
+.account-identity-name {
+    font-weight: 700;
+    font-size: 1.1rem;
+}
+
+.account-identity-email {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.profile-avatar-large {
+    width: 64px;
+    height: 64px;
+    font-size: 1.4rem;
+}
+
+/* Labels en mayuscula chica con letter-spacing, solo en esta pagina: el
+   resto de los formularios de la app (registro, login, publicar) usan
+   labels normales, esto no los toca. */
+.account-main .form-group label {
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--text-muted);
+}
+
+.account-fields-form {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    max-width: 640px;
+}
+
+.account-fields-form-single {
+    grid-template-columns: 1fr;
+}
+
+.account-fields-form > button {
+    grid-column: 1 / -1;
+    justify-self: start;
+    margin-top: 4px;
+}
+
+@media (max-width: 620px) {
+    .account-fields-form {
+        grid-template-columns: 1fr;
+    }
 }
 
 @media (max-width: 860px) {
@@ -1285,6 +1427,12 @@ input:focus, select:focus, textarea:focus {
     display: flex;
     flex-direction: column;
     gap: 12px;
+}
+
+/* Eventos finalizados (Mis inscripciones): mismos datos, sin boton de accion
+   (no hay nada para cancelar), atenuados para que se lean como "ya paso". */
+.event-row-list-past .event-row {
+    opacity: 0.6;
 }
 
 .event-row {
@@ -1362,4 +1510,213 @@ input:focus, select:focus, textarea:focus {
         width: 100%;
         justify-content: flex-end;
     }
+}
+
+/* ==========================================================================
+   Reseñas: estrellas, panel de "dejar reseña" en Mis inscripciones, puntaje
+   del promotor (detalle de evento y Mis eventos) y el popup con todas sus
+   reseñas.
+   ========================================================================== */
+
+/* line-height: 0 + vertical-align: middle es lo que evita que el span quede
+   "colgando" mas abajo/arriba que el texto de al lado: sin esto, la altura de
+   linea normal del texto (mas alta que el icono de 16px) corre el span entero
+   respecto al renglon en vez de centrarlo. */
+.stars {
+    display: inline-flex;
+    align-items: center;
+    line-height: 0;
+    vertical-align: middle;
+    gap: 2px;
+    color: var(--accent);
+}
+
+.stars .icon {
+    width: 16px;
+    height: 16px;
+    vertical-align: middle;
+}
+
+/* El panel va debajo de cada fila de "Eventos finalizados": el .event-row de
+   arriba queda atenuado (event-row-list-past .event-row), esto no, tiene que
+   quedar legible e interactuable. */
+.review-panel {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-top: 8px;
+}
+
+.review-panel .form-group {
+    margin-bottom: 10px;
+}
+
+.review-panel textarea {
+    max-width: 100%;
+    min-height: 70px;
+    resize: vertical;
+    font-family: inherit;
+}
+
+/* Selector de estrellas interactivo (popup de "Dejar reseña"): 5 radios
+   ocultos + labels con el icono de estrella. El truco de flex-direction:
+   row-reverse + el selector "~" esta explicado en starPicker.tag. */
+.star-picker {
+    display: flex;
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+
+.star-picker input {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+}
+
+.star-picker label {
+    cursor: pointer;
+    color: var(--border);
+    line-height: 0;
+}
+
+.star-picker label .icon {
+    width: 30px;
+    height: 30px;
+}
+
+.star-picker label:hover,
+.star-picker label:hover ~ label,
+.star-picker input:checked ~ label {
+    color: var(--accent);
+}
+
+.star-picker-zero {
+    display: block;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    cursor: pointer;
+    margin-bottom: 16px;
+}
+
+.star-picker-zero input {
+    margin-right: 4px;
+}
+
+.review-display-heading {
+    display: block;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+}
+
+.review-comment {
+    margin: 8px 0 0;
+    font-size: 0.9rem;
+}
+
+/* Puntaje del promotor: detalle de evento y "Mis eventos" */
+.creator-rating {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 4px 0 20px;
+}
+
+.creator-rating-count {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    line-height: 1;
+}
+
+.creator-rating-empty {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    margin: 4px 0 20px;
+}
+
+.btn-link {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--accent);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+/* Popup "Ver reseñas de este promotor" */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    z-index: 100;
+}
+
+.modal-overlay:not([hidden]) {
+    display: flex;
+}
+
+.modal-box {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    max-width: 480px;
+    width: 100%;
+    max-height: 80vh;
+    overflow-y: auto;
+    padding: 20px 24px 24px;
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.modal-header h2 {
+    margin: 0;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px;
+    line-height: 0;
+}
+
+.creator-review-item {
+    padding: 12px 0;
+    border-top: 1px solid var(--border);
+}
+
+.creator-review-item:first-child {
+    border-top: none;
+    padding-top: 0;
+}
+
+.creator-review-event {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 4px;
+    font-size: 0.9rem;
+}
+
+.creator-review-date {
+    color: var(--text-muted);
+    white-space: nowrap;
 }

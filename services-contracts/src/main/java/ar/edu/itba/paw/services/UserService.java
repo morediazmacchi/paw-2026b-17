@@ -25,8 +25,46 @@ public interface UserService {
      * asigna ROLE_USER. Si el email ya existe pero es un usuario "fantasma"
      * (findOrCreate, sin password: nunca pudo loguearse) reclama esa misma fila
      * en vez de rechazar el registro. Si el email ya tiene password, EMAIL_TAKEN.
+     * La cuenta queda sin verificar (ver User.isVerified()) y se le manda un mail
+     * con un link de confirmacion: no puede loguearse hasta que lo confirme.
      */
     UserRegistrationResult register(String email, String name, String rawPassword);
+
+    /**
+     * Confirma el mail de una cuenta a partir del token del link que se mandó al
+     * registrarse. true si el token era válido (existía, era de este propósito y
+     * no estaba vencido): la cuenta ya queda verified=true y el token se consume.
+     */
+    boolean confirmEmail(String token);
+
+    /**
+     * Vuelve a mandar el mail de confirmación (el usuario perdió el anterior o
+     * venció). No hace nada si el email no existe, no tiene contraseña (cuenta
+     * fantasma) o ya está verificado: siempre "sin efecto visible" para quien
+     * llama, así no sirve para averiguar si un email está registrado.
+     */
+    void resendVerificationEmail(String email);
+
+    /**
+     * Pide un link para restablecer la contraseña ("olvidé mi contraseña"). No
+     * hace nada si el email no existe o no tiene contraseña todavía: mismo
+     * motivo que resendVerificationEmail, no hay forma de distinguir los casos
+     * desde afuera.
+     */
+    void sendPasswordResetEmail(String email);
+
+    /**
+     * Para la pantalla de "elegir nueva contraseña": si el token del link
+     * todavía es válido, antes de mostrarle el formulario.
+     */
+    boolean isResetTokenValid(String token);
+
+    /**
+     * Cambia la contraseña usando un token de "olvidé mi contraseña" (a
+     * diferencia de changePassword(), acá no hace falta la contraseña actual:
+     * el token ya demuestra que el mail es de quien dice ser). Consume el token.
+     */
+    PasswordResetResult resetPassword(String token, String newPassword);
 
     /**
      * Actualiza nombre y email desde "Mi perfil". Si el nuevo email ya es de

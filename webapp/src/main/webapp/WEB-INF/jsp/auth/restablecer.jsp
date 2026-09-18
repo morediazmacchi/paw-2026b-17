@@ -1,0 +1,51 @@
+<%@ page contentType="text/html;charset=UTF-8" pageEncoding="UTF-8" %>
+<%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
+<%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
+<%@ taglib prefix="paw" tagdir="/WEB-INF/tags" %>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Plancito &middot; <spring:message code="auth.resetPassword.title"/></title>
+    <link rel="icon" type="image/svg+xml" href="${pageContext.request.contextPath}/favicon.svg">
+    <link rel="stylesheet" href="${pageContext.request.contextPath}/css/style.css">
+    <script src="<c:url value='/js/disable-on-submit.js'/>"></script>
+</head>
+<body>
+
+<paw:navbar>
+    <spring:message code="common.nav.backToEvents" var="backToEventsLabel"/>
+    <a class="btn btn-medium" href="<c:url value='/eventos'/>"><c:out value="${backToEventsLabel}"/></a>
+</paw:navbar>
+
+<main class="page page-narrow">
+    <div class="auth-card">
+        <c:choose>
+            <c:when test="${tokenValid}">
+                <h1><spring:message code="auth.resetPassword.heading"/></h1>
+
+                <spring:message code="auth.resetPassword.newPasswordLabel" var="newPasswordLabel"/>
+                <spring:message code="auth.resetPassword.confirmPasswordLabel" var="confirmPasswordLabel"/>
+                <spring:message code="auth.resetPassword.submitButton" var="submitButtonLabel"/>
+                <form action="<c:url value='/login/restablecer'/>" method="post" novalidate="novalidate">
+                    <input type="hidden" name="token" value="${resetPasswordForm.token}"/>
+                    <paw:input name="password" label="${newPasswordLabel}" type="password"
+                               errorMessage="${fieldErrors.password}"/>
+                    <paw:input name="confirmarPassword" label="${confirmPasswordLabel}" type="password"
+                               errorMessage="${fieldErrors.confirmarPassword}"/>
+                    <paw:button text="${submitButtonLabel}" cssClass="btn-accent"/>
+                </form>
+            </c:when>
+            <c:otherwise>
+                <h1><spring:message code="auth.resetPassword.invalidHeading"/></h1>
+                <p class="alert"><spring:message code="auth.resetPassword.invalidMessage"/></p>
+                <p class="auth-footer">
+                    <spring:message code="auth.resetPassword.requestNewLink" var="requestNewLinkLabel"/>
+                    <a href="<c:url value='/login/recuperar'/>"><c:out value="${requestNewLinkLabel}"/></a>
+                </p>
+            </c:otherwise>
+        </c:choose>
+    </div>
+</main>
+
+</body>
+</html>

@@ -8,10 +8,20 @@
 <head>
     <meta charset="UTF-8">
     <title>Plancito &middot; <spring:message code="event.list.title"/></title>
+    <link rel="icon" type="image/svg+xml" href="${pageContext.request.contextPath}/favicon.svg">
     <link rel="stylesheet" href="${pageContext.request.contextPath}/css/style.css">
     <script src="<c:url value='/js/hero-carousel.js'/>"></script>
+    <script src="<c:url value='/js/favorite-toggle.js'/>"></script>
 </head>
 <body>
+
+<%-- Adonde vuelve el corazon de favorito despues de togglear: esta misma
+     pagina con los filtros que tenga puestos, no siempre /eventos pelado.
+     OJO: pageContext.request.requestURI aca adentro da la ruta del forward
+     interno (/WEB-INF/jsp/...), no la URL real: Spring llega a este JSP
+     con un forward, y forward pisa requestURI. La URL de verdad esta en
+     este atributo que el forward deja seteado (spec de Servlet). --%>
+<c:set var="currentUrl" value="${requestScope['javax.servlet.forward.request_uri']}${not empty requestScope['javax.servlet.forward.query_string'] ? '?' : ''}${requestScope['javax.servlet.forward.query_string']}"/>
 
 <paw:navbar>
     <spring:message code="event.list.addButton" var="addButtonLabel"/>
@@ -47,7 +57,7 @@
                         </span>
                     </div>
                     <a class="btn btn-medium btn-accent" href="<c:url value='/eventos/${fe.id}'/>">
-                        <spring:message code="event.list.viewEvent"/> &rarr;
+                        <spring:message code="event.list.viewEvent"/>
                     </a>
                 </div>
             </div>
@@ -125,7 +135,7 @@
                 <span class="filter-dropdown-value">
                     <c:choose>
                         <c:when test="${empty fechaDesde && empty fechaHasta}"><c:out value="${allLabel}"/></c:when>
-                        <c:otherwise><c:out value="${fechaDesde}"/> &rarr; <c:out value="${fechaHasta}"/></c:otherwise>
+                        <c:otherwise><c:out value="${fechaDesde}"/> &ndash; <c:out value="${fechaHasta}"/></c:otherwise>
                     </c:choose>
                 </span>
             </summary>
@@ -143,7 +153,7 @@
                 <span class="filter-dropdown-value">
                     <c:choose>
                         <c:when test="${empty precioMin && empty precioMax}"><c:out value="${allLabel}"/></c:when>
-                        <c:otherwise><c:out value="${empty precioMin ? '$0' : precioMin}"/> &rarr; <c:out value="${empty precioMax ? '&#8734;' : precioMax}"/></c:otherwise>
+                        <c:otherwise><c:out value="${empty precioMin ? '$0' : precioMin}"/> &ndash; <c:out value="${empty precioMax ? '&#8734;' : precioMax}"/></c:otherwise>
                     </c:choose>
                 </span>
             </summary>
@@ -156,7 +166,9 @@
         </details>
 
         <paw:button text="${filterButtonLabel}" cssClass="btn-accent"/>
-        <a class="btn btn-medium filter-clear-all" href="<c:url value='/eventos'/>">&times; <c:out value="${clearAllLabel}"/></a>
+        <c:if test="${hasActiveFilters}">
+            <a class="btn btn-medium filter-clear-all" href="<c:url value='/eventos'/>">&times; <c:out value="${clearAllLabel}"/></a>
+        </c:if>
     </form>
 
     <c:if test="${not empty rsvp}">
@@ -192,11 +204,15 @@
                     <spring:message code="category.${event.categoryName}" text="${event.categoryName}" var="cardCategoria"/>
                     <paw:card id="${event.id}" nombre="${event.title}" precio="${cardPrecio}"
                               fecha="${event.eventDate}" categoria="${cardCategoria}"
-                              ubicacion="${cardUbicacion}" imagenId="${event.imageId}" />
+                              ubicacion="${cardUbicacion}" imagenId="${event.imageId}"
+                              favorito="${not empty favoriteEventIds and favoriteEventIds.contains(event.id)}"
+                              returnTo="${currentUrl}" />
                 </c:forEach>
             </div>
 
             <c:if test="${totalPages > 1}">
+                <spring:message code="event.list.prevPage" var="prevPageLabel"/>
+                <spring:message code="event.list.nextPage" var="nextPageLabel"/>
                 <nav class="pager">
                     <c:if test="${currentPage > 1}">
                         <a class="pager-arrow"
@@ -209,7 +225,7 @@
                                    <c:param name='fechaHasta' value='${fechaHasta}'/>
                                    <c:param name='sort' value='${sort}'/>
                                    <c:param name='page' value='${currentPage - 1}'/>
-                                 </c:url>">&larr;</a>
+                                 </c:url>"><c:out value="${prevPageLabel}"/></a>
                     </c:if>
 
                     <c:forEach var="p" items="${pageNumbers}">
@@ -247,7 +263,7 @@
                                    <c:param name='fechaHasta' value='${fechaHasta}'/>
                                    <c:param name='sort' value='${sort}'/>
                                    <c:param name='page' value='${currentPage + 1}'/>
-                                 </c:url>">&rarr;</a>
+                                 </c:url>"><c:out value="${nextPageLabel}"/></a>
                     </c:if>
                 </nav>
             </c:if>

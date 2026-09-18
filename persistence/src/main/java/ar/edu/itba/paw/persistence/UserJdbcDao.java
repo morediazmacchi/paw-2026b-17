@@ -22,7 +22,7 @@ public class UserJdbcDao implements UserDao {
     // LEFT JOIN: un usuario sin roles todavia (los tres que ya existian antes de
     // login) tiene que seguir apareciendo, con "role" en NULL para esa fila.
     private static final String SELECT_WITH_ROLES =
-            "SELECT u.id, u.email, u.name, u.password, ur.role "
+            "SELECT u.id, u.email, u.name, u.password, u.verified, ur.role "
                     + "FROM users u LEFT JOIN user_role ur ON ur.user_id = u.id";
 
     // Una query, N filas posibles (una por rol, o una sola con role=NULL si no
@@ -38,6 +38,7 @@ public class UserJdbcDao implements UserDao {
                 user.setEmail(rs.getString("email"));
                 user.setName(rs.getString("name"));
                 user.setPassword(rs.getString("password"));
+                user.setVerified(rs.getBoolean("verified"));
             }
             final String role = rs.getString("role");
             if (role != null) {
@@ -113,5 +114,10 @@ public class UserJdbcDao implements UserDao {
     @Override
     public void updateProfile(final long userId, final String name, final String email) {
         jdbcTemplate.update("UPDATE users SET name = ?, email = ? WHERE id = ?", name, email, userId);
+    }
+
+    @Override
+    public void setVerified(final long userId, final boolean verified) {
+        jdbcTemplate.update("UPDATE users SET verified = ? WHERE id = ?", verified, userId);
     }
 }

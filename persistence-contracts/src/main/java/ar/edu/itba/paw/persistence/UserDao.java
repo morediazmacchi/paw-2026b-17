@@ -20,4 +20,6 @@ public interface UserDao {
     void setPassword(long userId, String passwordHash);
 
     void updateProfile(long userId, String name, String email);
+
+    void setVerified(long userId, boolean verified);
 }

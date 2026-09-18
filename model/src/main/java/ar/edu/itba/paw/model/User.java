@@ -10,6 +10,9 @@ public class User {
     private String name;
     private String password;
     private Set<String> roles = new HashSet<>();
+    // Cuentas creadas antes de este feature (o "fantasma", sin password) quedan
+    // en true: solo un register() nuevo empieza en false y necesita confirmar el mail.
+    private boolean verified = true;
 
     public User() {
     }
@@ -29,4 +32,6 @@ public class User {
     public void setPassword(final String password) { this.password = password; }
     public Set<String> getRoles() { return roles; }
     public void setRoles(final Set<String> roles) { this.roles = roles; }
+    public boolean isVerified() { return verified; }
+    public void setVerified(final boolean verified) { this.verified = verified; }
 }

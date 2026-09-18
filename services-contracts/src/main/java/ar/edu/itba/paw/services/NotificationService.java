@@ -2,6 +2,7 @@ package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.Registration;
+import ar.edu.itba.paw.model.User;
 
 /**
  * Avisos que la aplicacion manda cuando pasa algo. Hoy son mails, pero quien
@@ -25,4 +26,10 @@ public interface NotificationService {
 
     /** Alguien se anoto -> le avisa al creador del evento. */
     void notifyNewRegistration(Event event, Registration registration);
+
+    /** Alguien se registro (o completo una cuenta fantasma) -> mail con el link para confirmar el mail. */
+    void notifyAccountVerification(User user, String token);
+
+    /** Alguien pidio "olvide mi contraseña" -> mail con el link para elegir una nueva. */
+    void notifyPasswordReset(User user, String token);
 }
