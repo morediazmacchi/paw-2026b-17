@@ -136,6 +136,8 @@ public class EventJdbcDaoTest {
         changes.setAddress("Direccion nueva 123");
         changes.setPrice(2500.0);
         changes.setMaxCapacity(30);
+        changes.setRequiresApproval(true);
+        changes.setVisibility(EventVisibility.PRIVATE);
         eventDao.update(changes);
 
         final Event found = eventDao.findById(created.getId()).orElseThrow(AssertionError::new);
@@ -144,6 +146,8 @@ public class EventJdbcDaoTest {
         assertEquals(2500.0, found.getPrice(), 0.001);
         assertEquals(Integer.valueOf(30), found.getMaxCapacity());
         assertEquals(OTHER_CATEGORY_NAME, found.getCategoryName());
+        assertTrue(found.isRequiresApproval());
+        assertEquals(EventVisibility.PRIVATE, found.getVisibility());
     }
 
     @Test

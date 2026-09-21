@@ -103,10 +103,12 @@ public class EventJdbcDao implements EventDao {
     public void update(final Event event) {
         jdbcTemplate.update(
                 "UPDATE event SET title = ?, description = ?, event_date = ?, address = ?, neighborhood = ?, "
-                        + "image_id = ?, price = ?, max_capacity = ?, category_id = ? WHERE id = ?",
+                        + "image_id = ?, price = ?, max_capacity = ?, category_id = ?, requires_approval = ?, "
+                        + "visibility = ? WHERE id = ?",
                 event.getTitle(), event.getDescription(), new Timestamp(event.getEventDate().getTime()),
                 event.getAddress(), event.getNeighborhood() == null ? null : event.getNeighborhood().name(),
-                event.getImageId(), event.getPrice(), event.getMaxCapacity(), event.getCategoryId(), event.getId());
+                event.getImageId(), event.getPrice(), event.getMaxCapacity(), event.getCategoryId(),
+                event.isRequiresApproval(), event.getVisibility().name(), event.getId());
     }
 
     @Override

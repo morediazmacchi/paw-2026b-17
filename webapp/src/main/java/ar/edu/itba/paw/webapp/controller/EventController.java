@@ -676,6 +676,8 @@ public class EventController {
         // "0" es el valor que usa el atajo "Sin limite" (quick-options.js lo
         // detecta por igualdad exacta de string) -- mismo criterio que publish().
         form.setCupoMaximo(event.getMaxCapacity() == null ? "0" : String.valueOf(event.getMaxCapacity()));
+        form.setRequiereAprobacion(event.isRequiresApproval());
+        form.setPrivado(event.isPrivate());
         return form;
     }
 
@@ -736,6 +738,8 @@ public class EventController {
 
         final Event changes = new Event(form.getTitulo(), form.getDescripcion(), parsedDate, form.getDireccion(),
                 parsedBarrio, imageId, parsedPrice, parsedCapacity, existing.getCreatorEmail(), form.getCategoriaId());
+        changes.setRequiresApproval(form.isRequiereAprobacion());
+        changes.setVisibility(form.isPrivado() ? EventVisibility.PRIVATE : EventVisibility.PUBLIC);
         final EventUpdateResult result = eventService.update(id, changes, principal.getName());
         switch (result) {
             case CAPACITY_TOO_LOW:
