@@ -18,6 +18,9 @@ import java.util.Optional;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -207,6 +210,97 @@ public class RegistrationServiceImplTest {
         when(mockRegistrationDao.countPending(EVENT_ID)).thenReturn(1L);
 
         assertTrue(registrationService.isFull(EVENT_ID));
+    }
+
+    // ---- aviso "tu evento se lleno" ----
+
+    @Test
+    public void testRegisterNotifiesTheOrganizerWhenItTakesTheLastSpot() {
+        when(mockRegistrationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_EMAIL)).thenReturn(Optional.empty());
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(10)));
+        // Antes del insert habia 9 confirmados (quedaba 1 lugar); despues, 10.
+        // Los dos valores en orden: es exactamente el cruce del limite.
+        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(9L, 10L);
+
+        registrationService.register(EVENT_ID, EMAIL, NAME);
+
+        verify(mockNotificationService).notifyEventFull(any(Event.class));
+    }
+
+    @Test
+    public void testRegisterDoesNotNotifyTheOrganizerWhenSpotsRemain() {
+        when(mockRegistrationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_EMAIL)).thenReturn(Optional.empty());
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(10)));
+        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(5L, 6L);
+
+        registrationService.register(EVENT_ID, EMAIL, NAME);
+
+        verify(mockNotificationService, never()).notifyEventFull(any(Event.class));
+    }
+
+    @Test
+    public void testRegisterDoesNotNotifyAgainWhenTheEventWasAlreadyFull() {
+        when(mockRegistrationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_EMAIL)).thenReturn(Optional.empty());
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(10)));
+        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(10L);
+
+        // Esta persona queda en lista de espera. El evento ya estaba lleno antes,
+        // no hay ningun limite que cruzar: sin este chequeo, el organizador
+        // recibiria un mail por cada persona que se sume a la lista.
+        registrationService.register(EVENT_ID, EMAIL, NAME);
+
+        verify(mockNotificationService, never()).notifyEventFull(any(Event.class));
+    }
+
+    // ---- cancel(): aviso de baja al organizador ----
+
+    private static final long REGISTRATION_ID = 7;
+
+    private static Registration registrationWith(final String status) {
+        final Registration registration = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, status);
+        registration.setId(REGISTRATION_ID);
+        return registration;
+    }
+
+    @Test
+    public void testCancelTellsTheOrganizerThatTheSpotIsOpenWhenNobodyWasWaiting() {
+        when(mockRegistrationDao.findById(REGISTRATION_ID))
+                .thenReturn(Optional.of(registrationWith(Registration.STATUS_CONFIRMED)));
+        when(mockWaitlistService.reconcile(EVENT_ID)).thenReturn(0);
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(10)));
+
+        registrationService.cancel(REGISTRATION_ID, NORMALIZED_EMAIL);
+
+        // reconcile no invito a nadie -> el lugar quedo abierto al publico.
+        verify(mockNotificationService)
+                .notifyRegistrationCancelled(any(Event.class), any(Registration.class), eq(false));
+    }
+
+    @Test
+    public void testCancelTellsTheOrganizerWhenTheSpotWentToTheWaitlist() {
+        when(mockRegistrationDao.findById(REGISTRATION_ID))
+                .thenReturn(Optional.of(registrationWith(Registration.STATUS_CONFIRMED)));
+        when(mockWaitlistService.reconcile(EVENT_ID)).thenReturn(1);
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(10)));
+
+        registrationService.cancel(REGISTRATION_ID, NORMALIZED_EMAIL);
+
+        // El dato sale de lo que devolvio reconcile, no de otra consulta.
+        verify(mockNotificationService)
+                .notifyRegistrationCancelled(any(Event.class), any(Registration.class), eq(true));
+    }
+
+    @Test
+    public void testCancelDoesNotNotifyWhenSomeoneLeavesTheWaitlist() {
+        when(mockRegistrationDao.findById(REGISTRATION_ID))
+                .thenReturn(Optional.of(registrationWith(Registration.STATUS_WAITLISTED)));
+        when(mockWaitlistService.reconcile(EVENT_ID)).thenReturn(0);
+
+        registrationService.cancel(REGISTRATION_ID, NORMALIZED_EMAIL);
+
+        // Para el organizador no cambio nada: el cupo disponible es el mismo.
+        verify(mockNotificationService, never())
+                .notifyRegistrationCancelled(any(Event.class), any(Registration.class), anyBoolean());
     }
 
     // ---- isFull() ----

@@ -82,6 +82,14 @@ public class RegistrationServiceImpl implements RegistrationService {
         } else {
             notificationService.notifyRegistrationConfirmed(event, registration);
             notificationService.notifyNewRegistration(event, registration);
+
+            // "Se lleno" es un CAMBIO de estado, no un estado: el aviso sale solo
+            // en el pedido que ocupo el ultimo lugar. Se vuelve a preguntar DESPUES
+            // del insert, porque recien ahora esta contado. Y va en esta rama
+            // unicamente: si arriba ya estaba lleno, no hay nada que anunciar.
+            if (isFull(event)) {
+                notificationService.notifyEventFull(event);
+            }
         }
 
         return registrationResult(status);
@@ -176,12 +184,25 @@ public class RegistrationServiceImpl implements RegistrationService {
         if (!registration.isPresent() || !registration.get().getEmail().equalsIgnoreCase(email.trim())) {
             return false;
         }
-        final long eventId = registration.get().getEventId();
+        final Registration cancelled = registration.get();
+        final long eventId = cancelled.getEventId();
+        // Se mira ANTES de borrar: despues la fila ya no existe.
+        final boolean wasConfirmed = Registration.STATUS_CONFIRMED.equals(cancelled.getStatus());
+
         registrationDao.delete(registrationId);
         // El cupo que se acaba de soltar se le ofrece enseguida al primero de la
         // lista de espera. Va en la misma transaccion: o pasan las dos cosas o
-        // no pasa ninguna.
-        waitlistService.reconcile(eventId);
+        // no pasa ninguna. Devuelve a cuantos invito, para poder contarselo al
+        // organizador sin volver a consultar.
+        final int invited = waitlistService.reconcile(eventId);
+
+        // Solo se avisa si se libero un lugar de verdad. Que alguien salga de la
+        // lista de espera no le cambia nada al organizador: el cupo disponible
+        // era el mismo antes y despues.
+        if (wasConfirmed) {
+            eventDao.findById(eventId).ifPresent(event ->
+                    notificationService.notifyRegistrationCancelled(event, cancelled, invited > 0));
+        }
         return true;
     }
 

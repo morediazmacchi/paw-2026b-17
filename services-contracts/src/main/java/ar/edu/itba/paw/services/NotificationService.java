@@ -35,6 +35,23 @@ public interface NotificationService {
     void notifyNewWaitlistEntry(Event event, Registration registration);
 
     /**
+     * Se ocupo el ultimo lugar -> le avisa al creador que su evento esta completo.
+     * Se manda una sola vez, en el pedido que lo lleno: no es un estado que se
+     * recuerde, es el momento en que se cruzo el limite.
+     */
+    void notifyEventFull(Event event);
+
+    /**
+     * Alguien que tenia lugar confirmado se dio de baja -> le avisa al creador.
+     * Solo para inscripciones confirmadas: que alguien salga de la lista de
+     * espera no le cambia el cupo al organizador.
+     *
+     * @param offeredToWaitlist true si ese lugar ya se le ofrecio a alguien de
+     *                          la lista de espera, false si quedo abierto
+     */
+    void notifyRegistrationCancelled(Event event, Registration registration, boolean offeredToWaitlist);
+
+    /**
      * Se libero un lugar y le toca a esta persona -> mail con el link unico para
      * aceptarlo o rechazarlo, y hasta cuando tiene tiempo.
      */

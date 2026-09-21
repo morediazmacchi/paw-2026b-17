@@ -53,7 +53,7 @@ public class WaitlistServiceImpl implements WaitlistService {
 
     @Override
     @Transactional
-    public void reconcile(final long eventId) {
+    public int reconcile(final long eventId) {
         // Un unico "ahora" para toda la pasada: si se leyera el reloj en cada
         // paso, una invitacion podria vencerse en el medio del calculo.
         final Date now = new Date();
@@ -62,23 +62,23 @@ public class WaitlistServiceImpl implements WaitlistService {
         // se serializan aca y no le ofrecen el mismo lugar a dos personas.
         final Optional<Event> locked = eventDao.findByIdForUpdate(eventId);
         if (!locked.isPresent()) {
-            return;
+            return 0;
         }
-        reconcileLocked(locked.get(), now);
+        return reconcileLocked(locked.get(), now);
     }
 
     /**
      * El evento ya viene bloqueado por quien llama. Separado para poder
      * reusarlo desde accept() y decline(), que ya lo lockearon.
      */
-    private void reconcileLocked(final Event event, final Date now) {
+    private int reconcileLocked(final Event event, final Date now) {
         // Sin cupo maximo nunca hay lista de espera: todos entran confirmados.
         if (event.getMaxCapacity() == null) {
-            return;
+            return 0;
         }
         // Un evento que ya paso no tiene lugares que ofrecer.
         if (event.getEventDate() != null && event.getEventDate().before(now)) {
-            return;
+            return 0;
         }
 
         expirePendingInvitations(event.getId(), now);
@@ -92,7 +92,7 @@ public class WaitlistServiceImpl implements WaitlistService {
         final long reserved = invitationDao.countPending(event.getId());
         final int free = (int) (event.getMaxCapacity() - confirmed - reserved);
         if (free <= 0) {
-            return;
+            return 0;
         }
 
         final List<Registration> next = registrationDao.findNextWaitlisted(event.getId(), free);
@@ -106,6 +106,7 @@ public class WaitlistServiceImpl implements WaitlistService {
         if (next.size() < free) {
             LOGGER.debug("Evento {}: quedan {} cupos abiertos al publico", event.getId(), free - next.size());
         }
+        return next.size();
     }
 
     /**

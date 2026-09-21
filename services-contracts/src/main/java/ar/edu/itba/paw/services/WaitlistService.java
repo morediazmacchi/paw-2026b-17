@@ -17,8 +17,13 @@ public interface WaitlistService {
      *
      * Se llama cada vez que un cupo puede haberse liberado: una cancelacion, un
      * rechazo, o una invitacion vencida.
+     *
+     * @return a cuantas personas se les ofrecio un lugar en esta pasada. Quien
+     *         llama lo usa para contar que paso (por ejemplo, para avisarle al
+     *         organizador si el lugar que se libero ya tiene candidato o quedo
+     *         abierto), en vez de tener que adivinarlo con otra consulta.
      */
-    void reconcile(long eventId);
+    int reconcile(long eventId);
 
     /**
      * Cuantos cupos de este evento estan reservados por invitaciones que todavia

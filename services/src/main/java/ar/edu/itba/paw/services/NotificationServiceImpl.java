@@ -280,6 +280,48 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Async
     @Override
+    public void notifyEventFull(final Event event) {
+        try {
+            final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
+            variables.put("personName", displayName(null, event.getCreatorEmail()));
+
+            mailService.send(event.getCreatorEmail(),
+                    "event-full",
+                    "mail.eventFull.subject",
+                    new Object[]{ event.getTitle() },
+                    variables,
+                    DEFAULT_LOCALE);
+        } catch (final RuntimeException e) {
+            LOGGER.error("Fallo el aviso de evento completo, evento {}", event.getId(), e);
+        }
+    }
+
+    @Async
+    @Override
+    public void notifyRegistrationCancelled(final Event event, final Registration registration,
+                                             final boolean offeredToWaitlist) {
+        try {
+            final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
+            variables.put("personName", displayName(null, event.getCreatorEmail()));
+            variables.put("registrantName", displayName(registration.getName(), registration.getEmail()));
+            variables.put("registrantEmail", registration.getEmail());
+            // La plantilla elige entre dos parrafos con este booleano, asi los dos
+            // textos siguen viviendo en el archivo de mensajes y no en el codigo.
+            variables.put("offeredToWaitlist", offeredToWaitlist);
+
+            mailService.send(event.getCreatorEmail(),
+                    "registration-cancelled",
+                    "mail.registrationCancelled.subject",
+                    new Object[]{ event.getTitle() },
+                    variables,
+                    DEFAULT_LOCALE);
+        } catch (final RuntimeException e) {
+            LOGGER.error("Fallo el aviso de baja al creador, evento {}", event.getId(), e);
+        }
+    }
+
+    @Async
+    @Override
     public void notifyAccountVerification(final User user, final String token) {
         try {
             final Map<String, Object> variables = new HashMap<>();
