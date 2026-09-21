@@ -194,6 +194,29 @@
             </div>
         </details>
 
+        <spring:message code="event.list.availabilityFilter" var="availabilityLabel"/>
+        <details class="filter-dropdown" name="filter-group">
+            <summary>
+                <span class="filter-dropdown-label"><c:out value="${availabilityLabel}"/></span>
+                <span class="filter-dropdown-value">
+                    <c:choose>
+                        <c:when test="${empty pocosCupos}"><c:out value="${allLabel}"/></c:when>
+                        <c:otherwise><spring:message code="event.list.fewSpotsShort"/></c:otherwise>
+                    </c:choose>
+                </span>
+            </summary>
+            <div class="filter-dropdown-panel">
+                <%-- Un solo checkbox y no dos opciones: si no esta tildado, el
+                     navegador directamente no manda el parametro, y el filtro
+                     queda apagado. No hace falta un "todos" explicito. --%>
+                <label class="filter-checkbox">
+                    <input type="checkbox" name="pocosCupos" value="true"
+                           ${not empty pocosCupos ? 'checked="checked"' : ''}/>
+                    <spring:message code="event.list.fewSpots"/>
+                </label>
+            </div>
+        </details>
+
         <paw:button text="${filterButtonLabel}" cssClass="btn-accent"/>
         <c:if test="${hasActiveFilters}">
             <a class="btn btn-medium filter-clear-all" href="<c:url value='/eventos'/>">&times; <c:out value="${clearAllLabel}"/></a>
@@ -253,6 +276,7 @@
                                    <c:param name='fechaDesde' value='${fechaDesde}'/>
                                    <c:param name='fechaHasta' value='${fechaHasta}'/>
                                    <c:param name='puntajeMin' value='${puntajeMin}'/>
+                                   <c:param name='pocosCupos' value='${pocosCupos}'/>
                                    <c:param name='sort' value='${sort}'/>
                                    <c:param name='page' value='${currentPage - 1}'/>
                                  </c:url>"><c:out value="${prevPageLabel}"/></a>
@@ -276,6 +300,7 @@
                                            <c:param name='fechaDesde' value='${fechaDesde}'/>
                                            <c:param name='fechaHasta' value='${fechaHasta}'/>
                                            <c:param name='puntajeMin' value='${puntajeMin}'/>
+                                   <c:param name='pocosCupos' value='${pocosCupos}'/>
                                            <c:param name='sort' value='${sort}'/>
                                            <c:param name='page' value='${p}'/>
                                          </c:url>"><c:out value="${p}"/></a>
@@ -293,6 +318,7 @@
                                    <c:param name='fechaDesde' value='${fechaDesde}'/>
                                    <c:param name='fechaHasta' value='${fechaHasta}'/>
                                    <c:param name='puntajeMin' value='${puntajeMin}'/>
+                                   <c:param name='pocosCupos' value='${pocosCupos}'/>
                                    <c:param name='sort' value='${sort}'/>
                                    <c:param name='page' value='${currentPage + 1}'/>
                                  </c:url>"><c:out value="${nextPageLabel}"/></a>

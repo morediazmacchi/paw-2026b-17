@@ -115,6 +115,7 @@ public class EventController {
                               @RequestParam(value = "fechaHasta", required = false) final String fechaHasta,
                               @RequestParam(value = "barrio", required = false) final List<String> barrio,
                               @RequestParam(value = "puntajeMin", required = false) final String puntajeMin,
+                              @RequestParam(value = "pocosCupos", required = false) final String pocosCupos,
                               @RequestParam(value = "page", required = false) final String page,
                               @RequestParam(value = "sort", required = false) final String sort,
                               @RequestParam(value = "rsvp", required = false) final String rsvp,
@@ -148,6 +149,9 @@ public class EventController {
         criteria.setToDate(toDate);
         criteria.setBarrios(barrios);
         criteria.setMinOrganizerRating(parseInteger(puntajeMin));
+        // Un si/no, no un rango: cuantos lugares son "pocos" lo define el modelo
+        // (EventSearchCriteria.FEW_SPOTS_MIN/MAX), no lo que venga en la URL.
+        criteria.setOnlyFewSpotsLeft(pocosCupos != null && !pocosCupos.isEmpty());
         criteria.setSort(parseSort(sort));
         criteria.setPage(parsePage(page));
         criteria.setPageSize(PAGE_SIZE);
@@ -163,7 +167,8 @@ public class EventController {
                 || (precioMax != null && !precioMax.isEmpty())
                 || (fechaDesde != null && !fechaDesde.isEmpty())
                 || (fechaHasta != null && !fechaHasta.isEmpty())
-                || (puntajeMin != null && !puntajeMin.isEmpty());
+                || (puntajeMin != null && !puntajeMin.isEmpty())
+                || (pocosCupos != null && !pocosCupos.isEmpty());
 
         // Banner destacado: los proximos eventos por fecha, sin los filtros de arriba.
         final EventSearchCriteria featuredCriteria = new EventSearchCriteria();
@@ -186,6 +191,7 @@ public class EventController {
         mav.addObject("fechaHasta", fechaHasta);
         mav.addObject("selectedBarrios", barrios);
         mav.addObject("puntajeMin", puntajeMin);
+        mav.addObject("pocosCupos", pocosCupos);
         mav.addObject("hasActiveFilters", hasActiveFilters);
         mav.addObject("sort", sort);
         mav.addObject("filterErrors", filterErrors);

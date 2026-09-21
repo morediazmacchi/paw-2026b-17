@@ -16,9 +16,11 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.sql.DataSource;
+import java.sql.Timestamp;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -280,6 +282,122 @@ public class EventJdbcDaoTest {
         final List<Event> result = eventDao.findByCreatorEmail(CREATOR_EMAIL);
 
         assertTrue(result.isEmpty());
+    }
+
+    // ---- search(): filtro "quedan pocos cupos" ----
+
+    private void insertRegistration(final long eventId, final String email, final String status) {
+        jdbcTemplate.update("INSERT INTO registration (event_id, email, status) VALUES (?, ?, ?)",
+                eventId, email, status);
+    }
+
+    private long registrationId(final long eventId, final String email) {
+        return jdbcTemplate.queryForObject(
+                "SELECT id FROM registration WHERE event_id = ? AND email = ?", Long.class, eventId, email);
+    }
+
+    private void insertPendingInvitation(final long registrationId) {
+        jdbcTemplate.update(
+                "INSERT INTO waitlist_invitation (registration_id, token, expires_at) VALUES (?, ?, ?)",
+                registrationId, "tok-" + registrationId,
+                new Timestamp(System.currentTimeMillis() + 86_400_000L));
+    }
+
+    /** Un evento futuro con ese cupo y esa cantidad de inscriptos confirmados. */
+    private long eventWith(final Integer capacity, final int confirmed, final String address) {
+        final Date future = new Date(System.currentTimeMillis() + 86_400_000L);
+        final long id = eventDao.create(new Event(TITLE, null, future, address,
+                Barrio.PALERMO, null, 0, capacity, CREATOR_EMAIL, categoryId)).getId();
+        for (int i = 0; i < confirmed; i++) {
+            insertRegistration(id, "conf" + i + "-" + id + "@mail.com", "confirmed");
+        }
+        return id;
+    }
+
+    private static EventSearchCriteria fewSpotsCriteria() {
+        final EventSearchCriteria criteria = new EventSearchCriteria();
+        criteria.setOnlyFewSpotsLeft(true);
+        criteria.setPageSize(20);
+        return criteria;
+    }
+
+    private static List<Long> idsOf(final List<Event> events) {
+        return events.stream().map(Event::getId).collect(Collectors.toList());
+    }
+
+    @Test
+    public void testSearchWithFewSpotsLeftKeepsOnlyEventsAboutToFillUp() {
+        final long cuatroLibres = eventWith(10, 6, "Cuatro libres");
+        eventWith(10, 2, "Ocho libres");
+
+        final List<Event> result = eventDao.search(fewSpotsCriteria());
+
+        assertEquals(1, result.size());
+        assertEquals(cuatroLibres, result.get(0).getId());
+    }
+
+    @Test
+    public void testSearchWithFewSpotsLeftIncludesBothEndsOfTheRange() {
+        final long cincoLibres = eventWith(10, 5, "Cinco libres");
+        final long unLibre = eventWith(10, 9, "Un libre");
+        eventWith(10, 4, "Seis libres");
+        eventWith(10, 10, "Lleno");
+
+        final List<Long> ids = idsOf(eventDao.search(fewSpotsCriteria()));
+
+        // 5 y 1 entran (los extremos); 6 queda afuera por arriba y 0 por abajo.
+        assertEquals(2, ids.size());
+        assertTrue(ids.contains(cincoLibres));
+        assertTrue(ids.contains(unLibre));
+    }
+
+    @Test
+    public void testSearchWithFewSpotsLeftIgnoresEventsWithoutCapacityLimit() {
+        eventWith(null, 8, "Sin limite");
+
+        // Sin cupo maximo nunca "quedan pocos": no se le pueden acabar los lugares.
+        assertTrue(eventDao.search(fewSpotsCriteria()).isEmpty());
+    }
+
+    @Test
+    public void testSearchWithFewSpotsLeftDoesNotCountPeopleOnTheWaitlist() {
+        final long eventId = eventWith(10, 3, "Con lista de espera");
+        for (int i = 0; i < 4; i++) {
+            insertRegistration(eventId, "wl" + i + "@mail.com", "waitlisted");
+        }
+
+        // 7 libres: los de la lista de espera no ocupan cupo, asi que NO entra.
+        assertTrue(eventDao.search(fewSpotsCriteria()).isEmpty());
+    }
+
+    @Test
+    public void testSearchWithFewSpotsLeftCountsSpotsHeldByPendingInvitations() {
+        final long eventId = eventWith(10, 3, "Con invitaciones");
+        for (int i = 0; i < 4; i++) {
+            final String email = "wl" + i + "@mail.com";
+            insertRegistration(eventId, email, "waitlisted");
+            insertPendingInvitation(registrationId(eventId, email));
+        }
+
+        // 10 - 3 confirmados - 4 reservados = 3 libres -> ahora SI entra.
+        // Es el mismo numero que muestra availableSpots() en la pantalla: si el
+        // filtro contara distinto, el evento apareceria aca y al entrar diria otra cosa.
+        final List<Long> ids = idsOf(eventDao.search(fewSpotsCriteria()));
+
+        assertEquals(1, ids.size());
+        assertTrue(ids.contains(eventId));
+    }
+
+    @Test
+    public void testCountSearchMatchesSearchWhenFilteringByFewSpotsLeft() {
+        eventWith(10, 6, "Cuatro libres");
+        eventWith(10, 9, "Un libre");
+        eventWith(10, 1, "Nueve libres");
+
+        // Las dos queries comparten buildWhereClause: si se desincronizaran, el
+        // "N eventos encontrados" no coincidiria con lo que se ve en la pagina.
+        assertEquals(eventDao.search(fewSpotsCriteria()).size(), (int) eventDao.countSearch(fewSpotsCriteria()));
+        assertEquals(2, eventDao.countSearch(fewSpotsCriteria()));
     }
 
     // ---- search(): filtro por puntaje del organizador ----

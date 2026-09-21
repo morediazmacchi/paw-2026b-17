@@ -6,6 +6,8 @@ import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.EventSort;
 import ar.edu.itba.paw.model.EventVisibility;
+import ar.edu.itba.paw.model.InvitationStatus;
+import ar.edu.itba.paw.model.Registration;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -201,6 +203,32 @@ public class EventJdbcDao implements EventDao {
                     + "SELECT e2.creator_email FROM review r2 JOIN event e2 ON e2.id = r2.event_id "
                     + "GROUP BY e2.creator_email HAVING AVG(r2.rating) >= ?)");
             params.add(criteria.getMinOrganizerRating());
+        }
+
+        if (criteria.isOnlyFewSpotsLeft()) {
+            // "Cupos libres" no es una columna: es una cuenta. Y tiene que
+            // resolverse aca adentro, en el WHERE, y no filtrando en Java lo que
+            // ya vino: search() trae UNA pagina y countSearch() cuenta el total,
+            // asi que filtrar despues dejaria paginas incompletas y un total que
+            // no coincide con lo que se ve.
+            //
+            // Se restan dos cosas, las mismas que mira availableSpots(): los
+            // confirmados (el lugar es de alguien) y las invitaciones de lista de
+            // espera sin contestar (el lugar esta reservado mientras esa persona
+            // decide). Si el filtro contara distinto que la pantalla, un evento
+            // podria aparecer en "pocos cupos" y al entrar decir "0 disponibles".
+            sql.append(" AND e.max_capacity IS NOT NULL AND ("
+                    + "e.max_capacity"
+                    + " - (SELECT COUNT(*) FROM registration r2"
+                    + "     WHERE r2.event_id = e.id AND r2.status = ?)"
+                    + " - (SELECT COUNT(*) FROM waitlist_invitation i2"
+                    + "     JOIN registration r3 ON r3.id = i2.registration_id"
+                    + "     WHERE r3.event_id = e.id AND i2.status = ?)"
+                    + ") BETWEEN ? AND ?");
+            params.add(Registration.STATUS_CONFIRMED);
+            params.add(InvitationStatus.PENDING.name());
+            params.add(EventSearchCriteria.FEW_SPOTS_MIN);
+            params.add(EventSearchCriteria.FEW_SPOTS_MAX);
         }
 
         return new WhereClause(sql.toString(), params);
