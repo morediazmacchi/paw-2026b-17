@@ -17,6 +17,15 @@ public class Event {
     private long categoryId;
     private String categoryName; // solo se llena al hacer el JOIN con category, no es una columna de event
     private Date createdAt;
+    // Si esta en true, una inscripcion nueva nace 'pending' en vez de
+    // 'confirmed': el creador la tiene que aceptar o rechazar el mismo. No va
+    // en el constructor de abajo (igual que categoryName/createdAt) para no
+    // romper los call sites existentes; se setea aparte antes de guardar.
+    private boolean requiresApproval;
+    // PUBLIC por default: un "new Event()" sin tocar este campo (hay muchos
+    // en los tests) tiene que comportarse como siempre se comporto, visible
+    // para cualquiera.
+    private EventVisibility visibility = EventVisibility.PUBLIC;
 
     public Event() {
     }
@@ -62,6 +71,11 @@ public class Event {
     public void setCategoryName(final String categoryName) { this.categoryName = categoryName; }
     public Date getCreatedAt() { return createdAt; }
     public void setCreatedAt(final Date createdAt) { this.createdAt = createdAt; }
+    public boolean isRequiresApproval() { return requiresApproval; }
+    public void setRequiresApproval(final boolean requiresApproval) { this.requiresApproval = requiresApproval; }
+    public EventVisibility getVisibility() { return visibility; }
+    public void setVisibility(final EventVisibility visibility) { this.visibility = visibility; }
 
     public boolean isFree() { return price == 0; }
+    public boolean isPrivate() { return visibility == EventVisibility.PRIVATE; }
 }

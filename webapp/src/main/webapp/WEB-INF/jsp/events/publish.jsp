@@ -160,6 +160,22 @@
                 <paw:input name="cupoMaximo" label="${capacityLabel}" type="number" min="0"
                            value="${eventForm.cupoMaximo}" errorMessage="${fieldErrors.cupoMaximo}"
                            toggleText="${noLimitOptionLabel}" />
+                <div class="form-group">
+                    <label class="filter-checkbox">
+                        <input type="checkbox" id="requiereAprobacion" name="requiereAprobacion" value="true"
+                               ${eventForm.requiereAprobacion ? 'checked="checked"' : ''}/>
+                        <spring:message code="event.publish.requiresApprovalLabel"/>
+                    </label>
+                    <p class="wizard-field-hint"><spring:message code="event.publish.requiresApprovalHint"/></p>
+                </div>
+                <div class="form-group">
+                    <label class="filter-checkbox">
+                        <input type="checkbox" id="privado" name="privado" value="true"
+                               ${eventForm.privado ? 'checked="checked"' : ''}/>
+                        <spring:message code="event.publish.privateLabel"/>
+                    </label>
+                    <p class="wizard-field-hint"><spring:message code="event.publish.privateHint"/></p>
+                </div>
             </div>
 
             <%-- ---- Paso 5: revisar y publicar ---- --%>
@@ -194,6 +210,20 @@
                     <div class="wizard-review-row">
                         <span class="wizard-review-label"><c:out value="${capacityLabel}"/></span>
                         <span class="wizard-review-value" data-review="cupo"></span>
+                    </div>
+                    <div class="wizard-review-row">
+                        <spring:message code="event.publish.requiresApprovalLabel" var="requiresApprovalLabel"/>
+                        <spring:message code="common.yes" var="yesLabel"/>
+                        <spring:message code="common.no" var="noLabel"/>
+                        <span class="wizard-review-label"><c:out value="${requiresApprovalLabel}"/></span>
+                        <span class="wizard-review-value" data-review="requiereAprobacion"
+                              data-yes-label="${yesLabel}" data-no-label="${noLabel}"></span>
+                    </div>
+                    <div class="wizard-review-row">
+                        <spring:message code="event.publish.privateLabel" var="privateLabel"/>
+                        <span class="wizard-review-label"><c:out value="${privateLabel}"/></span>
+                        <span class="wizard-review-value" data-review="privado"
+                              data-yes-label="${yesLabel}" data-no-label="${noLabel}"></span>
                     </div>
                     <div class="wizard-review-row" data-review-image-row hidden>
                         <span class="wizard-review-label"><c:out value="${imageLabel}"/></span>

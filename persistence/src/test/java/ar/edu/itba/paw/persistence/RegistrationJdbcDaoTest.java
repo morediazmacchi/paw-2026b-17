@@ -186,4 +186,46 @@ public class RegistrationJdbcDaoTest {
         assertFalse(registrationDao.findById(created.getId()).isPresent());
         assertEquals(0, registrationDao.countConfirmed(eventId));
     }
+
+    // ---- countPending() ----
+
+    @Test
+    public void testCountPendingReturnsZeroWhenNobodyIsWaitingForReview() {
+        assertEquals(0, registrationDao.countPending(eventId));
+    }
+
+    @Test
+    public void testCountPendingCountsOnlyPendingStatus() {
+        registrationDao.create(new Registration(eventId, "pendiente@mail.com", NAME, Registration.STATUS_PENDING));
+        registrationDao.create(new Registration(eventId, "confirmado@mail.com", NAME, Registration.STATUS_CONFIRMED));
+        registrationDao.create(new Registration(eventId, "rechazado@mail.com", NAME, Registration.STATUS_REJECTED));
+
+        assertEquals(1, registrationDao.countPending(eventId));
+    }
+
+    // ---- findPendingByEvent() ----
+
+    @Test
+    public void testFindPendingByEventReturnsEmptyWhenNobodyIsWaitingForReview() {
+        assertTrue(registrationDao.findPendingByEvent(eventId).isEmpty());
+    }
+
+    @Test
+    public void testFindPendingByEventReturnsOnlyPendingOrderedByOldestFirst() throws InterruptedException {
+        final Registration first = registrationDao.create(
+                new Registration(eventId, "primero@mail.com", NAME, Registration.STATUS_PENDING));
+        // HSQLDB trunca registered_at a milisegundos: sin esta pausa, las dos
+        // filas podrian quedar con el mismo timestamp y el orden no estaria
+        // garantizado.
+        Thread.sleep(5);
+        final Registration second = registrationDao.create(
+                new Registration(eventId, "segundo@mail.com", NAME, Registration.STATUS_PENDING));
+        registrationDao.create(new Registration(eventId, "confirmado@mail.com", NAME, Registration.STATUS_CONFIRMED));
+
+        final List<Registration> pending = registrationDao.findPendingByEvent(eventId);
+
+        assertEquals(2, pending.size());
+        assertEquals(first.getEmail(), pending.get(0).getEmail());
+        assertEquals(second.getEmail(), pending.get(1).getEmail());
+    }
 }

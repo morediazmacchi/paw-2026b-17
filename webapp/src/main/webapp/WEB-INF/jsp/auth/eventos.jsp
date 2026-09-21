@@ -56,14 +56,33 @@
             <c:otherwise>
                 <spring:message code="auth.events.editButton" var="editButtonLabel"/>
                 <spring:message code="auth.events.attendeesButton" var="attendeesButtonLabel"/>
+                <spring:message code="auth.events.pendingButton" var="pendingButtonLabel"/>
+                <spring:message code="auth.events.inviteButton" var="inviteButtonLabel"/>
                 <div class="event-row-list">
                     <c:forEach var="event" items="${createdEvents}">
                         <paw:eventRow id="${event.id}" nombre="${event.title}" fecha="${event.eventDate}"
                                       ubicacion="${event.neighborhood.displayName}" precio="${event.price}"
-                                      imagenId="${event.imageId}">
+                                      imagenId="${event.imageId}" privado="${event.visibility == 'PRIVATE'}">
                             <a class="btn btn-medium" href="<c:url value='/eventos/${event.id}/inscriptos'/>">
                                 <c:out value="${attendeesButtonLabel}"/>
                             </a>
+                            <%-- Solo tiene sentido en un evento privado: uno publico ya
+                                 tiene un link que se puede compartir sin necesitar esto. --%>
+                            <c:if test="${event.visibility == 'PRIVATE'}">
+                                <a class="btn btn-medium btn-accent" href="<c:url value='/perfil/eventos/${event.id}/invitar'/>">
+                                    <c:out value="${inviteButtonLabel}"/>
+                                </a>
+                            </c:if>
+                            <%-- Solo tiene sentido para eventos con confirmacion manual:
+                                 el resto no tiene nada pendiente que revisar. --%>
+                            <c:if test="${event.requiresApproval}">
+                                <a class="btn btn-medium btn-accent" href="<c:url value='/perfil/eventos/${event.id}/inscriptos'/>">
+                                    <c:out value="${pendingButtonLabel}"/>
+                                    <c:if test="${pendingCountsByEventId[event.id] > 0}">
+                                        (<c:out value="${pendingCountsByEventId[event.id]}"/>)
+                                    </c:if>
+                                </a>
+                            </c:if>
                             <a class="btn btn-medium btn-accent" href="<c:url value='/eventos/${event.id}/editar'/>">
                                 <c:out value="${editButtonLabel}"/>
                             </a>

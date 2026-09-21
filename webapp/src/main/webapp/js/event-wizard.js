@@ -212,6 +212,11 @@ document.addEventListener("DOMContentLoaded", function () {
         setReview("precio", precioField && !precioField.hidden && precioValue ? "$" + precioValue : precioValue);
         setReview("cupo", fieldValue("cupoMaximo"));
 
+        // Checkboxes, no inputs de texto: no pasan por fieldValue (esa funcion
+        // mira .value, que en un checkbox siempre es "true" este o no tildado).
+        setReviewCheckbox("requiereAprobacion");
+        setReviewCheckbox("privado");
+
         var imageInput = form.querySelector("#image");
         var imageRow = form.querySelector("[data-review-image-row]");
         var imageEl = form.querySelector("[data-review-image]");
@@ -231,6 +236,18 @@ document.addEventListener("DOMContentLoaded", function () {
         var el = form.querySelector("[data-review='" + key + "']");
         if (el) {
             el.textContent = value;
+        }
+    }
+
+    // Version de setReview para checkboxes: el texto sale de data-yes-label /
+    // data-no-label (ver publish.jsp), no de un valor calculado con fieldValue.
+    function setReviewCheckbox(name) {
+        var field = form.querySelector("[name='" + name + "']");
+        var el = form.querySelector("[data-review='" + name + "']");
+        if (field && el) {
+            el.textContent = field.checked
+                    ? el.getAttribute("data-yes-label")
+                    : el.getAttribute("data-no-label");
         }
     }
 

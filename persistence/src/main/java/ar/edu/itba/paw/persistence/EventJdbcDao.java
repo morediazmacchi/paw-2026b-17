@@ -5,6 +5,7 @@ import ar.edu.itba.paw.model.Barrio;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.EventSort;
+import ar.edu.itba.paw.model.EventVisibility;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -56,6 +57,8 @@ public class EventJdbcDao implements EventDao {
         event.setCategoryId(rs.getLong("category_id"));
         event.setCategoryName(rs.getString("category_name"));
         event.setCreatedAt(rs.getTimestamp("created_at"));
+        event.setRequiresApproval(rs.getBoolean("requires_approval"));
+        event.setVisibility(EventVisibility.valueOf(rs.getString("visibility")));
         return event;
     };
 
@@ -69,7 +72,8 @@ public class EventJdbcDao implements EventDao {
                 .withTableName("event")
                 .usingGeneratedKeyColumns("id")
                 .usingColumns("title", "description", "event_date", "address", "neighborhood",
-                        "image_id", "price", "max_capacity", "creator_email", "category_id");
+                        "image_id", "price", "max_capacity", "creator_email", "category_id", "requires_approval",
+                        "visibility");
     }
 
     @Override
@@ -85,6 +89,8 @@ public class EventJdbcDao implements EventDao {
         args.put("max_capacity", event.getMaxCapacity());
         args.put("creator_email", event.getCreatorEmail());
         args.put("category_id", event.getCategoryId());
+        args.put("requires_approval", event.isRequiresApproval());
+        args.put("visibility", event.getVisibility().name());
 
         final Number id = jdbcInsert.executeAndReturnKey(args);
         event.setId(id.longValue());
@@ -153,11 +159,15 @@ public class EventJdbcDao implements EventDao {
     // Arma el WHERE (y sus parametros) una sola vez, para que search() y countSearch()
     // filtren exactamente lo mismo y nunca se desincronicen.
     private WhereClause buildWhereClause(final EventSearchCriteria criteria) {
-        // Regla del listado publico (no del criteria): un evento ya ocurrido no aparece.
-        // findById/findByIdForUpdate no llevan este filtro: el detalle sigue siendo accesible.
-        final StringBuilder sql = new StringBuilder(" WHERE e.event_date >= ?");
+        // Dos reglas del listado publico (no del criteria, no son filtros que
+        // el usuario pueda sacar): un evento ya ocurrido no aparece, y uno
+        // privado tampoco. findById/findByIdForUpdate no llevan ninguna de
+        // las dos: el detalle sigue siendo accesible (con su propio chequeo
+        // de acceso para el privado, ver EventController).
+        final StringBuilder sql = new StringBuilder(" WHERE e.event_date >= ? AND e.visibility = ?");
         final List<Object> params = new ArrayList<>();
         params.add(new Timestamp(System.currentTimeMillis()));
+        params.add(EventVisibility.PUBLIC.name());
 
         if (criteria.getCategoryIds() != null && !criteria.getCategoryIds().isEmpty()) {
             sql.append(" AND e.category_id IN (").append(placeholders(criteria.getCategoryIds().size())).append(")");

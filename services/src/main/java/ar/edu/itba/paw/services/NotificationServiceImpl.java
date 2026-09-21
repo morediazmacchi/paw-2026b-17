@@ -1,6 +1,7 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.EventInvitation;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.User;
 import org.slf4j.Logger;
@@ -104,6 +105,109 @@ public class NotificationServiceImpl implements NotificationService {
                     DEFAULT_LOCALE);
         } catch (final RuntimeException e) {
             LOGGER.error("Fallo la notificacion de inscripcion nueva, evento {}", event.getId(), e);
+        }
+    }
+
+    @Async
+    @Override
+    public void notifyRegistrationPending(final Event event, final Registration registration) {
+        try {
+            final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
+            variables.put("personName", displayName(registration.getName(), registration.getEmail()));
+            variables.put("registrationsUrl", baseUrl + "/perfil/inscripciones");
+
+            mailService.send(registration.getEmail(),
+                    "registration-pending",
+                    "mail.registrationPending.subject",
+                    new Object[]{ event.getTitle() },
+                    variables,
+                    DEFAULT_LOCALE);
+        } catch (final RuntimeException e) {
+            LOGGER.error("Fallo la notificacion de inscripcion pendiente, evento {}", event.getId(), e);
+        }
+    }
+
+    @Async
+    @Override
+    public void notifyNewPendingRegistration(final Event event, final Registration registration) {
+        try {
+            final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
+            variables.put("personName", displayName(null, event.getCreatorEmail()));
+            variables.put("registrantName", displayName(registration.getName(), registration.getEmail()));
+            variables.put("registrantEmail", registration.getEmail());
+            // Manda directo al evento: ahi vive la pantalla de aceptar/rechazar
+            // (ver ProfileController), no hace falta un link aparte.
+            variables.put("reviewUrl", baseUrl + "/perfil/eventos/" + event.getId() + "/inscriptos");
+
+            mailService.send(event.getCreatorEmail(),
+                    "new-pending-registration",
+                    "mail.newPendingRegistration.subject",
+                    new Object[]{ event.getTitle() },
+                    variables,
+                    DEFAULT_LOCALE);
+        } catch (final RuntimeException e) {
+            LOGGER.error("Fallo el aviso de inscripcion pendiente al creador, evento {}", event.getId(), e);
+        }
+    }
+
+    @Async
+    @Override
+    public void notifyRegistrationApproved(final Event event, final Registration registration) {
+        try {
+            final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
+            variables.put("personName", displayName(registration.getName(), registration.getEmail()));
+            variables.put("registrationsUrl", baseUrl + "/perfil/inscripciones");
+
+            mailService.send(registration.getEmail(),
+                    "registration-approved",
+                    "mail.registrationApproved.subject",
+                    new Object[]{ event.getTitle() },
+                    variables,
+                    DEFAULT_LOCALE);
+        } catch (final RuntimeException e) {
+            LOGGER.error("Fallo la notificacion de inscripcion aprobada, evento {}", event.getId(), e);
+        }
+    }
+
+    @Async
+    @Override
+    public void notifyRegistrationRejected(final Event event, final Registration registration) {
+        try {
+            final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
+            variables.put("personName", displayName(registration.getName(), registration.getEmail()));
+            variables.put("eventsUrl", baseUrl + "/eventos");
+
+            mailService.send(registration.getEmail(),
+                    "registration-rejected",
+                    "mail.registrationRejected.subject",
+                    new Object[]{ event.getTitle() },
+                    variables,
+                    DEFAULT_LOCALE);
+        } catch (final RuntimeException e) {
+            LOGGER.error("Fallo la notificacion de inscripcion rechazada, evento {}", event.getId(), e);
+        }
+    }
+
+    @Async
+    @Override
+    public void notifyEventInvitation(final Event event, final EventInvitation invitation) {
+        try {
+            final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
+            // No hay nombre: a esta altura solo se conoce el mail al que se invito.
+            variables.put("personName", displayName(null, invitation.getEmail()));
+            // Pisa el eventUrl que ya puso eventVariables(): este SI lleva el
+            // token, es lo que le da acceso a un evento que de otra forma le
+            // daria 404 (ver EventController.canView).
+            variables.put("eventUrl", baseUrl + "/eventos/" + event.getId() + "?invitacion=" + invitation.getToken());
+
+            mailService.send(invitation.getEmail(),
+                    "event-invitation",
+                    "mail.eventInvitation.subject",
+                    new Object[]{ event.getTitle() },
+                    variables,
+                    DEFAULT_LOCALE);
+        } catch (final RuntimeException e) {
+            LOGGER.error("Fallo la invitacion al evento, evento {}", event.getId(), e);
         }
     }
 

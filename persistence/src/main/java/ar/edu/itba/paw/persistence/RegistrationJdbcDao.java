@@ -119,4 +119,19 @@ public class RegistrationJdbcDao implements RegistrationDao {
     public void delete(final long id) {
         jdbcTemplate.update("DELETE FROM registration WHERE id = ?", id);
     }
+
+    @Override
+    public long countPending(final long eventId) {
+        final Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM registration WHERE event_id = ? AND status = ?",
+                Long.class, eventId, Registration.STATUS_PENDING);
+        return count == null ? 0 : count;
+    }
+
+    @Override
+    public List<Registration> findPendingByEvent(final long eventId) {
+        return jdbcTemplate.query(
+                "SELECT * FROM registration WHERE event_id = ? AND status = ? ORDER BY registered_at",
+                ROW_MAPPER, eventId, Registration.STATUS_PENDING);
+    }
 }

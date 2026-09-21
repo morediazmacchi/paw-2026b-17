@@ -30,6 +30,12 @@
             <spring:message code="category.${event.categoryName}" text="${event.categoryName}" var="eventCategoria"/>
             <span class="detail-hero-badge"><c:out value="${eventCategoria}"/></span>
         </c:if>
+        <%-- No "event.private": "private" es palabra reservada de Java y el
+             parser de EL la rechaza como nombre de propiedad, aunque el
+             getter se llame isPrivate(). Se compara el enum directo. --%>
+        <c:if test="${event.visibility == 'PRIVATE'}">
+            <span class="detail-hero-badge"><spring:message code="event.publish.privateLabel"/></span>
+        </c:if>
         <sec:authorize access="isAuthenticated()">
             <c:url value="/eventos/${event.id}" var="detailUrl"/>
             <c:url value="/eventos/${event.id}/favorito" var="favAddUrl"/>
@@ -74,6 +80,18 @@
             </c:when>
             <c:when test="${rsvp == 'baja-waitlist'}">
                 <p class="alert detail-alert"><spring:message code="event.rsvp.leftWaitlist"/></p>
+            </c:when>
+            <c:when test="${rsvp == 'pendiente'}">
+                <p class="alert detail-alert"><spring:message code="event.rsvp.pending"/></p>
+            </c:when>
+            <c:when test="${rsvp == 'ya-pendiente'}">
+                <p class="alert detail-alert"><spring:message code="event.rsvp.alreadyPending"/></p>
+            </c:when>
+            <c:when test="${rsvp == 'rechazado'}">
+                <p class="alert detail-alert"><spring:message code="event.rsvp.rejected"/></p>
+            </c:when>
+            <c:when test="${rsvp == 'baja-pendiente'}">
+                <p class="alert detail-alert"><spring:message code="event.rsvp.leftPending"/></p>
             </c:when>
             <c:when test="${rsvp == 'finalizado'}">
                 <p class="alert detail-alert"><spring:message code="event.detail.eventFinished"/></p>
@@ -196,6 +214,12 @@
                     <c:when test="${finished}">
                         <p class="alert"><spring:message code="event.detail.eventFinished"/></p>
                     </c:when>
+                    <%-- Rechazado es terminal: no hay boton que ofrecer, ni "darse de
+                         baja" (no hay nada activo que cancelar) ni "inscribirme" de
+                         nuevo (el service lo vuelve a rechazar solo con REJECTED). --%>
+                    <c:when test="${rejected}">
+                        <p class="alert"><spring:message code="event.detail.rejectedNote"/></p>
+                    </c:when>
                     <c:otherwise>
                         <%-- El cartel solo si todavia no tenes nada: quien ya esta
                              confirmado o ya esta en la lista no necesita que le avisen. --%>
@@ -218,6 +242,9 @@
                             <c:when test="${waitlisted}">
                                 <spring:message code="event.detail.leaveWaitlistButton" var="unregisterButtonLabel"/>
                             </c:when>
+                            <c:when test="${pendingApproval}">
+                                <spring:message code="event.detail.pendingApprovalButton" var="unregisterButtonLabel"/>
+                            </c:when>
                             <c:otherwise>
                                 <spring:message code="event.detail.unregisterButton" var="unregisterButtonLabel"/>
                             </c:otherwise>
@@ -231,6 +258,12 @@
                                 </c:when>
                                 <c:otherwise>
                                     <form action="<c:url value='/eventos/${event.id}/quiero-ir'/>" method="post" novalidate="novalidate">
+                                        <%-- Si se llego con un link de invitacion, el token tiene que
+                                             sobrevivir al POST: sin esto, alguien invitado a un evento
+                                             privado podria ver el detalle pero no anotarse. --%>
+                                        <c:if test="${not empty invitacion}">
+                                            <input type="hidden" name="invitacion" value="${invitacion}"/>
+                                        </c:if>
                                         <paw:button text="${rsvpButtonLabel}" cssClass="btn-accent detail-rsvp-submit" />
                                     </form>
                                 </c:otherwise>
@@ -242,8 +275,22 @@
                                  Mas simple y mas explicito: un link a /login que vuelve al
                                  detalle (WebAuthConfig.loginSuccessHandler), y aca aprieta
                                  "Inscribirme" de nuevo, ya logueado. --%>
+                            <%-- OJO: a proposito NO es <c:url value="/eventos/${event.id}"/>: eso
+                                 agregaria el context path, y el <c:param> de abajo lo agregaria
+                                 DE NUEVO al armar /login (loginSuccessHandler hace
+                                 contextPath + redirect). Un string EL crudo, como ya hacia esto
+                                 antes de la invitacion, evita duplicarlo. El token de invitacion
+                                 (base64 URL-safe) nunca necesita escape. --%>
+                            <c:choose>
+                                <c:when test="${not empty invitacion}">
+                                    <c:set var="eventDetailPath" value="/eventos/${event.id}?invitacion=${invitacion}"/>
+                                </c:when>
+                                <c:otherwise>
+                                    <c:set var="eventDetailPath" value="/eventos/${event.id}"/>
+                                </c:otherwise>
+                            </c:choose>
                             <c:url value="/login" var="loginWithRedirectUrl">
-                                <c:param name="redirect" value="/eventos/${event.id}"/>
+                                <c:param name="redirect" value="${eventDetailPath}"/>
                             </c:url>
                             <a class="btn btn-medium btn-accent detail-rsvp-submit" href="${loginWithRedirectUrl}">
                                 <c:out value="${rsvpButtonLabel}"/>
@@ -253,9 +300,13 @@
                             <p class="detail-rsvp-note">
                                 <c:choose>
                                     <c:when test="${full}"><spring:message code="event.detail.waitlistNote"/></c:when>
+                                    <c:when test="${event.requiresApproval}"><spring:message code="event.detail.pendingApprovalNote"/></c:when>
                                     <c:otherwise><spring:message code="event.detail.reserveNote"/></c:otherwise>
                                 </c:choose>
                             </p>
+                        </c:if>
+                        <c:if test="${registered and pendingApproval}">
+                            <p class="detail-rsvp-note"><spring:message code="event.detail.pendingApprovalNote"/></p>
                         </c:if>
                     </c:otherwise>
                 </c:choose>

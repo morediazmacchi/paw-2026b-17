@@ -54,6 +54,11 @@ public class WebConfig implements WebMvcConfigurer {
     @Value("classpath:schema.sql")
     private Resource schemaSql;
 
+    // Solo para Postgres real: ver el comentario de postgres-migrations.sql.
+    // TestConfig (HSQLDB en memoria, modulo persistence) no carga este script.
+    @Value("classpath:postgres-migrations.sql")
+    private Resource postgresMigrationsSql;
+
     @Value("classpath:data.sql")
     private Resource dataSql;
 
@@ -114,6 +119,7 @@ public class WebConfig implements WebMvcConfigurer {
     private DatabasePopulator databasePopulator() {
         final ResourceDatabasePopulator dbp = new ResourceDatabasePopulator();
         dbp.addScript(schemaSql);
+        dbp.addScript(postgresMigrationsSql);
         dbp.addScript(dataSql);
         return dbp;
     }

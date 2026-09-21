@@ -1,6 +1,7 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.EventInvitation;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.User;
 
@@ -44,4 +45,19 @@ public interface NotificationService {
 
     /** Alguien pidio "olvide mi contraseña" -> mail con el link para elegir una nueva. */
     void notifyPasswordReset(User user, String token);
+
+    /** Se anoto a un evento con requiresApproval -> le avisa que su pedido queda esperando revision. */
+    void notifyRegistrationPending(Event event, Registration registration);
+
+    /** Alguien pidio anotarse a un evento con requiresApproval -> le avisa al creador que tiene que revisarlo. */
+    void notifyNewPendingRegistration(Event event, Registration registration);
+
+    /** El creador acepto una inscripcion pendiente -> le avisa a esa persona que ya tiene su lugar. */
+    void notifyRegistrationApproved(Event event, Registration registration);
+
+    /** El creador rechazo una inscripcion pendiente -> le avisa a esa persona. */
+    void notifyRegistrationRejected(Event event, Registration registration);
+
+    /** El creador invito a alguien a un evento privado -> mail con el link para verlo y anotarse. */
+    void notifyEventInvitation(Event event, EventInvitation invitation);
 }

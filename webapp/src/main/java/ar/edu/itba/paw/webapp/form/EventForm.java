@@ -38,6 +38,17 @@ public class EventForm {
     @Pattern(regexp = "^[0-9]+$", message = "El cupo maximo tiene que ser un numero entero")
     private String cupoMaximo;
 
+    // Checkbox comun (sin JSR-303: ausente en el request = false, no hay nada
+    // que validar). Si esta en true, las inscripciones nuevas nacen 'pending'
+    // en vez de 'confirmed': el creador las tiene que aceptar o rechazar el
+    // mismo (ver RegistrationServiceImpl.register()).
+    private boolean requiereAprobacion;
+
+    // Mismo criterio que requiereAprobacion: checkbox comun, ausente = false.
+    // Si esta en true, el evento no aparece en el listado ni en las busquedas
+    // (ver EventVisibility).
+    private boolean privado;
+
     public EventForm() {
     }
 
@@ -64,4 +75,10 @@ public class EventForm {
 
     public String getCupoMaximo() { return cupoMaximo; }
     public void setCupoMaximo(final String cupoMaximo) { this.cupoMaximo = cupoMaximo; }
+
+    public boolean isRequiereAprobacion() { return requiereAprobacion; }
+    public void setRequiereAprobacion(final boolean requiereAprobacion) { this.requiereAprobacion = requiereAprobacion; }
+
+    public boolean isPrivado() { return privado; }
+    public void setPrivado(final boolean privado) { this.privado = privado; }
 }

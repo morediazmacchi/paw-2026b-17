@@ -55,6 +55,12 @@
                                     <c:when test="${registration.status == 'confirmed'}">
                                         <span class="pill pill-active"><spring:message code="event.attendees.statusConfirmed"/></span>
                                     </c:when>
+                                    <c:when test="${registration.status == 'pending'}">
+                                        <span class="pill"><spring:message code="event.attendees.statusPending"/></span>
+                                    </c:when>
+                                    <c:when test="${registration.status == 'rejected'}">
+                                        <span class="pill"><spring:message code="event.attendees.statusRejected"/></span>
+                                    </c:when>
                                     <c:otherwise>
                                         <span class="pill"><spring:message code="event.attendees.statusWaitlisted"/></span>
                                     </c:otherwise>

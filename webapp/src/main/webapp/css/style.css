@@ -1595,6 +1595,12 @@ button.btn-accent {
     text-overflow: ellipsis;
 }
 
+.event-row-private-tag {
+    color: var(--text-muted);
+    font-weight: 400;
+    font-size: 0.85rem;
+}
+
 .event-row-meta {
     color: var(--text-muted);
     font-size: 0.85rem;
@@ -1628,6 +1634,65 @@ button.btn-accent {
         flex-wrap: wrap;
     }
     .event-row-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+}
+
+/* Pantalla "Revisar inscriptos" (aceptar/rechazar): mismo look que
+   .event-row, pero sin miniatura, esto es gente, no eventos. */
+.pending-registration-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.pending-registration-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 16px;
+}
+
+.pending-registration-info {
+    min-width: 0;
+}
+
+.pending-registration-name {
+    font-size: 1rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pending-registration-meta {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pending-registration-actions {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.pending-registration-actions .btn-accent {
+    margin-top: 0;
+}
+
+@media (max-width: 620px) {
+    .pending-registration-row {
+        flex-wrap: wrap;
+    }
+    .pending-registration-actions {
         width: 100%;
         justify-content: flex-end;
     }

@@ -19,7 +19,8 @@ public interface RegistrationDao {
      */
     List<Registration> findNextWaitlisted(long eventId, int limit);
 
-    /** Para pasar de 'waitlisted' a 'confirmed' cuando alguien acepta su invitacion. */
+    /** Para pasar de 'waitlisted' a 'confirmed' cuando alguien acepta su invitacion
+     *  (o de 'pending' a 'confirmed'/'rejected' cuando el creador decide). */
     void updateStatus(long id, String status);
 
     /**
@@ -38,4 +39,11 @@ public interface RegistrationDao {
     List<Registration> findByEventId(long eventId);
 
     void delete(long id);
+
+    /** Cuantas inscripciones de este evento estan esperando que el creador las revise. */
+    long countPending(long eventId);
+
+    // Pantalla de "aceptar o rechazar inscriptos": las pendientes de este evento,
+    // de la mas vieja a la mas nueva (a quien espera hace mas tiempo se lo atiende primero).
+    List<Registration> findPendingByEvent(long eventId);
 }

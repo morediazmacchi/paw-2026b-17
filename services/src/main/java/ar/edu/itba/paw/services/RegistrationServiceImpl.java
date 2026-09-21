@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -45,11 +46,7 @@ public class RegistrationServiceImpl implements RegistrationService {
 
         final Registration existing = registrationDao.findByEventAndEmail(eventId, normalizedEmail).orElse(null);
         if (existing != null) {
-            // Se distingue el caso porque el cartel no dice lo mismo: "ya estabas
-            // anotado" (tenes lugar) vs "ya estas en la lista de espera" (no lo tenes).
-            return Registration.STATUS_WAITLISTED.equals(existing.getStatus())
-                    ? RegistrationResult.ALREADY_WAITLISTED
-                    : RegistrationResult.ALREADY_REGISTERED;
+            return alreadyExistsResult(existing.getStatus());
         }
 
         // Bloquea la fila para que dos registros concurrentes no se pisen.
@@ -60,7 +57,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         // de espera. El orden de la lista sale de registration.registered_at, que
         // la base completa sola, asi que no hay ninguna posicion que guardar.
         final boolean full = isFull(event);
-        final String status = full ? Registration.STATUS_WAITLISTED : Registration.STATUS_CONFIRMED;
+        final String status = registrationStatus(event, full);
 
         // Si viola el UNIQUE(event_id, email), se propaga: quien llama reintenta en otra transaccion.
         final Registration registration = new Registration(eventId, normalizedEmail, name, status);
@@ -72,19 +69,58 @@ public class RegistrationServiceImpl implements RegistrationService {
             LOGGER.warn("No se pudo crear/actualizar el user para {}", normalizedEmail, e);
         }
 
-        // Dos avisos en los dos casos, siempre en otro hilo: uno a la persona y
-        // otro al dueno del evento. Lo que cambia es el texto, no la logica. Sin
-        // este if, a quien quedo en lista de espera le llegaria un mail que dice
-        // "confirmamos tu lugar", que es justo lo que no paso.
+        // Tres avisos posibles, siempre en otro hilo: uno a la persona y otro al
+        // dueno del evento. Lo que cambia es el texto, no la logica. Sin este if,
+        // a quien quedo en lista de espera (o pendiente de revision) le llegaria
+        // un mail que dice "confirmamos tu lugar", que es justo lo que no paso.
         if (full) {
             notificationService.notifyWaitlistJoined(event, registration);
             notificationService.notifyNewWaitlistEntry(event, registration);
+        } else if (Registration.STATUS_PENDING.equals(status)) {
+            notificationService.notifyRegistrationPending(event, registration);
+            notificationService.notifyNewPendingRegistration(event, registration);
         } else {
             notificationService.notifyRegistrationConfirmed(event, registration);
             notificationService.notifyNewRegistration(event, registration);
         }
 
-        return full ? RegistrationResult.WAITLISTED : RegistrationResult.CONFIRMED;
+        return registrationResult(status);
+    }
+
+    // Se distingue el caso porque el cartel no dice lo mismo: "ya estabas
+    // anotado" (tenes lugar) vs "ya estas en la lista de espera" vs "todavia
+    // estan revisando tu pedido" vs "ya te habian rechazado".
+    private static RegistrationResult alreadyExistsResult(final String status) {
+        if (Registration.STATUS_WAITLISTED.equals(status)) {
+            return RegistrationResult.ALREADY_WAITLISTED;
+        }
+        if (Registration.STATUS_PENDING.equals(status)) {
+            return RegistrationResult.ALREADY_PENDING;
+        }
+        if (Registration.STATUS_REJECTED.equals(status)) {
+            return RegistrationResult.REJECTED;
+        }
+        return RegistrationResult.ALREADY_REGISTERED;
+    }
+
+    // Sin lugar -> lista de espera (gana siempre: no tiene sentido "pending"
+    // sin cupo todavia). Con lugar y el evento pide confirmacion -> pending.
+    // Con lugar y no pide confirmacion -> confirmed, como siempre.
+    private static String registrationStatus(final Event event, final boolean full) {
+        if (full) {
+            return Registration.STATUS_WAITLISTED;
+        }
+        return event.isRequiresApproval() ? Registration.STATUS_PENDING : Registration.STATUS_CONFIRMED;
+    }
+
+    private static RegistrationResult registrationResult(final String status) {
+        if (Registration.STATUS_WAITLISTED.equals(status)) {
+            return RegistrationResult.WAITLISTED;
+        }
+        if (Registration.STATUS_PENDING.equals(status)) {
+            return RegistrationResult.PENDING;
+        }
+        return RegistrationResult.CONFIRMED;
     }
 
     @Override
@@ -100,14 +136,20 @@ public class RegistrationServiceImpl implements RegistrationService {
     }
 
     /**
-     * Un cupo puede estar ocupado (alguien confirmado) o RESERVADO (alguien con
-     * una invitacion de lista de espera que todavia no contesto). Los dos cuentan
-     * como lleno: si mirramos solo los confirmados, mientras la persona invitada
-     * decide, otra se anotaria desde la pagina y terminariamos con mas gente que
-     * lugares.
+     * Un cupo puede estar ocupado (alguien confirmado), RESERVADO por una
+     * invitacion de lista de espera sin contestar, o RESERVADO porque el
+     * creador todavia no reviso esa inscripcion (evento con requiresApproval).
+     * Los tres cuentan como lleno: si solo mirramos los confirmados, mientras
+     * alguien decide (la persona invitada, o el creador revisando pendientes)
+     * otra se anotaria desde la pagina y terminariamos con mas gente que
+     * lugares. Es debatible si "pending" deberia reservar cupo o no (el
+     * creador podria preferir revisar sin esa presion) - queda para discutir
+     * con el equipo, hoy se eligio el criterio mas conservador.
      */
     private long occupied(final long eventId) {
-        return registrationDao.countConfirmed(eventId) + waitlistService.countReserved(eventId);
+        return registrationDao.countConfirmed(eventId)
+                + waitlistService.countReserved(eventId)
+                + registrationDao.countPending(eventId);
     }
 
     @Override
@@ -153,5 +195,63 @@ public class RegistrationServiceImpl implements RegistrationService {
     @Transactional(readOnly = true)
     public List<Registration> findByEventId(final long eventId) {
         return registrationDao.findByEventId(eventId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Registration> findPendingByEvent(final long eventId, final String creatorEmail) {
+        if (!ownsEvent(eventId, creatorEmail)) {
+            return Collections.emptyList();
+        }
+        return registrationDao.findPendingByEvent(eventId);
+    }
+
+    @Override
+    @Transactional
+    public boolean approve(final long registrationId, final String creatorEmail) {
+        final Registration registration = pendingOwnedBy(registrationId, creatorEmail).orElse(null);
+        if (registration == null) {
+            return false;
+        }
+        registrationDao.updateStatus(registrationId, Registration.STATUS_CONFIRMED);
+        registration.setStatus(Registration.STATUS_CONFIRMED);
+        eventDao.findById(registration.getEventId())
+                .ifPresent(event -> notificationService.notifyRegistrationApproved(event, registration));
+        return true;
+    }
+
+    @Override
+    @Transactional
+    public boolean reject(final long registrationId, final String creatorEmail) {
+        final Registration registration = pendingOwnedBy(registrationId, creatorEmail).orElse(null);
+        if (registration == null) {
+            return false;
+        }
+        registrationDao.updateStatus(registrationId, Registration.STATUS_REJECTED);
+        registration.setStatus(Registration.STATUS_REJECTED);
+        final long eventId = registration.getEventId();
+        eventDao.findById(eventId)
+                .ifPresent(event -> notificationService.notifyRegistrationRejected(event, registration));
+        // El cupo que esta inscripcion tenia reservado (ver occupied()) se
+        // libera: se lo ofrecemos enseguida a quien siga en la lista de espera.
+        waitlistService.reconcile(eventId);
+        return true;
+    }
+
+    // Busca una inscripcion pendiente y confirma, en el mismo paso, que quien
+    // pide aprobarla/rechazarla es el creador del evento al que pertenece.
+    // Optional.empty() cubre los tres motivos de "no" (no existe, no esta
+    // pending, o es de otro creador) sin distinguirlos: a quien llama no le
+    // interesa por que no se pudo, solo que no se pudo.
+    private Optional<Registration> pendingOwnedBy(final long registrationId, final String creatorEmail) {
+        return registrationDao.findById(registrationId)
+                .filter(r -> Registration.STATUS_PENDING.equals(r.getStatus()))
+                .filter(r -> ownsEvent(r.getEventId(), creatorEmail));
+    }
+
+    private boolean ownsEvent(final long eventId, final String creatorEmail) {
+        return eventDao.findById(eventId)
+                .map(event -> event.getCreatorEmail().equalsIgnoreCase(creatorEmail.trim()))
+                .orElse(false);
     }
 }

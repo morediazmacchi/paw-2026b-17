@@ -37,6 +37,9 @@ CREATE TABLE IF NOT EXISTS event (
     created_at      TIMESTAMP NOT NULL DEFAULT now()
 );
 
+-- 'pending': la inscripcion espera que el creador la acepte o la rechace
+-- (evento con requires_approval). 'rejected' es un estado terminal: el
+-- creador la rechazo (ver RegistrationServiceImpl.reject()).
 CREATE TABLE IF NOT EXISTS registration (
     id                SERIAL PRIMARY KEY,
     event_id          INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
@@ -44,7 +47,7 @@ CREATE TABLE IF NOT EXISTS registration (
     name              VARCHAR(150),
     registered_at     TIMESTAMP NOT NULL DEFAULT now(),
     status            VARCHAR(20) DEFAULT 'confirmed' NOT NULL
-                          CHECK (status IN ('confirmed', 'waitlisted')),
+                          CHECK (status IN ('confirmed', 'waitlisted', 'pending', 'rejected')),
     UNIQUE (event_id, email)
 );
 
@@ -127,3 +130,54 @@ CREATE TABLE IF NOT EXISTS waitlist_invitation (
 -- tres columnas del indice, en ese orden.
 CREATE INDEX IF NOT EXISTS idx_registration_waitlist
     ON registration (event_id, status, registered_at);
+
+-- Eventos con confirmacion manual del organizador. Si esta en true, una
+-- inscripcion nueva no nace 'confirmed' sino 'pending': el creador la tiene
+-- que aceptar o rechazar el mismo (ver RegistrationServiceImpl.register()).
+ALTER TABLE event ADD COLUMN IF NOT EXISTS requires_approval BOOLEAN NOT NULL DEFAULT false;
+
+-- 'pending' (esperando que el creador decida) y 'rejected' (el creador la
+-- rechazo) se suman a los valores posibles de status. El CHECK de mas arriba
+-- (en el CREATE TABLE de "registration") ya nace con los 4 valores para
+-- cualquier base nueva (HSQLDB de los tests, o un Postgres recien creado).
+--
+-- Para el Postgres que YA existe (que tiene el CHECK viejo, de antes de este
+-- cambio, solo con 'confirmed'/'waitlisted'), la migracion que lo reemplaza
+-- vive aparte, en postgres-migrations.sql: ese constraint quedo sin nombre
+-- en el CREATE TABLE original, y ALTER TABLE ... DROP CONSTRAINT IF EXISTS
+-- es sintaxis de Postgres que HSQLDB no entiende (lo comprobamos a mano: tira
+-- error de parseo, no de "no existe"), asi que no puede vivir en este mismo
+-- archivo, que corren los dos motores.
+
+-- Eventos privados. Sin CHECK a proposito (mismo criterio que neighborhood,
+-- unas lineas mas arriba: son valores fijos de un enum de Java, EventVisibility,
+-- y esta columna no necesita filtrar por SQL crudo sobre su valor como si
+-- necesita registration.status para la lista de espera). Guarda el nombre
+-- de la constante tal cual (PUBLIC/PRIVATE, en mayusculas), mismo criterio
+-- que neighborhood con Barrio: siempre EventVisibility.name()/.valueOf().
+--
+-- No aparece en /eventos ni en las busquedas (ver EventJdbcDao.buildWhereClause):
+-- solo lo ve su creador, quien ya este anotado, o quien tenga una invitacion
+-- valida (ver event_invitation, mas abajo).
+ALTER TABLE event ADD COLUMN IF NOT EXISTS visibility VARCHAR(20) NOT NULL DEFAULT 'PUBLIC';
+
+-- Invitacion personal a un evento privado. Mismo espiritu que
+-- waitlist_invitation: el token ES la identificacion (se puede abrir sin
+-- login, o logueado con otra cuenta), no hay que ser la persona invitada para
+-- que el link funcione. La diferencia con waitlist_invitation es que ac no
+-- hay "aceptar o rechazar": el token solo desbloquea poder VER el evento
+-- (ver EventController.canView); inscribirse de ahi en mas sigue el camino
+-- normal de RegistrationServiceImpl.register(), con sus mismas reglas de
+-- cupo y de confirmacion del organizador si el evento las tiene.
+--
+-- UNIQUE(event_id, email) evita mandarle dos invitaciones (y dos mails) a la
+-- misma persona para el mismo evento.
+CREATE TABLE IF NOT EXISTS event_invitation (
+    id          SERIAL PRIMARY KEY,
+    event_id    INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
+    email       VARCHAR(150) NOT NULL,
+    token       VARCHAR(64) NOT NULL UNIQUE,
+    invited_by  VARCHAR(150) NOT NULL,
+    created_at  TIMESTAMP NOT NULL DEFAULT now(),
+    UNIQUE (event_id, email)
+);

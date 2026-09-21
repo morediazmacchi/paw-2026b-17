@@ -3,6 +3,7 @@ package ar.edu.itba.paw.persistence;
 import ar.edu.itba.paw.model.Barrio;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventSearchCriteria;
+import ar.edu.itba.paw.model.EventVisibility;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -98,6 +99,23 @@ public class EventJdbcDaoTest {
         assertFalse(found.isPresent());
     }
 
+    @Test
+    public void testCreateDefaultsRequiresApprovalToFalse() {
+        final Event created = eventDao.create(someEvent(categoryId));
+
+        assertFalse(eventDao.findById(created.getId()).get().isRequiresApproval());
+    }
+
+    @Test
+    public void testCreateAndFindByIdPersistRequiresApprovalWhenSetToTrue() {
+        final Event event = someEvent(categoryId);
+        event.setRequiresApproval(true);
+
+        final Event created = eventDao.create(event);
+
+        assertTrue(eventDao.findById(created.getId()).get().isRequiresApproval());
+    }
+
     @Test(expected = DataAccessException.class)
     public void testCreateWithNonexistentCategoryThrowsDataAccessException() {
         eventDao.create(someEvent(categoryId + 1000));
@@ -149,6 +167,23 @@ public class EventJdbcDaoTest {
         final Event changes = someEvent(categoryId + 1000);
         changes.setId(created.getId());
         eventDao.update(changes);
+    }
+
+    @Test
+    public void testCreateDefaultsVisibilityToPublic() {
+        final Event created = eventDao.create(someEvent(categoryId));
+
+        assertEquals(EventVisibility.PUBLIC, eventDao.findById(created.getId()).get().getVisibility());
+    }
+
+    @Test
+    public void testCreateAndFindByIdPersistVisibilityWhenSetToPrivate() {
+        final Event event = someEvent(categoryId);
+        event.setVisibility(EventVisibility.PRIVATE);
+
+        final Event created = eventDao.create(event);
+
+        assertEquals(EventVisibility.PRIVATE, eventDao.findById(created.getId()).get().getVisibility());
     }
 
     // ---- findByIdForUpdate(): el SELECT ... FOR UPDATE que usa el lock de cupo ----
@@ -314,5 +349,55 @@ public class EventJdbcDaoTest {
         criteria.setPageSize(10);
 
         assertEquals(1, eventDao.search(criteria).size());
+    }
+
+    // ---- search(): eventos privados ----
+
+    /**
+     * EL TEST QUE IMPIDE QUE UN EVENTO PRIVADO SE FILTRE POR EL LISTADO. Un
+     * evento privado no tiene que aparecer aca pase lo que pase en el resto
+     * de los filtros: si esto devolviera el evento, cualquiera lo encontraria
+     * buscando, sin necesitar el link directo ni estar invitado.
+     */
+    @Test
+    public void testSearchExcludesPrivateEvents() {
+        final Event privateEvent = someEvent(categoryId);
+        privateEvent.setEventDate(new Date(System.currentTimeMillis() + 86_400_000L));
+        privateEvent.setVisibility(EventVisibility.PRIVATE);
+        eventDao.create(privateEvent);
+
+        final EventSearchCriteria criteria = new EventSearchCriteria();
+        criteria.setPageSize(10);
+
+        assertTrue(eventDao.search(criteria).isEmpty());
+        assertEquals(0, eventDao.countSearch(criteria));
+    }
+
+    @Test
+    public void testSearchIncludesPublicEventsAlongsidePrivateOnes() {
+        final Event privateEvent = someEvent(categoryId);
+        privateEvent.setEventDate(new Date(System.currentTimeMillis() + 86_400_000L));
+        privateEvent.setVisibility(EventVisibility.PRIVATE);
+        eventDao.create(privateEvent);
+
+        final Event publicEvent = someEvent(categoryId);
+        publicEvent.setEventDate(new Date(System.currentTimeMillis() + 86_400_000L));
+        eventDao.create(publicEvent);
+
+        final EventSearchCriteria criteria = new EventSearchCriteria();
+        criteria.setPageSize(10);
+
+        assertEquals(1, eventDao.search(criteria).size());
+    }
+
+    // findAll/findByCreatorEmail SI tienen que devolver privados: "Mis eventos"
+    // (findByCreatorEmail) es justamente donde el creador los ve y los gestiona.
+    @Test
+    public void testFindByCreatorEmailIncludesPrivateEvents() {
+        final Event privateEvent = someEvent(categoryId);
+        privateEvent.setVisibility(EventVisibility.PRIVATE);
+        eventDao.create(privateEvent);
+
+        assertEquals(1, eventDao.findByCreatorEmail(CREATOR_EMAIL).size());
     }
 }

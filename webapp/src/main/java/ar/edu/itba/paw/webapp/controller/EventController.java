@@ -4,11 +4,13 @@ import ar.edu.itba.paw.model.Barrio;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.EventSort;
+import ar.edu.itba.paw.model.EventVisibility;
 import ar.edu.itba.paw.model.Image;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.Review;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.CategoryService;
+import ar.edu.itba.paw.services.EventInvitationService;
 import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.EventUpdateResult;
 import ar.edu.itba.paw.services.FavoriteService;
@@ -64,13 +66,15 @@ public class EventController {
     private final UserService userService;
     private final FavoriteService favoriteService;
     private final ReviewService reviewService;
+    private final EventInvitationService eventInvitationService;
     private final MessageSource messageSource;
 
     @Autowired
     public EventController(final EventService eventService, final CategoryService categoryService,
                             final RegistrationService registrationService, final ImageService imageService,
                             final UserService userService, final FavoriteService favoriteService,
-                            final ReviewService reviewService, final MessageSource messageSource) {
+                            final ReviewService reviewService, final EventInvitationService eventInvitationService,
+                            final MessageSource messageSource) {
         this.eventService = eventService;
         this.categoryService = categoryService;
         this.registrationService = registrationService;
@@ -78,6 +82,7 @@ public class EventController {
         this.userService = userService;
         this.favoriteService = favoriteService;
         this.reviewService = reviewService;
+        this.eventInvitationService = eventInvitationService;
         this.messageSource = messageSource;
     }
 
@@ -342,31 +347,70 @@ public class EventController {
     @RequestMapping(value = "/eventos/{id}", method = RequestMethod.GET)
     public ModelAndView detail(@PathVariable final long id,
                                 @RequestParam(value = "rsvp", required = false) final String rsvp,
+                                // Token de invitacion a un evento privado (ver EventInvitationService):
+                                // llega por el link del mail, viaja como query param y despues como
+                                // hidden del form de RSVP (ver detail.jsp) para sobrevivir al POST.
+                                @RequestParam(value = "invitacion", required = false) final String invitacion,
                                 final Principal principal) {
-        return eventService.findById(id)
-                .map(event -> {
-                    final ModelAndView mav = new ModelAndView("events/detail");
-                    mav.addObject("event", event);
-                    mav.addObject("rsvp", rsvp);
-                    mav.addObject("full", registrationService.isFull(id));
-                    mav.addObject("finished", event.getEventDate().before(new Date()));
-                    mav.addObject("availableSpots", registrationService.availableSpots(id));
-                    if (principal != null) {
-                        final User user = currentUser(principal);
-                        mav.addObject("favorite", favoriteService.isFavorite(user.getId(), id));
-                        // No alcanza con saber SI esta anotada: el boton dice "Darme de
-                        // baja" o "Salir de la lista de espera" segun en que estado quedo.
-                        final Optional<Registration> myRegistration =
-                                registrationService.findByEventAndEmail(id, user.getEmail());
-                        mav.addObject("registered", myRegistration.isPresent());
-                        mav.addObject("waitlisted", myRegistration
-                                .map(r -> Registration.STATUS_WAITLISTED.equals(r.getStatus()))
-                                .orElse(false));
-                    }
-                    addCreatorReputation(mav, event.getCreatorEmail());
-                    return mav;
-                })
-                .orElseThrow(() -> new EventNotFoundException(id));
+        final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
+        // Para un evento privado, la inscripcion propia (si existe) no es solo
+        // dato para la tarjeta de RSVP: es tambien la prueba de que quien pide
+        // esto tiene algo que ver con el evento. Por eso se busca ANTES del
+        // chequeo de acceso, en vez de mas abajo como antes.
+        final Optional<Registration> myRegistration = principal == null
+                ? Optional.empty()
+                : registrationService.findByEventAndEmail(id, principal.getName());
+        if (!canView(event, principal, myRegistration, invitacion)) {
+            // Mismo 404 que un id inexistente: no hay que revelar que el
+            // evento existe pero que no es para vos.
+            throw new EventNotFoundException(id);
+        }
+
+        final ModelAndView mav = new ModelAndView("events/detail");
+        mav.addObject("event", event);
+        mav.addObject("rsvp", rsvp);
+        mav.addObject("invitacion", invitacion);
+        mav.addObject("full", registrationService.isFull(id));
+        mav.addObject("finished", event.getEventDate().before(new Date()));
+        mav.addObject("availableSpots", registrationService.availableSpots(id));
+        if (principal != null) {
+            final User user = currentUser(principal);
+            mav.addObject("favorite", favoriteService.isFavorite(user.getId(), id));
+            // No alcanza con saber SI esta anotada: el boton dice "Darme de
+            // baja", "Salir de la lista de espera" o "Cancelar mi pedido"
+            // segun en que estado quedo. Un rechazo NO cuenta como "anotado":
+            // ese estado no tiene nada que cancelar, es terminal.
+            final String myStatus = myRegistration.map(Registration::getStatus).orElse(null);
+            mav.addObject("registered", myRegistration.isPresent()
+                    && !Registration.STATUS_REJECTED.equals(myStatus));
+            mav.addObject("waitlisted", Registration.STATUS_WAITLISTED.equals(myStatus));
+            mav.addObject("pendingApproval", Registration.STATUS_PENDING.equals(myStatus));
+            mav.addObject("rejected", Registration.STATUS_REJECTED.equals(myStatus));
+        }
+        addCreatorReputation(mav, event.getCreatorEmail());
+        return mav;
+    }
+
+    // Un evento publico lo puede ver cualquiera, como siempre. Uno privado
+    // solo su creador, alguien que ya tenga una fila de inscripcion (en
+    // cualquier estado, incluido rechazado: si te rechazaron es porque en
+    // algun momento tuviste acceso, no tiene sentido que ahora te vuelvas a
+    // topar con un 404), o alguien con un token de invitacion valido para
+    // este evento (el token es la credencial, sin importar con que cuenta
+    // este logueado quien lo trae, o si no esta logueado: mismo criterio que
+    // WaitlistInvitation).
+    private boolean canView(final Event event, final Principal principal,
+                             final Optional<Registration> myRegistration, final String invitacion) {
+        if (!event.isPrivate()) {
+            return true;
+        }
+        if (principal != null && event.getCreatorEmail().equalsIgnoreCase(principal.getName())) {
+            return true;
+        }
+        if (myRegistration.isPresent()) {
+            return true;
+        }
+        return eventInvitationService.grantsAccess(invitacion, event.getId());
     }
 
     // Puntaje del promotor (todas sus reseñas, de todos sus eventos) + la lista
@@ -455,6 +499,8 @@ public class EventController {
         // form, cualquiera podria publicar un evento a nombre de otro email.
         final Event event = new Event(form.getTitulo(), form.getDescripcion(), parsedDate, form.getDireccion(),
                 parsedBarrio, imageId, parsedPrice, parsedCapacity, principal.getName(), form.getCategoriaId());
+        event.setRequiresApproval(form.isRequiereAprobacion());
+        event.setVisibility(form.isPrivado() ? EventVisibility.PRIVATE : EventVisibility.PUBLIC);
         try {
             eventService.create(event);
         } catch (final IllegalArgumentException e) {
@@ -495,8 +541,17 @@ public class EventController {
     // WebAuthConfig, asi que ya cae bajo anyRequest().authenticated(). Un
     // Principal siempre presente en este metodo implica un User existente.
     @RequestMapping(value = "/eventos/{id}/quiero-ir", method = RequestMethod.POST)
-    public ModelAndView rsvp(@PathVariable final long id, final Principal principal) {
+    public ModelAndView rsvp(@PathVariable final long id,
+                              @RequestParam(value = "invitacion", required = false) final String invitacion,
+                              final Principal principal) {
         final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
+        // Mismo chequeo que el detalle: el boton ya esta escondido en la UI si
+        // no tenes acceso, pero un POST directo no se puede confiar solo en eso.
+        final Optional<Registration> myRegistration =
+                registrationService.findByEventAndEmail(id, principal.getName());
+        if (!canView(event, principal, myRegistration, invitacion)) {
+            throw new EventNotFoundException(id);
+        }
         // La UI ya esconde el boton en este caso (ver detail.jsp), pero un POST
         // directo igual no tiene que poder anotarte a algo que ya paso.
         if (event.getEventDate().before(new Date())) {
@@ -511,16 +566,22 @@ public class EventController {
         return new ModelAndView("redirect:/eventos/" + id + "?rsvp=" + rsvpParam(result));
     }
 
-    // Los 4 finales posibles del RSVP viajan como parametro en la URL
+    // Los finales posibles del RSVP viajan como parametro en la URL
     // (POST-Redirect-GET) y detail.jsp elige el cartel a partir de esto.
     private static String rsvpParam(final RegistrationResult result) {
         switch (result) {
             case WAITLISTED:
                 return "waitlist";
+            case PENDING:
+                return "pendiente";
             case ALREADY_REGISTERED:
                 return "ya-anotado";
             case ALREADY_WAITLISTED:
                 return "ya-en-waitlist";
+            case ALREADY_PENDING:
+                return "ya-pendiente";
+            case REJECTED:
+                return "rechazado";
             case CONFIRMED:
             default:
                 return "confirmed";
@@ -550,13 +611,19 @@ public class EventController {
         final User user = currentUser(principal);
         final Optional<Registration> registration = registrationService.findByEventAndEmail(id, user.getEmail());
         // Se mira ANTES de borrar: despues la fila ya no existe y no hay forma
-        // de saber si el cartel tiene que decir "te diste de baja del evento"
-        // o "saliste de la lista de espera".
-        final boolean wasWaitlisted = registration
-                .map(r -> Registration.STATUS_WAITLISTED.equals(r.getStatus()))
-                .orElse(false);
+        // de saber que cartel corresponde ("te diste de baja del evento",
+        // "saliste de la lista de espera" o "cancelaste tu pedido pendiente").
+        final String status = registration.map(Registration::getStatus).orElse(null);
         registration.ifPresent(r -> registrationService.cancel(r.getId(), user.getEmail()));
-        return new ModelAndView("redirect:/eventos/" + id + "?rsvp=" + (wasWaitlisted ? "baja-waitlist" : "baja"));
+        final String rsvpParam;
+        if (Registration.STATUS_WAITLISTED.equals(status)) {
+            rsvpParam = "baja-waitlist";
+        } else if (Registration.STATUS_PENDING.equals(status)) {
+            rsvpParam = "baja-pendiente";
+        } else {
+            rsvpParam = "baja";
+        }
+        return new ModelAndView("redirect:/eventos/" + id + "?rsvp=" + rsvpParam);
     }
 
     // Busca el evento y confirma que quien esta pidiendolo es su creador. Si no

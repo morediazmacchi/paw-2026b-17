@@ -58,4 +58,26 @@ public interface RegistrationService {
      * mostrar esta lista.
      */
     List<Registration> findByEventId(long eventId);
+
+    /**
+     * Pantalla de "aceptar o rechazar inscriptos" del creador: las pendientes
+     * de este evento, de la que espera hace mas tiempo a la mas reciente.
+     * Devuelve vacio si el evento no existe o no es de ese email (no revela
+     * cual de las dos cosas paso).
+     */
+    List<Registration> findPendingByEvent(long eventId, String creatorEmail);
+
+    /**
+     * El creador acepta una inscripcion pendiente: pasa a "confirmed" y se le
+     * avisa a la persona por mail. Devuelve false (sin tocar nada) si la
+     * inscripcion no existe, no esta pendiente, o el evento no es de ese email.
+     */
+    boolean approve(long registrationId, String creatorEmail);
+
+    /**
+     * El creador rechaza una inscripcion pendiente: pasa a "rejected" (queda
+     * la fila, no se puede volver a pedir lugar en este evento con ese mail)
+     * y se le avisa a la persona por mail. Mismas condiciones de false que approve().
+     */
+    boolean reject(long registrationId, String creatorEmail);
 }

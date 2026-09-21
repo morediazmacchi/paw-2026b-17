@@ -7,6 +7,10 @@ public class Registration {
     // Tienen que coincidir con el CHECK de la columna status en la tabla registration.
     public static final String STATUS_CONFIRMED = "confirmed";
     public static final String STATUS_WAITLISTED = "waitlisted";
+    // Solo existe en eventos con requiresApproval=true: espera a que el creador la acepte o la rechace.
+    public static final String STATUS_PENDING = "pending";
+    // Estado terminal: el creador la rechazo (ver RegistrationServiceImpl.reject()).
+    public static final String STATUS_REJECTED = "rejected";
 
     private long id;
     private long eventId;

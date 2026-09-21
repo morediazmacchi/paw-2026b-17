@@ -5,6 +5,9 @@
 <%@ attribute name="ubicacion" required="false" %>
 <%@ attribute name="precio" required="false" type="java.lang.Double" %>
 <%@ attribute name="imagenId" required="false" type="java.lang.Long" %>
+<%-- Solo la usa "Mis eventos" (los privados no aparecen en ningun otro
+     listado que use este tag, asi que en el resto siempre viene false). --%>
+<%@ attribute name="privado" required="false" type="java.lang.Boolean" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <%@ taglib prefix="fmt" uri="http://java.sun.com/jsp/jstl/fmt" %>
 <%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
@@ -22,7 +25,12 @@
             </c:if>
         </div>
         <div class="event-row-info">
-            <h3 class="event-row-title"><c:out value="${nombre}" /></h3>
+            <h3 class="event-row-title">
+                <c:out value="${nombre}" />
+                <c:if test="${privado}">
+                    <span class="event-row-private-tag">(<spring:message code="event.publish.privateLabel"/>)</span>
+                </c:if>
+            </h3>
             <p class="event-row-meta">
                 <fmt:formatDate value="${fecha}" pattern="EEE dd/MM · HH:mm" />hs
                 <c:if test="${not empty ubicacion}"> &middot; <c:out value="${ubicacion}"/></c:if>

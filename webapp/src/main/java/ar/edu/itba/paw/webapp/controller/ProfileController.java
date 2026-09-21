@@ -1,16 +1,21 @@
 package ar.edu.itba.paw.webapp.controller;
 
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.EventInvitation;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.Review;
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.services.EventInvitationResult;
+import ar.edu.itba.paw.services.EventInvitationService;
 import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.FavoriteService;
 import ar.edu.itba.paw.services.ProfileUpdateResult;
 import ar.edu.itba.paw.services.RegistrationService;
 import ar.edu.itba.paw.services.ReviewService;
 import ar.edu.itba.paw.services.UserService;
+import ar.edu.itba.paw.webapp.exception.EventNotFoundException;
 import ar.edu.itba.paw.webapp.form.ChangePasswordForm;
+import ar.edu.itba.paw.webapp.form.InviteForm;
 import ar.edu.itba.paw.webapp.form.ProfileForm;
 import ar.edu.itba.paw.webapp.form.ReviewForm;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,12 +52,14 @@ public class ProfileController {
     private final EventService eventService;
     private final FavoriteService favoriteService;
     private final ReviewService reviewService;
+    private final EventInvitationService eventInvitationService;
     private final MessageSource messageSource;
 
     @Autowired
     public ProfileController(final UserService userService, final UserDetailsService userDetailsService,
                               final RegistrationService registrationService, final EventService eventService,
                               final FavoriteService favoriteService, final ReviewService reviewService,
+                              final EventInvitationService eventInvitationService,
                               final MessageSource messageSource) {
         this.userService = userService;
         this.userDetailsService = userDetailsService;
@@ -60,6 +67,7 @@ public class ProfileController {
         this.eventService = eventService;
         this.favoriteService = favoriteService;
         this.reviewService = reviewService;
+        this.eventInvitationService = eventInvitationService;
         this.messageSource = messageSource;
     }
 
@@ -306,6 +314,108 @@ public class ProfileController {
             }
             mav.addObject("reviewEventsById", reviewEventsById);
         }
+        // Badge "N pendientes" por evento en eventRow.tag: solo tiene sentido
+        // para eventos con requiresApproval, no vale la pena consultar el resto.
+        final Map<Long, Integer> pendingCountsByEventId = new HashMap<>();
+        for (final Event event : createdEvents) {
+            if (event.isRequiresApproval()) {
+                pendingCountsByEventId.put(event.getId(),
+                        registrationService.findPendingByEvent(event.getId(), user.getEmail()).size());
+            }
+        }
+        mav.addObject("pendingCountsByEventId", pendingCountsByEventId);
+        return mav;
+    }
+
+    // No hace falta antMatcher propio: cae bajo anyRequest().authenticated().
+    // Si no sos el creador de este evento, EventNotFoundException (mismo 404
+    // que el resto de la app): no hay nada para vos aca, ni siquiera un 403
+    // que confirme que el evento existe.
+    @RequestMapping(value = "/perfil/eventos/{id}/inscriptos", method = RequestMethod.GET)
+    public ModelAndView pendingRegistrations(@PathVariable final long id,
+                                              @RequestParam(value = "approved", required = false) final String approvedParam,
+                                              @RequestParam(value = "rejected", required = false) final String rejectedParam,
+                                              final Principal principal) {
+        final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
+        final User user = currentUser(principal);
+        if (!event.getCreatorEmail().equalsIgnoreCase(user.getEmail())) {
+            throw new EventNotFoundException(id);
+        }
+
+        final ModelAndView mav = new ModelAndView("auth/inscriptos");
+        mav.addObject("user", user);
+        mav.addObject("event", event);
+        mav.addObject("pendingRegistrations", registrationService.findPendingByEvent(id, user.getEmail()));
+        mav.addObject("approved", approvedParam != null);
+        mav.addObject("rejected", rejectedParam != null);
+        mav.addObject("registrationsCount", registrationsCountFor(user));
+        mav.addObject("favoritesCount", favoritesCountFor(user));
+        mav.addObject("eventsCount", eventsCountFor(user));
+        return mav;
+    }
+
+    @RequestMapping(value = "/perfil/eventos/{id}/inscriptos/{registrationId}/aceptar", method = RequestMethod.POST)
+    public ModelAndView approveRegistration(@PathVariable final long id, @PathVariable final long registrationId,
+                                             final Principal principal) {
+        registrationService.approve(registrationId, principal.getName());
+        return new ModelAndView("redirect:/perfil/eventos/" + id + "/inscriptos?approved");
+    }
+
+    @RequestMapping(value = "/perfil/eventos/{id}/inscriptos/{registrationId}/rechazar", method = RequestMethod.POST)
+    public ModelAndView rejectRegistration(@PathVariable final long id, @PathVariable final long registrationId,
+                                            final Principal principal) {
+        registrationService.reject(registrationId, principal.getName());
+        return new ModelAndView("redirect:/perfil/eventos/" + id + "/inscriptos?rejected");
+    }
+
+    // Invitar solo tiene sentido en un evento privado: uno publico ya tiene un
+    // link que se puede compartir sin necesitar un token. Mismo 404 que
+    // pendingRegistrations si no sos el creador, o si el evento no es privado.
+    @RequestMapping(value = "/perfil/eventos/{id}/invitar", method = RequestMethod.GET)
+    public ModelAndView inviteForm(@PathVariable final long id,
+                                    @RequestParam(value = "sent", required = false) final String sentParam,
+                                    @RequestParam(value = "alreadyInvited", required = false) final String alreadyInvitedParam,
+                                    final Principal principal) {
+        final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
+        final User user = currentUser(principal);
+        if (!event.getCreatorEmail().equalsIgnoreCase(user.getEmail()) || !event.isPrivate()) {
+            throw new EventNotFoundException(id);
+        }
+        return inviteFormView(event, user, new InviteForm(), null, sentParam != null, alreadyInvitedParam != null);
+    }
+
+    @RequestMapping(value = "/perfil/eventos/{id}/invitar", method = RequestMethod.POST)
+    public ModelAndView invite(@PathVariable final long id, @Valid final InviteForm form, final BindingResult errors,
+                                final Principal principal) {
+        final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
+        final User user = currentUser(principal);
+        if (!event.getCreatorEmail().equalsIgnoreCase(user.getEmail()) || !event.isPrivate()) {
+            throw new EventNotFoundException(id);
+        }
+        if (errors.hasErrors()) {
+            return inviteFormView(event, user, form, errors, false, false);
+        }
+        final EventInvitationResult result = eventInvitationService.invite(id, user.getEmail(), form.getEmail());
+        final String param = result == EventInvitationResult.ALREADY_INVITED ? "alreadyInvited" : "sent";
+        return new ModelAndView("redirect:/perfil/eventos/" + id + "/invitar?" + param);
+    }
+
+    private ModelAndView inviteFormView(final Event event, final User user, final InviteForm form,
+                                         final BindingResult errors, final boolean sent, final boolean alreadyInvited) {
+        final List<EventInvitation> invitations = eventInvitationService.findByEvent(event.getId(), user.getEmail());
+        final ModelAndView mav = new ModelAndView("auth/invitar");
+        mav.addObject("user", user);
+        mav.addObject("event", event);
+        mav.addObject("inviteForm", form);
+        if (errors != null) {
+            mav.addObject("fieldErrors", fieldErrorsOf(errors));
+        }
+        mav.addObject("invitations", invitations);
+        mav.addObject("sent", sent);
+        mav.addObject("alreadyInvited", alreadyInvited);
+        mav.addObject("registrationsCount", registrationsCountFor(user));
+        mav.addObject("favoritesCount", favoritesCountFor(user));
+        mav.addObject("eventsCount", eventsCountFor(user));
         return mav;
     }
 
