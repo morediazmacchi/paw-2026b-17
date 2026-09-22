@@ -80,4 +80,11 @@ public interface NotificationService {
 
     /** El creador cancelo el evento -> le avisa a cada inscripto confirmado. */
     void notifyEventCancelled(Event event, Registration registration);
+
+    /**
+     * El creador edito el evento -> le avisa a cada inscripto confirmado.
+     * "event" son los datos YA actualizados (lo que cambio es justo lo que
+     * el mail tiene que mostrar).
+     */
+    void notifyEventUpdated(Event event, Registration registration);
 }

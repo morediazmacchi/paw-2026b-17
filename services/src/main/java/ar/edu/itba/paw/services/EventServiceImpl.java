@@ -95,6 +95,14 @@ public class EventServiceImpl implements EventService {
         }
         changes.setId(eventId);
         eventDao.update(changes);
+        // Solo a los confirmados, mismo criterio que cancel(): a alguien
+        // pendiente/rechazado/en lista de espera todavia no tiene un lugar
+        // asegurado en base al cual le importe que cambio el evento.
+        for (final Registration registration : registrationDao.findByEventId(eventId)) {
+            if (Registration.STATUS_CONFIRMED.equals(registration.getStatus())) {
+                notificationService.notifyEventUpdated(changes, registration);
+            }
+        }
         return EventUpdateResult.UPDATED;
     }
 

@@ -217,6 +217,36 @@ public class EventServiceImplTest {
     }
 
     @Test
+    public void testUpdateSucceedsAndNotifiesOnlyConfirmedRegistrants() {
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(someEvent()));
+        final Event changes = someEvent();
+        final Registration confirmed = new Registration(EVENT_ID, "confirmado@mail.com", "Confirmado",
+                Registration.STATUS_CONFIRMED);
+        final Registration waitlisted = new Registration(EVENT_ID, "espera@mail.com", "Espera",
+                Registration.STATUS_WAITLISTED);
+        when(mockRegistrationDao.findByEventId(EVENT_ID)).thenReturn(Arrays.asList(confirmed, waitlisted));
+
+        final EventUpdateResult result = eventService.update(EVENT_ID, changes, CREATOR_EMAIL);
+
+        assertEquals(EventUpdateResult.UPDATED, result);
+        verify(mockNotificationService).notifyEventUpdated(changes, confirmed);
+        verify(mockNotificationService, never())
+                .notifyEventUpdated(any(Event.class), org.mockito.ArgumentMatchers.eq(waitlisted));
+    }
+
+    @Test
+    public void testUpdateWhenCapacityTooLowDoesNotNotifyAnyone() {
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(someEvent()));
+        final Event changes = someEvent();
+        changes.setMaxCapacity(3);
+        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(5L);
+
+        eventService.update(EVENT_ID, changes, CREATOR_EMAIL);
+
+        verify(mockNotificationService, never()).notifyEventUpdated(any(Event.class), any(Registration.class));
+    }
+
+    @Test
     public void testCancelSucceedsAndNotifiesOnlyConfirmedRegistrants() {
         when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(someEvent()));
         final Registration confirmed = new Registration(EVENT_ID, "confirmado@mail.com", "Confirmado",
