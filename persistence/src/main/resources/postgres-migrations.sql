@@ -61,3 +61,18 @@ WHERE e.category_id IS NOT NULL
 ON CONFLICT (event_id, category_id) DO NOTHING;
 
 ALTER TABLE event DROP COLUMN IF EXISTS category_id;
+
+-- Varias fotos por evento (evento 1:N imagen, ver event_image en schema.sql).
+-- Mismo mecanismo e idempotencia que la migracion de arriba: event_image no
+-- tiene una clave compuesta como event_category (su PK es un id propio), asi
+-- que ON CONFLICT no aplica aca, pero no hace falta: despues de la primera
+-- corrida (la que migra los datos reales), la columna que ADD COLUMN IF NOT
+-- EXISTS vuelve a crear en cada arranque siguiente nace vacia -- el SELECT no
+-- devuelve filas y el INSERT no duplica nada.
+ALTER TABLE event ADD COLUMN IF NOT EXISTS image_id INTEGER;
+
+INSERT INTO event_image (event_id, image_id)
+SELECT e.id, e.image_id FROM event e
+WHERE e.image_id IS NOT NULL;
+
+ALTER TABLE event DROP COLUMN IF EXISTS image_id;

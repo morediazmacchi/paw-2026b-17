@@ -13,7 +13,12 @@ public class Event {
     private Date eventDate;
     private String address;
     private Barrio neighborhood;
-    private Long imageId;
+    // Un evento puede tener varias fotos (relacion 1:N, ver event_image en
+    // schema.sql), en orden de subida. No hay getImageId()/setImageId() como
+    // columna propia: getImageId() (mas abajo) deriva la portada de esta
+    // lista para no tener que tocar los varios JSP que ya la usan (cards,
+    // "Mis eventos", favoritos, inscripciones).
+    private List<Long> imageIds = new ArrayList<>();
     private double price;
     private Integer maxCapacity;
     private String creatorEmail;
@@ -45,14 +50,14 @@ public class Event {
     // categoria (para eso esta setCategories(), usado por el wizard de
     // publicar/editar, que si carga extraInfo por cada una).
     public Event(final String title, final String description, final Date eventDate, final String address,
-                 final Barrio neighborhood, final Long imageId, final double price, final Integer maxCapacity,
+                 final Barrio neighborhood, final List<Long> imageIds, final double price, final Integer maxCapacity,
                  final String creatorEmail, final List<Long> categoryIds) {
         this.title = title;
         this.description = description;
         this.eventDate = eventDate;
         this.address = address;
         this.neighborhood = neighborhood;
-        this.imageId = imageId;
+        this.imageIds = imageIds == null ? new ArrayList<>() : imageIds;
         this.price = price;
         this.maxCapacity = maxCapacity;
         this.creatorEmail = creatorEmail;
@@ -72,8 +77,15 @@ public class Event {
     public void setAddress(final String address) { this.address = address; }
     public Barrio getNeighborhood() { return neighborhood; }
     public void setNeighborhood(final Barrio neighborhood) { this.neighborhood = neighborhood; }
-    public Long getImageId() { return imageId; }
-    public void setImageId(final Long imageId) { this.imageId = imageId; }
+    // La portada: la primera foto de la galeria, o null si el evento no tiene
+    // ninguna. Se usa en todos lados donde hace falta una sola miniatura
+    // (tarjetas, "Mis eventos", favoritos, inscripciones); getImageIds()
+    // (mas abajo) es la galeria completa, para el detalle.
+    public Long getImageId() { return imageIds.isEmpty() ? null : imageIds.get(0); }
+    public List<Long> getImageIds() { return imageIds; }
+    public void setImageIds(final List<Long> imageIds) {
+        this.imageIds = imageIds == null ? new ArrayList<>() : imageIds;
+    }
     public double getPrice() { return price; }
     public void setPrice(final double price) { this.price = price; }
     public Integer getMaxCapacity() { return maxCapacity; }

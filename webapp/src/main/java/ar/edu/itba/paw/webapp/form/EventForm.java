@@ -2,6 +2,7 @@
 package ar.edu.itba.paw.webapp.form;
 
 import javax.validation.Valid;
+import javax.validation.constraints.Digits;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.Pattern;
 import javax.validation.constraints.Size;
@@ -38,12 +39,23 @@ public class EventForm {
     @Size(max = 80, message = "El barrio no puede superar los 80 caracteres")
     private String barrio;
 
+    // @Digits acota a lo que entra en la columna price, NUMERIC(10,2) (hasta
+    // 8 digitos enteros): sin esto, un precio mas grande pasa el @Pattern (que
+    // solo valida la forma) y explota como DataIntegrityViolationException
+    // recien al insertar, que EventServiceImpl.create() interpreta como
+    // "la categoria no existe" -- un error total mente enganoso para quien
+    // solo escribio un precio de mas.
     @NotBlank(message = "El precio es obligatorio (0 si es evento gratuito)")
     @Pattern(regexp = "^[0-9]+(\\.[0-9]{1,2})?$", message = "El precio tiene que ser un numero valido, ej: 0 o 1500.50")
+    @Digits(integer = 8, fraction = 2, message = "El precio no puede tener mas de 8 digitos enteros")
     private String precio;
 
+    // Mismo motivo que el @Digits de precio: sin cota, un cupo mas grande que
+    // Integer.MAX_VALUE hace que Integer.valueOf() explote con
+    // NumberFormatException sin capturar en el controller.
     @NotBlank(message = "El cupo maximo es obligatorio (0 si no hay limite)")
     @Pattern(regexp = "^[0-9]+$", message = "El cupo maximo tiene que ser un numero entero")
+    @Digits(integer = 9, fraction = 0, message = "El cupo maximo no puede tener mas de 9 digitos")
     private String cupoMaximo;
 
     // Checkbox comun (sin JSR-303: ausente en el request = false, no hay nada

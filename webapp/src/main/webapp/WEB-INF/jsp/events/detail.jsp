@@ -1,6 +1,7 @@
 <%@ page contentType="text/html;charset=UTF-8" pageEncoding="UTF-8" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <%@ taglib prefix="fmt" uri="http://java.sun.com/jsp/jstl/fmt" %>
+<%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions" %>
 <%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
 <%@ taglib prefix="sec" uri="http://www.springframework.org/security/tags" %>
 <%@ taglib prefix="paw" tagdir="/WEB-INF/tags" %>
@@ -59,6 +60,19 @@
     </div>
     <h1 class="detail-hero-title"><c:out value="${event.title}"/></h1>
 </section>
+
+<%-- Galeria: solo si hay mas de una foto (la primera ya se ve en el hero de
+     arriba). Cada miniatura abre la foto entera en una pestaña nueva -- sin
+     carrusel ni reordenamiento, alcanza para "verlas todas". --%>
+<c:if test="${fn:length(event.imageIds) > 1}">
+    <section class="detail-gallery">
+        <c:forEach var="imgId" items="${event.imageIds}">
+            <a href="<c:url value='/image/${imgId}'/>" target="_blank" rel="noopener">
+                <img class="detail-gallery-thumb" src="<c:url value='/image/${imgId}'/>" alt=""/>
+            </a>
+        </c:forEach>
+    </section>
+</c:if>
 
 <main class="page detail-page">
     <c:if test="${not empty rsvp}">

@@ -27,6 +27,7 @@ import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(SpringJUnit4ClassRunner.class)
@@ -68,6 +69,13 @@ public class EventJdbcDaoTest {
     private void insertReview(final long eventId, final long userId, final int rating) {
         jdbcTemplate.update("INSERT INTO review (event_id, user_id, rating) VALUES (?, ?, ?)",
                 eventId, userId, rating);
+    }
+
+    private long insertImage() {
+        jdbcTemplate.update(
+                "INSERT INTO image (data, content_type) VALUES (?, ?)",
+                new byte[] {1, 2, 3}, "image/png");
+        return jdbcTemplate.queryForObject("SELECT id FROM image ORDER BY id DESC LIMIT 1", Long.class);
     }
 
     private static Event someEvent(final long categoryId) {
@@ -170,6 +178,59 @@ public class EventJdbcDaoTest {
         assertEquals(1, found.size());
         assertEquals(OTHER_CATEGORY_NAME, found.get(0).getCategoryName());
         assertEquals("Torneo 5 contra 5", found.get(0).getExtraInfo());
+    }
+
+    // ---- create()/update(): varias fotos ----
+
+    @Test
+    public void testCreateWithoutImagesLeavesTheGalleryEmpty() {
+        final Event created = eventDao.create(someEvent(categoryId));
+
+        final Event found = eventDao.findById(created.getId()).get();
+        assertTrue(found.getImageIds().isEmpty());
+        assertNull(found.getImageId());
+    }
+
+    @Test
+    public void testCreateAndFindByIdPersistsSeveralImagesInUploadOrder() {
+        final long firstImageId = insertImage();
+        final long secondImageId = insertImage();
+        final Event event = someEvent(categoryId);
+        event.setImageIds(Arrays.asList(firstImageId, secondImageId));
+
+        final Event created = eventDao.create(event);
+
+        final Event found = eventDao.findById(created.getId()).get();
+        assertEquals(Arrays.asList(firstImageId, secondImageId), found.getImageIds());
+    }
+
+    @Test
+    public void testGetImageIdReturnsTheFirstUploadedImage() {
+        final long firstImageId = insertImage();
+        final long secondImageId = insertImage();
+        final Event event = someEvent(categoryId);
+        event.setImageIds(Arrays.asList(firstImageId, secondImageId));
+
+        final Event created = eventDao.create(event);
+
+        assertEquals(Long.valueOf(firstImageId), eventDao.findById(created.getId()).get().getImageId());
+    }
+
+    @Test
+    public void testUpdateReplacesTheWholeImageGallery() {
+        final long originalImageId = insertImage();
+        final Event event = someEvent(categoryId);
+        event.setImageIds(Collections.singletonList(originalImageId));
+        final Event created = eventDao.create(event);
+
+        final long newImageId = insertImage();
+        final Event changes = someEvent(categoryId);
+        changes.setId(created.getId());
+        changes.setImageIds(Collections.singletonList(newImageId));
+        eventDao.update(changes);
+
+        final List<Long> found = eventDao.findById(created.getId()).get().getImageIds();
+        assertEquals(Collections.singletonList(newImageId), found);
     }
 
     // ---- update() ----

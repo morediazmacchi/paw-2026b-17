@@ -250,9 +250,13 @@ document.addEventListener("DOMContentLoaded", function () {
         setReviewCheckbox("requiereAprobacion");
         setReviewCheckbox("privado");
 
-        var imageInput = form.querySelector("#image");
+        // Solo se previsualiza la primera foto elegida (con un contador al
+        // lado si eligio mas de una): mostrar las 5 en el resumen no aporta
+        // mucho mas que confirmar que la subida funciono.
+        var imageInput = form.querySelector("#images");
         var imageRow = form.querySelector("[data-review-image-row]");
         var imageEl = form.querySelector("[data-review-image]");
+        var imageCountEl = form.querySelector("[data-review-image-count]");
         if (imageInput && imageInput.files && imageInput.files[0]) {
             var reader = new FileReader();
             reader.onload = function (event) {
@@ -260,6 +264,10 @@ document.addEventListener("DOMContentLoaded", function () {
                 imageRow.hidden = false;
             };
             reader.readAsDataURL(imageInput.files[0]);
+            if (imageCountEl) {
+                var extra = imageInput.files.length - 1;
+                imageCountEl.textContent = extra > 0 ? "+" + extra : "";
+            }
         } else {
             imageRow.hidden = true;
         }
@@ -284,13 +292,19 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
-    // El nombre elegido del archivo, mostrado adentro del recuadro (paso 4).
+    // Los nombres de los archivos elegidos, mostrados adentro del recuadro
+    // (paso 4): uno solo, el nombre; mas de uno, "3 fotos elegidas" (no los
+    // nombres de las 5, no entran comodos en el recuadro).
     var dropzoneInput = form.querySelector(".wizard-dropzone-input");
     if (dropzoneInput) {
         dropzoneInput.addEventListener("change", function () {
             var filenameEl = form.querySelector(".wizard-dropzone-filename");
-            if (dropzoneInput.files && dropzoneInput.files[0]) {
+            var count = dropzoneInput.files ? dropzoneInput.files.length : 0;
+            if (count === 1) {
                 filenameEl.textContent = dropzoneInput.files[0].name;
+                filenameEl.hidden = false;
+            } else if (count > 1) {
+                filenameEl.textContent = count + " fotos elegidas";
                 filenameEl.hidden = false;
             } else {
                 filenameEl.hidden = true;

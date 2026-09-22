@@ -50,10 +50,6 @@ public class EventJdbcDao implements EventDao {
         event.setAddress(rs.getString("address"));
         final String neighborhoodName = rs.getString("neighborhood");
         event.setNeighborhood(neighborhoodName == null ? null : Barrio.valueOf(neighborhoodName));
-        // image_id es INTEGER (int4) en la base y Long en Java. El driver de Postgres
-        // no convierte int4 -> Long directo, hay que pasar por Integer.
-        final Integer rawImageId = rs.getObject("image_id", Integer.class);
-        event.setImageId(rawImageId == null ? null : rawImageId.longValue());
         event.setPrice(rs.getDouble("price"));
         event.setMaxCapacity(rs.getObject("max_capacity", Integer.class));
         event.setCreatorEmail(rs.getString("creator_email"));
@@ -74,7 +70,7 @@ public class EventJdbcDao implements EventDao {
                 .withTableName("event")
                 .usingGeneratedKeyColumns("id")
                 .usingColumns("title", "description", "event_date", "address", "neighborhood",
-                        "image_id", "price", "max_capacity", "creator_email", "requires_approval",
+                        "price", "max_capacity", "creator_email", "requires_approval",
                         "visibility");
     }
 
@@ -86,7 +82,6 @@ public class EventJdbcDao implements EventDao {
         args.put("event_date", new java.sql.Timestamp(event.getEventDate().getTime()));
         args.put("address", event.getAddress());
         args.put("neighborhood", event.getNeighborhood() == null ? null : event.getNeighborhood().name());
-        args.put("image_id", event.getImageId());
         args.put("price", event.getPrice());
         args.put("max_capacity", event.getMaxCapacity());
         args.put("creator_email", event.getCreatorEmail());
@@ -96,6 +91,7 @@ public class EventJdbcDao implements EventDao {
         final Number id = jdbcInsert.executeAndReturnKey(args);
         event.setId(id.longValue());
         insertCategories(event);
+        insertImages(event);
         return event;
     }
 
@@ -103,17 +99,20 @@ public class EventJdbcDao implements EventDao {
     public void update(final Event event) {
         jdbcTemplate.update(
                 "UPDATE event SET title = ?, description = ?, event_date = ?, address = ?, neighborhood = ?, "
-                        + "image_id = ?, price = ?, max_capacity = ?, requires_approval = ?, "
+                        + "price = ?, max_capacity = ?, requires_approval = ?, "
                         + "visibility = ? WHERE id = ?",
                 event.getTitle(), event.getDescription(), new Timestamp(event.getEventDate().getTime()),
                 event.getAddress(), event.getNeighborhood() == null ? null : event.getNeighborhood().name(),
-                event.getImageId(), event.getPrice(), event.getMaxCapacity(),
+                event.getPrice(), event.getMaxCapacity(),
                 event.isRequiresApproval(), event.getVisibility().name(), event.getId());
         // Reemplaza todas las categorias de una: mas simple que calcular el
         // diff (altas/bajas/cambios de extra_info) entre lo que habia y lo
         // que llego en "event".
         jdbcTemplate.update("DELETE FROM event_category WHERE event_id = ?", event.getId());
         insertCategories(event);
+        // Mismo criterio que las categorias: reemplaza toda la galeria de una.
+        jdbcTemplate.update("DELETE FROM event_image WHERE event_id = ?", event.getId());
+        insertImages(event);
     }
 
     private void insertCategories(final Event event) {
@@ -121,6 +120,16 @@ public class EventJdbcDao implements EventDao {
             jdbcTemplate.update(
                     "INSERT INTO event_category (event_id, category_id, extra_info) VALUES (?, ?, ?)",
                     event.getId(), info.getCategoryId(), info.getExtraInfo());
+        }
+    }
+
+    // El orden de insercion es el orden de la galeria (id ascendente, ver
+    // attachImages): insertar en el orden de event.getImageIds() alcanza,
+    // no hace falta una columna de posicion aparte.
+    private void insertImages(final Event event) {
+        for (final Long imageId : event.getImageIds()) {
+            jdbcTemplate.update(
+                    "INSERT INTO event_image (event_id, image_id) VALUES (?, ?)", event.getId(), imageId);
         }
     }
 
@@ -149,6 +158,37 @@ public class EventJdbcDao implements EventDao {
         }
     }
 
+    // Mismo mecanismo que attachCategories: una sola query extra para todos
+    // los eventos pasados, evitando el N+1. "id" ascendente en event_image es
+    // el orden de subida, que es el orden de la galeria (la primera es la
+    // portada, ver Event.getImageId()).
+    private void attachImages(final List<Event> events) {
+        if (events.isEmpty()) {
+            return;
+        }
+        final List<Long> eventIds = events.stream().map(Event::getId).collect(Collectors.toList());
+        final Map<Long, List<Long>> byEvent = new HashMap<>();
+        jdbcTemplate.query(
+                "SELECT event_id, image_id FROM event_image "
+                        + "WHERE event_id IN (" + placeholders(eventIds.size()) + ") ORDER BY id ASC",
+                rs -> {
+                    byEvent.computeIfAbsent(rs.getLong("event_id"), k -> new ArrayList<>())
+                            .add(rs.getLong("image_id"));
+                },
+                eventIds.toArray());
+        for (final Event event : events) {
+            event.setImageIds(byEvent.getOrDefault(event.getId(), Collections.emptyList()));
+        }
+    }
+
+    // Categorias e imagenes de cada evento, en dos queries extra (una por
+    // relacion) en vez de una por evento. Todos los finders pasan por aca
+    // para no desincronizarse entre si.
+    private void attachRelated(final List<Event> events) {
+        attachCategories(events);
+        attachImages(events);
+    }
+
     @Override
     public void cancel(final long id) {
         jdbcTemplate.update("UPDATE event SET cancelled_at = now() WHERE id = ?", id);
@@ -158,7 +198,7 @@ public class EventJdbcDao implements EventDao {
     public Optional<Event> findById(final long id) {
         final Optional<Event> event = jdbcTemplate.query(SELECT_BASE + " WHERE e.id = ?", ROW_MAPPER, id)
                 .stream().findFirst();
-        event.ifPresent(e -> attachCategories(Collections.singletonList(e)));
+        event.ifPresent(e -> attachRelated(Collections.singletonList(e)));
         return event;
     }
 
@@ -167,7 +207,7 @@ public class EventJdbcDao implements EventDao {
         final Optional<Event> event = jdbcTemplate.query(
                         SELECT_BASE + " WHERE e.id = ? FOR UPDATE OF e", ROW_MAPPER, id)
                 .stream().findFirst();
-        event.ifPresent(e -> attachCategories(Collections.singletonList(e)));
+        event.ifPresent(e -> attachRelated(Collections.singletonList(e)));
         return event;
     }
 
@@ -175,7 +215,7 @@ public class EventJdbcDao implements EventDao {
     public List<Event> findAll() {
         final List<Event> events = jdbcTemplate.query(
                 SELECT_BASE + " WHERE e.cancelled_at IS NULL ORDER BY e.event_date", ROW_MAPPER);
-        attachCategories(events);
+        attachRelated(events);
         return events;
     }
 
@@ -186,7 +226,7 @@ public class EventJdbcDao implements EventDao {
                         + "WHERE ec.event_id = e.id AND ec.category_id = ?) "
                         + "AND e.cancelled_at IS NULL ORDER BY e.event_date",
                 ROW_MAPPER, categoryId);
-        attachCategories(events);
+        attachRelated(events);
         return events;
     }
 
@@ -194,7 +234,7 @@ public class EventJdbcDao implements EventDao {
     public List<Event> findByCreatorEmail(final String email) {
         final List<Event> events = jdbcTemplate.query(SELECT_BASE + " WHERE e.creator_email = ? ORDER BY e.event_date DESC",
                 ROW_MAPPER, email);
-        attachCategories(events);
+        attachRelated(events);
         return events;
     }
 
@@ -209,7 +249,7 @@ public class EventJdbcDao implements EventDao {
         params.add((criteria.getPage() - 1) * criteria.getPageSize());
 
         final List<Event> events = jdbcTemplate.query(sql, ROW_MAPPER, params.toArray());
-        attachCategories(events);
+        attachRelated(events);
         return events;
     }
 

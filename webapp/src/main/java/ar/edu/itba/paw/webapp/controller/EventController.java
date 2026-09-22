@@ -63,6 +63,10 @@ public class EventController {
 
     private static final int PAGE_SIZE = 12;
     private static final int FEATURED_COUNT = 5;
+    // Ver el comentario de multipart-config en web.xml: sus limites estan
+    // calculados en base a este numero (5 fotos de 5 MB cada una, tope que
+    // impone ImageServiceImpl).
+    private static final int MAX_IMAGES = 5;
 
     private final EventService eventService;
     private final CategoryService categoryService;
@@ -468,7 +472,7 @@ public class EventController {
 
     @RequestMapping(value = "/eventos/publicar", method = RequestMethod.POST)
     public ModelAndView publish(@Valid final EventForm form, final BindingResult errors,
-                                 @RequestParam(value = "image", required = false) final MultipartFile image,
+                                 @RequestParam(value = "images", required = false) final List<MultipartFile> images,
                                  final Principal principal) {
         final Barrio parsedBarrio = parseBarrio(form.getBarrio(), errors);
         final List<EventCategoryInfo> categorias = selectedCategories(form, errors);
@@ -507,23 +511,23 @@ public class EventController {
         final double parsedPrice = Double.parseDouble(form.getPrecio());
         final Integer parsedCapacity = "0".equals(form.getCupoMaximo()) ? null : Integer.valueOf(form.getCupoMaximo());
 
-        Long imageId = null;
-        if (image != null && !image.isEmpty()) {
-            try {
-                final Image saved = imageService.create(
-                        image.getBytes(), image.getContentType(), image.getOriginalFilename());
-                imageId = saved.getId();
-            } catch (final IOException e) {
-                return publishFormWithErrors(form, errors, message("event.publish.imageReadError"));
-            } catch (final IllegalArgumentException e) {
-                return publishFormWithErrors(form, errors, message(e.getMessage()));
-            }
+        final List<MultipartFile> nonEmptyImages = nonEmptyImages(images);
+        if (nonEmptyImages.size() > MAX_IMAGES) {
+            return publishFormWithErrors(form, errors, message("event.publish.tooManyImagesError"));
+        }
+        final List<Long> imageIds;
+        try {
+            imageIds = uploadImages(nonEmptyImages);
+        } catch (final IOException e) {
+            return publishFormWithErrors(form, errors, message("event.publish.imageReadError"));
+        } catch (final IllegalArgumentException e) {
+            return publishFormWithErrors(form, errors, message(e.getMessage()));
         }
 
         // El creador es quien esta logueado, nunca un campo del form: si viniera del
         // form, cualquiera podria publicar un evento a nombre de otro email.
         final Event event = new Event(form.getTitulo(), form.getDescripcion(), parsedDate, form.getDireccion(),
-                parsedBarrio, imageId, parsedPrice, parsedCapacity, principal.getName(), null);
+                parsedBarrio, imageIds, parsedPrice, parsedCapacity, principal.getName(), null);
         event.setCategories(categorias);
         event.setRequiresApproval(form.isRequiereAprobacion());
         event.setVisibility(form.isPrivado() ? EventVisibility.PRIVATE : EventVisibility.PUBLIC);
@@ -556,6 +560,29 @@ public class EventController {
         }
         final String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    // El <input type="file" multiple> manda un MultipartFile por cada slot
+    // del picker, tildado o no: los que quedaron vacios (usuario abrio el
+    // dialogo pero no eligio nada en ese slot) se descartan aca, antes de
+    // contarlos contra MAX_IMAGES.
+    private static List<MultipartFile> nonEmptyImages(final List<MultipartFile> images) {
+        if (images == null) {
+            return Collections.emptyList();
+        }
+        return images.stream().filter(f -> f != null && !f.isEmpty()).collect(Collectors.toList());
+    }
+
+    // Sube cada archivo y devuelve sus ids, en el mismo orden en que el
+    // usuario los eligio: ese orden es el de la galeria (ver Event.imageIds),
+    // la primera es la portada.
+    private List<Long> uploadImages(final List<MultipartFile> images) throws IOException {
+        final List<Long> ids = new ArrayList<>();
+        for (final MultipartFile image : images) {
+            final Image saved = imageService.create(image.getBytes(), image.getContentType(), image.getOriginalFilename());
+            ids.add(saved.getId());
+        }
+        return ids;
     }
 
     // Un CategoriaSeleccionForm por cada categoria existente: "existing" trae
@@ -766,7 +793,7 @@ public class EventController {
 
     @RequestMapping(value = "/eventos/{id}/editar", method = RequestMethod.POST)
     public ModelAndView editar(@PathVariable final long id, @Valid final EventForm form, final BindingResult errors,
-                                @RequestParam(value = "image", required = false) final MultipartFile image,
+                                @RequestParam(value = "images", required = false) final List<MultipartFile> images,
                                 final Principal principal) {
         // Mismo chequeo que el GET: si no sos el dueño, ni siquiera llega a
         // mirar el resto del form.
@@ -795,13 +822,17 @@ public class EventController {
         final double parsedPrice = Double.parseDouble(form.getPrecio());
         final Integer parsedCapacity = "0".equals(form.getCupoMaximo()) ? null : Integer.valueOf(form.getCupoMaximo());
 
-        // Si no se subio un archivo nuevo, la imagen que ya tenia el evento se mantiene.
-        Long imageId = existing.getImageId();
-        if (image != null && !image.isEmpty()) {
+        // Si no se subio ninguna foto nueva, la galeria que ya tenia el evento
+        // se mantiene entera; si se subio al menos una, reemplaza toda la
+        // galeria vieja (no hay forma de sacar o agregar una foto suelta).
+        final List<MultipartFile> nonEmptyImages = nonEmptyImages(images);
+        if (nonEmptyImages.size() > MAX_IMAGES) {
+            return editarFormWithErrors(id, form, errors, message("event.publish.tooManyImagesError"));
+        }
+        List<Long> imageIds = existing.getImageIds();
+        if (!nonEmptyImages.isEmpty()) {
             try {
-                final Image saved = imageService.create(
-                        image.getBytes(), image.getContentType(), image.getOriginalFilename());
-                imageId = saved.getId();
+                imageIds = uploadImages(nonEmptyImages);
             } catch (final IOException e) {
                 return editarFormWithErrors(id, form, errors, message("event.publish.imageReadError"));
             } catch (final IllegalArgumentException e) {
@@ -810,7 +841,7 @@ public class EventController {
         }
 
         final Event changes = new Event(form.getTitulo(), form.getDescripcion(), parsedDate, form.getDireccion(),
-                parsedBarrio, imageId, parsedPrice, parsedCapacity, existing.getCreatorEmail(), null);
+                parsedBarrio, imageIds, parsedPrice, parsedCapacity, existing.getCreatorEmail(), null);
         changes.setCategories(categorias);
         changes.setRequiresApproval(form.isRequiereAprobacion());
         changes.setVisibility(form.isPrivado() ? EventVisibility.PRIVATE : EventVisibility.PUBLIC);

@@ -159,15 +159,16 @@
                 </div>
                 <div class="form-group">
                     <label><c:out value="${imageLabel}"/></label>
-                    <label class="wizard-dropzone" for="image">
+                    <label class="wizard-dropzone" for="images">
                         <paw:icon name="image"/>
                         <span class="wizard-dropzone-label"><spring:message code="event.publish.imageDropHint"/></span>
                         <span class="wizard-dropzone-filename" hidden></span>
                     </label>
-                    <input type="file" id="image" name="image" accept="image/*" class="wizard-dropzone-input"/>
-                    <%-- A diferencia de publish.jsp: aca la imagen es opcional porque
-                         ya puede haber una cargada -- si no se toca este campo, el
-                         controller mantiene la que el evento ya tenia. --%>
+                    <input type="file" id="images" name="images" accept="image/*" multiple="multiple"
+                           class="wizard-dropzone-input"/>
+                    <%-- A diferencia de publish.jsp: aca las fotos son opcionales porque
+                         ya puede haber alguna cargada -- si no se toca este campo, el
+                         controller mantiene la galeria que el evento ya tenia. --%>
                     <p class="wizard-field-hint"><spring:message code="event.edit.currentImageHint"/></p>
                 </div>
                 <paw:input name="precio" label="${priceLabel}" type="number" min="0"
@@ -243,7 +244,10 @@
                     </div>
                     <div class="wizard-review-row" data-review-image-row hidden>
                         <span class="wizard-review-label"><c:out value="${imageLabel}"/></span>
-                        <img class="wizard-review-image" data-review-image alt=""/>
+                        <span class="wizard-review-image-wrap">
+                            <img class="wizard-review-image" data-review-image alt=""/>
+                            <span class="wizard-review-image-count" data-review-image-count></span>
+                        </span>
                     </div>
                 </div>
             </div>

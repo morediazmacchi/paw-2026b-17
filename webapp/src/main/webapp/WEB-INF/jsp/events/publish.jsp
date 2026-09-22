@@ -159,12 +159,13 @@
                 </div>
                 <div class="form-group">
                     <label><c:out value="${imageLabel}"/></label>
-                    <label class="wizard-dropzone" for="image">
+                    <label class="wizard-dropzone" for="images">
                         <paw:icon name="image"/>
                         <span class="wizard-dropzone-label"><spring:message code="event.publish.imageDropHint"/></span>
                         <span class="wizard-dropzone-filename" hidden></span>
                     </label>
-                    <input type="file" id="image" name="image" accept="image/*" class="wizard-dropzone-input"/>
+                    <input type="file" id="images" name="images" accept="image/*" multiple="multiple"
+                           class="wizard-dropzone-input"/>
                 </div>
                 <paw:input name="precio" label="${priceLabel}" type="number" min="0"
                            value="${eventForm.precio}" errorMessage="${fieldErrors.precio}"
@@ -239,7 +240,10 @@
                     </div>
                     <div class="wizard-review-row" data-review-image-row hidden>
                         <span class="wizard-review-label"><c:out value="${imageLabel}"/></span>
-                        <img class="wizard-review-image" data-review-image alt=""/>
+                        <span class="wizard-review-image-wrap">
+                            <img class="wizard-review-image" data-review-image alt=""/>
+                            <span class="wizard-review-image-count" data-review-image-count></span>
+                        </span>
                     </div>
                 </div>
             </div>

@@ -27,13 +27,26 @@ CREATE TABLE IF NOT EXISTS event (
     event_date      TIMESTAMP NOT NULL,
     address         VARCHAR(200) NOT NULL,
     neighborhood    VARCHAR(80),
-    image_id        INTEGER, -- soft reference to image.id, intentionally not a FK
     price           NUMERIC(10,2) DEFAULT 0 NOT NULL
                         CHECK (price >= 0),
     max_capacity    INTEGER
                         CHECK (max_capacity IS NULL OR max_capacity > 0),
     creator_email   VARCHAR(150) NOT NULL,
     created_at      TIMESTAMP NOT NULL DEFAULT now()
+);
+
+-- Un evento puede tener varias fotos (antes era 1:1, con una columna
+-- image_id en event; ver postgres-migrations.sql para la migracion de la
+-- base vieja que todavia la tiene). El orden de galeria es el orden de
+-- insercion (id ascendente): la primera es la portada, la que se usa en
+-- las tarjetas/listados (ver Event.getImageId() en el modelo, que la
+-- deriva de la lista en vez de tener su propia columna). Sin FK a image.id,
+-- mismo criterio que la columna vieja: referencia suelta a proposito.
+CREATE TABLE IF NOT EXISTS event_image (
+    id          SERIAL PRIMARY KEY,
+    event_id    INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
+    image_id    INTEGER NOT NULL,
+    created_at  TIMESTAMP NOT NULL DEFAULT now()
 );
 
 -- Un evento puede tener varias categorias (antes era 1:1, con una columna
