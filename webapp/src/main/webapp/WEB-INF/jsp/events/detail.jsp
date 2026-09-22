@@ -11,6 +11,12 @@
     <title>Plancito &middot; <c:out value="${event.title}"/></title>
     <link rel="icon" type="image/svg+xml" href="${pageContext.request.contextPath}/favicon.svg">
     <link rel="stylesheet" href="${pageContext.request.contextPath}/css/style.css">
+    <c:if test="${event.locationPinned}">
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+              integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+                integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    </c:if>
     <script src="<c:url value='/js/disable-on-submit.js'/>"></script>
     <script src="<c:url value='/js/favorite-toggle.js'/>"></script>
     <script src="<c:url value='/js/modal.js'/>"></script>
@@ -182,7 +188,15 @@
                     </c:if>
                 </div>
             </div>
-            <%-- Mapa: pendiente, todavia no tenemos geocoding/coordenadas del evento. --%>
+            <%-- Mapa de solo lectura: solo si el creador marco un pin al publicar/
+                 editar (event.locationPinned). Si no, la direccion en texto de
+                 arriba (siempre presente) es lo unico que se muestra, igual que
+                 antes de esta feature. --%>
+            <c:if test="${event.locationPinned}">
+                <div id="detail-map" class="detail-map"
+                     data-lat="${event.latitude}" data-lon="${event.longitude}"></div>
+                <script src="<c:url value='/js/event-detail-map.js'/>"></script>
+            </c:if>
 
             <h2 class="detail-section-heading"><spring:message code="event.detail.organizerHeading"/></h2>
             <c:choose>

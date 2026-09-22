@@ -433,6 +433,13 @@ a {
     margin: 2px 0 0;
 }
 
+.detail-map {
+    height: 240px;
+    border-radius: 10px;
+    margin-top: 12px;
+    z-index: 0;
+}
+
 .detail-side {
     position: sticky;
     top: 24px;
@@ -1144,6 +1151,17 @@ button.btn-accent {
     width: 100%;
     min-height: 60px;
     resize: vertical;
+}
+
+/* Mapa de "confirmar el lugar" (event-location-map.js). Leaflet dibuja sus
+   propios controles de zoom/atribucion adentro, con su estilo por defecto:
+   no los tocamos, solo le damos tamaño y el mismo border-radius que el resto
+   del wizard. */
+.wizard-map {
+    height: 260px;
+    border-radius: 10px;
+    margin-top: 8px;
+    z-index: 0;
 }
 
 .wizard-dropzone {

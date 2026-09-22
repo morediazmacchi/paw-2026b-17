@@ -41,6 +41,12 @@ public class Event {
     // motivo que requiresApproval/visibility para no ir en el constructor:
     // no romper los "new Event(...)" existentes.
     private Date cancelledAt;
+    // Pin opcional en el mapa (ver publish.jsp/editar.jsp): null en los dos
+    // significa "el creador no lo toco", no que el evento no tenga direccion
+    // (esa sigue siendo "address", en texto, siempre obligatoria). Mismo
+    // motivo que cancelledAt para no ir en el constructor.
+    private Double latitude;
+    private Double longitude;
 
     public Event() {
     }
@@ -104,6 +110,17 @@ public class Event {
     public void setVisibility(final EventVisibility visibility) { this.visibility = visibility; }
     public Date getCancelledAt() { return cancelledAt; }
     public void setCancelledAt(final Date cancelledAt) { this.cancelledAt = cancelledAt; }
+    public Double getLatitude() { return latitude; }
+    public void setLatitude(final Double latitude) { this.latitude = latitude; }
+    public Double getLongitude() { return longitude; }
+    public void setLongitude(final Double longitude) { this.longitude = longitude; }
+
+    // Los dos vienen juntos o ninguno (ver EventController): si falta uno el
+    // otro no sirve para nada, mejor no mostrar un pin a medias. "is..." (no
+    // "has...") a proposito: es el prefijo que la EL de los JSP reconoce como
+    // getter de un boolean (${event.locationPinned}), mismo criterio que
+    // isPrivate()/isFree()/isCancelled() aca arriba.
+    public boolean isLocationPinned() { return latitude != null && longitude != null; }
 
     public boolean isFree() { return price == 0; }
     public boolean isPrivate() { return visibility == EventVisibility.PRIVATE; }

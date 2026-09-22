@@ -16,6 +16,7 @@ import org.springframework.jdbc.core.simple.SimpleJdbcInsert;
 import org.springframework.stereotype.Repository;
 
 import javax.sql.DataSource;
+import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -57,6 +58,14 @@ public class EventJdbcDao implements EventDao {
         event.setRequiresApproval(rs.getBoolean("requires_approval"));
         event.setVisibility(EventVisibility.valueOf(rs.getString("visibility")));
         event.setCancelledAt(rs.getTimestamp("cancelled_at"));
+        // rs.getObject(col, Double.class) no esta soportado por el driver de
+        // Postgres para columnas NUMERIC (a diferencia de max_capacity, que
+        // es INTEGER): hay que pasar por BigDecimal, que si es una conversion
+        // que el driver entiende, y de ahi a Double a mano.
+        final BigDecimal rawLatitude = rs.getBigDecimal("latitude");
+        event.setLatitude(rawLatitude == null ? null : rawLatitude.doubleValue());
+        final BigDecimal rawLongitude = rs.getBigDecimal("longitude");
+        event.setLongitude(rawLongitude == null ? null : rawLongitude.doubleValue());
         return event;
     };
 
@@ -71,7 +80,7 @@ public class EventJdbcDao implements EventDao {
                 .usingGeneratedKeyColumns("id")
                 .usingColumns("title", "description", "event_date", "address", "neighborhood",
                         "price", "max_capacity", "creator_email", "requires_approval",
-                        "visibility");
+                        "visibility", "latitude", "longitude");
     }
 
     @Override
@@ -87,6 +96,8 @@ public class EventJdbcDao implements EventDao {
         args.put("creator_email", event.getCreatorEmail());
         args.put("requires_approval", event.isRequiresApproval());
         args.put("visibility", event.getVisibility().name());
+        args.put("latitude", event.getLatitude());
+        args.put("longitude", event.getLongitude());
 
         final Number id = jdbcInsert.executeAndReturnKey(args);
         event.setId(id.longValue());
@@ -100,11 +111,12 @@ public class EventJdbcDao implements EventDao {
         jdbcTemplate.update(
                 "UPDATE event SET title = ?, description = ?, event_date = ?, address = ?, neighborhood = ?, "
                         + "price = ?, max_capacity = ?, requires_approval = ?, "
-                        + "visibility = ? WHERE id = ?",
+                        + "visibility = ?, latitude = ?, longitude = ? WHERE id = ?",
                 event.getTitle(), event.getDescription(), new Timestamp(event.getEventDate().getTime()),
                 event.getAddress(), event.getNeighborhood() == null ? null : event.getNeighborhood().name(),
                 event.getPrice(), event.getMaxCapacity(),
-                event.isRequiresApproval(), event.getVisibility().name(), event.getId());
+                event.isRequiresApproval(), event.getVisibility().name(),
+                event.getLatitude(), event.getLongitude(), event.getId());
         // Reemplaza todas las categorias de una: mas simple que calcular el
         // diff (altas/bajas/cambios de extra_info) entre lo que habia y lo
         // que llego en "event".

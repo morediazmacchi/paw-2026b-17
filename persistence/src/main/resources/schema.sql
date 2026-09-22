@@ -216,3 +216,13 @@ CREATE TABLE IF NOT EXISTS event_invitation (
 -- EventJdbcDao.search()/findAll()/findByCategory() lo excluyen; findById()/
 -- findByCreatorEmail() no, a proposito.
 ALTER TABLE event ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP;
+
+-- Pin opcional en el mapa (Leaflet + OpenStreetMap, ver publish.jsp/editar.jsp):
+-- el creador lo marca con un click al publicar/editar, no reemplaza la
+-- direccion en texto (que sigue siendo obligatoria), la complementa para que
+-- quien se quiere anotar vea el lugar exacto. NULL en los dos = el evento no
+-- tiene pin (eventos viejos, o quien no lo toco), y el detalle no muestra
+-- mapa en ese caso. NUMERIC(9,6): 3 enteros + 6 decimales, mas que suficiente
+-- para latitud (-90 a 90) y longitud (-180 a 180) con precision de sobra.
+ALTER TABLE event ADD COLUMN IF NOT EXISTS latitude NUMERIC(9,6);
+ALTER TABLE event ADD COLUMN IF NOT EXISTS longitude NUMERIC(9,6);

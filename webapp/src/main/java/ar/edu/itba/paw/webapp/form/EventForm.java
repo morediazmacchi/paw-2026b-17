@@ -39,6 +39,14 @@ public class EventForm {
     @Size(max = 80, message = "El barrio no puede superar los 80 caracteres")
     private String barrio;
 
+    // Pin opcional en el mapa (ver event-location-map.js): dos inputs ocultos
+    // que el JS completa al clickear, nunca los escribe la persona a mano.
+    // Sin JSR-303 a proposito -- si vienen vacios o con basura (nadie toco el
+    // mapa, o alguien manipulo el request) el controller los ignora en vez de
+    // bloquear la publicacion por un campo que ni siquiera es obligatorio.
+    private String latitud;
+    private String longitud;
+
     // @Digits acota a lo que entra en la columna price, NUMERIC(10,2) (hasta
     // 8 digitos enteros): sin esto, un precio mas grande pasa el @Pattern (que
     // solo valida la forma) y explota como DataIntegrityViolationException
@@ -89,6 +97,12 @@ public class EventForm {
 
     public String getBarrio() { return barrio; }
     public void setBarrio(final String barrio) { this.barrio = barrio; }
+
+    public String getLatitud() { return latitud; }
+    public void setLatitud(final String latitud) { this.latitud = latitud; }
+
+    public String getLongitud() { return longitud; }
+    public void setLongitud(final String longitud) { this.longitud = longitud; }
 
     public String getPrecio() { return precio; }
     public void setPrecio(final String precio) { this.precio = precio; }

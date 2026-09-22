@@ -8,8 +8,13 @@
     <title>Plancito &middot; <spring:message code="event.publish.title"/></title>
     <link rel="icon" type="image/svg+xml" href="${pageContext.request.contextPath}/favicon.svg">
     <link rel="stylesheet" href="${pageContext.request.contextPath}/css/style.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script src="<c:url value='/js/disable-on-submit.js'/>"></script>
     <script src="<c:url value='/js/quick-options.js'/>"></script>
+    <script src="<c:url value='/js/event-location-map.js'/>"></script>
     <script src="<c:url value='/js/event-wizard.js'/>"></script>
 </head>
 <body>
@@ -148,6 +153,17 @@
                     <c:if test="${not empty fieldErrors.barrio}">
                         <span class="error-message"><c:out value="${fieldErrors.barrio}"/></span>
                     </c:if>
+                </div>
+                <div class="form-group">
+                    <label><spring:message code="event.publish.mapLabel"/></label>
+                    <p class="wizard-field-hint"><spring:message code="event.publish.mapHint"/></p>
+                    <%-- event-location-map.js la arma: mapa Leaflet + OpenStreetMap,
+                         un click pone/mueve el pin y carga los dos inputs ocultos de
+                         abajo. Es opcional: si nadie lo toca, viajan vacios y el
+                         evento se publica solo con la direccion en texto de arriba. --%>
+                    <div id="location-map" class="wizard-map"></div>
+                    <input type="hidden" id="latitud" name="latitud" value="${eventForm.latitud}"/>
+                    <input type="hidden" id="longitud" name="longitud" value="${eventForm.longitud}"/>
                 </div>
             </div>
 

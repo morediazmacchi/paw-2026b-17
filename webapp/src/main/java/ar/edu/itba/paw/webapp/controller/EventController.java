@@ -531,6 +531,8 @@ public class EventController {
         event.setCategories(categorias);
         event.setRequiresApproval(form.isRequiereAprobacion());
         event.setVisibility(form.isPrivado() ? EventVisibility.PRIVATE : EventVisibility.PUBLIC);
+        event.setLatitude(parseCoordinate(form.getLatitud()));
+        event.setLongitude(parseCoordinate(form.getLongitud()));
         try {
             eventService.create(event);
         } catch (final IllegalArgumentException e) {
@@ -560,6 +562,21 @@ public class EventController {
         }
         final String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    // El pin del mapa (latitud/longitud) es un campo oculto que solo el JS
+    // completa: si vino vacio (nadie toco el mapa) o con algo que no es un
+    // numero (request manipulado a mano), se ignora en silencio en vez de
+    // rechazar la publicacion entera por un dato que ni siquiera es obligatorio.
+    private static Double parseCoordinate(final String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            return Double.valueOf(value.trim());
+        } catch (final NumberFormatException e) {
+            return null;
+        }
     }
 
     // El <input type="file" multiple> manda un MultipartFile por cada slot
@@ -777,6 +794,10 @@ public class EventController {
         form.setCupoMaximo(event.getMaxCapacity() == null ? "0" : String.valueOf(event.getMaxCapacity()));
         form.setRequiereAprobacion(event.isRequiresApproval());
         form.setPrivado(event.isPrivate());
+        if (event.isLocationPinned()) {
+            form.setLatitud(String.valueOf(event.getLatitude()));
+            form.setLongitud(String.valueOf(event.getLongitude()));
+        }
         return form;
     }
 
@@ -845,6 +866,8 @@ public class EventController {
         changes.setCategories(categorias);
         changes.setRequiresApproval(form.isRequiereAprobacion());
         changes.setVisibility(form.isPrivado() ? EventVisibility.PRIVATE : EventVisibility.PUBLIC);
+        changes.setLatitude(parseCoordinate(form.getLatitud()));
+        changes.setLongitude(parseCoordinate(form.getLongitud()));
         final EventUpdateResult result = eventService.update(id, changes, principal.getName());
         switch (result) {
             case CAPACITY_TOO_LOW:

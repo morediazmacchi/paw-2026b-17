@@ -233,6 +233,50 @@ public class EventJdbcDaoTest {
         assertEquals(Collections.singletonList(newImageId), found);
     }
 
+    // ---- create()/update(): pin en el mapa ----
+
+    @Test
+    public void testCreateWithoutLocationPinLeavesLatitudeAndLongitudeNull() {
+        final Event created = eventDao.create(someEvent(categoryId));
+
+        final Event found = eventDao.findById(created.getId()).get();
+        assertFalse(found.isLocationPinned());
+        assertNull(found.getLatitude());
+        assertNull(found.getLongitude());
+    }
+
+    @Test
+    public void testCreateAndFindByIdPersistsTheLocationPin() {
+        final Event event = someEvent(categoryId);
+        event.setLatitude(-34.603722);
+        event.setLongitude(-58.381592);
+
+        final Event created = eventDao.create(event);
+
+        final Event found = eventDao.findById(created.getId()).get();
+        assertTrue(found.isLocationPinned());
+        assertEquals(-34.603722, found.getLatitude(), 0.000001);
+        assertEquals(-58.381592, found.getLongitude(), 0.000001);
+    }
+
+    @Test
+    public void testUpdateChangesTheLocationPin() {
+        final Event event = someEvent(categoryId);
+        event.setLatitude(-34.603722);
+        event.setLongitude(-58.381592);
+        final Event created = eventDao.create(event);
+
+        final Event changes = someEvent(categoryId);
+        changes.setId(created.getId());
+        changes.setLatitude(-34.580000);
+        changes.setLongitude(-58.420000);
+        eventDao.update(changes);
+
+        final Event found = eventDao.findById(created.getId()).get();
+        assertEquals(-34.580000, found.getLatitude(), 0.000001);
+        assertEquals(-58.420000, found.getLongitude(), 0.000001);
+    }
+
     // ---- update() ----
 
     @Test
