@@ -181,3 +181,11 @@ CREATE TABLE IF NOT EXISTS event_invitation (
     created_at  TIMESTAMP NOT NULL DEFAULT now(),
     UNIQUE (event_id, email)
 );
+
+-- Soft-delete de un evento: NULL = activo, con fecha = cancelado por su
+-- creador (ver EventDao.cancel()). No se borra la fila (ON DELETE CASCADE de
+-- "registration" arrastraria las inscripciones, y quien ya estaba anotado
+-- tiene que poder seguir viendolo en "Mis inscripciones"/el detalle).
+-- EventJdbcDao.search()/findAll()/findByCategory() lo excluyen; findById()/
+-- findByCreatorEmail() no, a proposito.
+ALTER TABLE event ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP;

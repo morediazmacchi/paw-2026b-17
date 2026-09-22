@@ -10,6 +10,7 @@ import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.Review;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.CategoryService;
+import ar.edu.itba.paw.services.EventCancelResult;
 import ar.edu.itba.paw.services.EventInvitationService;
 import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.EventUpdateResult;
@@ -770,6 +771,21 @@ public class EventController {
         mav.addObject("fieldErrors", fieldErrors);
         mav.addObject("imageError", imageError);
         return mav;
+    }
+
+    // No hace falta un eventForOwner() previo aca (a diferencia de editar()):
+    // no hay ningun dato del evento que usar mas alla del resultado mismo, y
+    // EventService.cancel() ya distingue "no existe" de "no sos el dueño" con
+    // el mismo NOT_FOUND de siempre.
+    @RequestMapping(value = "/eventos/{id}/cancelar", method = RequestMethod.POST)
+    public ModelAndView cancelar(@PathVariable final long id, final Principal principal) {
+        final EventCancelResult result = eventService.cancel(id, principal.getName());
+        if (result == EventCancelResult.NOT_FOUND) {
+            throw new EventNotFoundException(id);
+        }
+        // ALREADY_CANCELLED redirige igual que CANCELLED: no es un error que
+        // el usuario tenga que ver, ya esta cancelado, que es justo lo que pidio.
+        return new ModelAndView("redirect:/perfil/eventos");
     }
 
     // returnTo viaja como hidden en el form del corazon (paw:card/detail.jsp):

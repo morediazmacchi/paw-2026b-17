@@ -61,6 +61,7 @@ public class EventJdbcDao implements EventDao {
         event.setCreatedAt(rs.getTimestamp("created_at"));
         event.setRequiresApproval(rs.getBoolean("requires_approval"));
         event.setVisibility(EventVisibility.valueOf(rs.getString("visibility")));
+        event.setCancelledAt(rs.getTimestamp("cancelled_at"));
         return event;
     };
 
@@ -112,6 +113,11 @@ public class EventJdbcDao implements EventDao {
     }
 
     @Override
+    public void cancel(final long id) {
+        jdbcTemplate.update("UPDATE event SET cancelled_at = now() WHERE id = ?", id);
+    }
+
+    @Override
     public Optional<Event> findById(final long id) {
         return jdbcTemplate.query(SELECT_BASE + " WHERE e.id = ?", ROW_MAPPER, id)
                 .stream().findFirst();
@@ -125,12 +131,13 @@ public class EventJdbcDao implements EventDao {
 
     @Override
     public List<Event> findAll() {
-        return jdbcTemplate.query(SELECT_BASE + " ORDER BY e.event_date", ROW_MAPPER);
+        return jdbcTemplate.query(SELECT_BASE + " WHERE e.cancelled_at IS NULL ORDER BY e.event_date", ROW_MAPPER);
     }
 
     @Override
     public List<Event> findByCategory(final long categoryId) {
-        return jdbcTemplate.query(SELECT_BASE + " WHERE e.category_id = ? ORDER BY e.event_date",
+        return jdbcTemplate.query(
+                SELECT_BASE + " WHERE e.category_id = ? AND e.cancelled_at IS NULL ORDER BY e.event_date",
                 ROW_MAPPER, categoryId);
     }
 
@@ -163,12 +170,13 @@ public class EventJdbcDao implements EventDao {
     // Arma el WHERE (y sus parametros) una sola vez, para que search() y countSearch()
     // filtren exactamente lo mismo y nunca se desincronicen.
     private WhereClause buildWhereClause(final EventSearchCriteria criteria) {
-        // Dos reglas del listado publico (no del criteria, no son filtros que
-        // el usuario pueda sacar): un evento ya ocurrido no aparece, y uno
-        // privado tampoco. findById/findByIdForUpdate no llevan ninguna de
-        // las dos: el detalle sigue siendo accesible (con su propio chequeo
-        // de acceso para el privado, ver EventController).
-        final StringBuilder sql = new StringBuilder(" WHERE e.event_date >= ? AND e.visibility = ?");
+        // Tres reglas del listado publico (no del criteria, no son filtros que
+        // el usuario pueda sacar): un evento ya ocurrido no aparece, uno
+        // privado tampoco, y uno cancelado tampoco. findById/findByIdForUpdate
+        // no llevan ninguna de las tres: el detalle sigue siendo accesible (con
+        // su propio chequeo de acceso para el privado, ver EventController).
+        final StringBuilder sql = new StringBuilder(
+                " WHERE e.event_date >= ? AND e.visibility = ? AND e.cancelled_at IS NULL");
         final List<Object> params = new ArrayList<>();
         params.add(new Timestamp(System.currentTimeMillis()));
         params.add(EventVisibility.PUBLIC.name());

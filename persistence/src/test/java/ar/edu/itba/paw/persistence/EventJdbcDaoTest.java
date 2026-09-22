@@ -175,6 +175,37 @@ public class EventJdbcDaoTest {
         eventDao.update(changes);
     }
 
+    // ---- cancel() ----
+
+    @Test
+    public void testCreateDefaultsCancelledAtToNull() {
+        final Event created = eventDao.create(someEvent(categoryId));
+
+        assertFalse(eventDao.findById(created.getId()).get().isCancelled());
+    }
+
+    @Test
+    public void testCancelSetsCancelledAt() {
+        final Event created = eventDao.create(someEvent(categoryId));
+
+        eventDao.cancel(created.getId());
+
+        final Event found = eventDao.findById(created.getId()).orElseThrow(AssertionError::new);
+        assertTrue(found.isCancelled());
+        assertTrue(found.getCancelledAt().getTime() <= System.currentTimeMillis());
+    }
+
+    @Test
+    public void testCancelDoesNotChangeOtherFields() {
+        final Event created = eventDao.create(someEvent(categoryId));
+
+        eventDao.cancel(created.getId());
+
+        final Event found = eventDao.findById(created.getId()).orElseThrow(AssertionError::new);
+        assertEquals(TITLE, found.getTitle());
+        assertEquals(CREATOR_EMAIL, found.getCreatorEmail());
+    }
+
     @Test
     public void testCreateDefaultsVisibilityToPublic() {
         final Event created = eventDao.create(someEvent(categoryId));
@@ -212,6 +243,24 @@ public class EventJdbcDaoTest {
     }
 
     // ---- findAll() / findByCategory() ----
+
+    @Test
+    public void testFindAllExcludesCancelledEvents() {
+        final Event cancelled = eventDao.create(someEvent(categoryId));
+        eventDao.cancel(cancelled.getId());
+        eventDao.create(someEvent(categoryId));
+
+        assertEquals(1, eventDao.findAll().size());
+    }
+
+    @Test
+    public void testFindByCategoryExcludesCancelledEvents() {
+        final Event cancelled = eventDao.create(someEvent(categoryId));
+        eventDao.cancel(cancelled.getId());
+        eventDao.create(someEvent(categoryId));
+
+        assertEquals(1, eventDao.findByCategory(categoryId).size());
+    }
 
     @Test
     public void testFindAllReturnsEventsOrderedByDate() {
@@ -519,6 +568,46 @@ public class EventJdbcDaoTest {
         final Event privateEvent = someEvent(categoryId);
         privateEvent.setVisibility(EventVisibility.PRIVATE);
         eventDao.create(privateEvent);
+
+        assertEquals(1, eventDao.findByCreatorEmail(CREATOR_EMAIL).size());
+    }
+
+    // ---- search()/findById()/findByCreatorEmail(): eventos cancelados ----
+
+    /**
+     * EL TEST QUE IMPIDE QUE UN EVENTO CANCELADO SE FILTRE POR EL LISTADO.
+     * Igual que con los privados: si esto lo devolviera, alguien podria
+     * anotarse a un evento que su organizador ya dio de baja.
+     */
+    @Test
+    public void testSearchExcludesCancelledEvents() {
+        final Event event = someEvent(categoryId);
+        event.setEventDate(new Date(System.currentTimeMillis() + 86_400_000L));
+        final Event created = eventDao.create(event);
+        eventDao.cancel(created.getId());
+
+        final EventSearchCriteria criteria = new EventSearchCriteria();
+        criteria.setPageSize(10);
+
+        assertTrue(eventDao.search(criteria).isEmpty());
+        assertEquals(0, eventDao.countSearch(criteria));
+    }
+
+    // findById/findByCreatorEmail SI tienen que devolver un evento cancelado:
+    // quien ya estaba anotado tiene que poder seguir viendolo (detalle, "Mis
+    // inscripciones"), y el creador tiene que seguir viendolo en "Mis eventos".
+    @Test
+    public void testFindByIdReturnsCancelledEvents() {
+        final Event created = eventDao.create(someEvent(categoryId));
+        eventDao.cancel(created.getId());
+
+        assertTrue(eventDao.findById(created.getId()).isPresent());
+    }
+
+    @Test
+    public void testFindByCreatorEmailIncludesCancelledEvents() {
+        final Event created = eventDao.create(someEvent(categoryId));
+        eventDao.cancel(created.getId());
 
         assertEquals(1, eventDao.findByCreatorEmail(CREATOR_EMAIL).size());
     }

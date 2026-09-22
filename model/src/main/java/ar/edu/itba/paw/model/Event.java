@@ -26,6 +26,10 @@ public class Event {
     // en los tests) tiene que comportarse como siempre se comporto, visible
     // para cualquiera.
     private EventVisibility visibility = EventVisibility.PUBLIC;
+    // null = activo. Con fecha = cancelado (ver EventDao.cancel()). Mismo
+    // motivo que requiresApproval/visibility para no ir en el constructor:
+    // no romper los "new Event(...)" existentes.
+    private Date cancelledAt;
 
     public Event() {
     }
@@ -75,7 +79,10 @@ public class Event {
     public void setRequiresApproval(final boolean requiresApproval) { this.requiresApproval = requiresApproval; }
     public EventVisibility getVisibility() { return visibility; }
     public void setVisibility(final EventVisibility visibility) { this.visibility = visibility; }
+    public Date getCancelledAt() { return cancelledAt; }
+    public void setCancelledAt(final Date cancelledAt) { this.cancelledAt = cancelledAt; }
 
     public boolean isFree() { return price == 0; }
     public boolean isPrivate() { return visibility == EventVisibility.PRIVATE; }
+    public boolean isCancelled() { return cancelledAt != null; }
 }

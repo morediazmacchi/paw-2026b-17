@@ -3,6 +3,7 @@ package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventSearchCriteria;
+import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.RegistrationDao;
@@ -95,5 +96,27 @@ public class EventServiceImpl implements EventService {
         changes.setId(eventId);
         eventDao.update(changes);
         return EventUpdateResult.UPDATED;
+    }
+
+    @Override
+    @Transactional
+    public EventCancelResult cancel(final long eventId, final String callerEmail) {
+        final Optional<Event> existing = eventDao.findById(eventId);
+        if (!existing.isPresent() || !existing.get().getCreatorEmail().equalsIgnoreCase(callerEmail)) {
+            return EventCancelResult.NOT_FOUND;
+        }
+        final Event event = existing.get();
+        if (event.isCancelled()) {
+            return EventCancelResult.ALREADY_CANCELLED;
+        }
+        eventDao.cancel(eventId);
+        // Solo a los confirmados: a alguien pendiente/rechazado/en lista de
+        // espera nunca le llego a tener un lugar, no hay nada que "perder".
+        for (final Registration registration : registrationDao.findByEventId(eventId)) {
+            if (Registration.STATUS_CONFIRMED.equals(registration.getStatus())) {
+                notificationService.notifyEventCancelled(event, registration);
+            }
+        }
+        return EventCancelResult.CANCELLED;
     }
 }

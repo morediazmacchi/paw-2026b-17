@@ -36,6 +36,9 @@
         <c:if test="${event.visibility == 'PRIVATE'}">
             <span class="detail-hero-badge"><spring:message code="event.publish.privateLabel"/></span>
         </c:if>
+        <c:if test="${event.cancelled}">
+            <span class="detail-hero-badge detail-hero-badge-cancelled"><spring:message code="auth.events.cancelledTag"/></span>
+        </c:if>
         <sec:authorize access="isAuthenticated()">
             <c:url value="/eventos/${event.id}" var="detailUrl"/>
             <c:url value="/eventos/${event.id}/favorito" var="favAddUrl"/>
@@ -207,6 +210,13 @@
             <div class="detail-rsvp-card">
                 <h2 class="detail-rsvp-heading"><spring:message code="event.detail.registerCardHeading"/></h2>
                 <c:choose>
+                    <%-- Cancelado gana sobre todo lo demas: ni siquiera importa si
+                         estaba finalizado o si alguien seguia anotado, no hay ninguna
+                         accion valida que ofrecer (mismo lugar donde se esconde el
+                         form de "Quiero ir" cuando el evento esta lleno). --%>
+                    <c:when test="${event.cancelled}">
+                        <p class="alert"><spring:message code="event.detail.eventCancelled"/></p>
+                    </c:when>
                     <%-- Finalizado gana incluso si estabas anotado: ya paso, no tiene
                          sentido "darse de baja" de algo que ya sucedio. Que este lleno,
                          en cambio, ya no es un callejon sin salida: se avisa con el

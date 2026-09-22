@@ -77,4 +77,7 @@ public interface NotificationService {
 
     /** El creador invito a alguien a un evento privado -> mail con el link para verlo y anotarse. */
     void notifyEventInvitation(Event event, EventInvitation invitation);
+
+    /** El creador cancelo el evento -> le avisa a cada inscripto confirmado. */
+    void notifyEventCancelled(Event event, Registration registration);
 }

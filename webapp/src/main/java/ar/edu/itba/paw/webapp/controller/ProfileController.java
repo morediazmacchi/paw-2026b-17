@@ -324,6 +324,20 @@ public class ProfileController {
             }
         }
         mav.addObject("pendingCountsByEventId", pendingCountsByEventId);
+
+        // Para el texto del modal de "Cancelar evento" (cuantos inscriptos
+        // confirmados se van a enterar por mail): solo tiene sentido calcularlo
+        // para eventos activos, uno ya cancelado no muestra el boton.
+        final Map<Long, Long> confirmedCountsByEventId = new HashMap<>();
+        for (final Event event : createdEvents) {
+            if (!event.isCancelled()) {
+                final long confirmed = registrationService.findByEventId(event.getId()).stream()
+                        .filter(r -> Registration.STATUS_CONFIRMED.equals(r.getStatus()))
+                        .count();
+                confirmedCountsByEventId.put(event.getId(), confirmed);
+            }
+        }
+        mav.addObject("confirmedCountsByEventId", confirmedCountsByEventId);
         return mav;
     }
 

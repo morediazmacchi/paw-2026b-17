@@ -1,6 +1,7 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.RegistrationDao;
 import org.junit.Test;
@@ -213,5 +214,61 @@ public class EventServiceImplTest {
 
         assertEquals(EventUpdateResult.UPDATED, result);
         verify(mockRegistrationDao, never()).countConfirmed(EVENT_ID);
+    }
+
+    @Test
+    public void testCancelSucceedsAndNotifiesOnlyConfirmedRegistrants() {
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(someEvent()));
+        final Registration confirmed = new Registration(EVENT_ID, "confirmado@mail.com", "Confirmado",
+                Registration.STATUS_CONFIRMED);
+        final Registration waitlisted = new Registration(EVENT_ID, "espera@mail.com", "Espera",
+                Registration.STATUS_WAITLISTED);
+        final Registration pending = new Registration(EVENT_ID, "pendiente@mail.com", "Pendiente",
+                Registration.STATUS_PENDING);
+        when(mockRegistrationDao.findByEventId(EVENT_ID))
+                .thenReturn(Arrays.asList(confirmed, waitlisted, pending));
+
+        final EventCancelResult result = eventService.cancel(EVENT_ID, CREATOR_EMAIL);
+
+        assertEquals(EventCancelResult.CANCELLED, result);
+        verify(mockEventDao).cancel(EVENT_ID);
+        verify(mockNotificationService).notifyEventCancelled(any(Event.class), org.mockito.ArgumentMatchers.eq(confirmed));
+        verify(mockNotificationService, never())
+                .notifyEventCancelled(any(Event.class), org.mockito.ArgumentMatchers.eq(waitlisted));
+        verify(mockNotificationService, never())
+                .notifyEventCancelled(any(Event.class), org.mockito.ArgumentMatchers.eq(pending));
+    }
+
+    @Test
+    public void testCancelWhenCallerIsNotTheCreatorReturnsNotFound() {
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(someEvent()));
+
+        final EventCancelResult result = eventService.cancel(EVENT_ID, OTHER_EMAIL);
+
+        assertEquals(EventCancelResult.NOT_FOUND, result);
+        verify(mockEventDao, never()).cancel(EVENT_ID);
+    }
+
+    @Test
+    public void testCancelWhenTheEventDoesNotExistReturnsNotFound() {
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.empty());
+
+        final EventCancelResult result = eventService.cancel(EVENT_ID, CREATOR_EMAIL);
+
+        assertEquals(EventCancelResult.NOT_FOUND, result);
+        verify(mockEventDao, never()).cancel(EVENT_ID);
+    }
+
+    @Test
+    public void testCancelWhenAlreadyCancelledDoesNotCancelOrNotifyAgain() {
+        final Event alreadyCancelled = someEvent();
+        alreadyCancelled.setCancelledAt(new java.util.Date());
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(alreadyCancelled));
+
+        final EventCancelResult result = eventService.cancel(EVENT_ID, CREATOR_EMAIL);
+
+        assertEquals(EventCancelResult.ALREADY_CANCELLED, result);
+        verify(mockEventDao, never()).cancel(EVENT_ID);
+        verify(mockRegistrationDao, never()).findByEventId(EVENT_ID);
     }
 }

@@ -27,4 +27,10 @@ public interface EventService {
      *                eventId del primer parametro
      */
     EventUpdateResult update(long eventId, Event changes, String callerEmail);
+
+    /**
+     * Cancela (soft-delete) un evento existente y avisa por mail a cada
+     * inscripto confirmado.
+     */
+    EventCancelResult cancel(long eventId, String callerEmail);
 }

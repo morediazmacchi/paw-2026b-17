@@ -16,20 +16,28 @@ public interface EventDao {
     // no hay ningun dato generado que devolver como si fuera un create().
     void update(Event event);
 
+    // Soft-delete: marca cancelled_at = now(). No borra la fila (ver comentario
+    // en schema.sql). Idempotente a nivel SQL, pero quien llama (EventService)
+    // es responsable de no invocarlo dos veces sobre el mismo evento.
+    void cancel(long id);
+
+    // No excluye cancelados a proposito: el detalle de un evento cancelado
+    // sigue siendo accesible para quien ya estaba anotado (ver EventController).
     Optional<Event> findById(long id);
 
     // SELECT ... FOR UPDATE: usar solo dentro de un @Transactional que chequee cupo.
     Optional<Event> findByIdForUpdate(long id);
 
+    // Excluyen eventos cancelados (ver cancel() mas arriba).
     List<Event> findAll();
     List<Event> findByCategory(long categoryId);
 
-    // "Mis eventos": todos los del creador (pasados incluidos, a diferencia de
-    // search()), mas recientes primero.
+    // "Mis eventos": todos los del creador (pasados y cancelados incluidos, a
+    // diferencia de search()), mas recientes primero.
     List<Event> findByCreatorEmail(String email);
 
     // Combina todos los filtros con AND (un campo en null en criteria significa "sin filtrar por
-    // esto"); solo eventos futuros; ordenado y paginado segun criteria.
+    // esto"); solo eventos futuros y no cancelados; ordenado y paginado segun criteria.
     List<Event> search(EventSearchCriteria criteria);
 
     // Mismos filtros que search() (mismo WHERE), sin orden ni paginado: el total para el paginador.

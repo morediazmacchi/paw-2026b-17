@@ -358,6 +358,25 @@ public class NotificationServiceImpl implements NotificationService {
         }
     }
 
+    @Async
+    @Override
+    public void notifyEventCancelled(final Event event, final Registration registration) {
+        try {
+            final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
+            variables.put("personName", displayName(registration.getName(), registration.getEmail()));
+            variables.put("eventsUrl", baseUrl + "/eventos");
+
+            mailService.send(registration.getEmail(),
+                    "event-cancelled",
+                    "mail.eventCancelled.subject",
+                    new Object[]{ event.getTitle() },
+                    variables,
+                    DEFAULT_LOCALE);
+        } catch (final RuntimeException e) {
+            LOGGER.error("Fallo el aviso de evento cancelado, evento {}", event.getId(), e);
+        }
+    }
+
     /**
      * Los datos del evento que usan las tres plantillas. Se arma una sola vez
      * aca en vez de repetirlo en cada metodo.

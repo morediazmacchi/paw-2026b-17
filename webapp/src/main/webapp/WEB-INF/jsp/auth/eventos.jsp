@@ -10,6 +10,7 @@
     <link rel="icon" type="image/svg+xml" href="${pageContext.request.contextPath}/favicon.svg">
     <link rel="stylesheet" href="${pageContext.request.contextPath}/css/style.css">
     <script src="<c:url value='/js/modal.js'/>"></script>
+    <script src="<c:url value='/js/disable-on-submit.js'/>"></script>
 </head>
 <body>
 
@@ -58,11 +59,16 @@
                 <spring:message code="auth.events.attendeesButton" var="attendeesButtonLabel"/>
                 <spring:message code="auth.events.pendingButton" var="pendingButtonLabel"/>
                 <spring:message code="auth.events.inviteButton" var="inviteButtonLabel"/>
+                <spring:message code="auth.events.cancelButton" var="cancelButtonLabel"/>
+                <spring:message code="auth.events.cancelConfirmBackButton" var="cancelConfirmBackButtonLabel"/>
+                <spring:message code="auth.events.cancelConfirmSubmitButton" var="cancelConfirmSubmitButtonLabel"/>
+                <spring:message code="event.detail.closeButton" var="closeButtonLabel"/>
                 <div class="event-row-list">
                     <c:forEach var="event" items="${createdEvents}">
                         <paw:eventRow id="${event.id}" nombre="${event.title}" fecha="${event.eventDate}"
                                       ubicacion="${event.neighborhood.displayName}" precio="${event.price}"
-                                      imagenId="${event.imageId}" privado="${event.visibility == 'PRIVATE'}">
+                                      imagenId="${event.imageId}" privado="${event.visibility == 'PRIVATE'}"
+                                      cancelado="${event.cancelled}">
                             <a class="btn btn-medium" href="<c:url value='/eventos/${event.id}/inscriptos'/>">
                                 <c:out value="${attendeesButtonLabel}"/>
                             </a>
@@ -86,7 +92,42 @@
                             <a class="btn btn-medium btn-accent" href="<c:url value='/eventos/${event.id}/editar'/>">
                                 <c:out value="${editButtonLabel}"/>
                             </a>
+                            <%-- Un evento ya cancelado no muestra el boton de nuevo: no hay
+                                 nada mas que cancelar. --%>
+                            <c:if test="${!event.cancelled}">
+                                <button type="button" class="btn btn-medium btn-danger" data-open-modal="cancelModal-${event.id}">
+                                    <c:out value="${cancelButtonLabel}"/>
+                                </button>
+                            </c:if>
                         </paw:eventRow>
+
+                        <c:if test="${!event.cancelled}">
+                            <div class="modal-overlay" id="cancelModal-${event.id}" hidden>
+                                <div class="modal-box">
+                                    <div class="modal-header">
+                                        <h2><spring:message code="auth.events.cancelConfirmTitle"/></h2>
+                                        <button type="button" class="modal-close" data-close-modal aria-label="${closeButtonLabel}">
+                                            <paw:icon name="close"/>
+                                        </button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <p><strong><c:out value="${event.title}"/></strong></p>
+                                        <p>
+                                            <spring:message code="auth.events.cancelConfirmBody"
+                                                             arguments="${confirmedCountsByEventId[event.id]}"/>
+                                        </p>
+                                        <div class="modal-confirm-actions">
+                                            <button type="button" class="btn btn-medium" data-close-modal>
+                                                <c:out value="${cancelConfirmBackButtonLabel}"/>
+                                            </button>
+                                            <form action="<c:url value='/eventos/${event.id}/cancelar'/>" method="post">
+                                                <paw:button text="${cancelConfirmSubmitButtonLabel}" cssClass="btn-danger"/>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </c:if>
                     </c:forEach>
                 </div>
             </c:otherwise>
