@@ -33,8 +33,22 @@ CREATE TABLE IF NOT EXISTS event (
     max_capacity    INTEGER
                         CHECK (max_capacity IS NULL OR max_capacity > 0),
     creator_email   VARCHAR(150) NOT NULL,
-    category_id     INTEGER NOT NULL REFERENCES category(id),
     created_at      TIMESTAMP NOT NULL DEFAULT now()
+);
+
+-- Un evento puede tener varias categorias (antes era 1:1, con una columna
+-- category_id en event; ver postgres-migrations.sql para la migracion de la
+-- base vieja que todavia la tiene). extra_info es texto libre y opcional: lo
+-- que el creador cuenta especificamente de ESA categoria para ESE evento (ej.
+-- que artistas van a tocar si la categoria es Arte, que bandas si es Musica).
+-- No hay una pregunta distinta por categoria a proposito: el set de
+-- categorias es fijo y chico (ver data.sql), no hace falta un formulario
+-- dinamico para esto.
+CREATE TABLE IF NOT EXISTS event_category (
+    event_id     INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
+    category_id  INTEGER NOT NULL REFERENCES category(id),
+    extra_info   VARCHAR(500),
+    PRIMARY KEY (event_id, category_id)
 );
 
 -- 'pending': la inscripcion espera que el creador la acepte o la rechace

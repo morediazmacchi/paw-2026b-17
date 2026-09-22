@@ -74,18 +74,30 @@
                     <h2><spring:message code="event.publish.step2Heading"/></h2>
                     <p><spring:message code="event.publish.step2Subheading"/></p>
                 </div>
+                <spring:message code="event.publish.categoryExtraInfoLabel" var="categoryExtraInfoLabel"/>
                 <div class="form-group">
-                    <label for="categoriaId"><c:out value="${categoryLabel}"/></label>
-                    <select id="categoriaId" name="categoriaId" required="required">
-                        <option value="" disabled="disabled" ${empty eventForm.categoriaId ? 'selected="selected"' : ''}></option>
-                        <c:forEach var="cat" items="${categories}">
-                            <option value="${cat.id}" ${cat.id == eventForm.categoriaId ? 'selected' : ''}>
-                                <spring:message code="category.${cat.name}" text="${cat.name}" htmlEscape="true"/>
-                            </option>
+                    <label><c:out value="${categoryLabel}"/></label>
+                    <div class="wizard-category-list">
+                        <c:forEach var="cat" items="${categories}" varStatus="catStatus">
+                            <c:set var="catForm" value="${eventForm.categorias[catStatus.index]}"/>
+                            <div class="wizard-category-item">
+                                <label class="filter-checkbox">
+                                    <input type="checkbox" class="wizard-category-checkbox"
+                                           name="categorias[${catStatus.index}].seleccionada" value="true"
+                                           data-category-index="${catStatus.index}"
+                                           ${catForm.seleccionada ? 'checked="checked"' : ''}/>
+                                    <spring:message code="category.${cat.name}" text="${cat.name}" htmlEscape="true"/>
+                                </label>
+                                <input type="hidden" name="categorias[${catStatus.index}].categoryId" value="${cat.id}"/>
+                                <div class="wizard-category-extra" ${catForm.seleccionada ? '' : 'hidden'}>
+                                    <textarea name="categorias[${catStatus.index}].extraInfo" maxlength="500"
+                                              placeholder="${categoryExtraInfoLabel}"><c:out value="${catForm.extraInfo}"/></textarea>
+                                </div>
+                            </div>
                         </c:forEach>
-                    </select>
-                    <c:if test="${not empty fieldErrors.categoriaId}">
-                        <span class="error-message"><c:out value="${fieldErrors.categoriaId}"/></span>
+                    </div>
+                    <c:if test="${not empty categoriasError}">
+                        <span class="error-message"><c:out value="${categoriasError}"/></span>
                     </c:if>
                 </div>
                 <div class="form-group">

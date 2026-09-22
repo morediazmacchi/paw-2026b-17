@@ -1,7 +1,9 @@
 package ar.edu.itba.paw.webapp.controller;
 
 import ar.edu.itba.paw.model.Barrio;
+import ar.edu.itba.paw.model.Category;
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.EventCategoryInfo;
 import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.EventSort;
 import ar.edu.itba.paw.model.EventVisibility;
@@ -22,6 +24,7 @@ import ar.edu.itba.paw.services.RegistrationService;
 import ar.edu.itba.paw.services.ReviewService;
 import ar.edu.itba.paw.services.UserService;
 import ar.edu.itba.paw.webapp.exception.EventNotFoundException;
+import ar.edu.itba.paw.webapp.form.CategoriaSeleccionForm;
 import ar.edu.itba.paw.webapp.form.EventForm;
 import ar.edu.itba.paw.webapp.util.SafeRedirect;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,6 +48,7 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -440,13 +444,26 @@ public class EventController {
 
     @RequestMapping(value = "/eventos/publicar", method = RequestMethod.GET)
     public ModelAndView publishForm(@RequestParam(value = "imageError", required = false) final String imageError) {
+        final List<Category> categories = categoryService.findAll();
         final ModelAndView mav = new ModelAndView("events/publish");
-        mav.addObject("categories", categoryService.findAll());
+        mav.addObject("categories", categories);
         mav.addObject("barrios", Barrio.values());
+        mav.addObject("eventForm", emptyForm(categories));
         if (imageError != null) {
             mav.addObject("imageError", message("event.publish.imageTooLargeError"));
         }
         return mav;
+    }
+
+    // Un CategoriaSeleccionForm por cada categoria existente, todas sin
+    // tildar: hace falta que la lista ya tenga una entrada por indice para
+    // que el binding indexado de Spring (categorias[0].seleccionada, etc.) y
+    // el JSP (que itera "categories" y lee eventForm.categorias[idx]) esten
+    // sincronizados incluso en el primer GET, antes de cualquier submit.
+    private static EventForm emptyForm(final List<Category> categories) {
+        final EventForm form = new EventForm();
+        form.setCategorias(categoriaFormsFor(Collections.emptyList(), categories));
+        return form;
     }
 
     @RequestMapping(value = "/eventos/publicar", method = RequestMethod.POST)
@@ -454,6 +471,7 @@ public class EventController {
                                  @RequestParam(value = "image", required = false) final MultipartFile image,
                                  final Principal principal) {
         final Barrio parsedBarrio = parseBarrio(form.getBarrio(), errors);
+        final List<EventCategoryInfo> categorias = selectedCategories(form, errors);
 
         if (errors.hasErrors()) {
             return publishFormWithErrors(form, errors, null);
@@ -505,16 +523,56 @@ public class EventController {
         // El creador es quien esta logueado, nunca un campo del form: si viniera del
         // form, cualquiera podria publicar un evento a nombre de otro email.
         final Event event = new Event(form.getTitulo(), form.getDescripcion(), parsedDate, form.getDireccion(),
-                parsedBarrio, imageId, parsedPrice, parsedCapacity, principal.getName(), form.getCategoriaId());
+                parsedBarrio, imageId, parsedPrice, parsedCapacity, principal.getName(), null);
+        event.setCategories(categorias);
         event.setRequiresApproval(form.isRequiereAprobacion());
         event.setVisibility(form.isPrivado() ? EventVisibility.PRIVATE : EventVisibility.PUBLIC);
         try {
             eventService.create(event);
         } catch (final IllegalArgumentException e) {
-            errors.rejectValue("categoriaId", "categoria.invalida", e.getMessage());
+            errors.rejectValue("categorias", "categoria.invalida", e.getMessage());
             return publishFormWithErrors(form, errors, null);
         }
         return new ModelAndView("redirect:/eventos");
+    }
+
+    // Al menos una categoria tildada. No es una regla JSR-303 (ver el
+    // comentario sobre @Valid en EventForm.categorias): se agrega a mano,
+    // mismo patron que parseBarrio() con "barrio.invalido".
+    private List<EventCategoryInfo> selectedCategories(final EventForm form, final BindingResult errors) {
+        final List<EventCategoryInfo> selected = form.getCategorias().stream()
+                .filter(CategoriaSeleccionForm::isSeleccionada)
+                .map(c -> new EventCategoryInfo(c.getCategoryId(), blankToNull(c.getExtraInfo())))
+                .collect(Collectors.toList());
+        if (selected.isEmpty()) {
+            errors.rejectValue("categorias", "categoria.vacia", message("categoria.vacia"));
+        }
+        return selected;
+    }
+
+    private static String blankToNull(final String value) {
+        if (value == null) {
+            return null;
+        }
+        final String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    // Un CategoriaSeleccionForm por cada categoria existente: "existing" trae
+    // las que el evento ya tiene (si las hay) para tildarlas y precargar su
+    // extraInfo; el resto queda sin tildar.
+    private static List<CategoriaSeleccionForm> categoriaFormsFor(
+            final List<EventCategoryInfo> existing, final List<Category> allCategories) {
+        final Map<Long, EventCategoryInfo> byId = existing.stream()
+                .collect(Collectors.toMap(EventCategoryInfo::getCategoryId, c -> c));
+        return allCategories.stream().map(cat -> {
+            final CategoriaSeleccionForm categoriaForm = new CategoriaSeleccionForm();
+            categoriaForm.setCategoryId(cat.getId());
+            final EventCategoryInfo info = byId.get(cat.getId());
+            categoriaForm.setSeleccionada(info != null);
+            categoriaForm.setExtraInfo(info == null ? null : info.getExtraInfo());
+            return categoriaForm;
+        }).collect(Collectors.toList());
     }
 
     private ModelAndView publishFormWithErrors(final EventForm form, final BindingResult errors,
@@ -528,8 +586,20 @@ public class EventController {
         mav.addObject("barrios", Barrio.values());
         mav.addObject("eventForm", form);
         mav.addObject("fieldErrors", fieldErrors);
+        mav.addObject("categoriasError", firstCategoriasError(fieldErrors));
         mav.addObject("imageError", imageError);
         return mav;
+    }
+
+    private static String firstCategoriasError(final Map<String, String> fieldErrors) {
+        if (fieldErrors.containsKey("categorias")) {
+            return fieldErrors.get("categorias");
+        }
+        return fieldErrors.entrySet().stream()
+                .filter(e -> e.getKey().startsWith("categorias["))
+                .map(Map.Entry::getValue)
+                .findFirst()
+                .orElse(null);
     }
 
     private Barrio parseBarrio(final String barrio, final BindingResult errors) {
@@ -657,19 +727,20 @@ public class EventController {
     @RequestMapping(value = "/eventos/{id}/editar", method = RequestMethod.GET)
     public ModelAndView editarForm(@PathVariable final long id, final Principal principal) {
         final Event event = eventForOwner(id, principal);
+        final List<Category> categories = categoryService.findAll();
         final ModelAndView mav = new ModelAndView("events/editar");
         mav.addObject("eventId", id);
-        mav.addObject("categories", categoryService.findAll());
+        mav.addObject("categories", categories);
         mav.addObject("barrios", Barrio.values());
-        mav.addObject("eventForm", formFrom(event));
+        mav.addObject("eventForm", formFrom(event, categories));
         return mav;
     }
 
-    private static EventForm formFrom(final Event event) {
+    private static EventForm formFrom(final Event event, final List<Category> categories) {
         final EventForm form = new EventForm();
         form.setTitulo(event.getTitle());
         form.setDescripcion(event.getDescription());
-        form.setCategoriaId(event.getCategoryId());
+        form.setCategorias(categoriaFormsFor(event.getCategories(), categories));
         form.setFechaEvento(new SimpleDateFormat("yyyy-MM-dd'T'HH:mm").format(event.getEventDate()));
         form.setDireccion(event.getAddress());
         form.setBarrio(event.getNeighborhood() == null ? null : event.getNeighborhood().name());
@@ -701,6 +772,7 @@ public class EventController {
         // mirar el resto del form.
         final Event existing = eventForOwner(id, principal);
         final Barrio parsedBarrio = parseBarrio(form.getBarrio(), errors);
+        final List<EventCategoryInfo> categorias = selectedCategories(form, errors);
 
         if (errors.hasErrors()) {
             return editarFormWithErrors(id, form, errors, null);
@@ -738,7 +810,8 @@ public class EventController {
         }
 
         final Event changes = new Event(form.getTitulo(), form.getDescripcion(), parsedDate, form.getDireccion(),
-                parsedBarrio, imageId, parsedPrice, parsedCapacity, existing.getCreatorEmail(), form.getCategoriaId());
+                parsedBarrio, imageId, parsedPrice, parsedCapacity, existing.getCreatorEmail(), null);
+        changes.setCategories(categorias);
         changes.setRequiresApproval(form.isRequiereAprobacion());
         changes.setVisibility(form.isPrivado() ? EventVisibility.PRIVATE : EventVisibility.PUBLIC);
         final EventUpdateResult result = eventService.update(id, changes, principal.getName());
@@ -769,6 +842,7 @@ public class EventController {
         mav.addObject("barrios", Barrio.values());
         mav.addObject("eventForm", form);
         mav.addObject("fieldErrors", fieldErrors);
+        mav.addObject("categoriasError", firstCategoriasError(fieldErrors));
         mav.addObject("imageError", imageError);
         return mav;
     }

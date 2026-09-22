@@ -39,8 +39,10 @@
                 <div class="hero-content">
                     <div class="hero-badges">
                         <span class="hero-badge hero-badge-accent"><spring:message code="event.list.featuredBadge"/></span>
-                        <spring:message code="category.${fe.categoryName}" text="${fe.categoryName}" var="feCategoria"/>
-                        <span class="hero-badge"><c:out value="${fn:toUpperCase(feCategoria)}"/></span>
+                        <c:forEach var="fec" items="${fe.categories}">
+                            <spring:message code="category.${fec.categoryName}" text="${fec.categoryName}" var="feCategoria"/>
+                            <span class="hero-badge"><c:out value="${fn:toUpperCase(feCategoria)}"/></span>
+                        </c:forEach>
                     </div>
                     <h1 class="hero-title"><c:out value="${fe.title}"/></h1>
                     <c:if test="${not empty fe.description}">
@@ -253,7 +255,11 @@
                 <c:forEach var="event" items="${events}">
                     <c:set var="cardPrecio" value="${event.price == 0 ? null : event.price}" />
                     <c:set var="cardUbicacion" value="${empty event.neighborhood ? event.address : event.neighborhood.displayName}" />
-                    <spring:message code="category.${event.categoryName}" text="${event.categoryName}" var="cardCategoria"/>
+                    <c:set var="cardCategoria" value=""/>
+                    <c:forEach var="ecat" items="${event.categories}" varStatus="ecatStatus">
+                        <spring:message code="category.${ecat.categoryName}" text="${ecat.categoryName}" var="ecatName"/>
+                        <c:set var="cardCategoria" value="${cardCategoria}${ecatStatus.first ? '' : ', '}${ecatName}"/>
+                    </c:forEach>
                     <paw:card id="${event.id}" nombre="${event.title}" precio="${cardPrecio}"
                               fecha="${event.eventDate}" categoria="${cardCategoria}"
                               ubicacion="${cardUbicacion}" imagenId="${event.imageId}"

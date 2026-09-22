@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "webapp-jetty",
+      "runtimeExecutable": "./mvnw",
+      "runtimeArgs": ["-pl", "webapp", "jetty:run"],
+      "port": 8080
+    }
+  ]
+}

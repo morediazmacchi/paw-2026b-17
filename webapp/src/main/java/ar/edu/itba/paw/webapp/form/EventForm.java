@@ -1,10 +1,12 @@
 // Datos del formulario de publicar evento, validados con JSR-303.
 package ar.edu.itba.paw.webapp.form;
 
+import javax.validation.Valid;
 import javax.validation.constraints.NotBlank;
-import javax.validation.constraints.NotNull;
 import javax.validation.constraints.Pattern;
 import javax.validation.constraints.Size;
+import java.util.ArrayList;
+import java.util.List;
 
 public class EventForm {
 
@@ -15,8 +17,14 @@ public class EventForm {
     @Size(max = 1000, message = "La descripcion no puede superar los 1000 caracteres")
     private String descripcion;
 
-    @NotNull(message = "Elegi una categoria")
-    private Long categoriaId;
+    // Una entrada por cada categoria existente (ver EventController), en vez
+    // de un solo id: ahora se puede elegir mas de una. Que haya elegido al
+    // menos una no se puede expresar con JSR-303 sobre esta lista (todas sus
+    // entradas existen siempre, tildadas o no, para que el binding indexado
+    // de Spring funcione); ese chequeo lo hace el controller a mano, como ya
+    // hacia con el barrio.
+    @Valid
+    private List<CategoriaSeleccionForm> categorias = new ArrayList<>();
 
     @NotBlank(message = "La fecha y horario son obligatorios")
     @Pattern(regexp = "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}$", message = "La fecha y horario no tienen un formato valido")
@@ -58,8 +66,8 @@ public class EventForm {
     public String getDescripcion() { return descripcion; }
     public void setDescripcion(final String descripcion) { this.descripcion = descripcion; }
 
-    public Long getCategoriaId() { return categoriaId; }
-    public void setCategoriaId(final Long categoriaId) { this.categoriaId = categoriaId; }
+    public List<CategoriaSeleccionForm> getCategorias() { return categorias; }
+    public void setCategorias(final List<CategoriaSeleccionForm> categorias) { this.categorias = categorias; }
 
     public String getFechaEvento() { return fechaEvento; }
     public void setFechaEvento(final String fechaEvento) { this.fechaEvento = fechaEvento; }

@@ -1,6 +1,9 @@
 package ar.edu.itba.paw.model;
 
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
+import java.util.stream.Collectors;
 
 public class Event {
 
@@ -14,8 +17,11 @@ public class Event {
     private double price;
     private Integer maxCapacity;
     private String creatorEmail;
-    private long categoryId;
-    private String categoryName; // solo se llena al hacer el JOIN con category, no es una columna de event
+    // Un evento puede tener varias categorias (relacion N:M, ver event_category
+    // en schema.sql). categoryName y extraInfo de cada una solo se llenan al
+    // leer (join con category / event_category), no hace falta setearlos para
+    // crear o editar un evento.
+    private List<EventCategoryInfo> categories = new ArrayList<>();
     private Date createdAt;
     // Si esta en true, una inscripcion nueva nace 'pending' en vez de
     // 'confirmed': el creador la tiene que aceptar o rechazar el mismo. No va
@@ -34,9 +40,13 @@ public class Event {
     public Event() {
     }
 
+    // El ultimo parametro reemplazo al viejo "long categoryId" unico: ahora un
+    // evento puede tener varias categorias, sin informacion extra por
+    // categoria (para eso esta setCategories(), usado por el wizard de
+    // publicar/editar, que si carga extraInfo por cada una).
     public Event(final String title, final String description, final Date eventDate, final String address,
                  final Barrio neighborhood, final Long imageId, final double price, final Integer maxCapacity,
-                 final String creatorEmail, final long categoryId) {
+                 final String creatorEmail, final List<Long> categoryIds) {
         this.title = title;
         this.description = description;
         this.eventDate = eventDate;
@@ -46,7 +56,8 @@ public class Event {
         this.price = price;
         this.maxCapacity = maxCapacity;
         this.creatorEmail = creatorEmail;
-        this.categoryId = categoryId;
+        this.categories = categoryIds == null ? new ArrayList<>()
+                : categoryIds.stream().map(EventCategoryInfo::new).collect(Collectors.toList());
     }
 
     public long getId() { return id; }
@@ -69,10 +80,10 @@ public class Event {
     public void setMaxCapacity(final Integer maxCapacity) { this.maxCapacity = maxCapacity; }
     public String getCreatorEmail() { return creatorEmail; }
     public void setCreatorEmail(final String creatorEmail) { this.creatorEmail = creatorEmail; }
-    public long getCategoryId() { return categoryId; }
-    public void setCategoryId(final long categoryId) { this.categoryId = categoryId; }
-    public String getCategoryName() { return categoryName; }
-    public void setCategoryName(final String categoryName) { this.categoryName = categoryName; }
+    public List<EventCategoryInfo> getCategories() { return categories; }
+    public void setCategories(final List<EventCategoryInfo> categories) {
+        this.categories = categories == null ? new ArrayList<>() : categories;
+    }
     public Date getCreatedAt() { return createdAt; }
     public void setCreatedAt(final Date createdAt) { this.createdAt = createdAt; }
     public boolean isRequiresApproval() { return requiresApproval; }

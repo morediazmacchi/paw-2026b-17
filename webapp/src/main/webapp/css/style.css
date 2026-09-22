@@ -1102,6 +1102,31 @@ button.btn-accent {
     font-weight: 600;
 }
 
+/* Categorias del paso 2: una checkbox por categoria, con su textarea de
+   info adicional debajo cuando esta tildada (event-wizard.js la muestra/
+   esconde). */
+.wizard-category-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.wizard-category-item {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+}
+
+.wizard-category-extra {
+    margin-top: 8px;
+}
+
+.wizard-category-extra textarea {
+    width: 100%;
+    min-height: 60px;
+    resize: vertical;
+}
+
 .wizard-dropzone {
     display: flex;
     flex-direction: column;

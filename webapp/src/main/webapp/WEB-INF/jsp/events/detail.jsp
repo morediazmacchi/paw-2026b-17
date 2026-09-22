@@ -26,10 +26,10 @@
     <div class="detail-hero-overlay"></div>
     <a class="detail-hero-back" href="<c:url value='/eventos'/>"><c:out value="${backLabel}"/></a>
     <div class="detail-hero-top-actions">
-        <c:if test="${not empty event.categoryName}">
-            <spring:message code="category.${event.categoryName}" text="${event.categoryName}" var="eventCategoria"/>
+        <c:forEach var="ec" items="${event.categories}">
+            <spring:message code="category.${ec.categoryName}" text="${ec.categoryName}" var="eventCategoria"/>
             <span class="detail-hero-badge"><c:out value="${eventCategoria}"/></span>
-        </c:if>
+        </c:forEach>
         <%-- No "event.private": "private" es palabra reservada de Java y el
              parser de EL la rechaza como nombre de propiedad, aunque el
              getter se llame isPrivate(). Se compara el enum directo. --%>
@@ -149,6 +149,14 @@
                 <h2 class="detail-section-heading"><spring:message code="event.detail.aboutHeading"/></h2>
                 <p class="detail-descripcion"><c:out value="${event.description}"/></p>
             </c:if>
+
+            <c:forEach var="ec" items="${event.categories}">
+                <c:if test="${not empty ec.extraInfo}">
+                    <spring:message code="category.${ec.categoryName}" text="${ec.categoryName}" var="ecCategoria"/>
+                    <h2 class="detail-section-heading"><c:out value="${ecCategoria}"/></h2>
+                    <p class="detail-descripcion"><c:out value="${ec.extraInfo}"/></p>
+                </c:if>
+            </c:forEach>
 
             <h2 class="detail-section-heading"><spring:message code="event.detail.addressHeading"/></h2>
             <div class="detail-address">

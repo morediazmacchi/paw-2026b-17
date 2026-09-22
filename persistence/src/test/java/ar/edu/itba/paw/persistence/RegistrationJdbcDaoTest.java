@@ -42,20 +42,17 @@ public class RegistrationJdbcDaoTest {
     @Before
     public void setUp() {
         jdbcTemplate = new JdbcTemplate(ds);
-        final long categoryId = insertCategory("Musica");
-        eventId = insertEvent(categoryId);
+        eventId = insertEvent();
     }
 
-    private long insertCategory(final String name) {
-        jdbcTemplate.update("INSERT INTO category (name) VALUES (?)", name);
-        return jdbcTemplate.queryForObject("SELECT id FROM category WHERE name = ?", Long.class, name);
-    }
-
-    private long insertEvent(final long categoryId) {
+    // El evento no necesita categoria para estos tests (son de inscripciones,
+    // no de categorias): sin la columna category_id, una fila de event ya no
+    // depende de que exista una.
+    private long insertEvent() {
         jdbcTemplate.update(
-                "INSERT INTO event (title, event_date, address, creator_email, category_id) VALUES (?, ?, ?, ?, ?)",
-                "Recital", new Timestamp(System.currentTimeMillis()), "Corrientes 1234", "creador@mail.com", categoryId);
-        return jdbcTemplate.queryForObject("SELECT id FROM event WHERE category_id = ?", Long.class, categoryId);
+                "INSERT INTO event (title, event_date, address, creator_email) VALUES (?, ?, ?, ?)",
+                "Recital", new Timestamp(System.currentTimeMillis()), "Corrientes 1234", "creador@mail.com");
+        return jdbcTemplate.queryForObject("SELECT id FROM event ORDER BY id DESC LIMIT 1", Long.class);
     }
 
     private static Registration someRegistration(final long eventId) {
@@ -159,8 +156,7 @@ public class RegistrationJdbcDaoTest {
 
     @Test
     public void testFindByEventIdDoesNotReturnRegistrationsOfOtherEvents() {
-        final long otherCategoryId = insertCategory("Deportes");
-        final long otherEventId = insertEvent(otherCategoryId);
+        final long otherEventId = insertEvent();
         registrationDao.create(someRegistration(eventId));
         registrationDao.create(new Registration(otherEventId, "otro@mail.com", "Otro", Registration.STATUS_CONFIRMED));
 

@@ -43,21 +43,18 @@ public class EventInvitationJdbcDaoTest {
     @Before
     public void setUp() {
         jdbcTemplate = new JdbcTemplate(ds);
-        final long categoryId = insertCategory("Musica");
-        eventId = insertEvent(categoryId);
+        eventId = insertEvent();
     }
 
-    private long insertCategory(final String name) {
-        jdbcTemplate.update("INSERT INTO category (name) VALUES (?)", name);
-        return jdbcTemplate.queryForObject("SELECT id FROM category WHERE name = ?", Long.class, name);
-    }
-
-    private long insertEvent(final long categoryId) {
+    // El evento no necesita categoria para estos tests (son de invitaciones,
+    // no de categorias): sin la columna category_id, una fila de event ya no
+    // depende de que exista una.
+    private long insertEvent() {
         jdbcTemplate.update(
-                "INSERT INTO event (title, event_date, address, creator_email, category_id, visibility) "
-                        + "VALUES (?, ?, ?, ?, ?, 'PRIVATE')",
-                "Fiesta privada", new Timestamp(System.currentTimeMillis()), "Corrientes 1234", CREATOR_EMAIL, categoryId);
-        return jdbcTemplate.queryForObject("SELECT id FROM event WHERE category_id = ?", Long.class, categoryId);
+                "INSERT INTO event (title, event_date, address, creator_email, visibility) "
+                        + "VALUES (?, ?, ?, ?, 'PRIVATE')",
+                "Fiesta privada", new Timestamp(System.currentTimeMillis()), "Corrientes 1234", CREATOR_EMAIL);
+        return jdbcTemplate.queryForObject("SELECT id FROM event ORDER BY id DESC LIMIT 1", Long.class);
     }
 
     private static EventInvitation someInvitation(final long eventId) {
@@ -125,7 +122,7 @@ public class EventInvitationJdbcDaoTest {
     @Test
     public void testFindByEventReturnsOnlyThatEventsInvitations() {
         invitationDao.create(someInvitation(eventId));
-        final long otherEventId = insertEvent(insertCategory("Deportes"));
+        final long otherEventId = insertEvent();
         invitationDao.create(new EventInvitation(otherEventId, "otro@mail.com", "otro-token", CREATOR_EMAIL));
 
         final List<EventInvitation> found = invitationDao.findByEvent(eventId);

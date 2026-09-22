@@ -47,19 +47,16 @@ public class ReviewJdbcDaoTest {
     public void setUp() {
         jdbcTemplate = new JdbcTemplate(ds);
         userId = userDao.create(new User("asistente@mail.com", "Ana")).getId();
-        final long categoryId = insertCategory("Musica");
-        eventId = insertEvent(categoryId, "Recital", CREATOR_EMAIL);
+        eventId = insertEvent("Recital", CREATOR_EMAIL);
     }
 
-    private long insertCategory(final String name) {
-        jdbcTemplate.update("INSERT INTO category (name) VALUES (?)", name);
-        return jdbcTemplate.queryForObject("SELECT id FROM category WHERE name = ?", Long.class, name);
-    }
-
-    private long insertEvent(final long categoryId, final String title, final String creatorEmail) {
+    // El evento no necesita categoria para estos tests (son de reseñas, no de
+    // categorias): sin la columna category_id, una fila de event ya no
+    // depende de que exista una.
+    private long insertEvent(final String title, final String creatorEmail) {
         jdbcTemplate.update(
-                "INSERT INTO event (title, event_date, address, creator_email, category_id) VALUES (?, ?, ?, ?, ?)",
-                title, new Timestamp(System.currentTimeMillis()), "Corrientes 1234", creatorEmail, categoryId);
+                "INSERT INTO event (title, event_date, address, creator_email) VALUES (?, ?, ?, ?)",
+                title, new Timestamp(System.currentTimeMillis()), "Corrientes 1234", creatorEmail);
         return jdbcTemplate.queryForObject(
                 "SELECT id FROM event WHERE title = ? AND creator_email = ?", Long.class, title, creatorEmail);
     }
@@ -111,8 +108,8 @@ public class ReviewJdbcDaoTest {
 
     @Test
     public void testFindByCreatorEmailReturnsReviewsAcrossAllTheirEvents() {
-        final long otherEventId = insertEvent(insertCategory("Deportes"), "Torneo", CREATOR_EMAIL);
-        final long unrelatedEventId = insertEvent(insertCategory("Arte"), "Muestra", "otro@mail.com");
+        final long otherEventId = insertEvent("Torneo", CREATOR_EMAIL);
+        final long unrelatedEventId = insertEvent("Muestra", "otro@mail.com");
         reviewDao.create(new Review(eventId, userId, 5, "Buenisimo"));
         reviewDao.create(new Review(otherEventId, userId, 3, "Regular"));
         reviewDao.create(new Review(unrelatedEventId, userId, 1, "No cuenta"));

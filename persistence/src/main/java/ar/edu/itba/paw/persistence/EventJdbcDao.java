@@ -3,6 +3,7 @@ package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.Barrio;
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.EventCategoryInfo;
 import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.EventSort;
 import ar.edu.itba.paw.model.EventVisibility;
@@ -17,20 +18,20 @@ import org.springframework.stereotype.Repository;
 import javax.sql.DataSource;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Repository
 public class EventJdbcDao implements EventDao {
 
-    private static final String SELECT_BASE =
-            "SELECT e.*, c.name AS category_name FROM event e JOIN category c ON e.category_id = c.id";
+    private static final String SELECT_BASE = "SELECT e.* FROM event e";
 
-    private static final String COUNT_BASE =
-            "SELECT COUNT(*) FROM event e JOIN category c ON e.category_id = c.id";
+    private static final String COUNT_BASE = "SELECT COUNT(*) FROM event e";
 
     // Whitelist: el "columna real" de cada opcion de orden vive solo aca adentro,
     // nunca llega un string crudo del request hasta esta clase.
@@ -56,8 +57,6 @@ public class EventJdbcDao implements EventDao {
         event.setPrice(rs.getDouble("price"));
         event.setMaxCapacity(rs.getObject("max_capacity", Integer.class));
         event.setCreatorEmail(rs.getString("creator_email"));
-        event.setCategoryId(rs.getLong("category_id"));
-        event.setCategoryName(rs.getString("category_name"));
         event.setCreatedAt(rs.getTimestamp("created_at"));
         event.setRequiresApproval(rs.getBoolean("requires_approval"));
         event.setVisibility(EventVisibility.valueOf(rs.getString("visibility")));
@@ -75,7 +74,7 @@ public class EventJdbcDao implements EventDao {
                 .withTableName("event")
                 .usingGeneratedKeyColumns("id")
                 .usingColumns("title", "description", "event_date", "address", "neighborhood",
-                        "image_id", "price", "max_capacity", "creator_email", "category_id", "requires_approval",
+                        "image_id", "price", "max_capacity", "creator_email", "requires_approval",
                         "visibility");
     }
 
@@ -91,12 +90,12 @@ public class EventJdbcDao implements EventDao {
         args.put("price", event.getPrice());
         args.put("max_capacity", event.getMaxCapacity());
         args.put("creator_email", event.getCreatorEmail());
-        args.put("category_id", event.getCategoryId());
         args.put("requires_approval", event.isRequiresApproval());
         args.put("visibility", event.getVisibility().name());
 
         final Number id = jdbcInsert.executeAndReturnKey(args);
         event.setId(id.longValue());
+        insertCategories(event);
         return event;
     }
 
@@ -104,12 +103,50 @@ public class EventJdbcDao implements EventDao {
     public void update(final Event event) {
         jdbcTemplate.update(
                 "UPDATE event SET title = ?, description = ?, event_date = ?, address = ?, neighborhood = ?, "
-                        + "image_id = ?, price = ?, max_capacity = ?, category_id = ?, requires_approval = ?, "
+                        + "image_id = ?, price = ?, max_capacity = ?, requires_approval = ?, "
                         + "visibility = ? WHERE id = ?",
                 event.getTitle(), event.getDescription(), new Timestamp(event.getEventDate().getTime()),
                 event.getAddress(), event.getNeighborhood() == null ? null : event.getNeighborhood().name(),
-                event.getImageId(), event.getPrice(), event.getMaxCapacity(), event.getCategoryId(),
+                event.getImageId(), event.getPrice(), event.getMaxCapacity(),
                 event.isRequiresApproval(), event.getVisibility().name(), event.getId());
+        // Reemplaza todas las categorias de una: mas simple que calcular el
+        // diff (altas/bajas/cambios de extra_info) entre lo que habia y lo
+        // que llego en "event".
+        jdbcTemplate.update("DELETE FROM event_category WHERE event_id = ?", event.getId());
+        insertCategories(event);
+    }
+
+    private void insertCategories(final Event event) {
+        for (final EventCategoryInfo info : event.getCategories()) {
+            jdbcTemplate.update(
+                    "INSERT INTO event_category (event_id, category_id, extra_info) VALUES (?, ?, ?)",
+                    event.getId(), info.getCategoryId(), info.getExtraInfo());
+        }
+    }
+
+    // Trae, en una sola query extra, las categorias (con nombre y extra_info)
+    // de todos los eventos pasados y se las asigna a cada uno. Evita el N+1
+    // de consultar categoria por categoria por cada evento de un listado.
+    private void attachCategories(final List<Event> events) {
+        if (events.isEmpty()) {
+            return;
+        }
+        final List<Long> eventIds = events.stream().map(Event::getId).collect(Collectors.toList());
+        final Map<Long, List<EventCategoryInfo>> byEvent = new HashMap<>();
+        jdbcTemplate.query(
+                "SELECT ec.event_id, ec.category_id, c.name AS category_name, ec.extra_info "
+                        + "FROM event_category ec JOIN category c ON c.id = ec.category_id "
+                        + "WHERE ec.event_id IN (" + placeholders(eventIds.size()) + ") ORDER BY c.name",
+                rs -> {
+                    final EventCategoryInfo info = new EventCategoryInfo(rs.getLong("category_id"));
+                    info.setCategoryName(rs.getString("category_name"));
+                    info.setExtraInfo(rs.getString("extra_info"));
+                    byEvent.computeIfAbsent(rs.getLong("event_id"), k -> new ArrayList<>()).add(info);
+                },
+                eventIds.toArray());
+        for (final Event event : events) {
+            event.setCategories(byEvent.getOrDefault(event.getId(), Collections.emptyList()));
+        }
     }
 
     @Override
@@ -119,32 +156,46 @@ public class EventJdbcDao implements EventDao {
 
     @Override
     public Optional<Event> findById(final long id) {
-        return jdbcTemplate.query(SELECT_BASE + " WHERE e.id = ?", ROW_MAPPER, id)
+        final Optional<Event> event = jdbcTemplate.query(SELECT_BASE + " WHERE e.id = ?", ROW_MAPPER, id)
                 .stream().findFirst();
+        event.ifPresent(e -> attachCategories(Collections.singletonList(e)));
+        return event;
     }
 
     @Override
     public Optional<Event> findByIdForUpdate(final long id) {
-        return jdbcTemplate.query(SELECT_BASE + " WHERE e.id = ? FOR UPDATE OF e", ROW_MAPPER, id)
+        final Optional<Event> event = jdbcTemplate.query(
+                        SELECT_BASE + " WHERE e.id = ? FOR UPDATE OF e", ROW_MAPPER, id)
                 .stream().findFirst();
+        event.ifPresent(e -> attachCategories(Collections.singletonList(e)));
+        return event;
     }
 
     @Override
     public List<Event> findAll() {
-        return jdbcTemplate.query(SELECT_BASE + " WHERE e.cancelled_at IS NULL ORDER BY e.event_date", ROW_MAPPER);
+        final List<Event> events = jdbcTemplate.query(
+                SELECT_BASE + " WHERE e.cancelled_at IS NULL ORDER BY e.event_date", ROW_MAPPER);
+        attachCategories(events);
+        return events;
     }
 
     @Override
     public List<Event> findByCategory(final long categoryId) {
-        return jdbcTemplate.query(
-                SELECT_BASE + " WHERE e.category_id = ? AND e.cancelled_at IS NULL ORDER BY e.event_date",
+        final List<Event> events = jdbcTemplate.query(
+                SELECT_BASE + " WHERE EXISTS (SELECT 1 FROM event_category ec "
+                        + "WHERE ec.event_id = e.id AND ec.category_id = ?) "
+                        + "AND e.cancelled_at IS NULL ORDER BY e.event_date",
                 ROW_MAPPER, categoryId);
+        attachCategories(events);
+        return events;
     }
 
     @Override
     public List<Event> findByCreatorEmail(final String email) {
-        return jdbcTemplate.query(SELECT_BASE + " WHERE e.creator_email = ? ORDER BY e.event_date DESC",
+        final List<Event> events = jdbcTemplate.query(SELECT_BASE + " WHERE e.creator_email = ? ORDER BY e.event_date DESC",
                 ROW_MAPPER, email);
+        attachCategories(events);
+        return events;
     }
 
     @Override
@@ -157,7 +208,9 @@ public class EventJdbcDao implements EventDao {
         params.add(criteria.getPageSize());
         params.add((criteria.getPage() - 1) * criteria.getPageSize());
 
-        return jdbcTemplate.query(sql, ROW_MAPPER, params.toArray());
+        final List<Event> events = jdbcTemplate.query(sql, ROW_MAPPER, params.toArray());
+        attachCategories(events);
+        return events;
     }
 
     @Override
@@ -182,7 +235,11 @@ public class EventJdbcDao implements EventDao {
         params.add(EventVisibility.PUBLIC.name());
 
         if (criteria.getCategoryIds() != null && !criteria.getCategoryIds().isEmpty()) {
-            sql.append(" AND e.category_id IN (").append(placeholders(criteria.getCategoryIds().size())).append(")");
+            // EXISTS, no un JOIN: un evento con varias de las categorias
+            // pedidas tiene que aparecer una sola vez, no una fila por cada
+            // categoria que matchea.
+            sql.append(" AND EXISTS (SELECT 1 FROM event_category ec WHERE ec.event_id = e.id AND ec.category_id IN (")
+                    .append(placeholders(criteria.getCategoryIds().size())).append("))");
             params.addAll(criteria.getCategoryIds());
         }
         if (criteria.getMinPrice() != null) {

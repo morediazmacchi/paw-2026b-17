@@ -36,3 +36,28 @@ ALTER TABLE registration DROP CONSTRAINT IF EXISTS registration_status_check;
 ALTER TABLE registration DROP CONSTRAINT IF EXISTS registration_status_ck;
 ALTER TABLE registration ADD CONSTRAINT registration_status_ck
     CHECK (status IN ('confirmed', 'waitlisted', 'pending', 'rejected'));
+
+-- Categorias multiples por evento (evento N:M categoria, ver event_category
+-- en schema.sql). El Postgres real que ya esta corriendo tiene la columna
+-- vieja event.category_id (NOT NULL): schema.sql define la tabla event SIN
+-- esa columna, asi que en una base nueva jamas se crea, pero en la base vieja
+-- "CREATE TABLE IF NOT EXISTS" es un no-op sobre una tabla que ya existe y la
+-- columna se queda ahi.
+--
+-- Mismo motivo que la migracion de arriba para no usar un bloque DO: el
+-- ResourceDatabasePopulator corta por ";" sin entender dollar-quoting, asi
+-- que tiene que ser SQL plano. El ADD COLUMN IF NOT EXISTS de la primera
+-- linea es lo que permite que esto sea idempotente sin DO: la primera vez que
+-- corre (con la columna vieja todavia puesta) migra los datos reales y la
+-- saca; de ahi en mas, en cada arranque siguiente, la vuelve a crear vacia
+-- (nullable, sin filas que migrar: el INSERT no hace nada) y la vuelve a
+-- sacar en el mismo arranque. Ni se pierde nada ni rompe contra una columna
+-- inexistente.
+ALTER TABLE event ADD COLUMN IF NOT EXISTS category_id INTEGER;
+
+INSERT INTO event_category (event_id, category_id)
+SELECT e.id, e.category_id FROM event e
+WHERE e.category_id IS NOT NULL
+ON CONFLICT (event_id, category_id) DO NOTHING;
+
+ALTER TABLE event DROP COLUMN IF EXISTS category_id;

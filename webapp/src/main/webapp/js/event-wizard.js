@@ -60,6 +60,22 @@ document.addEventListener("DOMContentLoaded", function () {
     // <input type=number> a proposito, no <input type=time>: ese widget
     // depende de la configuracion regional del navegador y en muchas termina
     // mostrando AM/PM de nuevo aunque se le pida 24hs.
+    // Categorias (paso 2): tildar/destildar el checkbox muestra/esconde su
+    // textarea de informacion adicional al lado. checkValidity() nativo no
+    // alcanza aca (a diferencia de los radio buttons, "required" en un
+    // checkbox exige ESE checkbox puntual, no "al menos uno del grupo"): la
+    // regla "elegi al menos una categoria" se valida a mano en validateStep().
+    var categoryCheckboxes = Array.prototype.slice.call(
+            form.querySelectorAll(".wizard-category-checkbox"));
+    categoryCheckboxes.forEach(function (checkbox) {
+        var extra = checkbox.closest(".wizard-category-item").querySelector(".wizard-category-extra");
+        checkbox.addEventListener("change", function () {
+            if (extra) {
+                extra.hidden = !checkbox.checked;
+            }
+        });
+    });
+
     var fechaHidden = form.querySelector("#fechaEvento");
     var fechaDateInput = form.querySelector("#fechaEventoDate");
     var fechaHoursInput = form.querySelector("#fechaEventoHours");
@@ -122,6 +138,14 @@ document.addEventListener("DOMContentLoaded", function () {
     // hora/minutos hacen lo mismo con un horario fuera de rango.
     function validateStep(index) {
         syncFechaHidden();
+        var stepCategoryCheckboxes = Array.prototype.slice.call(
+                steps[index].querySelectorAll(".wizard-category-checkbox"));
+        if (stepCategoryCheckboxes.length > 0
+                && !stepCategoryCheckboxes.some(function (checkbox) { return checkbox.checked; })) {
+            showStepError("Elegí al menos una categoría antes de seguir.");
+            stepCategoryCheckboxes[0].focus();
+            return false;
+        }
         var fields = steps[index].querySelectorAll("input, select, textarea");
         for (var i = 0; i < fields.length; i++) {
             if (!fields[i].checkValidity()) {
@@ -194,9 +218,18 @@ document.addEventListener("DOMContentLoaded", function () {
                 + " " + pad(parsed.getHours()) + ":" + pad(parsed.getMinutes());
     }
 
+    // Las categorias tildadas, separadas por coma (el texto visible del
+    // checkbox, no su value que es el id numerico).
+    function selectedCategoriasText() {
+        return categoryCheckboxes
+                .filter(function (checkbox) { return checkbox.checked; })
+                .map(function (checkbox) { return checkbox.closest("label").textContent.trim(); })
+                .join(", ");
+    }
+
     function renderReview() {
         setReview("titulo", fieldValue("titulo"));
-        setReview("categoria", fieldValue("categoriaId"));
+        setReview("categoria", selectedCategoriasText());
         setReview("fecha", formatFecha(fieldValue("fechaEvento")));
 
         // El <select> de barrio: fieldValue devuelve el TEXTO de la opcion

@@ -1,6 +1,7 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.EventCategoryInfo;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.RegistrationDao;
@@ -52,7 +53,7 @@ public class EventServiceImplTest {
     private static Event someEvent() {
         final Event event = new Event();
         event.setId(EVENT_ID);
-        event.setCategoryId(CATEGORY_ID);
+        event.setCategories(Collections.singletonList(new EventCategoryInfo(CATEGORY_ID)));
         event.setCreatorEmail(CREATOR_EMAIL);
         return event;
     }
@@ -123,7 +124,7 @@ public class EventServiceImplTest {
         final List<Event> result = eventService.findByCategory(CATEGORY_ID);
 
         assertEquals(1, result.size());
-        assertEquals(CATEGORY_ID, result.get(0).getCategoryId());
+        assertEquals(CATEGORY_ID, result.get(0).getCategories().get(0).getCategoryId());
     }
 
     @Test

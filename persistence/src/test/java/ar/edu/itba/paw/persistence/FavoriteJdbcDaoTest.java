@@ -43,20 +43,17 @@ public class FavoriteJdbcDaoTest {
     public void setUp() {
         jdbcTemplate = new JdbcTemplate(ds);
         userId = userDao.create(new User("fan@mail.com", "Ana")).getId();
-        final long categoryId = insertCategory("Musica");
-        eventId = insertEvent(categoryId, "Recital");
-        otherEventId = insertEvent(categoryId, "Feria");
+        eventId = insertEvent("Recital");
+        otherEventId = insertEvent("Feria");
     }
 
-    private long insertCategory(final String name) {
-        jdbcTemplate.update("INSERT INTO category (name) VALUES (?)", name);
-        return jdbcTemplate.queryForObject("SELECT id FROM category WHERE name = ?", Long.class, name);
-    }
-
-    private long insertEvent(final long categoryId, final String title) {
+    // El evento no necesita categoria para estos tests (son de favoritos, no
+    // de categorias): sin la columna category_id, una fila de event ya no
+    // depende de que exista una.
+    private long insertEvent(final String title) {
         jdbcTemplate.update(
-                "INSERT INTO event (title, event_date, address, creator_email, category_id) VALUES (?, ?, ?, ?, ?)",
-                title, new Timestamp(System.currentTimeMillis()), "Corrientes 1234", "creador@mail.com", categoryId);
+                "INSERT INTO event (title, event_date, address, creator_email) VALUES (?, ?, ?, ?)",
+                title, new Timestamp(System.currentTimeMillis()), "Corrientes 1234", "creador@mail.com");
         return jdbcTemplate.queryForObject("SELECT id FROM event WHERE title = ?", Long.class, title);
     }
 
