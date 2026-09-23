@@ -12,6 +12,7 @@ public class SetPasswordForm {
     // LoginFailureHandler). No se re-tipea a mano.
     @NotBlank(message = "El email es obligatorio")
     @Email(message = "El email no tiene un formato valido")
+    @Size(max = 150, message = "El email no puede superar los 150 caracteres")
     private String email;
 
     @NotBlank(message = "La contraseña es obligatoria")
