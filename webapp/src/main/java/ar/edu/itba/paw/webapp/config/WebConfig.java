@@ -42,9 +42,9 @@ public class WebConfig implements WebMvcConfigurer {
 
     // LOCAL (desarrollo)
     // Para volver a desarrollo local: comentar el bloque PAMPERO de abajo, descomentar este
-   // private static final String DB_URL = "jdbc:postgresql://localhost/paw2026b";
+    //private static final String DB_URL = "jdbc:postgresql://localhost/paw2026b";
     //private static final String DB_USERNAME = "paw";
-    // private static final String DB_PASSWORD = "paw";
+    //private static final String DB_PASSWORD = "paw";
 
     // PAMPERO (deploy)
     private static final String DB_URL = "jdbc:postgresql://10.16.1.110/paw-2026b-17";
