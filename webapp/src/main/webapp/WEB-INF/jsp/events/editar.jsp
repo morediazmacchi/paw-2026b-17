@@ -15,6 +15,7 @@
     <script src="<c:url value='/js/disable-on-submit.js'/>"></script>
     <script src="<c:url value='/js/quick-options.js'/>"></script>
     <script src="<c:url value='/js/event-location-map.js'/>"></script>
+    <script src="<c:url value='/js/image-picker.js'/>"></script>
     <script src="<c:url value='/js/event-wizard.js'/>"></script>
 </head>
 <body>
@@ -179,8 +180,14 @@
                         <span class="wizard-dropzone-label"><spring:message code="event.publish.imageDropHint"/></span>
                         <span class="wizard-dropzone-filename" hidden></span>
                     </label>
+                    <spring:message code="event.publish.tooManyImagesError" var="tooManyImagesMsg"/>
+                    <spring:message code="event.publish.coverLabel" var="coverLabelMsg"/>
+                    <spring:message code="event.publish.removeImage" var="removeImageMsg"/>
                     <input type="file" id="images" name="images" accept="image/*" multiple="multiple"
-                           class="wizard-dropzone-input"/>
+                           class="wizard-dropzone-input"
+                           data-max-message="<c:out value='${tooManyImagesMsg}'/>"
+                           data-cover-label="<c:out value='${coverLabelMsg}'/>"
+                           data-remove-label="<c:out value='${removeImageMsg}'/>"/>
                     <%-- A diferencia de publish.jsp: aca las fotos son opcionales porque
                          ya puede haber alguna cargada -- si no se toca este campo, el
                          controller mantiene la galeria que el evento ya tenia. --%>

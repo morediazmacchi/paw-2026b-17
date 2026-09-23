@@ -18,6 +18,7 @@
                 integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     </c:if>
     <script src="<c:url value='/js/disable-on-submit.js'/>"></script>
+    <script src="<c:url value='/js/event-gallery.js'/>"></script>
     <script src="<c:url value='/js/favorite-toggle.js'/>"></script>
     <script src="<c:url value='/js/modal.js'/>"></script>
 </head>
@@ -71,12 +72,13 @@
 </section>
 
 <%-- Galeria: solo si hay mas de una foto (la primera ya se ve en el hero de
-     arriba). Cada miniatura abre la foto entera en una pestaña nueva -- sin
-     carrusel ni reordenamiento, alcanza para "verlas todas". --%>
+     arriba). Tocar una miniatura la pone de portada (event-gallery.js); sin JS
+     es un link a la foto entera. --%>
 <c:if test="${fn:length(event.imageIds) > 1}">
     <section class="detail-gallery">
         <c:forEach var="imgId" items="${event.imageIds}">
-            <a href="<c:url value='/image/${imgId}'/>" target="_blank" rel="noopener">
+            <a class="detail-gallery-link${imgId == event.imageId ? ' detail-gallery-link-active' : ''}"
+               href="<c:url value='/image/${imgId}'/>">
                 <img class="detail-gallery-thumb" src="<c:url value='/image/${imgId}'/>" alt=""/>
             </a>
         </c:forEach>
