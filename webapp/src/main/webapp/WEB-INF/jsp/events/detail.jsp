@@ -119,6 +119,9 @@
             <c:when test="${rsvp == 'finalizado'}">
                 <p class="alert detail-alert"><spring:message code="event.detail.eventFinished"/></p>
             </c:when>
+            <c:when test="${rsvp == 'propio-evento'}">
+                <p class="alert detail-alert"><spring:message code="event.detail.ownEventNote"/></p>
+            </c:when>
         </c:choose>
     </c:if>
 
@@ -246,6 +249,14 @@
             <div class="detail-rsvp-card">
                 <h2 class="detail-rsvp-heading"><spring:message code="event.detail.registerCardHeading"/></h2>
                 <c:choose>
+                    <%-- Sos el organizador: gana sobre todo lo demas (cancelado,
+                         finalizado, lleno, etc.), ninguna de esas ramas te aplica
+                         a vos -- nunca te vas a poder anotar a tu propio evento
+                         (ver RegistrationServiceImpl.register()), asi que no tiene
+                         sentido ofrecerte ningun boton relacionado. --%>
+                    <c:when test="${isOwner}">
+                        <p class="alert"><spring:message code="event.detail.ownEventNote"/></p>
+                    </c:when>
                     <%-- Cancelado gana sobre todo lo demas: ni siquiera importa si
                          estaba finalizado o si alguien seguia anotado, no hay ninguna
                          accion valida que ofrecer (mismo lugar donde se esconde el

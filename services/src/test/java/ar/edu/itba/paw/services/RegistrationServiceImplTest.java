@@ -144,6 +144,38 @@ public class RegistrationServiceImplTest {
         assertEquals(RegistrationResult.CONFIRMED, result);
     }
 
+    // ---- register(): el creador no se anota a su propio evento ----
+
+    @Test
+    public void testRegisterReturnsOwnEventWhenTheCreatorTriesToRegister() {
+        final Event ownEvent = eventWithCapacity(10);
+        // Distinto casing a proposito: el chequeo tiene que ser insensible a
+        // mayusculas/minusculas, igual que el resto de las comparaciones de
+        // email en este service.
+        ownEvent.setCreatorEmail("TEST@MAIL.COM");
+        when(mockRegistrationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_EMAIL)).thenReturn(Optional.empty());
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(ownEvent));
+
+        final RegistrationResult result = registrationService.register(EVENT_ID, EMAIL, NAME);
+
+        assertEquals(RegistrationResult.OWN_EVENT, result);
+    }
+
+    @Test
+    public void testRegisterDoesNotCreateOrNotifyWhenTheCreatorTriesToRegister() {
+        final Event ownEvent = eventWithCapacity(10);
+        ownEvent.setCreatorEmail(NORMALIZED_EMAIL);
+        when(mockRegistrationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_EMAIL)).thenReturn(Optional.empty());
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(ownEvent));
+
+        registrationService.register(EVENT_ID, EMAIL, NAME);
+
+        verify(mockRegistrationDao, never()).create(any());
+        verify(mockNotificationService, never()).notifyRegistrationConfirmed(any(), any());
+        verify(mockNotificationService, never()).notifyWaitlistJoined(any(), any());
+        verify(mockNotificationService, never()).notifyRegistrationPending(any(), any());
+    }
+
     // ---- register() con requiresApproval ----
 
     @Test

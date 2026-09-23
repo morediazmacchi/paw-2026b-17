@@ -53,6 +53,14 @@ public class RegistrationServiceImpl implements RegistrationService {
         final Event event = eventDao.findByIdForUpdate(eventId)
                 .orElseThrow(() -> new IllegalArgumentException("Evento inexistente: " + eventId));
 
+        // El creador no se anota a su propio evento: no tiene sentido pedirse
+        // aprobacion a si mismo en uno con requiresApproval, ni "invitarse" a
+        // uno privado del que ya es dueño. Va antes de tocar la base: no se
+        // crea ninguna fila ni sale ningun mail.
+        if (normalizedEmail.equalsIgnoreCase(event.getCreatorEmail())) {
+            return RegistrationResult.OWN_EVENT;
+        }
+
         // Que el evento este lleno ya no es un error: la persona entra a la lista
         // de espera. El orden de la lista sale de registration.registered_at, que
         // la base completa sola, asi que no hay ninguna posicion que guardar.

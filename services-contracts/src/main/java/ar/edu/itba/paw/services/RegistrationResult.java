@@ -15,5 +15,7 @@ public enum RegistrationResult {
     /** Ya tenia una inscripcion esperando revision. No se creo nada. */
     ALREADY_PENDING,
     /** El creador ya le habia rechazado una inscripcion a este evento. No se creo nada. */
-    REJECTED
+    REJECTED,
+    /** Quien pide registrarse es el creador del evento: no se lo puede, no se creo nada. */
+    OWN_EVENT
 }

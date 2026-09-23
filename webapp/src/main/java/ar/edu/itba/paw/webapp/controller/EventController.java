@@ -401,6 +401,10 @@ public class EventController {
             mav.addObject("waitlisted", Registration.STATUS_WAITLISTED.equals(myStatus));
             mav.addObject("pendingApproval", Registration.STATUS_PENDING.equals(myStatus));
             mav.addObject("rejected", Registration.STATUS_REJECTED.equals(myStatus));
+            // El creador no se anota a su propio evento (ver RegistrationServiceImpl.
+            // register()): la tarjeta de RSVP se lo dice en vez de ofrecerle un
+            // boton que el service le va a rechazar igual.
+            mav.addObject("isOwner", event.getCreatorEmail().equalsIgnoreCase(user.getEmail()));
         }
         addCreatorReputation(mav, event.getCreatorEmail());
         return mav;
@@ -703,6 +707,8 @@ public class EventController {
                 return "ya-pendiente";
             case REJECTED:
                 return "rechazado";
+            case OWN_EVENT:
+                return "propio-evento";
             case CONFIRMED:
             default:
                 return "confirmed";
