@@ -25,6 +25,13 @@ public interface EventInvitationService {
     boolean grantsAccess(String token, long eventId);
 
     /**
+     * Si a este email se le mando una invitacion a este evento. El token alcanza
+     * para VER un evento privado, pero para inscribirse el email de quien se
+     * anota tiene que ser el invitado (ver EventController.rsvp).
+     */
+    boolean isInvited(long eventId, String email);
+
+    /**
      * Pantalla "a quien invite" del creador. Vacia si el evento no existe o
      * no es de ese email (no revela cual de las dos cosas paso).
      */

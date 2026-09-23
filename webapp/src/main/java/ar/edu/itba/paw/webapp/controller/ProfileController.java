@@ -21,6 +21,7 @@ import ar.edu.itba.paw.webapp.form.ReviewForm;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -141,9 +142,12 @@ public class ProfileController {
     public ModelAndView updateProfile(@Valid final ProfileForm form, final BindingResult errors,
                                        final Principal principal) {
         final User user = currentUser(principal);
+        // El campo email llega vacio (esta disabled en perfil.jsp): lo completamos
+        // con el de la sesion para que, si hay que re-mostrar el form, se vea igual.
+        form.setEmail(user.getEmail());
 
         if (!errors.hasErrors()) {
-            final ProfileUpdateResult result = userService.updateProfile(user.getId(), form.getNombre(), form.getEmail());
+            final ProfileUpdateResult result = userService.updateProfile(user.getId(), form.getNombre(), user.getEmail());
             if (result == ProfileUpdateResult.EMAIL_TAKEN) {
                 errors.rejectValue("email", "email.taken", "Ese email ya está en uso");
             }
@@ -161,11 +165,6 @@ public class ProfileController {
             return mav;
         }
 
-        // El email pudo haber cambiado: refrescamos el Authentication de la sesion
-        // actual con el nuevo username, si no principal.getName() queda apuntando
-        // al email viejo hasta el proximo login (y findByEmail en el proximo
-        // pedido a /perfil ya no lo encontraria).
-        refreshAuthentication(form.getEmail().trim().toLowerCase());
         return new ModelAndView("redirect:/perfil?updated");
     }
 
@@ -207,6 +206,7 @@ public class ProfileController {
     public ModelAndView misInscripciones(@RequestParam(value = "cancelled", required = false) final String cancelled,
                                           @RequestParam(value = "reviewed", required = false) final String reviewed,
                                           @RequestParam(value = "reviewError", required = false) final String reviewError,
+                                          @RequestParam(value = "alreadyReviewed", required = false) final String alreadyReviewed,
                                           final Principal principal) {
         final User user = currentUser(principal);
         final List<Registration> registrations = registrationService.findByEmail(user.getEmail());
@@ -246,6 +246,7 @@ public class ProfileController {
         mav.addObject("cancelled", cancelled != null);
         mav.addObject("reviewed", reviewed != null);
         mav.addObject("reviewError", reviewError != null);
+        mav.addObject("alreadyReviewed", alreadyReviewed != null);
         mav.addObject("registrationsCount", registrations.size());
         mav.addObject("favoritesCount", favoritesCountFor(user));
         mav.addObject("eventsCount", eventsCountFor(user));
@@ -267,7 +268,18 @@ public class ProfileController {
             return new ModelAndView("redirect:/perfil/inscripciones?reviewError");
         }
         final User user = currentUser(principal);
-        final boolean created = reviewService.create(id, user, form.getRating(), form.getComment());
+        // Ya la habia dejado (doble click, o dos pestañas abiertas): cartel propio
+        // en vez del error generico.
+        if (reviewService.findByEventAndUser(id, user.getId()).isPresent()) {
+            return new ModelAndView("redirect:/perfil/inscripciones?alreadyReviewed");
+        }
+        final boolean created;
+        try {
+            created = reviewService.create(id, user, form.getRating(), form.getComment());
+        } catch (final DataIntegrityViolationException e) {
+            // Dos envios al mismo tiempo: el segundo choca con el UNIQUE(event_id, user_id).
+            return new ModelAndView("redirect:/perfil/inscripciones?alreadyReviewed");
+        }
         return new ModelAndView("redirect:/perfil/inscripciones" + (created ? "?reviewed" : "?reviewError"));
     }
 

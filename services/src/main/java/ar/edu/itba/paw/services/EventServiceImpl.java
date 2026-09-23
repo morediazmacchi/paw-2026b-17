@@ -90,6 +90,9 @@ public class EventServiceImpl implements EventService {
         if (!existing.isPresent() || !existing.get().getCreatorEmail().equalsIgnoreCase(callerEmail)) {
             return EventUpdateResult.NOT_FOUND;
         }
+        if (existing.get().isCancelled()) {
+            return EventUpdateResult.CANCELLED;
+        }
         if (changes.getMaxCapacity() != null && changes.getMaxCapacity() < registrationDao.countConfirmed(eventId)) {
             return EventUpdateResult.CAPACITY_TOO_LOW;
         }

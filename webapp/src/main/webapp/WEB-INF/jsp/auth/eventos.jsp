@@ -89,9 +89,11 @@
                                     </c:if>
                                 </a>
                             </c:if>
-                            <a class="btn btn-medium btn-accent" href="<c:url value='/eventos/${event.id}/editar'/>">
-                                <c:out value="${editButtonLabel}"/>
-                            </a>
+                            <c:if test="${!event.cancelled}">
+                                <a class="btn btn-medium btn-accent" href="<c:url value='/eventos/${event.id}/editar'/>">
+                                    <c:out value="${editButtonLabel}"/>
+                                </a>
+                            </c:if>
                             <%-- Un evento ya cancelado no muestra el boton de nuevo: no hay
                                  nada mas que cancelar. --%>
                             <c:if test="${!event.cancelled}">

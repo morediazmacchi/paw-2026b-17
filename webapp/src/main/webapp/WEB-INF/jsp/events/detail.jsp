@@ -56,6 +56,9 @@
                   data-add-url="${favAddUrl}" data-remove-url="${favRemoveUrl}"
                   data-add-label="${favAddLabel}" data-remove-label="${favRemoveLabel}">
                 <input type="hidden" name="returnTo" value="${detailUrl}"/>
+                <c:if test="${not empty invitacion}">
+                    <input type="hidden" name="invitacion" value="<c:out value='${invitacion}'/>"/>
+                </c:if>
                 <button type="submit" class="card-favorite-btn detail-hero-favorite-btn${favorite ? ' card-favorite-btn-active' : ''}"
                         aria-label="${favorite ? favRemoveLabel : favAddLabel}">
                     <span class="favorite-icon-outline"${favorite ? ' hidden' : ''}><paw:icon name="heart"/></span>
@@ -121,6 +124,12 @@
             </c:when>
             <c:when test="${rsvp == 'propio-evento'}">
                 <p class="alert detail-alert"><spring:message code="event.detail.ownEventNote"/></p>
+            </c:when>
+            <c:when test="${rsvp == 'cancelado'}">
+                <p class="alert detail-alert"><spring:message code="event.detail.eventCancelled"/></p>
+            </c:when>
+            <c:when test="${rsvp == 'no-invitado'}">
+                <p class="alert detail-alert"><spring:message code="event.detail.notInvitedNote"/></p>
             </c:when>
         </c:choose>
     </c:if>
@@ -319,7 +328,7 @@
                                              sobrevivir al POST: sin esto, alguien invitado a un evento
                                              privado podria ver el detalle pero no anotarse. --%>
                                         <c:if test="${not empty invitacion}">
-                                            <input type="hidden" name="invitacion" value="${invitacion}"/>
+                                            <input type="hidden" name="invitacion" value="<c:out value='${invitacion}'/>"/>
                                         </c:if>
                                         <paw:button text="${rsvpButtonLabel}" cssClass="btn-accent detail-rsvp-submit" />
                                     </form>

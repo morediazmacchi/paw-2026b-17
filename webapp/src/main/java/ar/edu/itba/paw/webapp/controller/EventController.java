@@ -43,6 +43,8 @@ import org.springframework.web.servlet.ModelAndView;
 
 import javax.validation.Valid;
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -682,6 +684,18 @@ public class EventController {
         if (event.getEventDate().before(new Date())) {
             return new ModelAndView("redirect:/eventos/" + id + "?rsvp=finalizado");
         }
+        // Evento privado al que se llego solo con el link (no sos el creador ni
+        // ya estabas anotada): el link alcanza para VER, pero para inscribirte
+        // tu email tiene que ser el invitado. Si no, alguien a quien le
+        // reenviaron el mail podria anotarse con su propia cuenta.
+        if (event.isPrivate() && !myRegistration.isPresent()
+                && !event.getCreatorEmail().equalsIgnoreCase(principal.getName())
+                && !eventInvitationService.isInvited(id, principal.getName())) {
+            // El token vuelve en la URL: sin el, el detalle de un privado da 404.
+            final String tokenParam = invitacion == null ? ""
+                    : "&invitacion=" + URLEncoder.encode(invitacion, StandardCharsets.UTF_8);
+            return new ModelAndView("redirect:/eventos/" + id + "?rsvp=no-invitado" + tokenParam);
+        }
         // Quien se inscribe es quien esta logueado, nunca un campo del form:
         // mismo motivo que el creator_email de publish().
         final User user = currentUser(principal);
@@ -709,6 +723,8 @@ public class EventController {
                 return "rechazado";
             case OWN_EVENT:
                 return "propio-evento";
+            case CANCELLED:
+                return "cancelado";
             case CONFIRMED:
             default:
                 return "confirmed";
@@ -777,6 +793,10 @@ public class EventController {
     @RequestMapping(value = "/eventos/{id}/editar", method = RequestMethod.GET)
     public ModelAndView editarForm(@PathVariable final long id, final Principal principal) {
         final Event event = eventForOwner(id, principal);
+        // Un evento cancelado ya no se edita: de vuelta a Mis eventos.
+        if (event.isCancelled()) {
+            return new ModelAndView("redirect:/perfil/eventos");
+        }
         final List<Category> categories = categoryService.findAll();
         final ModelAndView mav = new ModelAndView("events/editar");
         mav.addObject("eventId", id);
@@ -825,6 +845,9 @@ public class EventController {
         // Mismo chequeo que el GET: si no sos el dueño, ni siquiera llega a
         // mirar el resto del form.
         final Event existing = eventForOwner(id, principal);
+        if (existing.isCancelled()) {
+            return new ModelAndView("redirect:/perfil/eventos");
+        }
         final Barrio parsedBarrio = parseBarrio(form.getBarrio(), errors);
         final List<EventCategoryInfo> categorias = selectedCategories(form, errors);
 
@@ -880,6 +903,9 @@ public class EventController {
                 errors.rejectValue("cupoMaximo", "cupo.muyBajo",
                         "El cupo maximo no puede ser menor a la cantidad de inscriptos ya confirmados");
                 return editarFormWithErrors(id, form, errors, null);
+            case CANCELLED:
+                // Se cancelo justo entre medio: no se guardo nada.
+                return new ModelAndView("redirect:/perfil/eventos");
             case NOT_FOUND:
                 // Ya se confirmo el ownership arriba en eventForOwner(): solo se
                 // llegaria aca si el evento se borro justo entre medio.
@@ -929,8 +955,14 @@ public class EventController {
     @RequestMapping(value = "/eventos/{id}/favorito", method = RequestMethod.POST)
     public ModelAndView addFavorite(@PathVariable final long id,
                                      @RequestParam(value = "returnTo", required = false) final String returnTo,
+                                     @RequestParam(value = "invitacion", required = false) final String invitacion,
                                      final Principal principal) {
-        if (!eventService.findById(id).isPresent()) {
+        // Mismo chequeo de acceso que detail() y rsvp(): si no podes ver el evento,
+        // tampoco podes guardarlo (si no, "Mis favoritos" mostraria sus datos).
+        final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
+        final Optional<Registration> myRegistration =
+                registrationService.findByEventAndEmail(id, principal.getName());
+        if (!canView(event, principal, myRegistration, invitacion)) {
             throw new EventNotFoundException(id);
         }
         favoriteService.add(currentUser(principal).getId(), id);

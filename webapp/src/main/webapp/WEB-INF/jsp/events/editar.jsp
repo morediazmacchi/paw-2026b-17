@@ -128,7 +128,7 @@
                     <%-- Lo que realmente viaja al servidor: event-wizard.js lo arma
                          combinando los campos de arriba (splitea eventForm.fechaEvento
                          en fecha/hora/minutos al cargar la pagina, ver su codigo). --%>
-                    <input type="hidden" id="fechaEvento" name="fechaEvento" value="${eventForm.fechaEvento}"/>
+                    <input type="hidden" id="fechaEvento" name="fechaEvento" value="<c:out value='${eventForm.fechaEvento}'/>"/>
                 </div>
             </div>
 
@@ -161,8 +161,8 @@
                          centrado ahi (ver los value de latitud/longitud de abajo);
                          si no, arranca en Buenos Aires como en publicar. --%>
                     <div id="location-map" class="wizard-map"></div>
-                    <input type="hidden" id="latitud" name="latitud" value="${eventForm.latitud}"/>
-                    <input type="hidden" id="longitud" name="longitud" value="${eventForm.longitud}"/>
+                    <input type="hidden" id="latitud" name="latitud" value="<c:out value='${eventForm.latitud}'/>"/>
+                    <input type="hidden" id="longitud" name="longitud" value="<c:out value='${eventForm.longitud}'/>"/>
                 </div>
             </div>
 

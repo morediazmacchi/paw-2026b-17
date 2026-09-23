@@ -8,7 +8,7 @@
 <%-- Solo la usa "Mis eventos" (los privados no aparecen en ningun otro
      listado que use este tag, asi que en el resto siempre viene false). --%>
 <%@ attribute name="privado" required="false" type="java.lang.Boolean" %>
-<%-- Idem privado: solo "Mis eventos" puede tener filas de eventos cancelados. --%>
+<%-- Idem privado: marca la fila de un evento cancelado (Mis eventos, Mis inscripciones, Mis favoritos). --%>
 <%@ attribute name="cancelado" required="false" type="java.lang.Boolean" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <%@ taglib prefix="fmt" uri="http://java.sun.com/jsp/jstl/fmt" %>

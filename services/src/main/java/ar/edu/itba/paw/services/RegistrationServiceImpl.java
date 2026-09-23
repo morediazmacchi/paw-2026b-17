@@ -61,6 +61,12 @@ public class RegistrationServiceImpl implements RegistrationService {
             return RegistrationResult.OWN_EVENT;
         }
 
+        // Evento cancelado: la pantalla ya esconde el boton, pero un POST directo
+        // no tiene que poder anotar a nadie (ni mandar el mail de "confirmado").
+        if (event.isCancelled()) {
+            return RegistrationResult.CANCELLED;
+        }
+
         // Que el evento este lleno ya no es un error: la persona entra a la lista
         // de espera. El orden de la lista sale de registration.registered_at, que
         // la base completa sola, asi que no hay ninguna posicion que guardar.

@@ -106,7 +106,8 @@ public class RegistrationJdbcDao implements RegistrationDao {
         return jdbcTemplate.queryForList(
                 "SELECT DISTINCT r.event_id FROM registration r "
                         + "JOIN event e ON e.id = r.event_id "
-                        + "WHERE r.status = ? AND e.max_capacity IS NOT NULL AND e.event_date > ?",
+                        + "WHERE r.status = ? AND e.max_capacity IS NOT NULL AND e.event_date > ? "
+                        + "AND e.cancelled_at IS NULL",
                 Long.class, Registration.STATUS_WAITLISTED, new java.sql.Timestamp(now.getTime()));
     }
 

@@ -13,5 +13,7 @@ public enum InvitationResult {
     /** Se le paso la hora: queda afuera y el cupo vuelve a la lista. */
     EXPIRED,
     /** El evento ya sucedio, no hay nada que aceptar. */
-    EVENT_PASSED
+    EVENT_PASSED,
+    /** El creador cancelo el evento: no hay lugar que confirmar. */
+    CANCELLED
 }

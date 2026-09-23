@@ -80,6 +80,10 @@ public class WaitlistServiceImpl implements WaitlistService {
         if (event.getEventDate() != null && event.getEventDate().before(now)) {
             return 0;
         }
+        // Un evento cancelado tampoco: no hay que invitar a nadie a algo que no va a pasar.
+        if (event.isCancelled()) {
+            return 0;
+        }
 
         expirePendingInvitations(event.getId(), now);
 
@@ -174,6 +178,10 @@ public class WaitlistServiceImpl implements WaitlistService {
         }
         if (event.getEventDate() != null && event.getEventDate().before(now)) {
             return InvitationResult.EVENT_PASSED;
+        }
+        // Lo invitaron antes de que se cancelara y contesta despues: no hay lugar que confirmar.
+        if (event.isCancelled()) {
+            return InvitationResult.CANCELLED;
         }
 
         if (invitation.isExpiredAt(now)) {

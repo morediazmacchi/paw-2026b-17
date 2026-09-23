@@ -41,8 +41,15 @@
         <form class="account-fields-form" action="<c:url value='/perfil'/>" method="post" novalidate="novalidate">
             <paw:input name="nombre" label="${nameLabel}" type="text"
                        value="${profileForm.nombre}" errorMessage="${profileFieldErrors.nombre}"/>
-            <paw:input name="email" label="${emailLabel}" type="email"
-                       value="${profileForm.email}" errorMessage="${profileFieldErrors.email}"/>
+            <%-- El email no se puede cambiar: se muestra deshabilitado (gris) y, como
+                 los campos disabled no viajan en el POST, el servidor tampoco lo recibe.
+                 Igual el controller usa siempre el email de la sesion, nunca el del form. --%>
+            <div class="form-group">
+                <div class="label-row">
+                    <label for="email"><c:out value="${emailLabel}"/></label>
+                </div>
+                <input type="email" id="email" value="<c:out value='${profileForm.email}'/>" disabled="disabled"/>
+            </div>
             <paw:button text="${saveButtonLabel}" cssClass="btn-accent"/>
         </form>
 

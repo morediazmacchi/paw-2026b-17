@@ -10,5 +10,8 @@ public enum EventUpdateResult {
     NOT_FOUND,
 
     // El maxCapacity nuevo es menor a la cantidad de gente ya confirmada.
-    CAPACITY_TOO_LOW
+    CAPACITY_TOO_LOW,
+
+    // El evento esta cancelado: ya no se puede editar (ni avisar cambios a nadie).
+    CANCELLED
 }

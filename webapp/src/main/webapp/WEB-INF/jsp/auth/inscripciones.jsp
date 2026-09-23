@@ -34,6 +34,9 @@
         <c:if test="${reviewError}">
             <p class="alert"><spring:message code="auth.registrations.reviewErrorMessage"/></p>
         </c:if>
+        <c:if test="${alreadyReviewed}">
+            <p class="alert"><spring:message code="auth.registrations.alreadyReviewedMessage"/></p>
+        </c:if>
 
         <c:choose>
             <c:when test="${empty upcomingRegistrations and empty pastRegistrations}">
@@ -48,10 +51,14 @@
                             <c:set var="event" value="${eventsById[registration.eventId]}"/>
                             <paw:eventRow id="${event.id}" nombre="${event.title}" fecha="${event.eventDate}"
                                           ubicacion="${event.neighborhood.displayName}" precio="${event.price}"
-                                          imagenId="${event.imageId}">
-                                <form action="<c:url value='/perfil/inscripciones/${registration.id}/cancelar'/>" method="post">
-                                    <paw:button text="${cancelButtonLabel}" cssClass="btn-danger"/>
-                                </form>
+                                          imagenId="${event.imageId}" cancelado="${event.cancelled}">
+                                <%-- Evento cancelado por la organizadora: se muestra con el cartel,
+                                     pero no hay inscripcion que cancelar. --%>
+                                <c:if test="${!event.cancelled}">
+                                    <form action="<c:url value='/perfil/inscripciones/${registration.id}/cancelar'/>" method="post">
+                                        <paw:button text="${cancelButtonLabel}" cssClass="btn-danger"/>
+                                    </form>
+                                </c:if>
                             </paw:eventRow>
                         </c:forEach>
                     </div>
@@ -69,10 +76,10 @@
                             <div>
                                 <paw:eventRow id="${event.id}" nombre="${event.title}" fecha="${event.eventDate}"
                                               ubicacion="${event.neighborhood.displayName}" precio="${event.price}"
-                                              imagenId="${event.imageId}">
+                                              imagenId="${event.imageId}" cancelado="${event.cancelled}">
                                     <%-- Integrado en la misma card, a la derecha, como el resto de los
                                          botones de accion (Cancelar en los eventos que vienen). --%>
-                                    <c:if test="${empty myReview}">
+                                    <c:if test="${empty myReview and !event.cancelled}">
                                         <button type="button" class="btn btn-medium btn-accent" data-open-modal="reviewModal-${event.id}">
                                             <c:out value="${reviewButtonLabel}"/>
                                         </button>
@@ -89,7 +96,7 @@
                                     </div>
                                 </c:if>
 
-                                <c:if test="${empty myReview}">
+                                <c:if test="${empty myReview and !event.cancelled}">
                                     <div class="modal-overlay" id="reviewModal-${event.id}" hidden>
                                         <div class="modal-box">
                                             <div class="modal-header">

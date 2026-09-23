@@ -128,7 +128,7 @@
                          combinando los campos de arriba (el server sigue
                          esperando un solo string "yyyy-MM-ddTHH:mm", no cambio
                          EventForm ni el controller por esto). --%>
-                    <input type="hidden" id="fechaEvento" name="fechaEvento" value="${eventForm.fechaEvento}"/>
+                    <input type="hidden" id="fechaEvento" name="fechaEvento" value="<c:out value='${eventForm.fechaEvento}'/>"/>
                 </div>
             </div>
 
@@ -162,8 +162,8 @@
                          abajo. Es opcional: si nadie lo toca, viajan vacios y el
                          evento se publica solo con la direccion en texto de arriba. --%>
                     <div id="location-map" class="wizard-map"></div>
-                    <input type="hidden" id="latitud" name="latitud" value="${eventForm.latitud}"/>
-                    <input type="hidden" id="longitud" name="longitud" value="${eventForm.longitud}"/>
+                    <input type="hidden" id="latitud" name="latitud" value="<c:out value='${eventForm.latitud}'/>"/>
+                    <input type="hidden" id="longitud" name="longitud" value="<c:out value='${eventForm.longitud}'/>"/>
                 </div>
             </div>
 

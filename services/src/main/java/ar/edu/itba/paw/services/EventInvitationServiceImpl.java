@@ -67,6 +67,15 @@ public class EventInvitationServiceImpl implements EventInvitationService {
 
     @Override
     @Transactional(readOnly = true)
+    public boolean isInvited(final long eventId, final String email) {
+        if (email == null) {
+            return false;
+        }
+        return invitationDao.findByEventAndEmail(eventId, email.trim().toLowerCase()).isPresent();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<EventInvitation> findByEvent(final long eventId, final String creatorEmail) {
         return eventDao.findById(eventId)
                 .filter(event -> event.getCreatorEmail().equalsIgnoreCase(creatorEmail.trim()))
