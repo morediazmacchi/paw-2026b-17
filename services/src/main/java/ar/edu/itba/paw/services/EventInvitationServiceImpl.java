@@ -56,17 +56,6 @@ public class EventInvitationServiceImpl implements EventInvitationService {
 
     @Override
     @Transactional(readOnly = true)
-    public boolean grantsAccess(final String token, final long eventId) {
-        if (token == null) {
-            return false;
-        }
-        return invitationDao.findByToken(token)
-                .map(invitation -> invitation.getEventId() == eventId)
-                .orElse(false);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
     public boolean isInvited(final long eventId, final String email) {
         if (email == null) {
             return false;

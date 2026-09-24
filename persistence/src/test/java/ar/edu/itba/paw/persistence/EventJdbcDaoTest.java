@@ -17,6 +17,7 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.sql.DataSource;
+import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.Collections;
@@ -80,7 +81,7 @@ public class EventJdbcDaoTest {
 
     private static Event someEvent(final long categoryId) {
         return new Event(TITLE, "Una noche a pura guitarra", new Date(), "Av. Corrientes 1234",
-                Barrio.PALERMO, null, 1500.0, 50, CREATOR_EMAIL, Collections.singletonList(categoryId));
+                Barrio.PALERMO, null, new BigDecimal("1500"), 50, CREATOR_EMAIL, Collections.singletonList(categoryId));
     }
 
     // ---- create() + findById() ----
@@ -101,7 +102,7 @@ public class EventJdbcDaoTest {
         assertTrue(found.isPresent());
         assertEquals(TITLE, found.get().getTitle());
         assertEquals(Barrio.PALERMO, found.get().getNeighborhood());
-        assertEquals(1500.0, found.get().getPrice(), 0.001);
+        assertEquals(0, new BigDecimal("1500").compareTo(found.get().getPrice()));
         assertEquals(1, found.get().getCategories().size());
         assertEquals(CATEGORY_NAME, found.get().getCategories().get(0).getCategoryName());
     }
@@ -288,7 +289,7 @@ public class EventJdbcDaoTest {
         changes.setId(created.getId());
         changes.setTitle("Titulo nuevo");
         changes.setAddress("Direccion nueva 123");
-        changes.setPrice(2500.0);
+        changes.setPrice(new BigDecimal("2500"));
         changes.setMaxCapacity(30);
         changes.setRequiresApproval(true);
         changes.setVisibility(EventVisibility.PRIVATE);
@@ -297,7 +298,7 @@ public class EventJdbcDaoTest {
         final Event found = eventDao.findById(created.getId()).orElseThrow(AssertionError::new);
         assertEquals("Titulo nuevo", found.getTitle());
         assertEquals("Direccion nueva 123", found.getAddress());
-        assertEquals(2500.0, found.getPrice(), 0.001);
+        assertEquals(0, new BigDecimal("2500").compareTo(found.getPrice()));
         assertEquals(Integer.valueOf(30), found.getMaxCapacity());
         assertEquals(1, found.getCategories().size());
         assertEquals(OTHER_CATEGORY_NAME, found.getCategories().get(0).getCategoryName());
@@ -422,9 +423,9 @@ public class EventJdbcDaoTest {
         final Date earlierDate = new Date(1_000_000_000_000L); // 2001-09-09
         final Date laterDate = new Date(2_000_000_000_000L);   // 2033-05-18
         final Event later = new Event(TITLE, null, laterDate, "Direccion A",
-                Barrio.PALERMO, null, 0, null, CREATOR_EMAIL, Collections.singletonList(categoryId));
+                Barrio.PALERMO, null, BigDecimal.ZERO, null, CREATOR_EMAIL, Collections.singletonList(categoryId));
         final Event earlier = new Event(TITLE, null, earlierDate, "Direccion B",
-                Barrio.PALERMO, null, 0, null, CREATOR_EMAIL, Collections.singletonList(categoryId));
+                Barrio.PALERMO, null, BigDecimal.ZERO, null, CREATOR_EMAIL, Collections.singletonList(categoryId));
         // A proposito insertados en el orden "incorrecto": el que es mas tarde primero.
         eventDao.create(later);
         eventDao.create(earlier);
@@ -465,9 +466,9 @@ public class EventJdbcDaoTest {
     public void testFindByCreatorEmailReturnsOnlyEventsOfThatCreator() {
         final String otherEmail = "otro@mail.com";
         final Event own = new Event(TITLE, null, new Date(), "Direccion A",
-                Barrio.PALERMO, null, 0, null, CREATOR_EMAIL, Collections.singletonList(categoryId));
+                Barrio.PALERMO, null, BigDecimal.ZERO, null, CREATOR_EMAIL, Collections.singletonList(categoryId));
         final Event other = new Event(TITLE, null, new Date(), "Direccion B",
-                Barrio.PALERMO, null, 0, null, otherEmail, Collections.singletonList(categoryId));
+                Barrio.PALERMO, null, BigDecimal.ZERO, null, otherEmail, Collections.singletonList(categoryId));
         eventDao.create(own);
         eventDao.create(other);
 
@@ -482,9 +483,9 @@ public class EventJdbcDaoTest {
         final Date earlierDate = new Date(1_000_000_000_000L); // 2001-09-09
         final Date laterDate = new Date(2_000_000_000_000L);   // 2033-05-18
         final Event earlier = new Event(TITLE, null, earlierDate, "Direccion A",
-                Barrio.PALERMO, null, 0, null, CREATOR_EMAIL, Collections.singletonList(categoryId));
+                Barrio.PALERMO, null, BigDecimal.ZERO, null, CREATOR_EMAIL, Collections.singletonList(categoryId));
         final Event later = new Event(TITLE, null, laterDate, "Direccion B",
-                Barrio.PALERMO, null, 0, null, CREATOR_EMAIL, Collections.singletonList(categoryId));
+                Barrio.PALERMO, null, BigDecimal.ZERO, null, CREATOR_EMAIL, Collections.singletonList(categoryId));
         // A proposito insertados en orden "incorrecto".
         eventDao.create(earlier);
         eventDao.create(later);
@@ -526,7 +527,7 @@ public class EventJdbcDaoTest {
     private long eventWith(final Integer capacity, final int confirmed, final String address) {
         final Date future = new Date(System.currentTimeMillis() + 86_400_000L);
         final long id = eventDao.create(new Event(TITLE, null, future, address,
-                Barrio.PALERMO, null, 0, capacity, CREATOR_EMAIL, Collections.singletonList(categoryId))).getId();
+                Barrio.PALERMO, null, BigDecimal.ZERO, capacity, CREATOR_EMAIL, Collections.singletonList(categoryId))).getId();
         for (int i = 0; i < confirmed; i++) {
             insertRegistration(id, "conf" + i + "-" + id + "@mail.com", "confirmed");
         }
@@ -625,7 +626,7 @@ public class EventJdbcDaoTest {
     public void testSearchByCategoryReturnsEventThatHasOneOfSeveralCategories() {
         final long otherCategoryId = insertCategory(OTHER_CATEGORY_NAME);
         final Event event = new Event(TITLE, null, new Date(System.currentTimeMillis() + 86_400_000L), "Direccion A",
-                Barrio.PALERMO, null, 0, null, CREATOR_EMAIL, null);
+                Barrio.PALERMO, null, BigDecimal.ZERO, null, CREATOR_EMAIL, null);
         event.setCategories(Arrays.asList(new EventCategoryInfo(categoryId), new EventCategoryInfo(otherCategoryId)));
         eventDao.create(event);
 
@@ -648,9 +649,9 @@ public class EventJdbcDaoTest {
         final Date future = new Date(System.currentTimeMillis() + 86_400_000L);
 
         final long highRatedEventId = eventDao.create(new Event(TITLE, null, future, "Direccion A",
-                Barrio.PALERMO, null, 0, null, highRatedCreator, Collections.singletonList(categoryId))).getId();
+                Barrio.PALERMO, null, BigDecimal.ZERO, null, highRatedCreator, Collections.singletonList(categoryId))).getId();
         final long lowRatedEventId = eventDao.create(new Event(TITLE, null, future, "Direccion B",
-                Barrio.PALERMO, null, 0, null, lowRatedCreator, Collections.singletonList(categoryId))).getId();
+                Barrio.PALERMO, null, BigDecimal.ZERO, null, lowRatedCreator, Collections.singletonList(categoryId))).getId();
         insertReview(highRatedEventId, reviewerId, 5);
         insertReview(lowRatedEventId, reviewerId, 2);
 
@@ -671,7 +672,7 @@ public class EventJdbcDaoTest {
         final Date future = new Date(System.currentTimeMillis() + 86_400_000L);
 
         final long eventId = eventDao.create(new Event(TITLE, null, future, "Direccion A",
-                Barrio.PALERMO, null, 0, null, highRatedCreator, Collections.singletonList(categoryId))).getId();
+                Barrio.PALERMO, null, BigDecimal.ZERO, null, highRatedCreator, Collections.singletonList(categoryId))).getId();
         insertReview(eventId, reviewerId, 5);
 
         final EventSearchCriteria criteria = new EventSearchCriteria();
@@ -686,7 +687,7 @@ public class EventJdbcDaoTest {
         final long reviewerId = insertUser("reviewer@mail.com");
         final Date future = new Date(System.currentTimeMillis() + 86_400_000L);
         final long eventId = eventDao.create(new Event(TITLE, null, future, "Direccion A",
-                Barrio.PALERMO, null, 0, null, CREATOR_EMAIL, Collections.singletonList(categoryId))).getId();
+                Barrio.PALERMO, null, BigDecimal.ZERO, null, CREATOR_EMAIL, Collections.singletonList(categoryId))).getId();
         insertReview(eventId, reviewerId, 3);
 
         final EventSearchCriteria criteria = new EventSearchCriteria();
@@ -699,7 +700,7 @@ public class EventJdbcDaoTest {
     @Test
     public void testSearchWithoutMinimumOrganizerRatingIgnoresTheFilter() {
         eventDao.create(new Event(TITLE, null, new Date(System.currentTimeMillis() + 86_400_000L), "Direccion A",
-                Barrio.PALERMO, null, 0, null, CREATOR_EMAIL, Collections.singletonList(categoryId)));
+                Barrio.PALERMO, null, BigDecimal.ZERO, null, CREATOR_EMAIL, Collections.singletonList(categoryId)));
 
         final EventSearchCriteria criteria = new EventSearchCriteria();
         criteria.setPageSize(10);

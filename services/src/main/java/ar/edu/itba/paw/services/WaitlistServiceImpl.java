@@ -126,11 +126,13 @@ public class WaitlistServiceImpl implements WaitlistService {
     }
 
     private void invite(final Event event, final Registration registration, final Date now) {
+        // La columna token sigue siendo NOT NULL en la base, pero ya no viaja en
+        // el mail: a quien entra lo identifica su sesion (ver findInvitation).
         final String token = newToken();
         final Date expiresAt = earliest(new Date(now.getTime() + INVITE_WINDOW_MILLIS), event.getEventDate());
 
         invitationDao.create(new WaitlistInvitation(registration.getId(), token, expiresAt));
-        notificationService.notifyWaitlistInvitation(event, registration, token, expiresAt);
+        notificationService.notifyWaitlistInvitation(event, registration, expiresAt);
         LOGGER.info("Invitacion enviada a la inscripcion {} del evento {}", registration.getId(), event.getId());
     }
 
@@ -142,8 +144,8 @@ public class WaitlistServiceImpl implements WaitlistService {
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<InvitationDetail> findByToken(final String token) {
-        return invitationDao.findByToken(token)
+    public Optional<InvitationDetail> findForUser(final long eventId, final String email) {
+        return findInvitation(eventId, email)
                 .flatMap(invitation -> registrationDao.findById(invitation.getRegistrationId())
                         .flatMap(registration -> eventDao.findById(registration.getEventId())
                                 .map(event -> new InvitationDetail(invitation, event))));
@@ -157,9 +159,9 @@ public class WaitlistServiceImpl implements WaitlistService {
 
     @Override
     @Transactional
-    public InvitationResult accept(final String token) {
+    public InvitationResult accept(final long eventId, final String email) {
         final Date now = new Date();
-        final WaitlistInvitation invitation = invitationDao.findByToken(token).orElse(null);
+        final WaitlistInvitation invitation = findInvitation(eventId, email).orElse(null);
         if (invitation == null) {
             return InvitationResult.NOT_FOUND;
         }
@@ -205,9 +207,9 @@ public class WaitlistServiceImpl implements WaitlistService {
 
     @Override
     @Transactional
-    public InvitationResult decline(final String token) {
+    public InvitationResult decline(final long eventId, final String email) {
         final Date now = new Date();
-        final WaitlistInvitation invitation = invitationDao.findByToken(token).orElse(null);
+        final WaitlistInvitation invitation = findInvitation(eventId, email).orElse(null);
         if (invitation == null) {
             return InvitationResult.NOT_FOUND;
         }
@@ -227,6 +229,14 @@ public class WaitlistServiceImpl implements WaitlistService {
             reconcileLocked(event, now);
         }
         return InvitationResult.DECLINED;
+    }
+
+    // La invitacion de ESTA persona para ESTE evento. Quien es lo dice la sesion
+    // (el email del usuario logueado), no el link: si el mail se reenvia, el otro
+    // entra con su cuenta, no tiene inscripcion ahi y no encuentra nada.
+    private Optional<WaitlistInvitation> findInvitation(final long eventId, final String email) {
+        return registrationDao.findByEventAndEmail(eventId, email.trim().toLowerCase())
+                .flatMap(registration -> invitationDao.findByRegistrationId(registration.getId()));
     }
 
     private static String newToken() {

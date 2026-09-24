@@ -52,10 +52,10 @@ public interface NotificationService {
     void notifyRegistrationCancelled(Event event, Registration registration, boolean offeredToWaitlist);
 
     /**
-     * Se libero un lugar y le toca a esta persona -> mail con el link unico para
-     * aceptarlo o rechazarlo, y hasta cuando tiene tiempo.
+     * Se libero un lugar y le toca a esta persona -> mail con el link para
+     * aceptarlo o rechazarlo (pide iniciar sesion), y hasta cuando tiene tiempo.
      */
-    void notifyWaitlistInvitation(Event event, Registration registration, String token, java.util.Date expiresAt);
+    void notifyWaitlistInvitation(Event event, Registration registration, java.util.Date expiresAt);
 
     /** Alguien se registro (o completo una cuenta fantasma) -> mail con el link para confirmar el mail. */
     void notifyAccountVerification(User user, String token);

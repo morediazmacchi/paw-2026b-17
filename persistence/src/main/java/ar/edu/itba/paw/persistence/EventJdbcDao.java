@@ -51,7 +51,7 @@ public class EventJdbcDao implements EventDao {
         event.setAddress(rs.getString("address"));
         final String neighborhoodName = rs.getString("neighborhood");
         event.setNeighborhood(neighborhoodName == null ? null : Barrio.valueOf(neighborhoodName));
-        event.setPrice(rs.getDouble("price"));
+        event.setPrice(rs.getBigDecimal("price"));
         event.setMaxCapacity(rs.getObject("max_capacity", Integer.class));
         event.setCreatorEmail(rs.getString("creator_email"));
         event.setCreatedAt(rs.getTimestamp("created_at"));
@@ -317,10 +317,11 @@ public class EventJdbcDao implements EventDao {
         if (criteria.getMinOrganizerRating() != null) {
             // El promedio es de TODAS las reseñas del creador (todos sus eventos),
             // el mismo numero que se muestra en el detalle y en "Mis eventos"
-            // (ver ReviewDao.findByCreatorEmail): no es el promedio de este evento solo.
+            // (ver ReviewDao.findAverageRatingByCreatorEmail, que usa el mismo AVG):
+            // no es el promedio de este evento solo. Si uno cambia, cambiar el otro.
             sql.append(" AND e.creator_email IN ("
                     + "SELECT e2.creator_email FROM review r2 JOIN event e2 ON e2.id = r2.event_id "
-                    + "GROUP BY e2.creator_email HAVING AVG(r2.rating) >= ?)");
+                    + "GROUP BY e2.creator_email HAVING AVG(CAST(r2.rating AS DOUBLE PRECISION)) >= ?)");
             params.add(criteria.getMinOrganizerRating());
         }
 

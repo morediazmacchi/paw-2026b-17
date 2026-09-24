@@ -142,6 +142,9 @@ public class MailConfig {
      * Con la cola llena y los 5 hilos ocupados, CallerRunsPolicy hace que el
      * mail lo mande el hilo que pidio (o sea, se vuelve bloqueante) en vez de
      * descartarlo. Preferimos que el usuario espere antes que perder un mail.
+     *
+     * El pool va envuelto en AfterCommitTaskExecutor: los mails que se piden
+     * adentro de una transaccion salen recien despues del COMMIT.
      */
     @Bean
     public TaskExecutor taskExecutor() {
@@ -152,7 +155,7 @@ public class MailConfig {
         executor.setThreadNamePrefix("mail-");
         executor.setRejectedExecutionHandler(new java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy());
         executor.initialize();
-        return executor;
+        return new AfterCommitTaskExecutor(executor);
     }
 
     /**

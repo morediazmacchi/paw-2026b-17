@@ -62,8 +62,8 @@ public class WaitlistInvitationJdbcDao implements WaitlistInvitationDao {
     }
 
     @Override
-    public Optional<WaitlistInvitation> findByToken(final String token) {
-        return jdbcTemplate.query("SELECT * FROM waitlist_invitation WHERE token = ?", ROW_MAPPER, token)
+    public Optional<WaitlistInvitation> findByRegistrationId(final long registrationId) {
+        return jdbcTemplate.query("SELECT * FROM waitlist_invitation WHERE registration_id = ?", ROW_MAPPER, registrationId)
                 .stream().findFirst();
     }
 

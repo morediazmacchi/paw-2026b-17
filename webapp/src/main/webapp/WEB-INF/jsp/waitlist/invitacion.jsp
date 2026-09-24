@@ -36,7 +36,7 @@
             </c:if>
         </c:when>
 
-        <%-- 2) Token que no existe: link mal copiado, o invitacion ya borrada. --%>
+        <%-- 2) Esta cuenta no tiene invitacion a este evento: link reenviado, otra cuenta, o invitacion ya borrada. --%>
         <c:when test="${empty event}">
             <h1><spring:message code="waitlist.invitation.pageTitle"/></h1>
             <p class="empty-state"><spring:message code="waitlist.invitation.notFound"/></p>
@@ -79,11 +79,11 @@
                 <%-- Dos formularios separados: cada boton es su propio POST.
                      El GET de arriba no cambio nada; estos si. --%>
                 <div class="label-row">
-                    <form action="<c:url value='/invitacion/${token}/aceptar'/>" method="post" novalidate="novalidate">
+                    <form action="<c:url value='/invitacion/${eventId}/aceptar'/>" method="post" novalidate="novalidate">
                         <spring:message code="waitlist.invitation.accept" var="acceptLabel"/>
                         <paw:button text="${acceptLabel}" cssClass="btn-accent" />
                     </form>
-                    <form action="<c:url value='/invitacion/${token}/rechazar'/>" method="post" novalidate="novalidate">
+                    <form action="<c:url value='/invitacion/${eventId}/rechazar'/>" method="post" novalidate="novalidate">
                         <spring:message code="waitlist.invitation.decline" var="declineLabel"/>
                         <paw:button text="${declineLabel}" cssClass="btn-danger" />
                     </form>

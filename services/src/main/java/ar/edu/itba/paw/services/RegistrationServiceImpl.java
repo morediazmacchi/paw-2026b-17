@@ -176,6 +176,12 @@ public class RegistrationServiceImpl implements RegistrationService {
 
     @Override
     @Transactional(readOnly = true)
+    public long occupiedSpots(final long eventId) {
+        return occupied(eventId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Integer availableSpots(final long eventId) {
         final Event event = eventDao.findById(eventId)
                 .orElseThrow(() -> new IllegalArgumentException("Evento inexistente: " + eventId));

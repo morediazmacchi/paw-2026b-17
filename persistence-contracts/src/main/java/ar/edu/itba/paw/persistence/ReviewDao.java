@@ -15,4 +15,9 @@ public interface ReviewDao {
     // Para el promedio del promotor y el popup "Ver reseñas de este promotor":
     // todas las reseñas de todos los eventos que creo ese email.
     List<Review> findByCreatorEmail(String creatorEmail);
+
+    // Promedio de estrellas de todas las reseñas de los eventos de ese email
+    // (0 si no tiene ninguna). Es el UNICO lugar donde se calcula el promedio que
+    // se muestra; el filtro "puntaje minimo" de EventJdbcDao usa el mismo AVG.
+    double findAverageRatingByCreatorEmail(String creatorEmail);
 }

@@ -11,6 +11,7 @@ import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.FavoriteService;
 import ar.edu.itba.paw.services.ProfileUpdateResult;
 import ar.edu.itba.paw.services.RegistrationService;
+import ar.edu.itba.paw.services.ReviewResult;
 import ar.edu.itba.paw.services.ReviewService;
 import ar.edu.itba.paw.services.UserService;
 import ar.edu.itba.paw.webapp.exception.EventNotFoundException;
@@ -22,11 +23,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
@@ -48,7 +44,6 @@ import java.util.Map;
 public class ProfileController {
 
     private final UserService userService;
-    private final UserDetailsService userDetailsService;
     private final RegistrationService registrationService;
     private final EventService eventService;
     private final FavoriteService favoriteService;
@@ -57,13 +52,12 @@ public class ProfileController {
     private final MessageSource messageSource;
 
     @Autowired
-    public ProfileController(final UserService userService, final UserDetailsService userDetailsService,
+    public ProfileController(final UserService userService,
                               final RegistrationService registrationService, final EventService eventService,
                               final FavoriteService favoriteService, final ReviewService reviewService,
                               final EventInvitationService eventInvitationService,
                               final MessageSource messageSource) {
         this.userService = userService;
-        this.userDetailsService = userDetailsService;
         this.registrationService = registrationService;
         this.eventService = eventService;
         this.favoriteService = favoriteService;
@@ -106,12 +100,6 @@ public class ProfileController {
     // sidebar se pide en todas las paginas de la cuenta.
     private int eventsCountFor(final User user) {
         return eventService.findByCreatorEmail(user.getEmail()).size();
-    }
-
-    // Promedio de estrellas de este creador, juntando las reseñas de TODOS sus
-    // eventos (no solo uno): es el "puntaje" que ve en Mis eventos.
-    private static double averageRating(final List<Review> reviews) {
-        return reviews.stream().mapToInt(Review::getRating).average().orElse(0);
     }
 
     // No hace falta antMatcher propio para /perfil ni /perfil/contrasena: no
@@ -268,19 +256,23 @@ public class ProfileController {
             return new ModelAndView("redirect:/perfil/inscripciones?reviewError");
         }
         final User user = currentUser(principal);
-        // Ya la habia dejado (doble click, o dos pestañas abiertas): cartel propio
-        // en vez del error generico.
-        if (reviewService.findByEventAndUser(id, user.getId()).isPresent()) {
-            return new ModelAndView("redirect:/perfil/inscripciones?alreadyReviewed");
-        }
-        final boolean created;
+        final ReviewResult result;
         try {
-            created = reviewService.create(id, user, form.getRating(), form.getComment());
+            result = reviewService.create(id, user, form.getRating(), form.getComment());
         } catch (final DataIntegrityViolationException e) {
             // Dos envios al mismo tiempo: el segundo choca con el UNIQUE(event_id, user_id).
             return new ModelAndView("redirect:/perfil/inscripciones?alreadyReviewed");
         }
-        return new ModelAndView("redirect:/perfil/inscripciones" + (created ? "?reviewed" : "?reviewError"));
+        switch (result) {
+            case CREATED:
+                return new ModelAndView("redirect:/perfil/inscripciones?reviewed");
+            // Ya la habia dejado (doble click, o dos pestañas abiertas): cartel
+            // propio en vez del error generico.
+            case ALREADY_REVIEWED:
+                return new ModelAndView("redirect:/perfil/inscripciones?alreadyReviewed");
+            default:
+                return new ModelAndView("redirect:/perfil/inscripciones?reviewError");
+        }
     }
 
     @RequestMapping(value = "/perfil/favoritos", method = RequestMethod.GET)
@@ -314,7 +306,7 @@ public class ProfileController {
         mav.addObject("registrationsCount", registrationsCountFor(user));
         mav.addObject("favoritesCount", favoritesCountFor(user));
         mav.addObject("eventsCount", createdEvents.size());
-        mav.addObject("creatorAverageRating", averageRating(myReviews));
+        mav.addObject("creatorAverageRating", reviewService.findCreatorAverageRating(user.getEmail()));
         mav.addObject("creatorReviewCount", myReviews.size());
         if (!myReviews.isEmpty()) {
             // Para el popup "Ver mis reseñas": mismo patron que
@@ -443,13 +435,5 @@ public class ProfileController {
         mav.addObject("favoritesCount", favoritesCountFor(user));
         mav.addObject("eventsCount", eventsCountFor(user));
         return mav;
-    }
-
-    private void refreshAuthentication(final String newEmail) {
-        final UserDetails updatedDetails = userDetailsService.loadUserByUsername(newEmail);
-        final Authentication current = SecurityContextHolder.getContext().getAuthentication();
-        final Authentication refreshed = new UsernamePasswordAuthenticationToken(
-                updatedDetails, current.getCredentials(), updatedDetails.getAuthorities());
-        SecurityContextHolder.getContext().setAuthentication(refreshed);
     }
 }

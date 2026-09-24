@@ -1,5 +1,6 @@
 package ar.edu.itba.paw.model;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -19,7 +20,9 @@ public class Event {
     // lista para no tener que tocar los varios JSP que ya la usan (cards,
     // "Mis eventos", favoritos, inscripciones).
     private List<Long> imageIds = new ArrayList<>();
-    private double price;
+    // BigDecimal y no double: el precio es plata. double es binario y no representa
+    // exactamente valores como 0.10; BigDecimal si, igual que la columna NUMERIC(10,2).
+    private BigDecimal price = BigDecimal.ZERO;
     private Integer maxCapacity;
     private String creatorEmail;
     // Un evento puede tener varias categorias (relacion N:M, ver event_category
@@ -56,7 +59,7 @@ public class Event {
     // categoria (para eso esta setCategories(), usado por el wizard de
     // publicar/editar, que si carga extraInfo por cada una).
     public Event(final String title, final String description, final Date eventDate, final String address,
-                 final Barrio neighborhood, final List<Long> imageIds, final double price, final Integer maxCapacity,
+                 final Barrio neighborhood, final List<Long> imageIds, final BigDecimal price, final Integer maxCapacity,
                  final String creatorEmail, final List<Long> categoryIds) {
         this.title = title;
         this.description = description;
@@ -92,8 +95,8 @@ public class Event {
     public void setImageIds(final List<Long> imageIds) {
         this.imageIds = imageIds == null ? new ArrayList<>() : imageIds;
     }
-    public double getPrice() { return price; }
-    public void setPrice(final double price) { this.price = price; }
+    public BigDecimal getPrice() { return price; }
+    public void setPrice(final BigDecimal price) { this.price = price; }
     public Integer getMaxCapacity() { return maxCapacity; }
     public void setMaxCapacity(final Integer maxCapacity) { this.maxCapacity = maxCapacity; }
     public String getCreatorEmail() { return creatorEmail; }
@@ -122,7 +125,7 @@ public class Event {
     // isPrivate()/isFree()/isCancelled() aca arriba.
     public boolean isLocationPinned() { return latitude != null && longitude != null; }
 
-    public boolean isFree() { return price == 0; }
+    public boolean isFree() { return price == null || price.signum() == 0; }
     public boolean isPrivate() { return visibility == EventVisibility.PRIVATE; }
     public boolean isCancelled() { return cancelledAt != null; }
 }

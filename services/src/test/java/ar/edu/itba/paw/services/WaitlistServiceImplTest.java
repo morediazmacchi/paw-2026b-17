@@ -68,6 +68,13 @@ public class WaitlistServiceImplTest {
         return invitation;
     }
 
+    // "a@a.com" (la de waitlisted()) esta logueada y tiene esta invitacion.
+    private void stubMyInvitation(final WaitlistInvitation invitation) {
+        when(mockRegistrationDao.findByEventAndEmail(EVENT_ID, "a@a.com"))
+                .thenReturn(Optional.of(waitlisted(invitation.getRegistrationId())));
+        when(mockInvitationDao.findByRegistrationId(invitation.getRegistrationId())).thenReturn(Optional.of(invitation));
+    }
+
     private void eventoConCupo(final Integer capacity) {
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(event(capacity)));
     }
@@ -172,11 +179,11 @@ public class WaitlistServiceImplTest {
     @Test
     public void testAcceptConfirmsTheRegistration() {
         final Date manana = new Date(System.currentTimeMillis() + DIA);
-        when(mockInvitationDao.findByToken("tok")).thenReturn(Optional.of(pendingInvitation(5, 88, manana)));
+        stubMyInvitation(pendingInvitation(5, 88, manana));
         when(mockRegistrationDao.findById(88)).thenReturn(Optional.of(waitlisted(88)));
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(event(10)));
 
-        final InvitationResult result = waitlistService.accept("tok");
+        final InvitationResult result = waitlistService.accept(EVENT_ID, "a@a.com");
 
         assertEquals(InvitationResult.ACCEPTED, result);
         verify(mockInvitationDao).markAccepted(5);
@@ -186,14 +193,14 @@ public class WaitlistServiceImplTest {
     @Test
     public void testAcceptAfterTheDeadlineDropsTheRegistrationInstead() {
         final Date ayer = new Date(System.currentTimeMillis() - DIA);
-        when(mockInvitationDao.findByToken("tok")).thenReturn(Optional.of(pendingInvitation(5, 88, ayer)));
+        stubMyInvitation(pendingInvitation(5, 88, ayer));
         when(mockRegistrationDao.findById(88)).thenReturn(Optional.of(waitlisted(88)));
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(event(10)));
         when(mockInvitationDao.findExpired(anyLong(), any(Date.class))).thenReturn(Collections.emptyList());
         when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(10L);
         when(mockInvitationDao.countPending(EVENT_ID)).thenReturn(0L);
 
-        final InvitationResult result = waitlistService.accept("tok");
+        final InvitationResult result = waitlistService.accept(EVENT_ID, "a@a.com");
 
         assertEquals(InvitationResult.EXPIRED, result);
         verify(mockRegistrationDao).delete(88);
@@ -204,24 +211,25 @@ public class WaitlistServiceImplTest {
     public void testAcceptTwiceIsNotAnError() {
         final WaitlistInvitation yaAceptada = pendingInvitation(5, 88, new Date(System.currentTimeMillis() + DIA));
         yaAceptada.setStatus(InvitationStatus.ACCEPTED);
-        when(mockInvitationDao.findByToken("tok")).thenReturn(Optional.of(yaAceptada));
+        stubMyInvitation(yaAceptada);
 
-        assertEquals(InvitationResult.ALREADY_USED, waitlistService.accept("tok"));
+        assertEquals(InvitationResult.ALREADY_USED, waitlistService.accept(EVENT_ID, "a@a.com"));
     }
 
     @Test
-    public void testAcceptWithAnUnknownTokenReturnsNotFound() {
-        when(mockInvitationDao.findByToken("cualquiera")).thenReturn(Optional.empty());
+    public void testAcceptFromAnotherAccountReturnsNotFound() {
+        // Le reenviaron el mail y entra con su cuenta: no tiene inscripcion en el evento.
+        when(mockRegistrationDao.findByEventAndEmail(EVENT_ID, "otro@a.com")).thenReturn(Optional.empty());
 
-        assertEquals(InvitationResult.NOT_FOUND, waitlistService.accept("cualquiera"));
+        assertEquals(InvitationResult.NOT_FOUND, waitlistService.accept(EVENT_ID, "otro@a.com"));
+        verify(mockInvitationDao, never()).markAccepted(anyLong());
     }
 
     // ---- decline() ----
 
     @Test
     public void testDeclineDropsTheRegistrationAndOffersTheSpotToTheNextOne() {
-        when(mockInvitationDao.findByToken("tok"))
-                .thenReturn(Optional.of(pendingInvitation(5, 88, new Date(System.currentTimeMillis() + DIA))));
+        stubMyInvitation(pendingInvitation(5, 88, new Date(System.currentTimeMillis() + DIA)));
         when(mockRegistrationDao.findById(88)).thenReturn(Optional.of(waitlisted(88)));
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(event(10)));
         when(mockInvitationDao.findExpired(anyLong(), any(Date.class))).thenReturn(Collections.emptyList());
@@ -230,7 +238,7 @@ public class WaitlistServiceImplTest {
         final List<Registration> siguiente = Collections.singletonList(waitlisted(99));
         when(mockRegistrationDao.findNextWaitlisted(EVENT_ID, 1)).thenReturn(siguiente);
 
-        final InvitationResult result = waitlistService.decline("tok");
+        final InvitationResult result = waitlistService.decline(EVENT_ID, "a@a.com");
 
         assertEquals(InvitationResult.DECLINED, result);
         verify(mockRegistrationDao).delete(88);

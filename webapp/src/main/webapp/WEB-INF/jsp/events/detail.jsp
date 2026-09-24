@@ -57,9 +57,6 @@
                   data-add-url="${favAddUrl}" data-remove-url="${favRemoveUrl}"
                   data-add-label="${favAddLabel}" data-remove-label="${favRemoveLabel}">
                 <input type="hidden" name="returnTo" value="${detailUrl}"/>
-                <c:if test="${not empty invitacion}">
-                    <input type="hidden" name="invitacion" value="<c:out value='${invitacion}'/>"/>
-                </c:if>
                 <button type="submit" class="card-favorite-btn detail-hero-favorite-btn${favorite ? ' card-favorite-btn-active' : ''}"
                         aria-label="${favorite ? favRemoveLabel : favAddLabel}">
                     <span class="favorite-icon-outline"${favorite ? ' hidden' : ''}><paw:icon name="heart"/></span>
@@ -130,9 +127,6 @@
             <c:when test="${rsvp == 'cancelado'}">
                 <p class="alert detail-alert"><spring:message code="event.detail.eventCancelled"/></p>
             </c:when>
-            <c:when test="${rsvp == 'no-invitado'}">
-                <p class="alert detail-alert"><spring:message code="event.detail.notInvitedNote"/></p>
-            </c:when>
         </c:choose>
     </c:if>
 
@@ -157,7 +151,7 @@
                 <span class="detail-meta-label"><spring:message code="event.detail.priceLabelSmall"/></span>
                 <span class="detail-meta-value">
                     <c:choose>
-                        <c:when test="${event.price == 0}"><spring:message code="event.price.free"/></c:when>
+                        <c:when test="${event.free}"><spring:message code="event.price.free"/></c:when>
                         <c:otherwise>$<fmt:formatNumber value="${event.price}" type="number" maxFractionDigits="0"/></c:otherwise>
                     </c:choose>
                 </span>
@@ -238,7 +232,7 @@
                     <div>
                         <span class="detail-price-big">
                             <c:choose>
-                                <c:when test="${event.price == 0}"><spring:message code="event.price.free"/></c:when>
+                                <c:when test="${event.free}"><spring:message code="event.price.free"/></c:when>
                                 <c:otherwise>$<fmt:formatNumber value="${event.price}" type="number" maxFractionDigits="0"/></c:otherwise>
                             </c:choose>
                         </span>
@@ -326,12 +320,6 @@
                                 </c:when>
                                 <c:otherwise>
                                     <form action="<c:url value='/eventos/${event.id}/quiero-ir'/>" method="post" novalidate="novalidate">
-                                        <%-- Si se llego con un link de invitacion, el token tiene que
-                                             sobrevivir al POST: sin esto, alguien invitado a un evento
-                                             privado podria ver el detalle pero no anotarse. --%>
-                                        <c:if test="${not empty invitacion}">
-                                            <input type="hidden" name="invitacion" value="<c:out value='${invitacion}'/>"/>
-                                        </c:if>
                                         <paw:button text="${rsvpButtonLabel}" cssClass="btn-accent detail-rsvp-submit" />
                                     </form>
                                 </c:otherwise>
@@ -346,17 +334,8 @@
                             <%-- OJO: a proposito NO es <c:url value="/eventos/${event.id}"/>: eso
                                  agregaria el context path, y el <c:param> de abajo lo agregaria
                                  DE NUEVO al armar /login (loginSuccessHandler hace
-                                 contextPath + redirect). Un string EL crudo, como ya hacia esto
-                                 antes de la invitacion, evita duplicarlo. El token de invitacion
-                                 (base64 URL-safe) nunca necesita escape. --%>
-                            <c:choose>
-                                <c:when test="${not empty invitacion}">
-                                    <c:set var="eventDetailPath" value="/eventos/${event.id}?invitacion=${invitacion}"/>
-                                </c:when>
-                                <c:otherwise>
-                                    <c:set var="eventDetailPath" value="/eventos/${event.id}"/>
-                                </c:otherwise>
-                            </c:choose>
+                                 contextPath + redirect). Un string EL crudo evita duplicarlo. --%>
+                            <c:set var="eventDetailPath" value="/eventos/${event.id}"/>
                             <c:url value="/login" var="loginWithRedirectUrl">
                                 <c:param name="redirect" value="${eventDetailPath}"/>
                             </c:url>

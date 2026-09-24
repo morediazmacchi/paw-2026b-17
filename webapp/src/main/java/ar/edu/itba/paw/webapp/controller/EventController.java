@@ -43,8 +43,7 @@ import org.springframework.web.servlet.ModelAndView;
 
 import javax.validation.Valid;
 import java.io.IOException;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
+import java.math.BigDecimal;
 import java.security.Principal;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -135,9 +134,9 @@ public class EventController {
         final List<Barrio> barrios = parseBarrioList(barrio);
         final Map<String, String> filterErrors = new HashMap<>();
 
-        Double minPrice = parseDouble(precioMin);
-        Double maxPrice = parseDouble(precioMax);
-        if (minPrice != null && maxPrice != null && minPrice > maxPrice) {
+        BigDecimal minPrice = parseDecimal(precioMin);
+        BigDecimal maxPrice = parseDecimal(precioMax);
+        if (minPrice != null && maxPrice != null && minPrice.compareTo(maxPrice) > 0) {
             filterErrors.put("precioMax", message("event.list.priceRangeInvalid"));
             minPrice = null;
             maxPrice = null;
@@ -290,12 +289,12 @@ public class EventController {
         return result.isEmpty() ? null : result;
     }
 
-    private static Double parseDouble(final String value) {
+    private static BigDecimal parseDecimal(final String value) {
         if (value == null || value.isEmpty()) {
             return null;
         }
         try {
-            return Double.valueOf(value);
+            return new BigDecimal(value);
         } catch (final NumberFormatException e) {
             return null;
         }
@@ -364,12 +363,13 @@ public class EventController {
     @RequestMapping(value = "/eventos/{id}", method = RequestMethod.GET)
     public ModelAndView detail(@PathVariable final long id,
                                 @RequestParam(value = "rsvp", required = false) final String rsvp,
-                                // Token de invitacion a un evento privado (ver EventInvitationService):
-                                // llega por el link del mail, viaja como query param y despues como
-                                // hidden del form de RSVP (ver detail.jsp) para sobrevivir al POST.
-                                @RequestParam(value = "invitacion", required = false) final String invitacion,
                                 final Principal principal) {
         final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
+        // Privado y sin sesion: todavia no sabemos quien sos. Al login, y de
+        // vuelta aca (WebAuthConfig.loginSuccessHandler) para chequear si estas invitado.
+        if (event.isPrivate() && principal == null) {
+            return new ModelAndView("redirect:/login?redirect=/eventos/" + id);
+        }
         // Para un evento privado, la inscripcion propia (si existe) no es solo
         // dato para la tarjeta de RSVP: es tambien la prueba de que quien pide
         // esto tiene algo que ver con el evento. Por eso se busca ANTES del
@@ -377,7 +377,7 @@ public class EventController {
         final Optional<Registration> myRegistration = principal == null
                 ? Optional.empty()
                 : registrationService.findByEventAndEmail(id, principal.getName());
-        if (!canView(event, principal, myRegistration, invitacion)) {
+        if (!canView(event, principal, myRegistration)) {
             // Mismo 404 que un id inexistente: no hay que revelar que el
             // evento existe pero que no es para vos.
             throw new EventNotFoundException(id);
@@ -386,7 +386,6 @@ public class EventController {
         final ModelAndView mav = new ModelAndView("events/detail");
         mav.addObject("event", event);
         mav.addObject("rsvp", rsvp);
-        mav.addObject("invitacion", invitacion);
         mav.addObject("full", registrationService.isFull(id));
         mav.addObject("finished", event.getEventDate().before(new Date()));
         mav.addObject("availableSpots", registrationService.availableSpots(id));
@@ -416,12 +415,10 @@ public class EventController {
     // solo su creador, alguien que ya tenga una fila de inscripcion (en
     // cualquier estado, incluido rechazado: si te rechazaron es porque en
     // algun momento tuviste acceso, no tiene sentido que ahora te vuelvas a
-    // topar con un 404), o alguien con un token de invitacion valido para
-    // este evento (el token es la credencial, sin importar con que cuenta
-    // este logueado quien lo trae, o si no esta logueado: mismo criterio que
-    // WaitlistInvitation).
+    // topar con un 404), o alguien cuyo email (el de su sesion) fue invitado.
+    // El link del mail solo dice que evento es: quien sos lo dice tu sesion.
     private boolean canView(final Event event, final Principal principal,
-                             final Optional<Registration> myRegistration, final String invitacion) {
+                             final Optional<Registration> myRegistration) {
         if (!event.isPrivate()) {
             return true;
         }
@@ -431,7 +428,7 @@ public class EventController {
         if (myRegistration.isPresent()) {
             return true;
         }
-        return eventInvitationService.grantsAccess(invitacion, event.getId());
+        return principal != null && eventInvitationService.isInvited(event.getId(), principal.getName());
     }
 
     // Puntaje del promotor (todas sus reseñas, de todos sus eventos) + la lista
@@ -441,8 +438,7 @@ public class EventController {
         final List<Review> creatorReviews = reviewService.findByCreatorEmail(creatorEmail);
         mav.addObject("creatorReviewCount", creatorReviews.size());
         if (!creatorReviews.isEmpty()) {
-            final double average = creatorReviews.stream().mapToInt(Review::getRating).average().orElse(0);
-            mav.addObject("creatorAverageRating", average);
+            mav.addObject("creatorAverageRating", reviewService.findCreatorAverageRating(creatorEmail));
             mav.addObject("creatorReviews", creatorReviews);
             final Map<Long, Event> reviewEventsById = new HashMap<>();
             for (final Review review : creatorReviews) {
@@ -514,7 +510,7 @@ public class EventController {
             return publishFormWithErrors(form, errors, null);
         }
 
-        final double parsedPrice = Double.parseDouble(form.getPrecio());
+        final BigDecimal parsedPrice = new BigDecimal(form.getPrecio());
         final Integer parsedCapacity = "0".equals(form.getCupoMaximo()) ? null : Integer.valueOf(form.getCupoMaximo());
 
         final List<MultipartFile> nonEmptyImages = nonEmptyImages(images);
@@ -669,32 +665,19 @@ public class EventController {
     // Principal siempre presente en este metodo implica un User existente.
     @RequestMapping(value = "/eventos/{id}/quiero-ir", method = RequestMethod.POST)
     public ModelAndView rsvp(@PathVariable final long id,
-                              @RequestParam(value = "invitacion", required = false) final String invitacion,
                               final Principal principal) {
         final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
         // Mismo chequeo que el detalle: el boton ya esta escondido en la UI si
         // no tenes acceso, pero un POST directo no se puede confiar solo en eso.
         final Optional<Registration> myRegistration =
                 registrationService.findByEventAndEmail(id, principal.getName());
-        if (!canView(event, principal, myRegistration, invitacion)) {
+        if (!canView(event, principal, myRegistration)) {
             throw new EventNotFoundException(id);
         }
         // La UI ya esconde el boton en este caso (ver detail.jsp), pero un POST
         // directo igual no tiene que poder anotarte a algo que ya paso.
         if (event.getEventDate().before(new Date())) {
             return new ModelAndView("redirect:/eventos/" + id + "?rsvp=finalizado");
-        }
-        // Evento privado al que se llego solo con el link (no sos el creador ni
-        // ya estabas anotada): el link alcanza para VER, pero para inscribirte
-        // tu email tiene que ser el invitado. Si no, alguien a quien le
-        // reenviaron el mail podria anotarse con su propia cuenta.
-        if (event.isPrivate() && !myRegistration.isPresent()
-                && !event.getCreatorEmail().equalsIgnoreCase(principal.getName())
-                && !eventInvitationService.isInvited(id, principal.getName())) {
-            // El token vuelve en la URL: sin el, el detalle de un privado da 404.
-            final String tokenParam = invitacion == null ? ""
-                    : "&invitacion=" + URLEncoder.encode(invitacion, StandardCharsets.UTF_8);
-            return new ModelAndView("redirect:/eventos/" + id + "?rsvp=no-invitado" + tokenParam);
         }
         // Quien se inscribe es quien esta logueado, nunca un campo del form:
         // mismo motivo que el creator_email de publish().
@@ -827,15 +810,15 @@ public class EventController {
         return form;
     }
 
-    // 2500.0 -> "2500" (sin decimales de sobra), 1500.5 -> "1500.5". Los dos
+    // 2500.00 -> "2500" (sin decimales de sobra), 1500.50 -> "1500.5". Los dos
     // formatos matchean el @Pattern de EventForm.precio. 0 es un caso aparte:
     // BigDecimal.ZERO.stripTrailingZeros() no es confiable entre versiones de
     // Java (bug historico que a veces devuelve "0E-...").
-    private static String formatDecimal(final double value) {
-        if (value == 0) {
+    private static String formatDecimal(final BigDecimal value) {
+        if (value == null || value.signum() == 0) {
             return "0";
         }
-        return java.math.BigDecimal.valueOf(value).stripTrailingZeros().toPlainString();
+        return value.stripTrailingZeros().toPlainString();
     }
 
     @RequestMapping(value = "/eventos/{id}/editar", method = RequestMethod.POST)
@@ -869,7 +852,7 @@ public class EventController {
             return editarFormWithErrors(id, form, errors, null);
         }
 
-        final double parsedPrice = Double.parseDouble(form.getPrecio());
+        final BigDecimal parsedPrice = new BigDecimal(form.getPrecio());
         final Integer parsedCapacity = "0".equals(form.getCupoMaximo()) ? null : Integer.valueOf(form.getCupoMaximo());
 
         // Si no se subio ninguna foto nueva, la galeria que ya tenia el evento
@@ -901,7 +884,7 @@ public class EventController {
         switch (result) {
             case CAPACITY_TOO_LOW:
                 errors.rejectValue("cupoMaximo", "cupo.muyBajo",
-                        "El cupo maximo no puede ser menor a la cantidad de inscriptos ya confirmados");
+                        "El cupo maximo no puede ser menor a los lugares ya ocupados");
                 return editarFormWithErrors(id, form, errors, null);
             case CANCELLED:
                 // Se cancelo justo entre medio: no se guardo nada.
@@ -955,14 +938,13 @@ public class EventController {
     @RequestMapping(value = "/eventos/{id}/favorito", method = RequestMethod.POST)
     public ModelAndView addFavorite(@PathVariable final long id,
                                      @RequestParam(value = "returnTo", required = false) final String returnTo,
-                                     @RequestParam(value = "invitacion", required = false) final String invitacion,
                                      final Principal principal) {
         // Mismo chequeo de acceso que detail() y rsvp(): si no podes ver el evento,
         // tampoco podes guardarlo (si no, "Mis favoritos" mostraria sus datos).
         final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
         final Optional<Registration> myRegistration =
                 registrationService.findByEventAndEmail(id, principal.getName());
-        if (!canView(event, principal, myRegistration, invitacion)) {
+        if (!canView(event, principal, myRegistration)) {
             throw new EventNotFoundException(id);
         }
         favoriteService.add(currentUser(principal).getId(), id);

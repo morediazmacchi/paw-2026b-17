@@ -61,7 +61,7 @@ public class EventInvitationJdbcDaoTest {
         return new EventInvitation(eventId, INVITEE_EMAIL, TOKEN, CREATOR_EMAIL);
     }
 
-    // ---- create() + findByToken() ----
+    // ---- create() ----
 
     @Test
     public void testCreateAssignsAGeneratedId() {
@@ -71,21 +71,16 @@ public class EventInvitationJdbcDaoTest {
     }
 
     @Test
-    public void testCreateAndFindByTokenReturnTheSameInvitation() {
+    public void testCreateAndFindReturnTheSameInvitation() {
         invitationDao.create(someInvitation(eventId));
 
-        final Optional<EventInvitation> found = invitationDao.findByToken(TOKEN);
+        final Optional<EventInvitation> found = invitationDao.findByEventAndEmail(eventId, INVITEE_EMAIL);
 
         assertTrue(found.isPresent());
         assertEquals(eventId, found.get().getEventId());
         assertEquals(INVITEE_EMAIL, found.get().getEmail());
         assertEquals(CREATOR_EMAIL, found.get().getInvitedBy());
         assertTrue(found.get().getCreatedAt() != null);
-    }
-
-    @Test
-    public void testFindByTokenReturnsEmptyWhenTheTokenDoesNotExist() {
-        assertFalse(invitationDao.findByToken("inexistente").isPresent());
     }
 
     @Test(expected = DataAccessException.class)

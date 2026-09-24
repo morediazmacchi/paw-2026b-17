@@ -53,7 +53,7 @@
                         <span><paw:icon name="pin"/> <c:out value="${empty fe.neighborhood ? fe.address : fe.neighborhood.displayName}"/></span>
                         <span class="hero-price">
                             <c:choose>
-                                <c:when test="${fe.price == 0}"><spring:message code="event.price.free"/></c:when>
+                                <c:when test="${fe.free}"><spring:message code="event.price.free"/></c:when>
                                 <c:otherwise>$<fmt:formatNumber value="${fe.price}" type="number" maxFractionDigits="0"/></c:otherwise>
                             </c:choose>
                         </span>
@@ -253,7 +253,7 @@
         <c:otherwise>
             <div class="card-grid">
                 <c:forEach var="event" items="${events}">
-                    <c:set var="cardPrecio" value="${event.price == 0 ? null : event.price}" />
+                    <c:set var="cardPrecio" value="${event.free ? null : event.price}" />
                     <c:set var="cardUbicacion" value="${empty event.neighborhood ? event.address : event.neighborhood.displayName}" />
                     <c:set var="cardCategoria" value=""/>
                     <c:forEach var="ecat" items="${event.categories}" varStatus="ecatStatus">

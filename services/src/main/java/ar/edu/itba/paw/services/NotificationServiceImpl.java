@@ -195,10 +195,6 @@ public class NotificationServiceImpl implements NotificationService {
             final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
             // No hay nombre: a esta altura solo se conoce el mail al que se invito.
             variables.put("personName", displayName(null, invitation.getEmail()));
-            // Pisa el eventUrl que ya puso eventVariables(): este SI lleva el
-            // token, es lo que le da acceso a un evento que de otra forma le
-            // daria 404 (ver EventController.canView).
-            variables.put("eventUrl", baseUrl + "/eventos/" + event.getId() + "?invitacion=" + invitation.getToken());
 
             mailService.send(invitation.getEmail(),
                     "event-invitation",
@@ -255,14 +251,15 @@ public class NotificationServiceImpl implements NotificationService {
     @Async
     @Override
     public void notifyWaitlistInvitation(final Event event, final Registration registration,
-                                          final String token, final java.util.Date expiresAt) {
+                                          final java.util.Date expiresAt) {
         try {
             final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
             variables.put("personName", displayName(registration.getName(), registration.getEmail()));
             // El link NO acepta por si solo: abre una pagina con dos botones. Un
             // GET que cambiara estado se ejecutaria solo cuando el antivirus del
-            // correo abre los links para escanearlos.
-            variables.put("invitationUrl", baseUrl + "/invitacion/" + token);
+            // correo abre los links para escanearlos. El link solo dice de que
+            // evento se trata: quien es la persona lo dice su sesion.
+            variables.put("invitationUrl", baseUrl + "/invitacion/" + event.getId());
             variables.put("deadline", DateFormat
                     .getDateTimeInstance(DateFormat.FULL, DateFormat.SHORT, DEFAULT_LOCALE)
                     .format(expiresAt));

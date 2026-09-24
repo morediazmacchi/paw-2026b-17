@@ -54,12 +54,6 @@ public class EventInvitationJdbcDao implements EventInvitationDao {
     }
 
     @Override
-    public Optional<EventInvitation> findByToken(final String token) {
-        return jdbcTemplate.query("SELECT * FROM event_invitation WHERE token = ?", ROW_MAPPER, token)
-                .stream().findFirst();
-    }
-
-    @Override
     public Optional<EventInvitation> findByEventAndEmail(final long eventId, final String email) {
         return jdbcTemplate.query("SELECT * FROM event_invitation WHERE event_id = ? AND email = ?",
                 ROW_MAPPER, eventId, email).stream().findFirst();

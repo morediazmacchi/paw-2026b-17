@@ -146,34 +146,22 @@ public class EventInvitationServiceImplTest {
         assertEquals(EventInvitationResult.NOT_ALLOWED, result);
     }
 
-    // ---- grantsAccess() ----
+    // ---- isInvited() ----
+    // Es lo que decide si un evento privado se puede ver: el email es el de la sesion.
 
     @Test
-    public void testGrantsAccessReturnsTrueForAMatchingTokenAndEvent() {
-        when(mockInvitationDao.findByToken("tok"))
+    public void testIsInvitedReturnsTrueForTheInvitedEmailIgnoringCase() {
+        when(mockInvitationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_INVITEE_EMAIL))
                 .thenReturn(Optional.of(new EventInvitation(EVENT_ID, NORMALIZED_INVITEE_EMAIL, "tok", CREATOR_EMAIL)));
 
-        assertTrue(invitationService.grantsAccess("tok", EVENT_ID));
+        assertTrue(invitationService.isInvited(EVENT_ID, INVITEE_EMAIL));
     }
 
     @Test
-    public void testGrantsAccessReturnsFalseWhenTheTokenIsForAnotherEvent() {
-        when(mockInvitationDao.findByToken("tok"))
-                .thenReturn(Optional.of(new EventInvitation(EVENT_ID + 1, NORMALIZED_INVITEE_EMAIL, "tok", CREATOR_EMAIL)));
+    public void testIsInvitedReturnsFalseForAnotherEmail() {
+        when(mockInvitationDao.findByEventAndEmail(EVENT_ID, "otro@mail.com")).thenReturn(Optional.empty());
 
-        assertFalse(invitationService.grantsAccess("tok", EVENT_ID));
-    }
-
-    @Test
-    public void testGrantsAccessReturnsFalseWhenTheTokenDoesNotExist() {
-        when(mockInvitationDao.findByToken("tok")).thenReturn(Optional.empty());
-
-        assertFalse(invitationService.grantsAccess("tok", EVENT_ID));
-    }
-
-    @Test
-    public void testGrantsAccessReturnsFalseWhenTheTokenIsNull() {
-        assertFalse(invitationService.grantsAccess(null, EVENT_ID));
+        assertFalse(invitationService.isInvited(EVENT_ID, "otro@mail.com"));
     }
 
     // ---- findByEvent() ----

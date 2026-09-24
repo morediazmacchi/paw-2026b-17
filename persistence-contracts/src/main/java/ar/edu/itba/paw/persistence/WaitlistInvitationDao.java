@@ -12,8 +12,8 @@ public interface WaitlistInvitationDao {
 
     WaitlistInvitation create(WaitlistInvitation invitation);
 
-    /** Por el token del link del mail: es la unica forma de identificar a quien entra. */
-    Optional<WaitlistInvitation> findByToken(String token);
+    /** La invitacion de esta inscripcion (hay una sola: registration_id es UNIQUE). */
+    Optional<WaitlistInvitation> findByRegistrationId(long registrationId);
 
     /**
      * Cuantos cupos de este evento estan RESERVADOS: invitaciones mandadas que

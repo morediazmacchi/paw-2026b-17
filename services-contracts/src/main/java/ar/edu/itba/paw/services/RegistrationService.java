@@ -29,6 +29,13 @@ public interface RegistrationService {
     Integer availableSpots(long eventId);
 
     /**
+     * Cupos que ya no se le pueden dar a otro: confirmados + invitaciones de la
+     * lista de espera sin contestar + pedidos pendientes de aprobacion. Es la
+     * misma cuenta que usan isFull() y availableSpots().
+     */
+    long occupiedSpots(long eventId);
+
+    /**
      * "Mis inscripciones": las de ese email, mas recientes primero.
      */
     List<Registration> findByEmail(String email);

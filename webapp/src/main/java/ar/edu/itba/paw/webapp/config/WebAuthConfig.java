@@ -107,10 +107,6 @@ public class WebAuthConfig {
                         .antMatchers("/login/recuperar", "/login/restablecer").permitAll()
                         .antMatchers("/login/reenviar-confirmacion", "/confirmar-cuenta").permitAll()
                         .antMatchers("/error/**").permitAll()
-                        // El link de la lista de espera llega por mail: quien lo
-                        // abre puede estar deslogueado o logueado con otra cuenta.
-                        // El token que lleva la URL es la credencial.
-                        .antMatchers("/invitacion/**").permitAll()
                         .antMatchers("/favicon.ico", "/favicon.svg").permitAll()
                         .antMatchers(HttpMethod.GET, "/", "/eventos").permitAll()
                         .antMatchers(HttpMethod.GET, "/eventos/{id:[0-9]+}").permitAll()

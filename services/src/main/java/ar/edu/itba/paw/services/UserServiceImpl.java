@@ -56,14 +56,15 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional(readOnly = true)
     public Optional<User> findByEmail(final String email) {
-        return userDao.findByEmail(email);
+        // En la base los emails se guardan en minuscula (register/findOrCreate):
+        // sin esto, loguearse con "Sol@gmail.com" no encontraba a "sol@gmail.com".
+        return userDao.findByEmail(email.trim().toLowerCase());
     }
 
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public UserRegistrationResult register(final String email, final String name, final String rawPassword) {
         final String normalizedEmail = email.trim().toLowerCase();
-        final String hash = passwordEncoder.encode(rawPassword);
 
         final Optional<User> existing = userDao.findByEmail(normalizedEmail);
         final long userId;
@@ -78,7 +79,9 @@ public class UserServiceImpl implements UserService {
         } else {
             userId = userDao.create(new User(normalizedEmail, name)).getId();
         }
-        userDao.setPassword(userId, hash);
+        // El hash recien aca, despues del chequeo de EMAIL_TAKEN: BCrypt es lento
+        // a proposito y no tiene sentido pagarlo si el registro se rechaza.
+        userDao.setPassword(userId, passwordEncoder.encode(rawPassword));
         userDao.addRole(userId, ROLE_USER);
         // Toda cuenta nueva (o fantasma recien completada) tiene que confirmar
         // el mail antes de poder loguearse: ver UserDetailsServiceImpl.

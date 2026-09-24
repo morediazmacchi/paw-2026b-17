@@ -18,16 +18,9 @@ public interface EventInvitationService {
     EventInvitationResult invite(long eventId, String creatorEmail, String inviteeEmail);
 
     /**
-     * Si este token da acceso a este evento. Lo usa EventController para
-     * decidir si mostrar el detalle de un evento privado a alguien que no es
-     * el creador ni ya esta anotado.
-     */
-    boolean grantsAccess(String token, long eventId);
-
-    /**
-     * Si a este email se le mando una invitacion a este evento. El token alcanza
-     * para VER un evento privado, pero para inscribirse el email de quien se
-     * anota tiene que ser el invitado (ver EventController.rsvp).
+     * Si a este email se le mando una invitacion a este evento. Es lo que deja
+     * ver (y anotarse a) un evento privado: el email es el del usuario logueado
+     * (ver EventController.canView).
      */
     boolean isInvited(long eventId, String email);
 

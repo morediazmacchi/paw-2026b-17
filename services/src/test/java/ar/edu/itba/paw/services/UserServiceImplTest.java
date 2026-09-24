@@ -95,6 +95,19 @@ public class UserServiceImplTest {
         assertEquals(USER_ID, result.getId());
     }
 
+    // ---- findByEmail() ----
+
+    @Test
+    public void testFindByEmailIgnoresCaseAndSpaces() {
+        // Es lo que usa el login (UserDetailsServiceImpl): "  Test@Mail.com  " tiene que entrar.
+        when(mockUserDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(someUser()));
+
+        final Optional<User> result = userService.findByEmail(EMAIL);
+
+        assertTrue(result.isPresent());
+        assertEquals(USER_ID, result.get().getId());
+    }
+
     // ---- register() ----
 
     @Test
@@ -141,6 +154,7 @@ public class UserServiceImplTest {
         final UserRegistrationResult result = userService.register(EMAIL, NAME, RAW_PASSWORD);
 
         assertEquals(UserRegistrationResult.EMAIL_TAKEN, result);
+        verify(mockPasswordEncoder, never()).encode(any());
         verify(mockUserDao, never()).setPassword(anyLong(), any());
         verify(mockUserDao, never()).addRole(anyLong(), any());
     }

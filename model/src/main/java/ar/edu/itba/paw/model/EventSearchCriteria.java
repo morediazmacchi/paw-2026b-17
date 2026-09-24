@@ -1,5 +1,6 @@
 package ar.edu.itba.paw.model;
 
+import java.math.BigDecimal;
 import java.util.Date;
 import java.util.List;
 
@@ -18,8 +19,8 @@ public class EventSearchCriteria {
     public static final int FEW_SPOTS_MAX = 5;
 
     private List<Long> categoryIds;
-    private Double minPrice;
-    private Double maxPrice;
+    private BigDecimal minPrice;
+    private BigDecimal maxPrice;
     private Date fromDate;
     private Date toDate;
     private List<Barrio> barrios;
@@ -35,10 +36,10 @@ public class EventSearchCriteria {
 
     public List<Long> getCategoryIds() { return categoryIds; }
     public void setCategoryIds(final List<Long> categoryIds) { this.categoryIds = categoryIds; }
-    public Double getMinPrice() { return minPrice; }
-    public void setMinPrice(final Double minPrice) { this.minPrice = minPrice; }
-    public Double getMaxPrice() { return maxPrice; }
-    public void setMaxPrice(final Double maxPrice) { this.maxPrice = maxPrice; }
+    public BigDecimal getMinPrice() { return minPrice; }
+    public void setMinPrice(final BigDecimal minPrice) { this.minPrice = minPrice; }
+    public BigDecimal getMaxPrice() { return maxPrice; }
+    public void setMaxPrice(final BigDecimal maxPrice) { this.maxPrice = maxPrice; }
     public Date getFromDate() { return fromDate; }
     public void setFromDate(final Date fromDate) { this.fromDate = fromDate; }
     public Date getToDate() { return toDate; }

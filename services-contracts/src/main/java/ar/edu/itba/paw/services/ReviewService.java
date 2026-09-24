@@ -13,12 +13,13 @@ public interface ReviewService {
     Optional<Review> findByEventAndUser(long eventId, long userId);
 
     /**
-     * Deja una reseña de un evento finalizado al que asistio. false (y no crea
-     * nada) si no cumple alguna condicion: el evento no existe, todavia no
-     * termino, nunca estuvo anotado a el, o ya lo habia reseñado antes (no se
-     * puede editar una reseña ya mandada).
+     * Deja una reseña de un evento finalizado al que asistio. Si no se puede,
+     * no crea nada y el resultado dice por que (ver ReviewResult).
      */
-    boolean create(long eventId, User user, int rating, String comment);
+    ReviewResult create(long eventId, User user, int rating, String comment);
+
+    /** Puntaje del promotor: promedio de todas las reseñas de sus eventos (0 si no tiene). */
+    double findCreatorAverageRating(String creatorEmail);
 
     /**
      * Todas las reseñas de todos los eventos que creo ese email: el promedio

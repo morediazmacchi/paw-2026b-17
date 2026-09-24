@@ -10,15 +10,16 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.ModelAndView;
 
+import java.security.Principal;
 import java.util.Date;
 
 /**
  * La invitacion de lista de espera que se abre desde el mail.
  *
- * Estas tres rutas son publicas (ver WebAuthConfig): quien recibe el mail puede
- * estar deslogueado, o logueado con otra cuenta, o abrirlo desde el celular. El
- * TOKEN es la credencial: tenerlo prueba que sos quien recibio ese mail, porque
- * no hay otra forma de haberlo conseguido.
+ * El link solo dice de QUE evento se trata. QUIEN sos lo dice la sesion: estas
+ * rutas piden estar logueado (anyRequest().authenticated() en WebAuthConfig; si
+ * no lo estas, Spring te manda al login y despues te devuelve aca). Si el mail
+ * se reenvia, el otro entra con su cuenta y no encuentra ninguna invitacion.
  */
 @Controller
 public class WaitlistController {
@@ -36,15 +37,16 @@ public class WaitlistController {
      * aceptara la invitacion se ejecutaria solo, sin que la persona haga nada.
      * Aceptar y rechazar son POST, abajo.
      */
-    @RequestMapping(value = "/invitacion/{token}", method = RequestMethod.GET)
-    public ModelAndView show(@PathVariable final String token,
-                             @RequestParam(value = "resultado", required = false) final String resultado) {
+    @RequestMapping(value = "/invitacion/{eventId}", method = RequestMethod.GET)
+    public ModelAndView show(@PathVariable final long eventId,
+                             @RequestParam(value = "resultado", required = false) final String resultado,
+                             final Principal principal) {
         final ModelAndView mav = new ModelAndView("waitlist/invitacion");
-        mav.addObject("token", token);
+        mav.addObject("eventId", eventId);
         mav.addObject("resultado", resultado);
 
         final Date now = new Date();
-        waitlistService.findByToken(token).ifPresent(detail -> {
+        waitlistService.findForUser(eventId, principal.getName()).ifPresent(detail -> {
             mav.addObject("event", detail.getEvent());
             mav.addObject("invitation", detail.getInvitation());
             mav.addObject("pending", detail.getInvitation().isPending());
@@ -55,19 +57,19 @@ public class WaitlistController {
         return mav;
     }
 
-    @RequestMapping(value = "/invitacion/{token}/aceptar", method = RequestMethod.POST)
-    public ModelAndView accept(@PathVariable final String token) {
-        return redirectWith(token, waitlistService.accept(token));
+    @RequestMapping(value = "/invitacion/{eventId}/aceptar", method = RequestMethod.POST)
+    public ModelAndView accept(@PathVariable final long eventId, final Principal principal) {
+        return redirectWith(eventId, waitlistService.accept(eventId, principal.getName()));
     }
 
-    @RequestMapping(value = "/invitacion/{token}/rechazar", method = RequestMethod.POST)
-    public ModelAndView decline(@PathVariable final String token) {
-        return redirectWith(token, waitlistService.decline(token));
+    @RequestMapping(value = "/invitacion/{eventId}/rechazar", method = RequestMethod.POST)
+    public ModelAndView decline(@PathVariable final long eventId, final Principal principal) {
+        return redirectWith(eventId, waitlistService.decline(eventId, principal.getName()));
     }
 
     // POST-Redirect-GET, igual que publicar un evento: lo ultimo que hizo el
     // navegador es un GET, asi que F5 no vuelve a contestar la invitacion.
-    private static ModelAndView redirectWith(final String token, final InvitationResult result) {
-        return new ModelAndView("redirect:/invitacion/" + token + "?resultado=" + result.name().toLowerCase());
+    private static ModelAndView redirectWith(final long eventId, final InvitationResult result) {
+        return new ModelAndView("redirect:/invitacion/" + eventId + "?resultado=" + result.name().toLowerCase());
     }
 }

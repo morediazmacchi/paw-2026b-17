@@ -18,7 +18,6 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -91,9 +90,9 @@ public class ReviewServiceImplTest {
         when(mockRegistrationService.findByEventAndEmail(EVENT_ID, USER_EMAIL))
                 .thenReturn(Optional.of(new Registration(EVENT_ID, USER_EMAIL, "Ana", Registration.STATUS_CONFIRMED)));
 
-        final boolean result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
+        final ReviewResult result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
 
-        assertTrue(result);
+        assertEquals(ReviewResult.CREATED, result);
         verify(mockReviewDao).create(any(Review.class));
     }
 
@@ -102,9 +101,9 @@ public class ReviewServiceImplTest {
         when(mockReviewDao.findByEventAndUser(EVENT_ID, USER_ID))
                 .thenReturn(Optional.of(new Review(EVENT_ID, USER_ID, 5, "Ya la mande")));
 
-        final boolean result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
+        final ReviewResult result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
 
-        assertFalse(result);
+        assertEquals(ReviewResult.ALREADY_REVIEWED, result);
         verify(mockReviewDao, never()).create(any(Review.class));
     }
 
@@ -113,9 +112,9 @@ public class ReviewServiceImplTest {
         when(mockReviewDao.findByEventAndUser(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
         when(mockEventService.findById(EVENT_ID)).thenReturn(Optional.empty());
 
-        final boolean result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
+        final ReviewResult result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
 
-        assertFalse(result);
+        assertEquals(ReviewResult.NOT_ELIGIBLE, result);
         verify(mockReviewDao, never()).create(any(Review.class));
     }
 
@@ -124,9 +123,9 @@ public class ReviewServiceImplTest {
         when(mockReviewDao.findByEventAndUser(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
         when(mockEventService.findById(EVENT_ID)).thenReturn(Optional.of(futureEvent()));
 
-        final boolean result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
+        final ReviewResult result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
 
-        assertFalse(result);
+        assertEquals(ReviewResult.NOT_ELIGIBLE, result);
         verify(mockReviewDao, never()).create(any(Review.class));
     }
 
@@ -136,10 +135,45 @@ public class ReviewServiceImplTest {
         when(mockEventService.findById(EVENT_ID)).thenReturn(Optional.of(pastEvent()));
         when(mockRegistrationService.findByEventAndEmail(EVENT_ID, USER_EMAIL)).thenReturn(Optional.empty());
 
-        final boolean result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
+        final ReviewResult result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
 
-        assertFalse(result);
+        assertEquals(ReviewResult.NOT_ELIGIBLE, result);
         verify(mockReviewDao, never()).create(any(Review.class));
+    }
+
+    @Test
+    public void testCreateFailsWhenTheEventWasCancelled() {
+        final Event cancelled = pastEvent();
+        cancelled.setCancelledAt(new Date());
+        when(mockReviewDao.findByEventAndUser(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
+        when(mockEventService.findById(EVENT_ID)).thenReturn(Optional.of(cancelled));
+
+        final ReviewResult result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
+
+        assertEquals(ReviewResult.NOT_ELIGIBLE, result);
+        verify(mockReviewDao, never()).create(any(Review.class));
+    }
+
+    @Test
+    public void testCreateFailsWhenTheUserOnlyReachedTheWaitlist() {
+        when(mockReviewDao.findByEventAndUser(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
+        when(mockEventService.findById(EVENT_ID)).thenReturn(Optional.of(pastEvent()));
+        when(mockRegistrationService.findByEventAndEmail(EVENT_ID, USER_EMAIL))
+                .thenReturn(Optional.of(new Registration(EVENT_ID, USER_EMAIL, "Ana", Registration.STATUS_WAITLISTED)));
+
+        final ReviewResult result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
+
+        assertEquals(ReviewResult.NOT_ELIGIBLE, result);
+        verify(mockReviewDao, never()).create(any(Review.class));
+    }
+
+    // ---- findCreatorAverageRating() ----
+
+    @Test
+    public void testFindCreatorAverageRatingReturnsWhatTheDaoCalculates() {
+        when(mockReviewDao.findAverageRatingByCreatorEmail(CREATOR_EMAIL)).thenReturn(4.5);
+
+        assertEquals(4.5, reviewService.findCreatorAverageRating(CREATOR_EMAIL), 0.0001);
     }
 
     // ---- findByCreatorEmail() ----

@@ -41,14 +41,14 @@ public interface WaitlistService {
     List<Long> findEventsNeedingReconcile();
 
     /**
-     * La invitacion de ese token, para dibujar la pagina del link. Solo lee: no
-     * acepta ni rechaza nada.
+     * La invitacion de esta persona (email del usuario logueado) para este
+     * evento, para dibujar la pagina del link. Solo lee: no acepta ni rechaza nada.
      */
-    Optional<InvitationDetail> findByToken(String token);
+    Optional<InvitationDetail> findForUser(long eventId, String email);
 
     /** La persona dijo que si desde el link del mail. */
-    InvitationResult accept(String token);
+    InvitationResult accept(long eventId, String email);
 
     /** La persona dijo que no: sale de la lista y se llama al siguiente. */
-    InvitationResult decline(String token);
+    InvitationResult decline(long eventId, String email);
 }

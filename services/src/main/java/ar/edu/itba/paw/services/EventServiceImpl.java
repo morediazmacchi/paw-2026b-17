@@ -6,7 +6,6 @@ import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.persistence.EventDao;
-import ar.edu.itba.paw.persistence.RegistrationDao;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,15 +24,16 @@ public class EventServiceImpl implements EventService {
     private final EventDao eventDao;
     private final UserService userService;
     private final NotificationService notificationService;
-    private final RegistrationDao registrationDao;
+    private final RegistrationService registrationService;
 
     @Autowired
     public EventServiceImpl(final EventDao eventDao, final UserService userService,
-                            final NotificationService notificationService, final RegistrationDao registrationDao) {
+                            final NotificationService notificationService,
+                            final RegistrationService registrationService) {
         this.eventDao = eventDao;
         this.userService = userService;
         this.notificationService = notificationService;
-        this.registrationDao = registrationDao;
+        this.registrationService = registrationService;
     }
 
     @Override
@@ -86,14 +86,19 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional
     public EventUpdateResult update(final long eventId, final Event changes, final String callerEmail) {
-        final Optional<Event> existing = eventDao.findById(eventId);
+        // Con lock (SELECT ... FOR UPDATE), igual que register(): mientras se
+        // chequea y se cambia el cupo, nadie se puede anotar. Sin esto, alguien
+        // podia confirmarse entre el chequeo y el UPDATE y quedar mas gente que cupo.
+        final Optional<Event> existing = eventDao.findByIdForUpdate(eventId);
         if (!existing.isPresent() || !existing.get().getCreatorEmail().equalsIgnoreCase(callerEmail)) {
             return EventUpdateResult.NOT_FOUND;
         }
         if (existing.get().isCancelled()) {
             return EventUpdateResult.CANCELLED;
         }
-        if (changes.getMaxCapacity() != null && changes.getMaxCapacity() < registrationDao.countConfirmed(eventId)) {
+        // No alcanza con los confirmados: una invitacion sin contestar o un
+        // pedido pendiente tambien tienen su lugar guardado (ver occupiedSpots).
+        if (changes.getMaxCapacity() != null && changes.getMaxCapacity() < registrationService.occupiedSpots(eventId)) {
             return EventUpdateResult.CAPACITY_TOO_LOW;
         }
         changes.setId(eventId);
@@ -101,7 +106,7 @@ public class EventServiceImpl implements EventService {
         // Solo a los confirmados, mismo criterio que cancel(): a alguien
         // pendiente/rechazado/en lista de espera todavia no tiene un lugar
         // asegurado en base al cual le importe que cambio el evento.
-        for (final Registration registration : registrationDao.findByEventId(eventId)) {
+        for (final Registration registration : registrationService.findByEventId(eventId)) {
             if (Registration.STATUS_CONFIRMED.equals(registration.getStatus())) {
                 notificationService.notifyEventUpdated(changes, registration);
             }
@@ -123,7 +128,7 @@ public class EventServiceImpl implements EventService {
         eventDao.cancel(eventId);
         // Solo a los confirmados: a alguien pendiente/rechazado/en lista de
         // espera nunca le llego a tener un lugar, no hay nada que "perder".
-        for (final Registration registration : registrationDao.findByEventId(eventId)) {
+        for (final Registration registration : registrationService.findByEventId(eventId)) {
             if (Registration.STATUS_CONFIRMED.equals(registration.getStatus())) {
                 notificationService.notifyEventCancelled(event, registration);
             }

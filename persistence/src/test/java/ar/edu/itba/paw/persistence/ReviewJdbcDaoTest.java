@@ -125,4 +125,22 @@ public class ReviewJdbcDaoTest {
     public void testFindByCreatorEmailReturnsEmptyWhenNoReviews() {
         assertTrue(reviewDao.findByCreatorEmail(CREATOR_EMAIL).isEmpty());
     }
+
+    // ---- findAverageRatingByCreatorEmail() ----
+
+    @Test
+    public void testAverageRatingJoinsAllTheCreatorsEventsAndIgnoresOthers() {
+        final long otherEventId = insertEvent("Torneo", CREATOR_EMAIL);
+        final long unrelatedEventId = insertEvent("Muestra", "otro@mail.com");
+        reviewDao.create(new Review(eventId, userId, 5, "Buenisimo"));
+        reviewDao.create(new Review(otherEventId, userId, 4, "Bien"));
+        reviewDao.create(new Review(unrelatedEventId, userId, 1, "No cuenta"));
+
+        assertEquals(4.5, reviewDao.findAverageRatingByCreatorEmail(CREATOR_EMAIL), 0.0001);
+    }
+
+    @Test
+    public void testAverageRatingIsZeroWhenNoReviews() {
+        assertEquals(0, reviewDao.findAverageRatingByCreatorEmail(CREATOR_EMAIL), 0.0001);
+    }
 }
