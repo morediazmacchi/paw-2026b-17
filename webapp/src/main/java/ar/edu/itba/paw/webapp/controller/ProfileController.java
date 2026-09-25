@@ -198,10 +198,7 @@ public class ProfileController {
     }
 
     @RequestMapping(value = "/perfil/inscripciones", method = RequestMethod.GET)
-    public ModelAndView misInscripciones(@RequestParam(value = "reviewed", required = false) final String reviewed,
-                                          @RequestParam(value = "reviewError", required = false) final String reviewError,
-                                          @RequestParam(value = "alreadyReviewed", required = false) final String alreadyReviewed,
-                                          final Principal principal) {
+    public ModelAndView misInscripciones(final Principal principal) {
         final User user = currentUser(principal);
         final List<Registration> registrations = registrationService.findByEmail(user.getEmail());
 
@@ -237,9 +234,6 @@ public class ProfileController {
         mav.addObject("pastRegistrations", past);
         mav.addObject("eventsById", eventsById);
         mav.addObject("myReviewsByEventId", myReviewsByEventId);
-        mav.addObject("reviewed", reviewed != null);
-        mav.addObject("reviewError", reviewError != null);
-        mav.addObject("alreadyReviewed", alreadyReviewed != null);
         mav.addObject("registrationsCount", registrations.size());
         mav.addObject("favoritesCount", favoritesCountFor(user));
         mav.addObject("eventsCount", eventsCountFor(user));
@@ -262,11 +256,14 @@ public class ProfileController {
 
     // {id} es el id del EVENTO (no de la inscripcion): la reseña se identifica
     // por evento+usuario, no hace falta el id de la inscripcion para nada.
+    // Los carteles van como flash attribute, igual que "cancelled" (ver arriba).
     @RequestMapping(value = "/perfil/inscripciones/{id}/resena", method = RequestMethod.POST)
     public ModelAndView leaveReview(@PathVariable final long id, @Valid final ReviewForm form,
-                                     final BindingResult errors, final Principal principal) {
+                                     final BindingResult errors, final Principal principal,
+                                     final RedirectAttributes redirectAttributes) {
         if (errors.hasErrors()) {
-            return new ModelAndView("redirect:/perfil/inscripciones?reviewError");
+            redirectAttributes.addFlashAttribute("reviewError", true);
+            return new ModelAndView("redirect:/perfil/inscripciones");
         }
         final User user = currentUser(principal);
         final ReviewResult result;
@@ -274,17 +271,21 @@ public class ProfileController {
             result = reviewService.create(id, user, form.getRating(), form.getComment());
         } catch (final DataIntegrityViolationException e) {
             // Dos envios al mismo tiempo: el segundo choca con el UNIQUE(event_id, user_id).
-            return new ModelAndView("redirect:/perfil/inscripciones?alreadyReviewed");
+            redirectAttributes.addFlashAttribute("alreadyReviewed", true);
+            return new ModelAndView("redirect:/perfil/inscripciones");
         }
         switch (result) {
             case CREATED:
-                return new ModelAndView("redirect:/perfil/inscripciones?reviewed");
+                redirectAttributes.addFlashAttribute("reviewed", true);
+                return new ModelAndView("redirect:/perfil/inscripciones");
             // Ya la habia dejado (doble click, o dos pestañas abiertas): cartel
             // propio en vez del error generico.
             case ALREADY_REVIEWED:
-                return new ModelAndView("redirect:/perfil/inscripciones?alreadyReviewed");
+                redirectAttributes.addFlashAttribute("alreadyReviewed", true);
+                return new ModelAndView("redirect:/perfil/inscripciones");
             default:
-                return new ModelAndView("redirect:/perfil/inscripciones?reviewError");
+                redirectAttributes.addFlashAttribute("reviewError", true);
+                return new ModelAndView("redirect:/perfil/inscripciones");
         }
     }
 

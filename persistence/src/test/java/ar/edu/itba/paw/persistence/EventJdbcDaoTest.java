@@ -29,6 +29,7 @@ import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -994,5 +995,36 @@ public class EventJdbcDaoTest {
 
         assertTrue(eventDao.markReminderSent(id, new Date()));
         assertFalse(eventDao.markReminderSent(id, new Date()));
+    }
+
+    private Timestamp reminderSentAt(final long id) {
+        return jdbcTemplate.queryForObject("SELECT reminder_sent_at FROM event WHERE id = ?", Timestamp.class, id);
+    }
+
+    @Test
+    public void testUpdateKeepsTheReminderIfTheDateDidNotChange() {
+        final Event created = eventDao.create(someEvent(categoryId));
+        eventDao.markReminderSent(created.getId(), new Date());
+
+        final Event changes = someEvent(categoryId);
+        changes.setId(created.getId());
+        changes.setEventDate(created.getEventDate());
+        changes.setTitle("Solo cambia el titulo");
+        eventDao.update(changes);
+
+        assertNotNull(reminderSentAt(created.getId()));
+    }
+
+    @Test
+    public void testUpdateResetsTheReminderIfTheDateChanged() {
+        final Event created = eventDao.create(someEvent(categoryId));
+        eventDao.markReminderSent(created.getId(), new Date());
+
+        final Event changes = someEvent(categoryId);
+        changes.setId(created.getId());
+        changes.setEventDate(new Date(created.getEventDate().getTime() + 7 * 24 * HORA));
+        eventDao.update(changes);
+
+        assertNull(reminderSentAt(created.getId()));
     }
 }

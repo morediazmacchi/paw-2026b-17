@@ -155,12 +155,18 @@ public class EventJdbcDao implements EventDao {
         jdbcTemplate.update(
                 "UPDATE event SET title = ?, description = ?, event_date = ?, address = ?, neighborhood = ?, "
                         + "price = ?, max_capacity = ?, requires_approval = ?, "
-                        + "visibility = ?, latitude = ?, longitude = ? WHERE id = ?",
+                        + "visibility = ?, latitude = ?, longitude = ?, "
+                        // Si cambio la fecha, el recordatorio de 24 hs vuelve a "no mandado"
+                        // para que salga para la fecha nueva. Del lado derecho del SET,
+                        // event_date es todavia el valor viejo (SQL estandar).
+                        + "reminder_sent_at = CASE WHEN event_date = ? THEN reminder_sent_at ELSE NULL END "
+                        + "WHERE id = ?",
                 event.getTitle(), event.getDescription(), new Timestamp(event.getEventDate().getTime()),
                 event.getAddress(), event.getNeighborhood() == null ? null : event.getNeighborhood().name(),
                 event.getPrice(), event.getMaxCapacity(),
                 event.isRequiresApproval(), event.getVisibility().name(),
-                event.getLatitude(), event.getLongitude(), event.getId());
+                event.getLatitude(), event.getLongitude(),
+                new Timestamp(event.getEventDate().getTime()), event.getId());
         // Reemplaza todas las categorias de una: mas simple que calcular el
         // diff (altas/bajas/cambios de extra_info) entre lo que habia y lo
         // que llego en "event".

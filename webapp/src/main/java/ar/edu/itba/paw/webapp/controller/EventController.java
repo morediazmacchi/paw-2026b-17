@@ -41,6 +41,7 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.ModelAndView;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import javax.validation.Valid;
 import java.io.IOException;
@@ -372,9 +373,7 @@ public class EventController {
     }
 
     @RequestMapping(value = "/eventos/{id}", method = RequestMethod.GET)
-    public ModelAndView detail(@PathVariable final long id,
-                                @RequestParam(value = "rsvp", required = false) final String rsvp,
-                                final Principal principal) {
+    public ModelAndView detail(@PathVariable final long id, final Principal principal) {
         final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
         // Privado y sin sesion: todavia no sabemos quien sos. Al login, y de
         // vuelta aca (WebAuthConfig.loginSuccessHandler) para chequear si estas invitado.
@@ -396,7 +395,6 @@ public class EventController {
 
         final ModelAndView mav = new ModelAndView("events/detail");
         mav.addObject("event", event);
-        mav.addObject("rsvp", rsvp);
         mav.addObject("full", registrationService.isFull(id));
         mav.addObject("finished", event.getEventDate().before(new Date()));
         mav.addObject("availableSpots", registrationService.availableSpots(id));
@@ -676,7 +674,7 @@ public class EventController {
     // Principal siempre presente en este metodo implica un User existente.
     @RequestMapping(value = "/eventos/{id}/quiero-ir", method = RequestMethod.POST)
     public ModelAndView rsvp(@PathVariable final long id,
-                              final Principal principal) {
+                              final Principal principal, final RedirectAttributes redirectAttributes) {
         final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
         // Mismo chequeo que el detalle: el boton ya esta escondido en la UI si
         // no tenes acceso, pero un POST directo no se puede confiar solo en eso.
@@ -688,7 +686,8 @@ public class EventController {
         // La UI ya esconde el boton en este caso (ver detail.jsp), pero un POST
         // directo igual no tiene que poder anotarte a algo que ya paso.
         if (event.getEventDate().before(new Date())) {
-            return new ModelAndView("redirect:/eventos/" + id + "?rsvp=finalizado");
+            redirectAttributes.addFlashAttribute("rsvp", "finalizado");
+            return new ModelAndView("redirect:/eventos/" + id);
         }
         // Quien se inscribe es quien esta logueado, nunca un campo del form:
         // mismo motivo que el creator_email de publish().
@@ -696,11 +695,13 @@ public class EventController {
         // Ya no hace falta atrapar IllegalStateException: el service dejo de
         // lanzarla cuando el evento esta lleno, ahora devuelve WAITLISTED.
         final RegistrationResult result = registerRetryingOnConflict(id, user);
-        return new ModelAndView("redirect:/eventos/" + id + "?rsvp=" + rsvpParam(result));
+        redirectAttributes.addFlashAttribute("rsvp", rsvpParam(result));
+        return new ModelAndView("redirect:/eventos/" + id);
     }
 
-    // Los finales posibles del RSVP viajan como parametro en la URL
-    // (POST-Redirect-GET) y detail.jsp elige el cartel a partir de esto.
+    // Los finales posibles del RSVP viajan como flash attribute "rsvp"
+    // (POST-Redirect-GET) y detail.jsp elige el cartel a partir de esto. No en la
+    // URL: con un link viejo el cartel volvia a salir sin haber hecho nada.
     private static String rsvpParam(final RegistrationResult result) {
         switch (result) {
             case WAITLISTED:
@@ -738,12 +739,14 @@ public class EventController {
     // pero desde el detalle: busca la inscripcion propia de este evento y la
     // cancela, en vez de recibir el id de la inscripcion por parametro.
     @RequestMapping(value = "/eventos/{id}/darme-de-baja", method = RequestMethod.POST)
-    public ModelAndView unregister(@PathVariable final long id, final Principal principal) {
+    public ModelAndView unregister(@PathVariable final long id, final Principal principal,
+                                   final RedirectAttributes redirectAttributes) {
         final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
         // La UI ya esconde el boton en este caso (ver detail.jsp): un evento que
         // ya paso no se puede "des-anotar", ya sucedio.
         if (event.getEventDate().before(new Date())) {
-            return new ModelAndView("redirect:/eventos/" + id + "?rsvp=finalizado");
+            redirectAttributes.addFlashAttribute("rsvp", "finalizado");
+            return new ModelAndView("redirect:/eventos/" + id);
         }
         final User user = currentUser(principal);
         final Optional<Registration> registration = registrationService.findByEventAndEmail(id, user.getEmail());
@@ -760,7 +763,8 @@ public class EventController {
         } else {
             rsvpParam = "baja";
         }
-        return new ModelAndView("redirect:/eventos/" + id + "?rsvp=" + rsvpParam);
+        redirectAttributes.addFlashAttribute("rsvp", rsvpParam);
+        return new ModelAndView("redirect:/eventos/" + id);
     }
 
     // Busca el evento y confirma que quien esta pidiendolo es su creador. Si no
