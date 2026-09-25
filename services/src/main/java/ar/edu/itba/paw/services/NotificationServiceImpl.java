@@ -253,28 +253,39 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Async
     @Override
-    public void notifyWaitlistInvitation(final Event event, final Registration registration,
-                                          final java.util.Date expiresAt) {
+    public void notifyWaitlistPromoted(final Event event, final Registration registration) {
         try {
             final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
             variables.put("personName", displayName(registration.getName(), registration.getEmail()));
-            // El link NO acepta por si solo: abre una pagina con dos botones. Un
-            // GET que cambiara estado se ejecutaria solo cuando el antivirus del
-            // correo abre los links para escanearlos. El link solo dice de que
-            // evento se trata: quien es la persona lo dice su sesion.
-            variables.put("invitationUrl", baseUrl + "/invitacion/" + event.getId());
-            variables.put("deadline", DateFormat
-                    .getDateTimeInstance(DateFormat.FULL, DateFormat.SHORT, DEFAULT_LOCALE)
-                    .format(expiresAt));
+            variables.put("registrationsUrl", baseUrl + "/perfil/inscripciones");
 
             mailService.send(registration.getEmail(),
-                    "waitlist-invitation",
-                    "mail.waitlistInvitation.subject",
+                    "waitlist-promoted",
+                    "mail.waitlistPromoted.subject",
                     new Object[]{ event.getTitle() },
                     variables,
                     DEFAULT_LOCALE);
         } catch (final RuntimeException e) {
-            LOGGER.error("Fallo la invitacion de lista de espera, evento {}", event.getId(), e);
+            LOGGER.error("Fallo el aviso de lugar de la lista de espera, evento {}", event.getId(), e);
+        }
+    }
+
+    @Async
+    @Override
+    public void notifyRegistrationRevoked(final Event event, final Registration registration) {
+        try {
+            final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
+            variables.put("personName", displayName(registration.getName(), registration.getEmail()));
+            variables.put("eventsUrl", baseUrl + "/eventos");
+
+            mailService.send(registration.getEmail(),
+                    "registration-revoked",
+                    "mail.registrationRevoked.subject",
+                    new Object[]{ event.getTitle() },
+                    variables,
+                    DEFAULT_LOCALE);
+        } catch (final RuntimeException e) {
+            LOGGER.error("Fallo el aviso de lugar revocado, evento {}", event.getId(), e);
         }
     }
 

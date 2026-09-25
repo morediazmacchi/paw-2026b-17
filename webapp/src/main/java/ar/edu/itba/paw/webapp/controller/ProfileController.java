@@ -7,6 +7,7 @@ import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.Review;
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.services.ApprovalResult;
 import ar.edu.itba.paw.services.EventInvitationResult;
 import ar.edu.itba.paw.services.EventInvitationService;
 import ar.edu.itba.paw.services.EventService;
@@ -406,6 +407,7 @@ public class ProfileController {
     public ModelAndView pendingRegistrations(@PathVariable final long id,
                                               @RequestParam(value = "approved", required = false) final String approvedParam,
                                               @RequestParam(value = "rejected", required = false) final String rejectedParam,
+                                              @RequestParam(value = "full", required = false) final String fullParam,
                                               final Principal principal) {
         final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
         final User user = currentUser(principal);
@@ -419,6 +421,12 @@ public class ProfileController {
         mav.addObject("pendingRegistrations", registrationService.findPendingByEvent(id, user.getEmail()));
         mav.addObject("approved", approvedParam != null);
         mav.addObject("rejected", rejectedParam != null);
+        mav.addObject("fullNotice", fullParam != null);
+        // Sin lugar libres el organizador ya no puede aceptar a nadie mas (ver
+        // RegistrationService.approve()): la pantalla lo dice y deshabilita "Aceptar".
+        final Integer availableSpots = registrationService.availableSpots(id);
+        mav.addObject("availableSpots", availableSpots);
+        mav.addObject("noSpotsLeft", availableSpots != null && availableSpots <= 0);
         mav.addObject("registrationsCount", registrationsCountFor(user));
         mav.addObject("favoritesCount", favoritesCountFor(user));
         mav.addObject("eventsCount", eventsCountFor(user));
@@ -428,8 +436,9 @@ public class ProfileController {
     @RequestMapping(value = "/perfil/eventos/{id}/inscriptos/{registrationId}/aceptar", method = RequestMethod.POST)
     public ModelAndView approveRegistration(@PathVariable final long id, @PathVariable final long registrationId,
                                              final Principal principal) {
-        registrationService.approve(registrationId, principal.getName());
-        return new ModelAndView("redirect:/perfil/eventos/" + id + "/inscriptos?approved");
+        final ApprovalResult result = registrationService.approve(registrationId, principal.getName());
+        final String param = result == ApprovalResult.FULL ? "?full" : result == ApprovalResult.APPROVED ? "?approved" : "";
+        return new ModelAndView("redirect:/perfil/eventos/" + id + "/inscriptos" + param);
     }
 
     @RequestMapping(value = "/perfil/eventos/{id}/inscriptos/{registrationId}/rechazar", method = RequestMethod.POST)
@@ -437,6 +446,14 @@ public class ProfileController {
                                             final Principal principal) {
         registrationService.reject(registrationId, principal.getName());
         return new ModelAndView("redirect:/perfil/eventos/" + id + "/inscriptos?rejected");
+    }
+
+    // Volver de "Ver inscriptos" (donde esta el boton Revocar) a esa misma lista.
+    @RequestMapping(value = "/perfil/eventos/{id}/inscriptos/{registrationId}/revocar", method = RequestMethod.POST)
+    public ModelAndView revokeRegistration(@PathVariable final long id, @PathVariable final long registrationId,
+                                            final Principal principal) {
+        final boolean revoked = registrationService.revoke(registrationId, principal.getName());
+        return new ModelAndView("redirect:/eventos/" + id + "/inscriptos" + (revoked ? "?revoked" : ""));
     }
 
     // Invitar solo tiene sentido en un evento privado: uno publico ya tiene un
@@ -467,7 +484,8 @@ public class ProfileController {
             return inviteFormView(event, user, form, errors, false, false);
         }
         final EventInvitationResult result = eventInvitationService.invite(id, user.getEmail(), form.getEmail());
-        final String param = result == EventInvitationResult.ALREADY_INVITED ? "alreadyInvited" : "sent";
+        final String param = result == EventInvitationResult.ALREADY_INVITED ? "alreadyInvited"
+                : result == EventInvitationResult.FULL ? "full" : "sent";
         return new ModelAndView("redirect:/perfil/eventos/" + id + "/invitar?" + param);
     }
 

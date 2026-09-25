@@ -212,6 +212,18 @@ public class EventServiceImplTest {
         assertEquals(EventUpdateResult.UPDATED, result);
     }
 
+    // Si el organizador sube el cupo, los primeros de la lista de espera entran ya.
+    @Test
+    public void testUpdatePromotesTheWaitlistSoRaisedCapacityIsFilled() {
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(someEvent()));
+        final Event changes = someEvent();
+        changes.setMaxCapacity(20);
+
+        eventService.update(EVENT_ID, changes, CREATOR_EMAIL);
+
+        verify(mockRegistrationService).promoteFromWaitlist(EVENT_ID);
+    }
+
     @Test
     public void testUpdateWhenNewCapacityIsNullSucceedsWithoutCheckingOccupied() {
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(someEvent()));

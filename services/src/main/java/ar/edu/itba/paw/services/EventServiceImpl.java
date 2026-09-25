@@ -117,6 +117,10 @@ public class EventServiceImpl implements EventService {
                 inboxService.add(registration.getEmail(), InboxMessageType.EVENT_UPDATED, eventId, null, null);
             }
         }
+        // Si subio el cupo (o se lo saco), los primeros de la lista de espera entran.
+        // Despues del aviso de cambios: a los que entran ahora les llega ya el mail
+        // de que estan confirmados, no hace falta ademas contarles que el evento cambio.
+        registrationService.promoteFromWaitlist(eventId);
         return EventUpdateResult.UPDATED;
     }
 

@@ -90,26 +90,18 @@ public class RegistrationJdbcDao implements RegistrationDao {
 
     @Override
     public List<Registration> findNextWaitlisted(final long eventId, final int limit) {
-        // El LEFT JOIN + "i.id IS NULL" es la regla "una oportunidad por persona":
-        // quien ya tiene invitacion (pendiente o aceptada) no vuelve a aparecer.
-        // Al que rechazo o se le vencio ya se le borro la inscripcion entera, asi
-        // que tampoco esta. El orden sale de registered_at: el que llego primero.
+        // El orden sale de registered_at: el que llego primero a la lista.
         return jdbcTemplate.query(
-                "SELECT r.* FROM registration r "
-                        + "LEFT JOIN waitlist_invitation i ON i.registration_id = r.id "
-                        + "WHERE r.event_id = ? AND r.status = ? AND i.id IS NULL "
-                        + "ORDER BY r.registered_at LIMIT ?",
+                "SELECT * FROM registration WHERE event_id = ? AND status = ? "
+                        + "ORDER BY registered_at, id LIMIT ?",
                 ROW_MAPPER, eventId, RegistrationStatus.WAITLISTED.name(), limit);
     }
 
     @Override
-    public List<Long> findEventIdsWithWaitlist(final java.util.Date now) {
-        return jdbcTemplate.queryForList(
-                "SELECT DISTINCT r.event_id FROM registration r "
-                        + "JOIN event e ON e.id = r.event_id "
-                        + "WHERE r.status = ? AND e.max_capacity IS NOT NULL AND e.event_date > ? "
-                        + "AND e.cancelled_at IS NULL",
-                Long.class, RegistrationStatus.WAITLISTED.name(), new java.sql.Timestamp(now.getTime()));
+    public List<Registration> findWaitlistedByEvent(final long eventId) {
+        return jdbcTemplate.query(
+                "SELECT * FROM registration WHERE event_id = ? AND status = ? ORDER BY registered_at, id",
+                ROW_MAPPER, eventId, RegistrationStatus.WAITLISTED.name());
     }
 
     @Override

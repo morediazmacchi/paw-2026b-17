@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<!--
+  El creador le saco el lugar a alguien que estaba confirmado -> le llega a
+  esa persona. Sin CTA al evento (ya no puede volver a pedir lugar
+  ahi): el link manda al listado, para que busque otra cosa.
+  Variables: personName, eventTitle, eventDate, eventsUrl
+-->
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::content})}">
+<body>
+<th:block th:fragment="content">
+
+  <h1 style="margin:0 0 8px; font-size:22px; line-height:1.3; color:#111827;"
+      th:text="#{mail.registrationRevoked.title}">Titulo</h1>
+
+  <p style="margin:0 0 4px; color:#6b7280;"
+     th:text="#{mail.registrationRevoked.greeting(${personName})}">Hola</p>
+
+  <p style="margin:0 0 20px;"
+     th:text="#{mail.registrationRevoked.body(${eventTitle})}">Cuerpo</p>
+
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0 0;">
+    <tr><td style="background-color:#111827; border-radius:8px;">
+      <a th:href="${eventsUrl}" href="#"
+         style="display:inline-block; padding:12px 22px; color:#ffffff;
+                text-decoration:none; font-size:15px; font-weight:600;"
+         th:text="#{mail.registrationRevoked.cta}">Ver otros eventos</a>
+    </td></tr>
+  </table>
+
+</th:block>
+</body>
+</html>

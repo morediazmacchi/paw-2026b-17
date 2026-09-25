@@ -47,16 +47,16 @@ public interface NotificationService {
      * Solo para inscripciones confirmadas: que alguien salga de la lista de
      * espera no le cambia el cupo al organizador.
      *
-     * @param offeredToWaitlist true si ese lugar ya se le ofrecio a alguien de
-     *                          la lista de espera, false si quedo abierto
+     * @param offeredToWaitlist true si ese lugar ya se lo llevo alguien de la
+     *                          lista de espera, false si quedo abierto
      */
     void notifyRegistrationCancelled(Event event, Registration registration, boolean offeredToWaitlist);
 
-    /**
-     * Se libero un lugar y le toca a esta persona -> mail con el link para
-     * aceptarlo o rechazarlo (pide iniciar sesion), y hasta cuando tiene tiempo.
-     */
-    void notifyWaitlistInvitation(Event event, Registration registration, java.util.Date expiresAt);
+    /** Se libero un lugar y le tocaba a esta persona -> mail de que ya esta confirmada. */
+    void notifyWaitlistPromoted(Event event, Registration registration);
+
+    /** El creador le saco el lugar a alguien ya confirmado -> le avisa a esa persona. */
+    void notifyRegistrationRevoked(Event event, Registration registration);
 
     /**
      * Alguien se registro (o completo una cuenta fantasma) -> mail con el link para

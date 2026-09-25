@@ -128,29 +128,11 @@ CREATE TABLE IF NOT EXISTS review (
 );
 
 
--- Lista de espera. Cuando se libera un cupo, al primero de la lista se le manda
--- un link unico con un token: el token ES la identificacion (puede abrirlo sin
--- estar logueado, o logueado con otra cuenta). Vence a las 24hs o cuando empieza
--- el evento, lo que pase antes.
---
--- Solo existen dos estados. Si la persona rechaza, o deja vencer la invitacion,
--- se borra su fila de registration y esta se va con ella por el ON DELETE
--- CASCADE: sale de la lista y, si quiere, puede volver a anotarse ultima.
---
--- El UNIQUE sobre registration_id es la regla "una invitacion por inscripcion":
--- es lo que hace que nunca se llame dos veces a la misma persona.
---
--- Al CHECK se le pone nombre a proposito: sin nombre, Postgres y HSQLDB le
--- inventan uno distinto cada uno y despues no hay ALTER que sirva en los dos.
-CREATE TABLE IF NOT EXISTS waitlist_invitation (
-    id               SERIAL PRIMARY KEY,
-    registration_id  INTEGER NOT NULL UNIQUE REFERENCES registration(id) ON DELETE CASCADE,
-    token            VARCHAR(64) NOT NULL UNIQUE,
-    status           VARCHAR(20) DEFAULT 'PENDING' NOT NULL,
-    sent_at          TIMESTAMP NOT NULL DEFAULT now(),
-    expires_at       TIMESTAMP NOT NULL,
-    CONSTRAINT waitlist_invitation_status_ck CHECK (status IN ('PENDING', 'ACCEPTED'))
-);
+-- Lista de espera: no tiene tabla propia. Es simplemente registration con status
+-- WAITLISTED, ordenada por registered_at. Cuando se libera un lugar, el primero
+-- pasa directo a CONFIRMED (ver RegistrationServiceImpl.promoteFromWaitlist()).
+-- Las bases viejas pueden conservar la tabla waitlist_invitation del esquema
+-- anterior (invitacion con 24hs para aceptar): ya nadie la lee ni la escribe.
 
 -- La consulta "quien sigue en la lista de espera de este evento" corre en cada
 -- cancelacion. Filtra por event_id y status, y ordena por registered_at: las

@@ -32,6 +32,10 @@
             <p class="alert"><spring:message code="auth.invite.alreadyInvitedMessage"/></p>
         </c:if>
 
+        <c:if test="${param.full != null}">
+            <p class="alert"><spring:message code="auth.invite.fullMessage"/></p>
+        </c:if>
+
         <spring:message code="auth.invite.emailLabel" var="emailLabel"/>
         <spring:message code="auth.invite.submitButton" var="submitButtonLabel"/>
         <form action="<c:url value='/perfil/eventos/${event.id}/invitar'/>" method="post" novalidate="novalidate">

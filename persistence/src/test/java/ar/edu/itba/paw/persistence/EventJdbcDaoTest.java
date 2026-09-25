@@ -518,11 +518,12 @@ public class EventJdbcDaoTest {
                 "SELECT id FROM registration WHERE event_id = ? AND email = ?", Long.class, eventId, email);
     }
 
-    private void insertPendingInvitation(final long registrationId) {
+    // Invitacion por mail a un evento privado. Reserva un lugar hasta que esa
+    // persona se anota (ahi pasa a ser su inscripcion y deja de contarse aparte).
+    private void insertEventInvitation(final long eventId, final String email) {
         jdbcTemplate.update(
-                "INSERT INTO waitlist_invitation (registration_id, token, expires_at) VALUES (?, ?, ?)",
-                registrationId, "tok-" + registrationId,
-                new Timestamp(System.currentTimeMillis() + 86_400_000L));
+                "INSERT INTO event_invitation (event_id, email, token, invited_by) VALUES (?, ?, ?, ?)",
+                eventId, email, "tok-" + eventId + "-" + email, CREATOR_EMAIL);
     }
 
     /** Un evento futuro con ese cupo y esa cantidad de inscriptos confirmados. */
@@ -593,15 +594,13 @@ public class EventJdbcDaoTest {
     }
 
     @Test
-    public void testSearchWithFewSpotsLeftCountsSpotsHeldByPendingInvitations() {
+    public void testSearchWithFewSpotsLeftCountsSpotsHeldByUnusedInvitations() {
         final long eventId = eventWith(10, 3, "Con invitaciones");
         for (int i = 0; i < 4; i++) {
-            final String email = "wl" + i + "@mail.com";
-            insertRegistration(eventId, email, "WAITLISTED");
-            insertPendingInvitation(registrationId(eventId, email));
+            insertEventInvitation(eventId, "inv" + i + "@mail.com");
         }
 
-        // 10 - 3 confirmados - 4 reservados = 3 libres -> ahora SI entra.
+        // 10 - 3 confirmados - 4 invitaciones sin usar = 3 libres -> ahora SI entra.
         // Es el mismo numero que muestra availableSpots() en la pantalla: si el
         // filtro contara distinto, el evento apareceria aca y al entrar diria otra cosa.
         final List<Long> ids = idsOf(eventDao.search(fewSpotsCriteria()));
@@ -623,19 +622,30 @@ public class EventJdbcDaoTest {
     }
 
     @Test
-    public void testSearchWithFewSpotsLeftCountsPendingApprovalRequests() {
-        // 10 - 3 confirmados - 4 pedidos pendientes = 3 libres: mismo numero que
-        // availableSpots() (un pendiente tiene su lugar guardado hasta que el
-        // organizador decida).
+    public void testSearchWithFewSpotsLeftDoesNotCountPendingApprovalRequests() {
+        // 10 - 3 confirmados = 7 libres: un pedido pendiente NO ocupa lugar (el
+        // organizador los mira a todos y acepta hasta que se llene el cupo), asi
+        // que no entra en "pocos cupos". Mismo numero que availableSpots().
         final long eventId = eventWith(10, 3, "Con pendientes");
         for (int i = 0; i < 4; i++) {
             insertRegistration(eventId, "pend" + i + "@mail.com", "PENDING");
         }
 
-        final List<Long> ids = idsOf(eventDao.search(fewSpotsCriteria()));
+        assertTrue(eventDao.search(fewSpotsCriteria()).isEmpty());
+    }
 
-        assertEquals(1, ids.size());
+    // Una invitacion que ya se uso (la persona se anoto) no se cuenta dos veces:
+    // ahora es una inscripcion, y si esta confirmada ya se cuenta como tal.
+    @Test
+    public void testSearchWithFewSpotsLeftDoesNotCountAnInvitationTwiceOnceThePersonRegistered() {
+        final long eventId = eventWith(10, 8, "Invitacion usada");
+        insertRegistration(eventId, "usada@mail.com", "CONFIRMED");
+        insertEventInvitation(eventId, "usada@mail.com");
+
+        // 10 - 9 confirmados = 1 libre (la invitacion usada no suma otro).
+        final List<Long> ids = idsOf(eventDao.search(fewSpotsCriteria()));
         assertTrue(ids.contains(eventId));
+        assertEquals(1, (int) eventDao.countSearch(fewSpotsCriteria()));
     }
 
     // ---- search(): ordenar ----
@@ -685,15 +695,16 @@ public class EventJdbcDaoTest {
     }
 
     @Test
-    public void testSearchSortsBySpotsLeftCountingPendingAndReservedSpots() {
-        // Los dos tienen 5 confirmados, pero en "reservado" quedan 2 libres:
-        // 2 pendientes de aprobacion + 1 invitacion sin contestar. La lista de
-        // espera sin invitacion NO ocupa lugar.
+    public void testSearchSortsBySpotsLeftCountingOnlyConfirmedAndUnusedInvitations() {
+        // Los dos tienen 5 confirmados, pero en "reservado" quedan 3 libres:
+        // 2 invitaciones sin usar. Los pendientes de aprobacion y la lista de
+        // espera NO ocupan lugar.
         final long reservado = eventWith(10, 5, "Con reservas");
+        insertEventInvitation(reservado, "inv1@mail.com");
+        insertEventInvitation(reservado, "inv2@mail.com");
         insertRegistration(reservado, "pend1@mail.com", "PENDING");
         insertRegistration(reservado, "pend2@mail.com", "PENDING");
         insertRegistration(reservado, "wl1@mail.com", "WAITLISTED");
-        insertPendingInvitation(registrationId(reservado, "wl1@mail.com"));
         insertRegistration(reservado, "wl2@mail.com", "WAITLISTED");
         final long cincoLibres = eventWith(10, 5, "Cinco libres");
 
@@ -746,8 +757,8 @@ public class EventJdbcDaoTest {
     public void testSearchWithSoldOutKeepsOnlyEventsWithoutSpotsLeft() {
         final long lleno = eventWith(10, 10, "Lleno");
         final long llenoConReservas = eventWith(10, 8, "Lleno con reservas");
-        insertRegistration(llenoConReservas, "pend1@mail.com", "PENDING");
-        insertRegistration(llenoConReservas, "pend2@mail.com", "PENDING");
+        insertEventInvitation(llenoConReservas, "inv1@mail.com");
+        insertEventInvitation(llenoConReservas, "inv2@mail.com");
         eventWith(10, 9, "Un libre");
         eventWith(null, 50, "Sin limite");
 

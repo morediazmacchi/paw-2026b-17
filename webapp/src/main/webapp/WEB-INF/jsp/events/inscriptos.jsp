@@ -24,6 +24,11 @@
         <spring:message code="event.attendees.countLabel" arguments="${fn:length(registrations)}"/>
     </p>
 
+    <c:if test="${param.revoked != null}">
+        <p class="alert"><spring:message code="event.attendees.revoked"/></p>
+    </c:if>
+
+    <spring:message code="event.attendees.revokeButton" var="revokeButtonLabel"/>
     <c:choose>
         <c:when test="${empty registrations}">
             <p class="empty-state"><spring:message code="event.attendees.empty"/></p>
@@ -37,6 +42,7 @@
                         <th><spring:message code="event.attendees.emailHeader"/></th>
                         <th><spring:message code="event.attendees.dateHeader"/></th>
                         <th><spring:message code="event.attendees.statusHeader"/></th>
+                        <th></th>
                     </tr>
                     </thead>
                     <tbody>
@@ -65,6 +71,15 @@
                                         <span class="pill"><spring:message code="event.attendees.statusWaitlisted"/></span>
                                     </c:otherwise>
                                 </c:choose>
+                            </td>
+                            <td>
+                                <%-- Solo a quien tiene el lugar confirmado se lo puede sacar: el
+                                     lugar libre pasa solo al primero de la lista de espera. --%>
+                                <c:if test="${registration.status == 'CONFIRMED'}">
+                                    <form action="<c:url value='/perfil/eventos/${event.id}/inscriptos/${registration.id}/revocar'/>" method="post">
+                                        <paw:button text="${revokeButtonLabel}" cssClass="btn-danger"/>
+                                    </form>
+                                </c:if>
                             </td>
                         </tr>
                     </c:forEach>

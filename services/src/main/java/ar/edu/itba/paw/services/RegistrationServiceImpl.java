@@ -6,6 +6,7 @@ import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.persistence.EventDao;
+import ar.edu.itba.paw.persistence.EventInvitationDao;
 import ar.edu.itba.paw.persistence.RegistrationDao;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
@@ -26,20 +28,20 @@ public class RegistrationServiceImpl implements RegistrationService {
     private final EventDao eventDao;
     private final UserService userService;
     private final NotificationService notificationService;
-    private final WaitlistService waitlistService;
+    private final EventInvitationDao invitationDao;
     private final InboxService inboxService;
 
     @Autowired
     public RegistrationServiceImpl(final RegistrationDao registrationDao, final EventDao eventDao,
                                     final UserService userService,
                                     final NotificationService notificationService,
-                                    final WaitlistService waitlistService,
+                                    final EventInvitationDao invitationDao,
                                     final InboxService inboxService) {
         this.registrationDao = registrationDao;
         this.eventDao = eventDao;
         this.userService = userService;
         this.notificationService = notificationService;
-        this.waitlistService = waitlistService;
+        this.invitationDao = invitationDao;
         this.inboxService = inboxService;
     }
 
@@ -75,8 +77,13 @@ public class RegistrationServiceImpl implements RegistrationService {
         // Que el evento este lleno ya no es un error: la persona entra a la lista
         // de espera. El orden de la lista sale de registration.registered_at, que
         // la base completa sola, asi que no hay ninguna posicion que guardar.
-        final boolean full = isFull(event);
-        final RegistrationStatus status = registrationStatus(event, full);
+        // Quien tiene una invitacion sin usar ya tiene su lugar reservado (esa
+        // invitacion esta contada en occupied()): para el, el evento no esta lleno
+        // y entra confirmado sin pasar por la aprobacion del organizador, que ya
+        // lo eligio al invitarlo.
+        final boolean invited = invitationDao.findByEventAndEmail(eventId, normalizedEmail).isPresent();
+        final boolean full = isFull(event, invited);
+        final RegistrationStatus status = registrationStatus(event, full, invited);
 
         // Si viola el UNIQUE(event_id, email), se propaga: quien llama reintenta en otra transaccion.
         final Registration registration = new Registration(eventId, normalizedEmail, name, status);
@@ -114,7 +121,7 @@ public class RegistrationServiceImpl implements RegistrationService {
             // en el pedido que ocupo el ultimo lugar. Se vuelve a preguntar DESPUES
             // del insert, porque recien ahora esta contado. Y va en esta rama
             // unicamente: si arriba ya estaba lleno, no hay nada que anunciar.
-            if (isFull(event)) {
+            if (isFull(event, false)) {
                 notificationService.notifyEventFull(event);
             }
         }
@@ -138,12 +145,18 @@ public class RegistrationServiceImpl implements RegistrationService {
         return RegistrationResult.ALREADY_REGISTERED;
     }
 
-    // Sin lugar -> lista de espera (gana siempre: no tiene sentido "pending"
-    // sin cupo todavia). Con lugar y el evento pide confirmacion -> pending.
-    // Con lugar y no pide confirmacion -> confirmed, como siempre.
-    private static RegistrationStatus registrationStatus(final Event event, final boolean full) {
+    // Sin lugar (confirmados + invitaciones ya llenaron el cupo) -> lista de
+    // espera: gana siempre, no tiene sentido pedirle aprobacion al organizador
+    // para un lugar que no hay. Con lugar: quien tiene invitacion -> confirmed;
+    // el evento pide confirmacion -> pending (no ocupa cupo hasta que lo acepten);
+    // si no -> confirmed, como siempre.
+    private static RegistrationStatus registrationStatus(final Event event, final boolean full,
+                                                          final boolean invited) {
         if (full) {
             return RegistrationStatus.WAITLISTED;
+        }
+        if (invited) {
+            return RegistrationStatus.CONFIRMED;
         }
         return event.isRequiresApproval() ? RegistrationStatus.PENDING : RegistrationStatus.CONFIRMED;
     }
@@ -166,25 +179,39 @@ public class RegistrationServiceImpl implements RegistrationService {
         return isFull(event);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isFullFor(final long eventId, final String email) {
+        final Event event = eventDao.findById(eventId)
+                .orElseThrow(() -> new IllegalArgumentException("Evento inexistente: " + eventId));
+        final boolean invited = email != null
+                && invitationDao.findByEventAndEmail(eventId, email.trim().toLowerCase()).isPresent();
+        return isFull(event, invited);
+    }
+
     private boolean isFull(final Event event) {
-        return event.getMaxCapacity() != null && occupied(event.getId()) >= event.getMaxCapacity();
+        return isFull(event, false);
+    }
+
+    // ownInvitationHoldsSpot: la persona que consulta tiene una invitacion sin
+    // usar, y esa invitacion es uno de los lugares que occupied() ya cuenta.
+    private boolean isFull(final Event event, final boolean ownInvitationHoldsSpot) {
+        return event.getMaxCapacity() != null
+                && occupied(event.getId()) - (ownInvitationHoldsSpot ? 1 : 0) >= event.getMaxCapacity();
     }
 
     /**
-     * Un cupo puede estar ocupado (alguien confirmado), RESERVADO por una
-     * invitacion de lista de espera sin contestar, o RESERVADO porque el
-     * creador todavia no reviso esa inscripcion (evento con requiresApproval).
-     * Los tres cuentan como lleno: si solo mirramos los confirmados, mientras
-     * alguien decide (la persona invitada, o el creador revisando pendientes)
-     * otra se anotaria desde la pagina y terminariamos con mas gente que
-     * lugares. Es debatible si "pending" deberia reservar cupo o no (el
-     * creador podria preferir revisar sin esa presion) - queda para discutir
-     * con el equipo, hoy se eligio el criterio mas conservador.
+     * Lo unico que ocupa cupo: las inscripciones CONFIRMADAS, mas las invitaciones
+     * por mail a un evento privado cuya persona todavia no se anoto (cada una
+     * tiene un lugar reservado; al anotarse pasa a ser su inscripcion y deja de
+     * contarse aparte).
+     *
+     * Ni los pedidos PENDING (el organizador todavia no decidio: puede revisar
+     * todos y aceptar hasta que se llene) ni la lista de espera (WAITLISTED)
+     * ocupan cupo.
      */
     private long occupied(final long eventId) {
-        return registrationDao.countConfirmed(eventId)
-                + waitlistService.countReserved(eventId)
-                + registrationDao.countPending(eventId);
+        return registrationDao.countConfirmed(eventId) + invitationDao.countOutstanding(eventId);
     }
 
     @Override
@@ -226,18 +253,19 @@ public class RegistrationServiceImpl implements RegistrationService {
         final boolean organizerCares = wasConfirmed || cancelled.getStatus() == RegistrationStatus.PENDING;
 
         registrationDao.delete(registrationId);
-        // El cupo que se acaba de soltar se le ofrece enseguida al primero de la
-        // lista de espera. Va en la misma transaccion: o pasan las dos cosas o
-        // no pasa ninguna. Devuelve a cuantos invito, para poder contarselo al
-        // organizador sin volver a consultar.
-        final int invited = waitlistService.reconcile(eventId);
+        // Si se libero un lugar de verdad, el primero de la lista de espera lo
+        // ocupa enseguida. Va en la misma transaccion: o pasan las dos cosas o no
+        // pasa ninguna. Devuelve a cuantos confirmo, para poder contarselo al
+        // organizador sin volver a consultar. Que se vaya alguien pendiente o de
+        // la lista de espera no libera nada: no ocupaban cupo.
+        final int promoted = wasConfirmed ? promoteFromWaitlist(eventId) : 0;
 
         // Solo se avisa si se libero un lugar de verdad. Que alguien salga de la
         // lista de espera no le cambia nada al organizador: el cupo disponible
         // era el mismo antes y despues.
         if (wasConfirmed) {
             eventDao.findById(eventId).ifPresent(event ->
-                    notificationService.notifyRegistrationCancelled(event, cancelled, invited > 0));
+                    notificationService.notifyRegistrationCancelled(event, cancelled, promoted > 0));
         }
         if (organizerCares) {
             eventDao.findById(eventId).ifPresent(event ->
@@ -270,17 +298,42 @@ public class RegistrationServiceImpl implements RegistrationService {
 
     @Override
     @Transactional
-    public boolean approve(final long registrationId, final String creatorEmail) {
+    public ApprovalResult approve(final long registrationId, final String creatorEmail) {
         final Registration registration = pendingOwnedBy(registrationId, creatorEmail).orElse(null);
         if (registration == null) {
-            return false;
+            return ApprovalResult.NOT_FOUND;
+        }
+        // Bloquea el evento: dos aceptaciones simultaneas no pueden pasarse del cupo.
+        final Event event = eventDao.findByIdForUpdate(registration.getEventId()).orElse(null);
+        if (event == null) {
+            return ApprovalResult.NOT_FOUND;
+        }
+        // El organizador mira todos los pedidos y acepta hasta que se llena el
+        // cupo: pasado ese punto ya no puede aceptar a nadie mas.
+        if (isFull(event)) {
+            return ApprovalResult.FULL;
         }
         registrationDao.updateStatus(registrationId, RegistrationStatus.CONFIRMED);
         registration.setStatus(RegistrationStatus.CONFIRMED);
-        eventDao.findById(registration.getEventId())
-                .ifPresent(event -> notificationService.notifyRegistrationApproved(event, registration));
+        notificationService.notifyRegistrationApproved(event, registration);
         inboxService.add(registration.getEmail(), InboxMessageType.REQUEST_APPROVED, registration.getEventId(), null, null);
-        return true;
+        // Esta aceptacion ocupo el ultimo lugar: los que seguian pendientes ya no
+        // tienen a donde entrar y pasan a la lista de espera (con su mismo orden de
+        // llegada), asi si alguien se baja o se revoca a alguien, entra el primero.
+        if (isFull(event)) {
+            notificationService.notifyEventFull(event);
+            moveRemainingPendingToWaitlist(event);
+        }
+        return ApprovalResult.APPROVED;
+    }
+
+    private void moveRemainingPendingToWaitlist(final Event event) {
+        for (final Registration pending : registrationDao.findPendingByEvent(event.getId())) {
+            registrationDao.updateStatus(pending.getId(), RegistrationStatus.WAITLISTED);
+            pending.setStatus(RegistrationStatus.WAITLISTED);
+            notificationService.notifyWaitlistJoined(event, pending);
+            inboxService.add(pending.getEmail(), InboxMessageType.REGISTERED_WAITLISTED, event.getId(), null, null);
+        }
     }
 
     @Override
@@ -296,10 +349,74 @@ public class RegistrationServiceImpl implements RegistrationService {
         eventDao.findById(eventId)
                 .ifPresent(event -> notificationService.notifyRegistrationRejected(event, registration));
         inboxService.add(registration.getEmail(), InboxMessageType.REQUEST_REJECTED, eventId, null, null);
-        // El cupo que esta inscripcion tenia reservado (ver occupied()) se
-        // libera: se lo ofrecemos enseguida a quien siga en la lista de espera.
-        waitlistService.reconcile(eventId);
+        // Un pedido pendiente no ocupaba cupo: rechazarlo no libera ningun lugar.
         return true;
+    }
+
+    @Override
+    @Transactional
+    public boolean revoke(final long registrationId, final String creatorEmail) {
+        final Registration registration = registrationDao.findById(registrationId)
+                .filter(r -> r.getStatus() == RegistrationStatus.CONFIRMED)
+                .filter(r -> ownsEvent(r.getEventId(), creatorEmail))
+                .orElse(null);
+        if (registration == null) {
+            return false;
+        }
+        final long eventId = registration.getEventId();
+        registrationDao.updateStatus(registrationId, RegistrationStatus.REJECTED);
+        registration.setStatus(RegistrationStatus.REJECTED);
+        eventDao.findById(eventId)
+                .ifPresent(event -> notificationService.notifyRegistrationRevoked(event, registration));
+        inboxService.add(registration.getEmail(), InboxMessageType.REGISTRATION_REVOKED, eventId, null, null);
+        // El lugar que quedo libre se lo lleva el primero de la lista de espera.
+        promoteFromWaitlist(eventId);
+        return true;
+    }
+
+    @Override
+    @Transactional
+    public int promoteFromWaitlist(final long eventId) {
+        // FOR UPDATE: dos bajas simultaneas se serializan aca y no le dan el mismo
+        // lugar a dos personas.
+        final Event event = eventDao.findByIdForUpdate(eventId).orElse(null);
+        if (event == null || event.isCancelled()
+                || (event.getEventDate() != null && event.getEventDate().before(new Date()))) {
+            return 0;
+        }
+        // En un evento con confirmacion del organizador, quien sale de la lista de
+        // espera NO entra confirmado: pasa a PENDING, como cualquiera que se anota
+        // con lugar, y el organizador lo acepta o lo rechaza. Como los pendientes no
+        // ocupan cupo, se descuentan los que ya esperan una respuesta: un lugar libre
+        // ya "prometido" a un pedido pendiente no se le da tambien a la lista.
+        final boolean toPending = event.isRequiresApproval();
+        final long free = event.getMaxCapacity() == null
+                ? Integer.MAX_VALUE
+                : Math.max(0, event.getMaxCapacity() - occupied(eventId)
+                        - (toPending ? registrationDao.countPending(eventId) : 0));
+        if (free == 0) {
+            return 0;
+        }
+        final List<Registration> next = registrationDao.findNextWaitlisted(eventId, (int) free);
+        for (final Registration registration : next) {
+            if (toPending) {
+                registrationDao.updateStatus(registration.getId(), RegistrationStatus.PENDING);
+                registration.setStatus(RegistrationStatus.PENDING);
+                notificationService.notifyRegistrationPending(event, registration);
+                notificationService.notifyNewPendingRegistration(event, registration);
+                inboxService.add(registration.getEmail(), InboxMessageType.REGISTERED_PENDING, eventId, null, null);
+                inboxService.add(event.getCreatorEmail(), InboxMessageType.NEW_PENDING, eventId,
+                        registration.getDisplayName(), null);
+            } else {
+                registrationDao.updateStatus(registration.getId(), RegistrationStatus.CONFIRMED);
+                registration.setStatus(RegistrationStatus.CONFIRMED);
+                notificationService.notifyWaitlistPromoted(event, registration);
+                inboxService.add(registration.getEmail(), InboxMessageType.WAITLIST_PROMOTED, eventId, null, null);
+                inboxService.add(event.getCreatorEmail(), InboxMessageType.NEW_REGISTRATION, eventId,
+                        registration.getDisplayName(), null);
+            }
+        }
+        return next.size();
     }
 
     // Busca una inscripcion pendiente y confirma, en el mismo paso, que quien

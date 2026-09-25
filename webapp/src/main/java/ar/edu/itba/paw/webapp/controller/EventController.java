@@ -404,7 +404,11 @@ public class EventController {
 
         final ModelAndView mav = new ModelAndView("events/detail");
         mav.addObject("event", event);
-        mav.addObject("full", registrationService.isFull(id));
+        // Quien fue invitado a un evento privado tiene su lugar reservado: para esa
+        // persona el evento no esta "lleno" aunque el cupo ya este contado entero.
+        mav.addObject("full", principal != null
+                ? registrationService.isFullFor(id, principal.getName())
+                : registrationService.isFull(id));
         mav.addObject("finished", event.getEventDate().before(new Date()));
         mav.addObject("availableSpots", registrationService.availableSpots(id));
         if (principal != null) {

@@ -32,14 +32,10 @@
                 <ul class="inbox-list">
                     <c:forEach var="message" items="${messages}">
                         <c:set var="event" value="${eventsById[message.eventId]}"/>
-                        <%-- A donde lleva cada aviso: la invitacion de la lista de espera
-                             a su pagina de aceptar/rechazar, lo que le toca al organizador
+                        <%-- A donde lleva cada aviso: lo que le toca al organizador
                              a "Inscriptos" de su evento, y el resto al detalle del evento. --%>
                         <c:choose>
                             <c:when test="${empty event}"><c:set var="targetUrl" value=""/></c:when>
-                            <c:when test="${message.type == 'WAITLIST_SPOT_OFFERED'}">
-                                <c:url var="targetUrl" value="/invitacion/${event.id}"/>
-                            </c:when>
                             <c:when test="${message.type == 'NEW_REGISTRATION' or message.type == 'REGISTRATION_CANCELLED'
                                             or message.type == 'NEW_PENDING' or message.type == 'WAITLIST_ACCEPTED'
                                             or message.type == 'WAITLIST_DECLINED' or message.type == 'EVENT_TOMORROW'}">

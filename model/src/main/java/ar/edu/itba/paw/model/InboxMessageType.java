@@ -10,7 +10,13 @@ public enum InboxMessageType {
     REGISTERED_WAITLISTED,
     REQUEST_APPROVED,
     REQUEST_REJECTED,
+    // Ya no se genera (la lista de espera ahora promueve directo): queda para
+    // poder leer avisos viejos que ya estan en la base.
     WAITLIST_SPOT_OFFERED,
+    // Se libero un lugar y le toco: paso de la lista de espera a confirmado.
+    WAITLIST_PROMOTED,
+    // El organizador le saco el lugar (estaba confirmado).
+    REGISTRATION_REVOKED,
     PRIVATE_INVITE,
     EVENT_UPDATED,
     EVENT_CANCELLED,

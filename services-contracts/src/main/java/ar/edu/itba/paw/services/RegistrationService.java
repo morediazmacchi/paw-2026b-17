@@ -11,9 +11,12 @@ public interface RegistrationService {
     /**
      * Anota a alguien en un evento. Si ya estaba anotado con ese mail, no crea uno nuevo.
      *
-     * Si el evento esta lleno la inscripcion igual se crea, pero en estado
+     * Si el evento esta lleno (confirmados + invitaciones a un evento privado
+     * ya alcanzaron el cupo) la inscripcion igual se crea, pero en estado
      * "waitlisted": la persona queda en la lista de espera, ordenada por el
-     * momento en que se anoto.
+     * momento en que se anoto. Si no esta lleno y el evento pide confirmacion,
+     * queda "pending" hasta que el creador la acepte. Quien tiene una invitacion
+     * al evento privado entra directo confirmada: su lugar ya estaba reservado.
      */
     RegistrationResult register(long eventId, String email, String name);
 
@@ -23,15 +26,23 @@ public interface RegistrationService {
     boolean isFull(long eventId);
 
     /**
-     * @return cupos que todavia quedan libres (cupo maximo menos confirmados),
-     *         o null si el evento no tiene limite de cupo
+     * Igual que isFull(eventId) pero desde el punto de vista de esa persona: si
+     * tiene una invitacion sin usar, su propio lugar esta reservado y para ella
+     * el evento no esta lleno.
+     */
+    boolean isFullFor(long eventId, String email);
+
+    /**
+     * @return cupos que todavia quedan libres (cupo maximo menos ocupados, ver
+     *         occupiedSpots()), o null si el evento no tiene limite de cupo
      */
     Integer availableSpots(long eventId);
 
     /**
-     * Cupos que ya no se le pueden dar a otro: confirmados + invitaciones de la
-     * lista de espera sin contestar + pedidos pendientes de aprobacion. Es la
-     * misma cuenta que usan isFull() y availableSpots().
+     * Cupos que ya no se le pueden dar a otro: confirmados + invitaciones por
+     * mail a un evento privado cuya persona todavia no se anoto. Ni los pedidos
+     * pendientes de aprobacion ni la lista de espera ocupan cupo. Es la misma
+     * cuenta que usan isFull() y availableSpots().
      */
     long occupiedSpots(long eventId);
 
@@ -76,15 +87,36 @@ public interface RegistrationService {
 
     /**
      * El creador acepta una inscripcion pendiente: pasa a "confirmed" y se le
-     * avisa a la persona por mail. Devuelve false (sin tocar nada) si la
-     * inscripcion no existe, no esta pendiente, o el evento no es de ese email.
+     * avisa a la persona por mail. Solo se puede mientras quede lugar: si el
+     * evento ya esta lleno devuelve FULL sin tocar nada. Cuando esta aceptacion
+     * ocupa el ultimo lugar, todos los pedidos que seguian pendientes pasan solos
+     * a la lista de espera.
      */
-    boolean approve(long registrationId, String creatorEmail);
+    ApprovalResult approve(long registrationId, String creatorEmail);
 
     /**
      * El creador rechaza una inscripcion pendiente: pasa a "rejected" (queda
      * la fila, no se puede volver a pedir lugar en este evento con ese mail)
-     * y se le avisa a la persona por mail. Mismas condiciones de false que approve().
+     * y se le avisa a la persona por mail. Devuelve false (sin tocar nada) si la
+     * inscripcion no existe, no esta pendiente, o el evento no es de ese email.
      */
     boolean reject(long registrationId, String creatorEmail);
+
+    /**
+     * El creador le saca el lugar a alguien ya confirmado: pasa a "rejected"
+     * (no puede volver a anotarse), se le avisa por mail y el lugar libre le
+     * toca al siguiente de la lista de espera. Devuelve false (sin tocar nada) si
+     * la inscripcion no existe, no esta confirmada, o el evento no es de ese email.
+     */
+    boolean revoke(long registrationId, String creatorEmail);
+
+    /**
+     * Si el evento tiene lugares libres, saca de la lista de espera (en orden de
+     * llegada) a tantas personas como lugares haya. En un evento normal quedan
+     * CONFIRMADAS; en uno que requiere confirmacion del organizador pasan a
+     * PENDING (el organizador todavia tiene que aceptarlas) y solo se cuentan los
+     * lugares que no estan ya esperando una respuesta. Devuelve a cuantas movio.
+     * Se llama sola cuando se libera un lugar (baja, revocacion) o cambia el cupo.
+     */
+    int promoteFromWaitlist(long eventId);
 }

@@ -31,6 +31,19 @@
         <c:if test="${rejected}">
             <p class="alert"><spring:message code="auth.pendingRegistrations.rejected"/></p>
         </c:if>
+        <c:if test="${fullNotice}">
+            <p class="alert"><spring:message code="auth.pendingRegistrations.full"/></p>
+        </c:if>
+        <%-- Se puede aceptar hasta que se llena el cupo (confirmados + invitaciones);
+             ni los pendientes ni la lista de espera ocupan lugar. --%>
+        <c:if test="${not empty availableSpots}">
+            <p class="auth-subheading">
+                <c:choose>
+                    <c:when test="${noSpotsLeft}"><spring:message code="auth.pendingRegistrations.noSpots"/></c:when>
+                    <c:otherwise><spring:message code="auth.pendingRegistrations.spotsLeft" arguments="${availableSpots}"/></c:otherwise>
+                </c:choose>
+            </p>
+        </c:if>
 
         <c:choose>
             <c:when test="${not event.requiresApproval}">
@@ -58,7 +71,7 @@
                                     <paw:button text="${rejectButtonLabel}" cssClass="btn-danger"/>
                                 </form>
                                 <form action="<c:url value='/perfil/eventos/${event.id}/inscriptos/${registration.id}/aceptar'/>" method="post">
-                                    <paw:button text="${approveButtonLabel}" cssClass="btn-accent"/>
+                                    <paw:button text="${approveButtonLabel}" cssClass="btn-accent" disabled="${noSpotsLeft}"/>
                                 </form>
                             </div>
                         </div>

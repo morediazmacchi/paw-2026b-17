@@ -1,23 +1,21 @@
 <!DOCTYPE html>
 <!--
-  MAIL 8: se libero un lugar y le toca a esta persona de la lista de espera.
-  El boton NO acepta: lleva a una pagina con dos opciones. Un GET que cambiara
-  estado se ejecutaria solo cuando un antivirus de correo abre los links.
-  Variables: personName, eventTitle, eventDate, eventPlace, eventPrice,
-             deadline, invitationUrl
+  Se libero un lugar y a esta persona le tocaba (era la primera de la lista de
+  espera) -> le llega para avisarle que ya esta confirmada.
+  Variables: personName, eventTitle, eventDate, eventPlace, eventPrice, registrationsUrl
 -->
 <html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::content})}">
 <body>
 <th:block th:fragment="content">
 
   <h1 style="margin:0 0 8px; font-size:22px; line-height:1.3; color:#111827;"
-      th:text="#{mail.waitlistInvitation.title}">Titulo</h1>
+      th:text="#{mail.waitlistPromoted.title}">Titulo</h1>
 
   <p style="margin:0 0 4px; color:#6b7280;"
-     th:text="#{mail.waitlistInvitation.greeting(${personName})}">Hola</p>
+     th:text="#{mail.waitlistPromoted.greeting(${personName})}">Hola</p>
 
   <p style="margin:0 0 20px;"
-     th:text="#{mail.waitlistInvitation.body}">Cuerpo</p>
+     th:text="#{mail.waitlistPromoted.body}">Cuerpo</p>
 
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
          style="background-color:#f9fafb; border:1px solid #e5e7eb; border-radius:10px; padding:16px;">
@@ -40,20 +38,14 @@
     </td></tr>
   </table>
 
-  <p style="margin:20px 0 0; font-weight:600; color:#111827;"
-     th:text="#{mail.waitlistInvitation.deadline(${deadline})}">Tenes tiempo hasta</p>
-
-  <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0 0;">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0 0;">
     <tr><td style="background-color:#111827; border-radius:8px;">
-      <a th:href="${invitationUrl}" href="#"
+      <a th:href="${registrationsUrl}" href="#"
          style="display:inline-block; padding:12px 22px; color:#ffffff;
                 text-decoration:none; font-size:15px; font-weight:600;"
-         th:text="#{mail.waitlistInvitation.cta}">Responder</a>
+         th:text="#{mail.waitlistPromoted.cta}">Ver mis inscripciones</a>
     </td></tr>
   </table>
-
-  <p style="margin:16px 0 0; font-size:13px; color:#6b7280;"
-     th:text="#{mail.waitlistInvitation.footnote}">Si no contestas a tiempo el lugar pasa a la siguiente persona.</p>
 
 </th:block>
 </body>

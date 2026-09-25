@@ -6,6 +6,7 @@ import ar.edu.itba.paw.model.EventInvitation;
 import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.EventInvitationDao;
+import ar.edu.itba.paw.persistence.RegistrationDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,15 +27,18 @@ public class EventInvitationServiceImpl implements EventInvitationService {
 
     private final EventInvitationDao invitationDao;
     private final EventDao eventDao;
+    private final RegistrationDao registrationDao;
     private final NotificationService notificationService;
     private final InboxService inboxService;
 
     @Autowired
     public EventInvitationServiceImpl(final EventInvitationDao invitationDao, final EventDao eventDao,
+                                       final RegistrationDao registrationDao,
                                        final NotificationService notificationService,
                                        final InboxService inboxService) {
         this.invitationDao = invitationDao;
         this.eventDao = eventDao;
+        this.registrationDao = registrationDao;
         this.notificationService = notificationService;
         this.inboxService = inboxService;
     }
@@ -50,6 +54,13 @@ public class EventInvitationServiceImpl implements EventInvitationService {
         final String normalizedEmail = inviteeEmail.trim().toLowerCase();
         if (invitationDao.findByEventAndEmail(eventId, normalizedEmail).isPresent()) {
             return EventInvitationResult.ALREADY_INVITED;
+        }
+
+        // Cada invitacion reserva un lugar (cuenta como cupo ocupado): si ya no
+        // queda ninguno, no se puede invitar a nadie mas.
+        if (event.getMaxCapacity() != null && registrationDao.countConfirmed(eventId)
+                + invitationDao.countOutstanding(eventId) >= event.getMaxCapacity()) {
+            return EventInvitationResult.FULL;
         }
 
         final EventInvitation invitation = new EventInvitation(eventId, normalizedEmail, newToken(), creatorEmail);

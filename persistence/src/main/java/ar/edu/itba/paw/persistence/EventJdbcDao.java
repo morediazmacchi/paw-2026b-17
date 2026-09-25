@@ -7,7 +7,6 @@ import ar.edu.itba.paw.model.EventCategoryInfo;
 import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.EventSort;
 import ar.edu.itba.paw.model.EventVisibility;
-import ar.edu.itba.paw.model.InvitationStatus;
 import ar.edu.itba.paw.model.RegistrationStatus;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -41,24 +40,25 @@ public class EventJdbcDao implements EventDao {
     // nunca llega un string crudo del request hasta esta clase.
     // Cupos libres de un evento, como SQL. Es la MISMA cuenta que
     // RegistrationService.occupiedSpots()/availableSpots() (lo que ve la pantalla):
-    // cupo - confirmados - pendientes de aprobacion - invitaciones de la lista de
-    // espera sin contestar. Vive en un solo lugar porque la usan dos: el filtro
-    // "quedan pocos cupos" y el orden por cupos; si contaran distinto, un evento
-    // podria aparecer primero en "menos cupos" y al entrar decir otro numero.
-    // Lleva 3 parametros: availableSpotsParams().
+    // cupo - confirmados - invitaciones por mail (eventos privados) que todavia no
+    // se anotaron. Ni los pendientes de aprobacion ni la lista de espera cuentan.
+    // Vive en un solo lugar porque la usan dos: el filtro "quedan pocos cupos" y
+    // el orden por cupos; si contaran distinto, un evento podria aparecer primero
+    // en "menos cupos" y al entrar decir otro numero.
+    // Lleva 1 parametro: availableSpotsParams().
     // NULL si el evento no tiene cupo maximo.
     private static final String AVAILABLE_SPOTS_SQL = "(e.max_capacity"
             + " - (SELECT COUNT(*) FROM registration r2"
-            + "     WHERE r2.event_id = e.id AND r2.status IN (?, ?))"
-            + " - (SELECT COUNT(*) FROM waitlist_invitation i2"
-            + "     JOIN registration r3 ON r3.id = i2.registration_id"
-            + "     WHERE r3.event_id = e.id AND i2.status = ?))";
+            + "     WHERE r2.event_id = e.id AND r2.status = ?)"
+            + " - (SELECT COUNT(*) FROM event_invitation i2"
+            + "     WHERE i2.event_id = e.id AND NOT EXISTS ("
+            + "         SELECT 1 FROM registration r3"
+            + "         WHERE r3.event_id = i2.event_id AND r3.email = i2.email)))";
 
     // Los estados van como parametros y no escritos en el SQL: si cambia como se
     // guardan en la base, se cambia en Java y no en cada query.
     private static List<Object> availableSpotsParams() {
-        return Arrays.asList(RegistrationStatus.CONFIRMED.name(), RegistrationStatus.PENDING.name(),
-                InvitationStatus.PENDING.name());
+        return Arrays.asList(RegistrationStatus.CONFIRMED.name());
     }
 
     // Sin limite de cupo = lugares "infinitos": al final de menor a mayor, al

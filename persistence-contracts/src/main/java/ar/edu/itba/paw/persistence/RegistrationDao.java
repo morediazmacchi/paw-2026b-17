@@ -14,22 +14,15 @@ public interface RegistrationDao {
 
     Optional<Registration> findById(long id);
 
-    /**
-     * Los proximos de la lista de espera de este evento a los que todavia NO se
-     * les ofrecio el lugar, del que llego primero al que llego ultimo.
-     */
+    /** Los proximos de la lista de espera de este evento, del que llego primero al ultimo. */
     List<Registration> findNextWaitlisted(long eventId, int limit);
 
-    /** Para pasar de WAITLISTED a CONFIRMED cuando alguien acepta su invitacion
-     *  (o de PENDING a CONFIRMED/REJECTED cuando el creador decide). */
-    void updateStatus(long id, RegistrationStatus status);
+    /** Toda la lista de espera de un evento, en orden de llegada. */
+    List<Registration> findWaitlistedByEvent(long eventId);
 
-    /**
-     * Ids de los eventos futuros, con cupo limitado, que tienen gente en lista de
-     * espera. Es lo unico que necesita mirar la tarea periodica: si no hay nadie
-     * esperando, no hay nada que reconciliar.
-     */
-    List<Long> findEventIdsWithWaitlist(java.util.Date now);
+    /** Cambia el estado: PENDING a CONFIRMED/REJECTED/WAITLISTED, WAITLISTED a CONFIRMED,
+     *  CONFIRMED a REJECTED (el creador revoca). */
+    void updateStatus(long id, RegistrationStatus status);
 
     // "Mis inscripciones": mas recientes primero.
     List<Registration> findByEmail(String email);

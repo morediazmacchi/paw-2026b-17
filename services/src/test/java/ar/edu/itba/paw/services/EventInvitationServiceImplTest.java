@@ -6,6 +6,7 @@ import ar.edu.itba.paw.model.EventInvitation;
 import ar.edu.itba.paw.model.EventVisibility;
 import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.EventInvitationDao;
+import ar.edu.itba.paw.persistence.RegistrationDao;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
@@ -39,6 +40,8 @@ public class EventInvitationServiceImplTest {
     private EventInvitationDao mockInvitationDao;
     @Mock
     private EventDao mockEventDao;
+    @Mock
+    private RegistrationDao mockRegistrationDao;
     @Mock
     private NotificationService mockNotificationService;
 
@@ -209,5 +212,33 @@ public class EventInvitationServiceImplTest {
         when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.empty());
 
         assertTrue(invitationService.findByEvent(EVENT_ID, CREATOR_EMAIL).isEmpty());
+    }
+
+    // ---- cupo: cada invitacion reserva un lugar ----
+
+    @Test
+    public void testInviteReturnsFullWhenConfirmedPlusInvitationsReachTheCapacity() {
+        final Event event = privateEvent();
+        event.setMaxCapacity(3);
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        when(mockInvitationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
+        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(1L);
+        when(mockInvitationDao.countOutstanding(EVENT_ID)).thenReturn(2L);
+
+        assertEquals(EventInvitationResult.FULL, invitationService.invite(EVENT_ID, CREATOR_EMAIL, INVITEE_EMAIL));
+        verify(mockInvitationDao, never()).create(any());
+        verify(mockNotificationService, never()).notifyEventInvitation(any(), any());
+    }
+
+    @Test
+    public void testInviteStillWorksWhileThereIsRoomLeft() {
+        final Event event = privateEvent();
+        event.setMaxCapacity(3);
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        when(mockInvitationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
+        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(1L);
+        when(mockInvitationDao.countOutstanding(EVENT_ID)).thenReturn(1L);
+
+        assertEquals(EventInvitationResult.SENT, invitationService.invite(EVENT_ID, CREATOR_EMAIL, INVITEE_EMAIL));
     }
 }

@@ -60,6 +60,20 @@ public class EventInvitationJdbcDao implements EventInvitationDao {
     }
 
     @Override
+    public long countOutstanding(final long eventId) {
+        final Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM event_invitation i WHERE i.event_id = ? AND NOT EXISTS ("
+                        + "SELECT 1 FROM registration r WHERE r.event_id = i.event_id AND r.email = i.email)",
+                Long.class, eventId);
+        return count == null ? 0 : count;
+    }
+
+    @Override
+    public void deleteByEventAndEmail(final long eventId, final String email) {
+        jdbcTemplate.update("DELETE FROM event_invitation WHERE event_id = ? AND email = ?", eventId, email);
+    }
+
+    @Override
     public List<EventInvitation> findByEvent(final long eventId) {
         return jdbcTemplate.query(
                 "SELECT * FROM event_invitation WHERE event_id = ? ORDER BY created_at DESC",
