@@ -35,6 +35,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.ModelAndView;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import javax.validation.Valid;
 import java.security.Principal;
@@ -197,8 +198,7 @@ public class ProfileController {
     }
 
     @RequestMapping(value = "/perfil/inscripciones", method = RequestMethod.GET)
-    public ModelAndView misInscripciones(@RequestParam(value = "cancelled", required = false) final String cancelled,
-                                          @RequestParam(value = "reviewed", required = false) final String reviewed,
+    public ModelAndView misInscripciones(@RequestParam(value = "reviewed", required = false) final String reviewed,
                                           @RequestParam(value = "reviewError", required = false) final String reviewError,
                                           @RequestParam(value = "alreadyReviewed", required = false) final String alreadyReviewed,
                                           final Principal principal) {
@@ -237,7 +237,6 @@ public class ProfileController {
         mav.addObject("pastRegistrations", past);
         mav.addObject("eventsById", eventsById);
         mav.addObject("myReviewsByEventId", myReviewsByEventId);
-        mav.addObject("cancelled", cancelled != null);
         mav.addObject("reviewed", reviewed != null);
         mav.addObject("reviewError", reviewError != null);
         mav.addObject("alreadyReviewed", alreadyReviewed != null);
@@ -247,10 +246,18 @@ public class ProfileController {
         return mav;
     }
 
+    // El cartel "Cancelaste tu inscripcion" va como flash attribute y no como
+    // ?cancelled en la URL: Spring lo guarda en la sesion al redirigir, lo pone en
+    // el model de la pagina siguiente ("cancelled") y lo borra. Con la URL, el
+    // cartel volvia a salir cada vez que se recargaba o se volvia a esa pestania,
+    // aunque despues hubiera pasado otra cosa (por ejemplo, que el organizador
+    // cancelara el evento).
     @RequestMapping(value = "/perfil/inscripciones/{id}/cancelar", method = RequestMethod.POST)
-    public ModelAndView cancelarInscripcion(@PathVariable final long id, final Principal principal) {
+    public ModelAndView cancelarInscripcion(@PathVariable final long id, final Principal principal,
+                                             final RedirectAttributes redirectAttributes) {
         registrationService.cancel(id, principal.getName());
-        return new ModelAndView("redirect:/perfil/inscripciones?cancelled");
+        redirectAttributes.addFlashAttribute("cancelled", true);
+        return new ModelAndView("redirect:/perfil/inscripciones");
     }
 
     // {id} es el id del EVENTO (no de la inscripcion): la reseña se identifica
