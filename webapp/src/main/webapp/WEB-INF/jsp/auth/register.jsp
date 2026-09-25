@@ -22,8 +22,12 @@
     <div class="auth-card">
         <spring:message code="auth.login.tabLogin" var="tabLoginLabel"/>
         <spring:message code="auth.login.tabRegister" var="tabRegisterLabel"/>
+        <%-- Mismo redirect que trajo del login: si vuelve a "Ingresar", no se pierde. --%>
+        <c:url value="/login" var="loginUrl">
+            <c:if test="${not empty redirectTo}"><c:param name="redirect" value="${redirectTo}"/></c:if>
+        </c:url>
         <div class="auth-tabs">
-            <a class="pill auth-tab" href="<c:url value='/login'/>"><c:out value="${tabLoginLabel}"/></a>
+            <a class="pill auth-tab" href="${loginUrl}"><c:out value="${tabLoginLabel}"/></a>
             <span class="pill pill-active auth-tab"><c:out value="${tabRegisterLabel}"/></span>
         </div>
 
@@ -36,6 +40,9 @@
         <spring:message code="auth.register.confirmPasswordLabel" var="confirmPasswordLabel"/>
         <spring:message code="auth.register.submitButton" var="submitButtonLabel"/>
         <form action="<c:url value='/registro'/>" method="post" novalidate="novalidate">
+            <c:if test="${not empty redirectTo}">
+                <input type="hidden" name="redirect" value="<c:out value='${redirectTo}'/>"/>
+            </c:if>
             <paw:input name="nombre" label="${nameLabel}" type="text"
                        value="${userForm.nombre}" errorMessage="${fieldErrors.nombre}"/>
             <paw:input name="email" label="${emailLabel}" type="email"
@@ -50,7 +57,7 @@
         <p class="auth-footer">
             <spring:message code="auth.register.haveAccount"/>
             <spring:message code="auth.login.tabLogin" var="loginLinkLabel"/>
-            <a href="<c:url value='/login'/>"><c:out value="${loginLinkLabel}"/></a>
+            <a href="${loginUrl}"><c:out value="${loginLinkLabel}"/></a>
         </p>
     </div>
 </main>

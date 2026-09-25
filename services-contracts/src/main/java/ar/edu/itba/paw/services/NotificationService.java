@@ -57,8 +57,11 @@ public interface NotificationService {
      */
     void notifyWaitlistInvitation(Event event, Registration registration, java.util.Date expiresAt);
 
-    /** Alguien se registro (o completo una cuenta fantasma) -> mail con el link para confirmar el mail. */
-    void notifyAccountVerification(User user, String token);
+    /**
+     * Alguien se registro (o completo una cuenta fantasma) -> mail con el link para
+     * confirmar el mail. redirectAfterConfirm (puede ser null) viaja en el link.
+     */
+    void notifyAccountVerification(User user, String token, String redirectAfterConfirm);
 
     /** Alguien pidio "olvide mi contraseña" -> mail con el link para elegir una nueva. */
     void notifyPasswordReset(User user, String token);

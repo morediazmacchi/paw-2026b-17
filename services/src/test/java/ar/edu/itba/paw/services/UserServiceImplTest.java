@@ -117,14 +117,27 @@ public class UserServiceImplTest {
         when(mockUserDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
         when(mockPasswordEncoder.encode(RAW_PASSWORD)).thenReturn(HASHED_PASSWORD);
 
-        final UserRegistrationResult result = userService.register(EMAIL, NAME, RAW_PASSWORD);
+        final UserRegistrationResult result = userService.register(EMAIL, NAME, RAW_PASSWORD, null);
 
         assertEquals(UserRegistrationResult.CREATED, result);
         verify(mockUserDao).setPassword(USER_ID, HASHED_PASSWORD);
         verify(mockUserDao).addRole(USER_ID, "ROLE_USER");
         // Cuenta nueva: no puede loguearse hasta confirmar el mail.
         verify(mockUserDao).setVerified(USER_ID, false);
-        verify(mockNotificationService).notifyAccountVerification(any(User.class), any(String.class));
+        verify(mockNotificationService).notifyAccountVerification(any(User.class), any(String.class), any());
+    }
+
+    @Test
+    public void testRegisterPassesTheRedirectToTheVerificationMail() {
+        // Venia de una invitacion a un evento privado: el link del mail lo tiene que llevar.
+        when(mockUserDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.empty());
+        when(mockUserDao.create(any(User.class))).thenReturn(someUser());
+        when(mockUserDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
+
+        userService.register(EMAIL, NAME, RAW_PASSWORD, "/eventos/7");
+
+        verify(mockNotificationService).notifyAccountVerification(any(User.class), any(String.class),
+                org.mockito.ArgumentMatchers.eq("/eventos/7"));
     }
 
     @Test
@@ -135,14 +148,14 @@ public class UserServiceImplTest {
         when(mockUserDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
         when(mockPasswordEncoder.encode(RAW_PASSWORD)).thenReturn(HASHED_PASSWORD);
 
-        final UserRegistrationResult result = userService.register(EMAIL, NAME, RAW_PASSWORD);
+        final UserRegistrationResult result = userService.register(EMAIL, NAME, RAW_PASSWORD, null);
 
         assertEquals(UserRegistrationResult.CREATED, result);
         verify(mockUserDao, never()).create(any(User.class));
         verify(mockUserDao).setPassword(USER_ID, HASHED_PASSWORD);
         verify(mockUserDao).addRole(USER_ID, "ROLE_USER");
         verify(mockUserDao).setVerified(USER_ID, false);
-        verify(mockNotificationService).notifyAccountVerification(any(User.class), any(String.class));
+        verify(mockNotificationService).notifyAccountVerification(any(User.class), any(String.class), any());
     }
 
     @Test
@@ -151,7 +164,7 @@ public class UserServiceImplTest {
         existing.setPassword(HASHED_PASSWORD);
         when(mockUserDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(existing));
 
-        final UserRegistrationResult result = userService.register(EMAIL, NAME, RAW_PASSWORD);
+        final UserRegistrationResult result = userService.register(EMAIL, NAME, RAW_PASSWORD, null);
 
         assertEquals(UserRegistrationResult.EMAIL_TAKEN, result);
         verify(mockPasswordEncoder, never()).encode(any());
@@ -291,7 +304,7 @@ public class UserServiceImplTest {
         userService.resendVerificationEmail(EMAIL);
 
         verify(mockTokenDao).deleteByUserAndPurpose(USER_ID, TokenPurpose.VERIFY_EMAIL);
-        verify(mockNotificationService).notifyAccountVerification(any(User.class), any(String.class));
+        verify(mockNotificationService).notifyAccountVerification(any(User.class), any(String.class), any());
     }
 
     @Test
@@ -303,7 +316,7 @@ public class UserServiceImplTest {
 
         userService.resendVerificationEmail(EMAIL);
 
-        verify(mockNotificationService, never()).notifyAccountVerification(any(), any());
+        verify(mockNotificationService, never()).notifyAccountVerification(any(), any(), any());
     }
 
     @Test
@@ -314,7 +327,7 @@ public class UserServiceImplTest {
 
         userService.resendVerificationEmail(EMAIL);
 
-        verify(mockNotificationService, never()).notifyAccountVerification(any(), any());
+        verify(mockNotificationService, never()).notifyAccountVerification(any(), any(), any());
     }
 
     @Test
@@ -323,7 +336,7 @@ public class UserServiceImplTest {
 
         userService.resendVerificationEmail(EMAIL);
 
-        verify(mockNotificationService, never()).notifyAccountVerification(any(), any());
+        verify(mockNotificationService, never()).notifyAccountVerification(any(), any(), any());
     }
 
     // ---- sendPasswordResetEmail() ----

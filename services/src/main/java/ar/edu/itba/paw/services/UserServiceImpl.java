@@ -63,7 +63,8 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public UserRegistrationResult register(final String email, final String name, final String rawPassword) {
+    public UserRegistrationResult register(final String email, final String name, final String rawPassword,
+                                           final String redirectAfterConfirm) {
         final String normalizedEmail = email.trim().toLowerCase();
 
         final Optional<User> existing = userDao.findByEmail(normalizedEmail);
@@ -86,7 +87,7 @@ public class UserServiceImpl implements UserService {
         // Toda cuenta nueva (o fantasma recien completada) tiene que confirmar
         // el mail antes de poder loguearse: ver UserDetailsServiceImpl.
         userDao.setVerified(userId, false);
-        sendVerificationEmail(userDao.findById(userId).orElseThrow(IllegalStateException::new));
+        sendVerificationEmail(userDao.findById(userId).orElseThrow(IllegalStateException::new), redirectAfterConfirm);
         return UserRegistrationResult.CREATED;
     }
 
@@ -107,7 +108,8 @@ public class UserServiceImpl implements UserService {
     public void resendVerificationEmail(final String email) {
         userDao.findByEmail(email.trim().toLowerCase())
                 .filter(user -> user.getPassword() != null && !user.isVerified())
-                .ifPresent(this::sendVerificationEmail);
+                // Reenvio desde el login: ya no sabemos de donde venia, sin redirect.
+                .ifPresent(user -> sendVerificationEmail(user, null));
     }
 
     @Override
@@ -140,10 +142,10 @@ public class UserServiceImpl implements UserService {
         return PasswordResetResult.OK;
     }
 
-    private void sendVerificationEmail(final User user) {
+    private void sendVerificationEmail(final User user, final String redirectAfterConfirm) {
         tokenDao.deleteByUserAndPurpose(user.getId(), TokenPurpose.VERIFY_EMAIL);
         final String token = newToken(user.getId(), TokenPurpose.VERIFY_EMAIL, VERIFY_TOKEN_TTL_MILLIS);
-        notificationService.notifyAccountVerification(user, token);
+        notificationService.notifyAccountVerification(user, token, redirectAfterConfirm);
     }
 
     private String newToken(final long userId, final TokenPurpose purpose, final long ttlMillis) {

@@ -88,9 +88,14 @@ public class LoginController {
     // GET porque es el link que llega por mail (se abre desde Gmail con un
     // click, no hay forma de que sea un POST).
     @RequestMapping(value = "/confirmar-cuenta", method = RequestMethod.GET)
-    public ModelAndView confirmAccount(@RequestParam("token") final String token) {
+    public ModelAndView confirmAccount(@RequestParam("token") final String token,
+                                       @RequestParam(value = "redirect", required = false) final String redirect) {
         final boolean confirmed = userService.confirmEmail(token);
-        return new ModelAndView(confirmed ? "redirect:/login?verified" : "redirect:/login?verifyError");
+        // El redirect viene del link del mail (ver RegisterController): se vuelve a
+        // validar aca porque un link se puede armar a mano.
+        final String suffix = SafeRedirect.isSafe(redirect)
+                ? "&redirect=" + URLEncoder.encode(redirect, StandardCharsets.UTF_8) : "";
+        return new ModelAndView((confirmed ? "redirect:/login?verified" : "redirect:/login?verifyError") + suffix);
     }
 
     // Siempre redirige al mismo "resent", exista o no ese email y este o no ya
@@ -116,7 +121,8 @@ public class LoginController {
         // register() se banca este caso: el email ya existe sin password (fantasma),
         // le pone la que llego y listo. Si en el medio alguien ya la establecio
         // (carrera rarisima), EMAIL_TAKEN cae al error generico de login.
-        final UserRegistrationResult result = userService.register(form.getEmail(), null, form.getPassword());
+        final UserRegistrationResult result = userService.register(form.getEmail(), null, form.getPassword(),
+                SafeRedirect.isSafe(redirect) ? redirect : null);
         // El redirect original (si vino) sigue viajando hasta aca: se lo pasamos
         // al ultimo salto para que el form de login que sigue lo tenga de nuevo
         // como hidden, y quien se loguee ahora si vuelva a donde estaba.

@@ -13,6 +13,8 @@ import org.springframework.context.MessageSource;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.text.DateFormat;
 import java.text.NumberFormat;
 import java.util.HashMap;
@@ -319,11 +321,15 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Async
     @Override
-    public void notifyAccountVerification(final User user, final String token) {
+    public void notifyAccountVerification(final User user, final String token, final String redirectAfterConfirm) {
         try {
             final Map<String, Object> variables = new HashMap<>();
             variables.put("personName", displayName(user.getName(), user.getEmail()));
-            variables.put("confirmUrl", baseUrl + "/confirmar-cuenta?token=" + token);
+            // Si venia de algun lado (una invitacion a un evento privado), el
+            // link lo lleva: al confirmar y loguearse vuelve ahi en vez de al home.
+            final String redirectParam = redirectAfterConfirm == null ? ""
+                    : "&redirect=" + URLEncoder.encode(redirectAfterConfirm, StandardCharsets.UTF_8);
+            variables.put("confirmUrl", baseUrl + "/confirmar-cuenta?token=" + token + redirectParam);
 
             mailService.send(user.getEmail(),
                     "account-verification",

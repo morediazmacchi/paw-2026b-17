@@ -23,9 +23,14 @@
     <div class="auth-card">
         <spring:message code="auth.login.tabLogin" var="tabLoginLabel"/>
         <spring:message code="auth.login.tabRegister" var="tabRegisterLabel"/>
+        <%-- Si vino con ?redirect= (por ejemplo desde un evento privado), crear
+             la cuenta no lo pierde: RegisterController lo sigue pasando. --%>
+        <c:url value="/registro" var="registerUrl">
+            <c:if test="${not empty redirectTo}"><c:param name="redirect" value="${redirectTo}"/></c:if>
+        </c:url>
         <div class="auth-tabs">
             <span class="pill pill-active auth-tab"><c:out value="${tabLoginLabel}"/></span>
-            <a class="pill auth-tab" href="<c:url value='/registro'/>"><c:out value="${tabRegisterLabel}"/></a>
+            <a class="pill auth-tab" href="${registerUrl}"><c:out value="${tabRegisterLabel}"/></a>
         </div>
 
         <c:choose>
@@ -104,7 +109,7 @@
                 <p class="auth-footer">
                     <spring:message code="auth.login.noAccount"/>
                     <spring:message code="auth.login.registerLink" var="registerLinkLabel"/>
-                    <a href="<c:url value='/registro'/>"><c:out value="${registerLinkLabel}"/></a>
+                    <a href="${registerUrl}"><c:out value="${registerLinkLabel}"/></a>
                 </p>
             </c:otherwise>
         </c:choose>
