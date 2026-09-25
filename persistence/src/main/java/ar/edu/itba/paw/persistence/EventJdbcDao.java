@@ -19,12 +19,15 @@ import javax.sql.DataSource;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Repository
@@ -36,11 +39,52 @@ public class EventJdbcDao implements EventDao {
 
     // Whitelist: el "columna real" de cada opcion de orden vive solo aca adentro,
     // nunca llega un string crudo del request hasta esta clase.
+    // Cupos libres de un evento, como SQL. Es la MISMA cuenta que
+    // RegistrationService.occupiedSpots()/availableSpots() (lo que ve la pantalla):
+    // cupo - confirmados - pendientes de aprobacion - invitaciones de la lista de
+    // espera sin contestar. Vive en un solo lugar porque la usan dos: el filtro
+    // "quedan pocos cupos" y el orden por cupos; si contaran distinto, un evento
+    // podria aparecer primero en "menos cupos" y al entrar decir otro numero.
+    // Lleva 3 parametros: availableSpotsParams().
+    // NULL si el evento no tiene cupo maximo.
+    private static final String AVAILABLE_SPOTS_SQL = "(e.max_capacity"
+            + " - (SELECT COUNT(*) FROM registration r2"
+            + "     WHERE r2.event_id = e.id AND r2.status IN (?, ?))"
+            + " - (SELECT COUNT(*) FROM waitlist_invitation i2"
+            + "     JOIN registration r3 ON r3.id = i2.registration_id"
+            + "     WHERE r3.event_id = e.id AND i2.status = ?))";
+
+    // Los estados van como parametros y no escritos en el SQL: si cambia como se
+    // guardan en la base, se cambia en Java y no en cada query.
+    private static List<Object> availableSpotsParams() {
+        return Arrays.asList(Registration.STATUS_CONFIRMED, Registration.STATUS_PENDING,
+                InvitationStatus.PENDING.name());
+    }
+
+    // Sin limite de cupo = lugares "infinitos": al final de menor a mayor, al
+    // principio de mayor a menor. Va primero en el ORDER BY para que los NULL de
+    // AVAILABLE_SPOTS_SQL nunca se comparen con numeros (Postgres y HSQLDB los
+    // ordenan distinto).
+    private static final String UNLIMITED_LAST = "CASE WHEN e.max_capacity IS NULL THEN 1 ELSE 0 END";
+
+    // Whitelist: el "columna real" de cada opcion de orden vive solo aca adentro,
+    // nunca llega un string crudo del request hasta esta clase. El ultimo
+    // criterio (e.id) es el desempate: sin el, dos eventos con la misma fecha o
+    // el mismo precio podrian cambiar de pagina entre una consulta y la otra.
     private static final Map<EventSort, String> SORT_COLUMNS = new EnumMap<>(EventSort.class);
     static {
-        SORT_COLUMNS.put(EventSort.FECHA, "e.event_date ASC");
-        SORT_COLUMNS.put(EventSort.PRECIO, "e.price ASC");
+        SORT_COLUMNS.put(EventSort.FECHA_ASC, "e.event_date ASC, e.id ASC");
+        SORT_COLUMNS.put(EventSort.FECHA_DESC, "e.event_date DESC, e.id ASC");
+        SORT_COLUMNS.put(EventSort.PRECIO_ASC, "e.price ASC, e.event_date ASC, e.id ASC");
+        SORT_COLUMNS.put(EventSort.PRECIO_DESC, "e.price DESC, e.event_date ASC, e.id ASC");
+        SORT_COLUMNS.put(EventSort.CUPOS_ASC,
+                UNLIMITED_LAST + " ASC, " + AVAILABLE_SPOTS_SQL + " ASC, e.event_date ASC, e.id ASC");
+        SORT_COLUMNS.put(EventSort.CUPOS_DESC,
+                UNLIMITED_LAST + " DESC, " + AVAILABLE_SPOTS_SQL + " DESC, e.event_date ASC, e.id ASC");
     }
+
+    // Los ordenes que usan AVAILABLE_SPOTS_SQL y necesitan sus parametros.
+    private static final Set<EventSort> SORTS_BY_SPOTS = EnumSet.of(EventSort.CUPOS_ASC, EventSort.CUPOS_DESC);
 
     private static final RowMapper<Event> ROW_MAPPER = (rs, rowNum) -> {
         final Event event = new Event();
@@ -253,10 +297,15 @@ public class EventJdbcDao implements EventDao {
     @Override
     public List<Event> search(final EventSearchCriteria criteria) {
         final WhereClause where = buildWhereClause(criteria);
-        final String sortColumn = SORT_COLUMNS.getOrDefault(criteria.getSort(), SORT_COLUMNS.get(EventSort.FECHA));
+        final EventSort sort = SORT_COLUMNS.containsKey(criteria.getSort()) ? criteria.getSort() : EventSort.FECHA_ASC;
 
-        final String sql = SELECT_BASE + where.sql + " ORDER BY " + sortColumn + " LIMIT ? OFFSET ?";
+        final String sql = SELECT_BASE + where.sql + " ORDER BY " + SORT_COLUMNS.get(sort) + " LIMIT ? OFFSET ?";
+        // Mismo orden que los "?" del SQL: primero los del WHERE, despues los del
+        // ORDER BY (si ordena por cupos) y al final LIMIT/OFFSET.
         final List<Object> params = new ArrayList<>(where.params);
+        if (SORTS_BY_SPOTS.contains(sort)) {
+            params.addAll(availableSpotsParams());
+        }
         params.add(criteria.getPageSize());
         params.add((criteria.getPage() - 1) * criteria.getPageSize());
 
@@ -325,30 +374,46 @@ public class EventJdbcDao implements EventDao {
             params.add(criteria.getMinOrganizerRating());
         }
 
-        if (criteria.isOnlyFewSpotsLeft()) {
+        final boolean fewSpots = criteria.isOnlyFewSpotsLeft();
+        final boolean soldOut = criteria.isOnlySoldOut();
+        if (fewSpots || soldOut) {
             // "Cupos libres" no es una columna: es una cuenta. Y tiene que
             // resolverse aca adentro, en el WHERE, y no filtrando en Java lo que
             // ya vino: search() trae UNA pagina y countSearch() cuenta el total,
             // asi que filtrar despues dejaria paginas incompletas y un total que
             // no coincide con lo que se ve.
             //
-            // Se restan dos cosas, las mismas que mira availableSpots(): los
-            // confirmados (el lugar es de alguien) y las invitaciones de lista de
-            // espera sin contestar (el lugar esta reservado mientras esa persona
-            // decide). Si el filtro contara distinto que la pantalla, un evento
-            // podria aparecer en "pocos cupos" y al entrar decir "0 disponibles".
-            sql.append(" AND e.max_capacity IS NOT NULL AND ("
-                    + "e.max_capacity"
-                    + " - (SELECT COUNT(*) FROM registration r2"
-                    + "     WHERE r2.event_id = e.id AND r2.status = ?)"
-                    + " - (SELECT COUNT(*) FROM waitlist_invitation i2"
-                    + "     JOIN registration r3 ON r3.id = i2.registration_id"
-                    + "     WHERE r3.event_id = e.id AND i2.status = ?)"
-                    + ") BETWEEN ? AND ?");
-            params.add(Registration.STATUS_CONFIRMED);
-            params.add(InvitationStatus.PENDING.name());
-            params.add(EventSearchCriteria.FEW_SPOTS_MIN);
-            params.add(EventSearchCriteria.FEW_SPOTS_MAX);
+            // La cuenta es AVAILABLE_SPOTS_SQL, la misma que la pantalla y que el
+            // orden por cupos: si contaran distinto, un evento podria aparecer en
+            // "pocos cupos" y al entrar decir "0 disponibles".
+            //
+            // Con los dos tildados es un OR: "ultimos cupos" o "sold out".
+            // Sin cupo maximo nunca entra en ninguno: no se le acaban los lugares.
+            sql.append(" AND e.max_capacity IS NOT NULL AND (");
+            if (fewSpots) {
+                sql.append(AVAILABLE_SPOTS_SQL + " BETWEEN ? AND ?");
+                params.addAll(availableSpotsParams());
+                params.add(EventSearchCriteria.FEW_SPOTS_MIN);
+                params.add(EventSearchCriteria.FEW_SPOTS_MAX);
+            }
+            if (fewSpots && soldOut) {
+                sql.append(" OR ");
+            }
+            if (soldOut) {
+                // <= 0 y no = 0: por las dudas de un evento con mas gente que cupo.
+                sql.append(AVAILABLE_SPOTS_SQL + " <= 0");
+                params.addAll(availableSpotsParams());
+            }
+            sql.append(")");
+        }
+
+        // Ordenar por cupos libres no muestra los agotados: a quien ordena por
+        // "menos lugares disponibles" le sirven los que todavia tienen alguno.
+        // Salvo que haya pedido justamente ver los "Sold out". Va en el WHERE (y
+        // no solo en search) para que countSearch() cuente lo mismo que se ve.
+        if (SORTS_BY_SPOTS.contains(criteria.getSort()) && !soldOut) {
+            sql.append(" AND (e.max_capacity IS NULL OR " + AVAILABLE_SPOTS_SQL + " > 0)");
+            params.addAll(availableSpotsParams());
         }
 
         return new WhereClause(sql.toString(), params);

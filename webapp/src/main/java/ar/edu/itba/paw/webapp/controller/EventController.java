@@ -126,6 +126,7 @@ public class EventController {
                               @RequestParam(value = "barrio", required = false) final List<String> barrio,
                               @RequestParam(value = "puntajeMin", required = false) final String puntajeMin,
                               @RequestParam(value = "pocosCupos", required = false) final String pocosCupos,
+                              @RequestParam(value = "agotados", required = false) final String agotados,
                               @RequestParam(value = "page", required = false) final String page,
                               @RequestParam(value = "sort", required = false) final String sort,
                               @RequestParam(value = "rsvp", required = false) final String rsvp,
@@ -162,7 +163,9 @@ public class EventController {
         // Un si/no, no un rango: cuantos lugares son "pocos" lo define el modelo
         // (EventSearchCriteria.FEW_SPOTS_MIN/MAX), no lo que venga en la URL.
         criteria.setOnlyFewSpotsLeft(pocosCupos != null && !pocosCupos.isEmpty());
-        criteria.setSort(parseSort(sort));
+        criteria.setOnlySoldOut(agotados != null && !agotados.isEmpty());
+        final EventSort parsedSort = parseSort(sort);
+        criteria.setSort(parsedSort);
         criteria.setPage(parsePage(page));
         criteria.setPageSize(PAGE_SIZE);
 
@@ -178,7 +181,8 @@ public class EventController {
                 || (fechaDesde != null && !fechaDesde.isEmpty())
                 || (fechaHasta != null && !fechaHasta.isEmpty())
                 || (puntajeMin != null && !puntajeMin.isEmpty())
-                || (pocosCupos != null && !pocosCupos.isEmpty());
+                || (pocosCupos != null && !pocosCupos.isEmpty())
+                || (agotados != null && !agotados.isEmpty());
 
         // Banner destacado: los proximos eventos por fecha, sin los filtros de arriba.
         final EventSearchCriteria featuredCriteria = new EventSearchCriteria();
@@ -202,8 +206,12 @@ public class EventController {
         mav.addObject("selectedBarrios", barrios);
         mav.addObject("puntajeMin", puntajeMin);
         mav.addObject("pocosCupos", pocosCupos);
+        mav.addObject("agotados", agotados);
         mav.addObject("hasActiveFilters", hasActiveFilters);
-        mav.addObject("sort", sort);
+        // El ya parseado (siempre un valor valido): el JSP lo usa para marcar la
+        // opcion elegida y los links de la paginacion lo repiten tal cual.
+        mav.addObject("sort", parsedSort.name());
+        mav.addObject("sortOptions", EventSort.values());
         mav.addObject("filterErrors", filterErrors);
         mav.addObject("rsvp", rsvp);
         // Anonimo no ve el corazon de favorito (paw:card lo esconde con
@@ -351,12 +359,14 @@ public class EventController {
 
     private static EventSort parseSort(final String value) {
         if (value == null || value.isEmpty()) {
-            return EventSort.FECHA;
+            return EventSort.FECHA_ASC;
         }
         try {
             return EventSort.valueOf(value);
         } catch (final IllegalArgumentException e) {
-            return EventSort.FECHA;
+            // Un valor que no existe (link viejo con "FECHA", o la URL tocada a
+            // mano) no es un error: se ordena como siempre, por fecha.
+            return EventSort.FECHA_ASC;
         }
     }
 

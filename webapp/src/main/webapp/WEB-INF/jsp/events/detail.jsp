@@ -135,7 +135,7 @@
             <span class="detail-meta-icon"><paw:icon name="calendar"/></span>
             <div>
                 <span class="detail-meta-label"><spring:message code="event.detail.dateLabelSmall"/></span>
-                <span class="detail-meta-value"><fmt:formatDate value="${event.eventDate}" pattern="EEE dd MMM"/></span>
+                <span class="detail-meta-value"><fmt:formatDate value="${event.eventDate}" pattern="EEE dd MMM yyyy"/></span>
             </div>
         </div>
         <div class="detail-meta-item">
@@ -246,7 +246,7 @@
                     </c:if>
                 </div>
                 <div class="detail-price-card-bottom">
-                    <span><paw:icon name="calendar"/> <fmt:formatDate value="${event.eventDate}" pattern="EEE dd MMM"/></span>
+                    <span><paw:icon name="calendar"/> <fmt:formatDate value="${event.eventDate}" pattern="EEE dd MMM yyyy"/></span>
                     <span><paw:icon name="clock"/> <fmt:formatDate value="${event.eventDate}" pattern="HH:mm"/>hs</span>
                 </div>
             </div>

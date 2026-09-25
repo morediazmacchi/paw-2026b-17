@@ -49,7 +49,7 @@
                         <p class="hero-description"><c:out value="${fe.description}"/></p>
                     </c:if>
                     <div class="hero-meta">
-                        <span><paw:icon name="calendar"/> <fmt:formatDate value="${fe.eventDate}" pattern="EEE dd MMM · HH:mm"/>hs</span>
+                        <span><paw:icon name="calendar"/> <fmt:formatDate value="${fe.eventDate}" pattern="EEE dd MMM yyyy · HH:mm"/>hs</span>
                         <span><paw:icon name="pin"/> <c:out value="${empty fe.neighborhood ? fe.address : fe.neighborhood.displayName}"/></span>
                         <span class="hero-price">
                             <c:choose>
@@ -202,20 +202,45 @@
                 <span class="filter-dropdown-label"><c:out value="${availabilityLabel}"/></span>
                 <span class="filter-dropdown-value">
                     <c:choose>
-                        <c:when test="${empty pocosCupos}"><c:out value="${allLabel}"/></c:when>
-                        <c:otherwise><spring:message code="event.list.fewSpotsShort"/></c:otherwise>
+                        <c:when test="${not empty pocosCupos and not empty agotados}"><spring:message code="event.list.selectedCount" arguments="2"/></c:when>
+                        <c:when test="${not empty pocosCupos}"><spring:message code="event.list.fewSpotsShort"/></c:when>
+                        <c:when test="${not empty agotados}"><spring:message code="event.list.soldOut"/></c:when>
+                        <c:otherwise><c:out value="${allLabel}"/></c:otherwise>
                     </c:choose>
                 </span>
             </summary>
             <div class="filter-dropdown-panel">
-                <%-- Un solo checkbox y no dos opciones: si no esta tildado, el
-                     navegador directamente no manda el parametro, y el filtro
-                     queda apagado. No hace falta un "todos" explicito. --%>
+                <%-- Checkboxes: el que no esta tildado el navegador ni lo manda, y
+                     ese filtro queda apagado. Se pueden tildar los dos. --%>
                 <label class="filter-checkbox">
                     <input type="checkbox" name="pocosCupos" value="true"
                            ${not empty pocosCupos ? 'checked="checked"' : ''}/>
                     <spring:message code="event.list.fewSpots"/>
                 </label>
+                <label class="filter-checkbox">
+                    <input type="checkbox" name="agotados" value="true"
+                           ${not empty agotados ? 'checked="checked"' : ''}/>
+                    <spring:message code="event.list.soldOut"/>
+                </label>
+            </div>
+        </details>
+
+        <%-- Ordenar va en el mismo form que los filtros: al apretar "Filtrar" viajan
+             juntos, y la paginacion ya repite ?sort=. Radios (y no un select con
+             onchange) para que funcione igual sin JavaScript. --%>
+        <spring:message code="event.list.sortLabel" var="sortLabel"/>
+        <details class="filter-dropdown" name="filter-group">
+            <summary>
+                <span class="filter-dropdown-label"><c:out value="${sortLabel}"/></span>
+                <span class="filter-dropdown-value"><spring:message code="event.list.sort.${sort}"/></span>
+            </summary>
+            <div class="filter-dropdown-panel">
+                <c:forEach var="option" items="${sortOptions}">
+                    <label class="filter-checkbox">
+                        <input type="radio" name="sort" value="${option}" ${sort == option.name() ? 'checked="checked"' : ''}/>
+                        <spring:message code="event.list.sort.${option}"/>
+                    </label>
+                </c:forEach>
             </div>
         </details>
 
@@ -283,6 +308,7 @@
                                    <c:param name='fechaHasta' value='${fechaHasta}'/>
                                    <c:param name='puntajeMin' value='${puntajeMin}'/>
                                    <c:param name='pocosCupos' value='${pocosCupos}'/>
+                                   <c:param name='agotados' value='${agotados}'/>
                                    <c:param name='sort' value='${sort}'/>
                                    <c:param name='page' value='${currentPage - 1}'/>
                                  </c:url>"><c:out value="${prevPageLabel}"/></a>
@@ -307,6 +333,7 @@
                                            <c:param name='fechaHasta' value='${fechaHasta}'/>
                                            <c:param name='puntajeMin' value='${puntajeMin}'/>
                                    <c:param name='pocosCupos' value='${pocosCupos}'/>
+                                   <c:param name='agotados' value='${agotados}'/>
                                            <c:param name='sort' value='${sort}'/>
                                            <c:param name='page' value='${p}'/>
                                          </c:url>"><c:out value="${p}"/></a>
@@ -325,6 +352,7 @@
                                    <c:param name='fechaHasta' value='${fechaHasta}'/>
                                    <c:param name='puntajeMin' value='${puntajeMin}'/>
                                    <c:param name='pocosCupos' value='${pocosCupos}'/>
+                                   <c:param name='agotados' value='${agotados}'/>
                                    <c:param name='sort' value='${sort}'/>
                                    <c:param name='page' value='${currentPage + 1}'/>
                                  </c:url>"><c:out value="${nextPageLabel}"/></a>

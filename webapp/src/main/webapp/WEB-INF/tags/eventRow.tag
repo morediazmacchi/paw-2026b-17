@@ -37,7 +37,7 @@
                 </c:if>
             </h3>
             <p class="event-row-meta">
-                <fmt:formatDate value="${fecha}" pattern="EEE dd/MM · HH:mm" />hs
+                <fmt:formatDate value="${fecha}" pattern="EEE dd/MM/yyyy · HH:mm" />hs
                 <c:if test="${not empty ubicacion}"> &middot; <c:out value="${ubicacion}"/></c:if>
                 <c:if test="${not empty precio}">
                     &middot;

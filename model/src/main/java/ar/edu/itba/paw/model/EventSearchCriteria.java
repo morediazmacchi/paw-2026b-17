@@ -30,7 +30,10 @@ public class EventSearchCriteria {
     // Solo eventos a los que les quedan entre FEW_SPOTS_MIN y FEW_SPOTS_MAX
     // lugares libres. Es un si/no, no un rango que elija quien navega.
     private boolean onlyFewSpotsLeft;
-    private EventSort sort = EventSort.FECHA;
+    // Solo eventos sin lugares libres ("Sold out"). Se puede combinar con el de
+    // arriba: si estan los dos, trae los de pocos cupos Y los agotados.
+    private boolean onlySoldOut;
+    private EventSort sort = EventSort.FECHA_ASC;
     private int page = 1;
     private int pageSize = 12;
 
@@ -50,6 +53,8 @@ public class EventSearchCriteria {
     public void setMinOrganizerRating(final Integer minOrganizerRating) { this.minOrganizerRating = minOrganizerRating; }
     public boolean isOnlyFewSpotsLeft() { return onlyFewSpotsLeft; }
     public void setOnlyFewSpotsLeft(final boolean onlyFewSpotsLeft) { this.onlyFewSpotsLeft = onlyFewSpotsLeft; }
+    public boolean isOnlySoldOut() { return onlySoldOut; }
+    public void setOnlySoldOut(final boolean onlySoldOut) { this.onlySoldOut = onlySoldOut; }
     public EventSort getSort() { return sort; }
     public void setSort(final EventSort sort) { this.sort = sort; }
     public int getPage() { return page; }

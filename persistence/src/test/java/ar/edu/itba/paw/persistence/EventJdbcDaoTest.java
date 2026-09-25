@@ -4,6 +4,7 @@ import ar.edu.itba.paw.model.Barrio;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventCategoryInfo;
 import ar.edu.itba.paw.model.EventSearchCriteria;
+import ar.edu.itba.paw.model.EventSort;
 import ar.edu.itba.paw.model.EventVisibility;
 import org.junit.Before;
 import org.junit.Test;
@@ -618,6 +619,168 @@ public class EventJdbcDaoTest {
         // "N eventos encontrados" no coincidiria con lo que se ve en la pagina.
         assertEquals(eventDao.search(fewSpotsCriteria()).size(), (int) eventDao.countSearch(fewSpotsCriteria()));
         assertEquals(2, eventDao.countSearch(fewSpotsCriteria()));
+    }
+
+    @Test
+    public void testSearchWithFewSpotsLeftCountsPendingApprovalRequests() {
+        // 10 - 3 confirmados - 4 pedidos pendientes = 3 libres: mismo numero que
+        // availableSpots() (un pendiente tiene su lugar guardado hasta que el
+        // organizador decida).
+        final long eventId = eventWith(10, 3, "Con pendientes");
+        for (int i = 0; i < 4; i++) {
+            insertRegistration(eventId, "pend" + i + "@mail.com", "pending");
+        }
+
+        final List<Long> ids = idsOf(eventDao.search(fewSpotsCriteria()));
+
+        assertEquals(1, ids.size());
+        assertTrue(ids.contains(eventId));
+    }
+
+    // ---- search(): ordenar ----
+
+    private static EventSearchCriteria sortedBy(final EventSort sort) {
+        final EventSearchCriteria criteria = new EventSearchCriteria();
+        criteria.setSort(sort);
+        criteria.setPageSize(20);
+        return criteria;
+    }
+
+    private long eventOn(final long daysFromNow, final BigDecimal price, final String address) {
+        final Date date = new Date(System.currentTimeMillis() + daysFromNow * 86_400_000L);
+        return eventDao.create(new Event(TITLE, null, date, address, Barrio.PALERMO, null, price, null,
+                CREATOR_EMAIL, Collections.singletonList(categoryId))).getId();
+    }
+
+    @Test
+    public void testSearchSortsByDateBothWays() {
+        final long enTres = eventOn(3, BigDecimal.ZERO, "En tres dias");
+        final long enUno = eventOn(1, BigDecimal.ZERO, "Manana");
+        final long enDos = eventOn(2, BigDecimal.ZERO, "En dos dias");
+
+        assertEquals(Arrays.asList(enUno, enDos, enTres), idsOf(eventDao.search(sortedBy(EventSort.FECHA_ASC))));
+        assertEquals(Arrays.asList(enTres, enDos, enUno), idsOf(eventDao.search(sortedBy(EventSort.FECHA_DESC))));
+    }
+
+    @Test
+    public void testSearchSortsByPriceBothWays() {
+        final long caro = eventOn(1, new BigDecimal("5000"), "Caro");
+        final long gratis = eventOn(2, BigDecimal.ZERO, "Gratis");
+        final long medio = eventOn(3, new BigDecimal("1500.50"), "Medio");
+
+        assertEquals(Arrays.asList(gratis, medio, caro), idsOf(eventDao.search(sortedBy(EventSort.PRECIO_ASC))));
+        assertEquals(Arrays.asList(caro, medio, gratis), idsOf(eventDao.search(sortedBy(EventSort.PRECIO_DESC))));
+    }
+
+    @Test
+    public void testSearchSortsBySpotsLeftWithUnlimitedEventsAsInfinite() {
+        final long unLibre = eventWith(10, 9, "Un libre");
+        final long sinLimite = eventWith(null, 3, "Sin limite");
+        final long ochoLibres = eventWith(10, 2, "Ocho libres");
+
+        // Sin limite = lugares "infinitos": ultimo de menos a mas, primero de mas a menos.
+        assertEquals(Arrays.asList(unLibre, ochoLibres, sinLimite), idsOf(eventDao.search(sortedBy(EventSort.CUPOS_ASC))));
+        assertEquals(Arrays.asList(sinLimite, ochoLibres, unLibre), idsOf(eventDao.search(sortedBy(EventSort.CUPOS_DESC))));
+    }
+
+    @Test
+    public void testSearchSortsBySpotsLeftCountingPendingAndReservedSpots() {
+        // Los dos tienen 5 confirmados, pero en "reservado" quedan 2 libres:
+        // 2 pendientes de aprobacion + 1 invitacion sin contestar. La lista de
+        // espera sin invitacion NO ocupa lugar.
+        final long reservado = eventWith(10, 5, "Con reservas");
+        insertRegistration(reservado, "pend1@mail.com", "pending");
+        insertRegistration(reservado, "pend2@mail.com", "pending");
+        insertRegistration(reservado, "wl1@mail.com", "waitlisted");
+        insertPendingInvitation(registrationId(reservado, "wl1@mail.com"));
+        insertRegistration(reservado, "wl2@mail.com", "waitlisted");
+        final long cincoLibres = eventWith(10, 5, "Cinco libres");
+
+        assertEquals(Arrays.asList(reservado, cincoLibres), idsOf(eventDao.search(sortedBy(EventSort.CUPOS_ASC))));
+    }
+
+    @Test
+    public void testSortBySpotsCombinesWithFiltersWithoutMixingParameters() {
+        // Filtro (con sus "?") + orden por cupos (con los suyos): si los parametros
+        // se mezclaran de orden, la query fallaria o traeria cualquier cosa.
+        final long unLibre = eventWith(10, 9, "Un libre");
+        final long tresLibres = eventWith(10, 7, "Tres libres");
+        eventWith(10, 1, "Nueve libres");
+        final EventSearchCriteria criteria = fewSpotsCriteria();
+        criteria.setSort(EventSort.CUPOS_DESC);
+
+        assertEquals(Arrays.asList(tresLibres, unLibre), idsOf(eventDao.search(criteria)));
+        assertEquals(2, eventDao.countSearch(criteria));
+    }
+
+    @Test
+    public void testSearchSortedBySpotsLeavesOutSoldOutEvents() {
+        final long unLibre = eventWith(10, 9, "Un libre");
+        eventWith(10, 10, "Lleno");
+        final long sinLimite = eventWith(null, 3, "Sin limite");
+
+        // Los agotados no aparecen en ninguno de los dos sentidos, y el total coincide.
+        assertEquals(Arrays.asList(unLibre, sinLimite), idsOf(eventDao.search(sortedBy(EventSort.CUPOS_ASC))));
+        assertEquals(Arrays.asList(sinLimite, unLibre), idsOf(eventDao.search(sortedBy(EventSort.CUPOS_DESC))));
+        assertEquals(2, eventDao.countSearch(sortedBy(EventSort.CUPOS_ASC)));
+    }
+
+    @Test
+    public void testSearchSortedByDateStillShowsSoldOutEvents() {
+        eventWith(10, 9, "Un libre");
+        eventWith(10, 10, "Lleno");
+
+        // Solo el orden por cupos los saca: ordenando por fecha siguen apareciendo.
+        assertEquals(2, eventDao.search(sortedBy(EventSort.FECHA_ASC)).size());
+    }
+
+    private static EventSearchCriteria soldOutCriteria() {
+        final EventSearchCriteria criteria = new EventSearchCriteria();
+        criteria.setOnlySoldOut(true);
+        criteria.setPageSize(20);
+        return criteria;
+    }
+
+    @Test
+    public void testSearchWithSoldOutKeepsOnlyEventsWithoutSpotsLeft() {
+        final long lleno = eventWith(10, 10, "Lleno");
+        final long llenoConReservas = eventWith(10, 8, "Lleno con reservas");
+        insertRegistration(llenoConReservas, "pend1@mail.com", "pending");
+        insertRegistration(llenoConReservas, "pend2@mail.com", "pending");
+        eventWith(10, 9, "Un libre");
+        eventWith(null, 50, "Sin limite");
+
+        final List<Long> ids = idsOf(eventDao.search(soldOutCriteria()));
+
+        assertEquals(2, ids.size());
+        assertTrue(ids.contains(lleno));
+        assertTrue(ids.contains(llenoConReservas));
+        assertEquals(2, eventDao.countSearch(soldOutCriteria()));
+    }
+
+    @Test
+    public void testSearchWithFewSpotsAndSoldOutBringsBoth() {
+        final long lleno = eventWith(10, 10, "Lleno");
+        final long unLibre = eventWith(10, 9, "Un libre");
+        eventWith(10, 1, "Nueve libres");
+        final EventSearchCriteria criteria = soldOutCriteria();
+        criteria.setOnlyFewSpotsLeft(true);
+
+        final List<Long> ids = idsOf(eventDao.search(criteria));
+
+        assertEquals(2, ids.size());
+        assertTrue(ids.contains(lleno));
+        assertTrue(ids.contains(unLibre));
+    }
+
+    @Test
+    public void testSortBySpotsKeepsSoldOutEventsWhenTheSoldOutFilterIsOn() {
+        final long lleno = eventWith(10, 10, "Lleno");
+        final EventSearchCriteria criteria = soldOutCriteria();
+        criteria.setSort(EventSort.CUPOS_ASC);
+
+        // Pidio ver los agotados: el orden por cupos no se los tiene que sacar.
+        assertEquals(Collections.singletonList(lleno), idsOf(eventDao.search(criteria)));
     }
 
     // ---- search(): filtro por categoria ----
