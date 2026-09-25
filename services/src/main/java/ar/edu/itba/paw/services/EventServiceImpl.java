@@ -3,6 +3,7 @@ package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventSearchCriteria;
+import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.User;
@@ -26,15 +27,18 @@ public class EventServiceImpl implements EventService {
     private final UserService userService;
     private final NotificationService notificationService;
     private final RegistrationService registrationService;
+    private final InboxService inboxService;
 
     @Autowired
     public EventServiceImpl(final EventDao eventDao, final UserService userService,
                             final NotificationService notificationService,
-                            final RegistrationService registrationService) {
+                            final RegistrationService registrationService,
+                            final InboxService inboxService) {
         this.eventDao = eventDao;
         this.userService = userService;
         this.notificationService = notificationService;
         this.registrationService = registrationService;
+        this.inboxService = inboxService;
     }
 
     @Override
@@ -110,6 +114,7 @@ public class EventServiceImpl implements EventService {
         for (final Registration registration : registrationService.findByEventId(eventId)) {
             if (registration.getStatus() == RegistrationStatus.CONFIRMED) {
                 notificationService.notifyEventUpdated(changes, registration);
+                inboxService.add(registration.getEmail(), InboxMessageType.EVENT_UPDATED, eventId, null, null);
             }
         }
         return EventUpdateResult.UPDATED;
@@ -127,11 +132,16 @@ public class EventServiceImpl implements EventService {
             return EventCancelResult.ALREADY_CANCELLED;
         }
         eventDao.cancel(eventId);
-        // Solo a los confirmados: a alguien pendiente/rechazado/en lista de
-        // espera nunca le llego a tener un lugar, no hay nada que "perder".
+        // Mail: solo a los confirmados (son los que tenian un lugar que pierden).
+        // Bandeja: tambien a quien estaba en lista de espera o esperando que lo
+        // acepten, que si no se enteraria recien al ver el evento. Al rechazado no:
+        // ese ya no esperaba nada de este evento.
         for (final Registration registration : registrationService.findByEventId(eventId)) {
             if (registration.getStatus() == RegistrationStatus.CONFIRMED) {
                 notificationService.notifyEventCancelled(event, registration);
+            }
+            if (registration.getStatus() != RegistrationStatus.REJECTED) {
+                inboxService.add(registration.getEmail(), InboxMessageType.EVENT_CANCELLED, eventId, null, null);
             }
         }
         return EventCancelResult.CANCELLED;

@@ -14,11 +14,15 @@ public enum InboxMessageType {
     PRIVATE_INVITE,
     EVENT_UPDATED,
     EVENT_CANCELLED,
+    // Recordatorio automatico: el evento empieza en menos de 24 hs.
+    EVENT_REMINDER,
 
     // ---- Para quien organiza ----
     NEW_REGISTRATION,
     REGISTRATION_CANCELLED,
     NEW_PENDING,
     WAITLIST_ACCEPTED,
-    WAITLIST_DECLINED
+    WAITLIST_DECLINED,
+    // Recordatorio automatico para el organizador: su evento empieza en menos de 24 hs.
+    EVENT_TOMORROW
 }

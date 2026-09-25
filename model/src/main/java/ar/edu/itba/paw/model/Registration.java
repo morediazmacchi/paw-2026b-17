@@ -32,6 +32,12 @@ public class Registration {
     public void setName(final String name) { this.name = name; }
     public Date getRegisteredAt() { return registeredAt; }
     public void setRegisteredAt(final Date registeredAt) { this.registeredAt = registeredAt; }
+    // Como mostrar a esta persona en un aviso ("Juan se anoto"): el nombre si lo
+    // dejo, y si no (los usuarios fantasma pueden no tenerlo) el email.
+    public String getDisplayName() {
+        return name == null || name.trim().isEmpty() ? email : name;
+    }
+
     public RegistrationStatus getStatus() { return status; }
     public void setStatus(final RegistrationStatus status) { this.status = status; }
 }

@@ -90,4 +90,10 @@ public interface NotificationService {
      * el mail tiene que mostrar).
      */
     void notifyEventUpdated(Event event, Registration registration);
+
+    /** El evento empieza en menos de 24 hs -> recordatorio a cada inscripto confirmado. */
+    void notifyEventReminder(Event event, Registration registration);
+
+    /** El evento empieza en menos de 24 hs -> recordatorio a su organizador. */
+    void notifyOrganizerEventReminder(Event event);
 }

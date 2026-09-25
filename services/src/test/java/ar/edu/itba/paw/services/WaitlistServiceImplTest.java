@@ -1,5 +1,6 @@
 package ar.edu.itba.paw.services;
 
+import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.InvitationStatus;
 import ar.edu.itba.paw.model.Registration;
@@ -27,6 +28,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.never;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -34,6 +37,7 @@ import static org.mockito.Mockito.when;
 public class WaitlistServiceImplTest {
 
     private static final long EVENT_ID = 1;
+    private static final String CREATOR_EMAIL = "org@mail.com";
     private static final long DIA = 24L * 60 * 60 * 1000;
 
     @Mock
@@ -45,6 +49,10 @@ public class WaitlistServiceImplTest {
     @Mock
     private NotificationService mockNotificationService;
 
+    // La bandeja: se verifica que cada accion deje su aviso.
+    @Mock
+    private InboxService mockInboxService;
+
     @InjectMocks
     private WaitlistServiceImpl waitlistService;
 
@@ -52,6 +60,7 @@ public class WaitlistServiceImplTest {
         final Event event = new Event();
         event.setId(EVENT_ID);
         event.setMaxCapacity(maxCapacity);
+        event.setCreatorEmail(CREATOR_EMAIL);
         // Siempre en el futuro: un evento que ya paso no ofrece lugares.
         event.setEventDate(new Date(System.currentTimeMillis() + 30 * DIA));
         return event;
@@ -246,5 +255,47 @@ public class WaitlistServiceImplTest {
         final ArgumentCaptor<WaitlistInvitation> created = ArgumentCaptor.forClass(WaitlistInvitation.class);
         verify(mockInvitationDao).create(created.capture());
         assertEquals(99, created.getValue().getRegistrationId());
+    }
+
+    // ---- avisos en la bandeja ----
+
+    @Test
+    public void testReconcileTellsTheInvitedPersonInTheInbox() {
+        eventoConCupo(10);
+        when(mockInvitationDao.findExpired(anyLong(), any(Date.class))).thenReturn(Collections.emptyList());
+        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(9L);
+        when(mockInvitationDao.countPending(EVENT_ID)).thenReturn(0L);
+        when(mockRegistrationDao.findNextWaitlisted(EVENT_ID, 1)).thenReturn(Collections.singletonList(waitlisted(77)));
+
+        waitlistService.reconcile(EVENT_ID);
+
+        verify(mockInboxService).add("a@a.com", InboxMessageType.WAITLIST_SPOT_OFFERED, EVENT_ID, null, null);
+    }
+
+    @Test
+    public void testAcceptLeavesItsOwnMessageForTheOrganizerAndNotANewRegistration() {
+        stubMyInvitation(pendingInvitation(5, 88, new Date(System.currentTimeMillis() + DIA)));
+        when(mockRegistrationDao.findById(88)).thenReturn(Optional.of(waitlisted(88)));
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(event(10)));
+
+        waitlistService.accept(EVENT_ID, "a@a.com");
+
+        verify(mockInboxService).add("a@a.com", InboxMessageType.REGISTERED_CONFIRMED, EVENT_ID, null, null);
+        verify(mockInboxService).add(CREATOR_EMAIL, InboxMessageType.WAITLIST_ACCEPTED, EVENT_ID, "Ana", null);
+        verify(mockInboxService, never()).add(any(), eq(InboxMessageType.NEW_REGISTRATION), any(), any(), any());
+    }
+
+    @Test
+    public void testDeclineTellsTheOrganizerInTheInbox() {
+        stubMyInvitation(pendingInvitation(5, 88, new Date(System.currentTimeMillis() + DIA)));
+        when(mockRegistrationDao.findById(88)).thenReturn(Optional.of(waitlisted(88)));
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(event(10)));
+        when(mockInvitationDao.findExpired(anyLong(), any(Date.class))).thenReturn(Collections.emptyList());
+        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(9L);
+        when(mockInvitationDao.countPending(EVENT_ID)).thenReturn(0L);
+
+        waitlistService.decline(EVENT_ID, "a@a.com");
+
+        verify(mockInboxService).add(CREATOR_EMAIL, InboxMessageType.WAITLIST_DECLINED, EVENT_ID, "Ana", null);
     }
 }

@@ -250,3 +250,8 @@ CREATE TABLE IF NOT EXISTS inbox_message (
 -- La bandeja siempre se lee por destinatario y de la mas nueva a la mas vieja.
 CREATE INDEX IF NOT EXISTS idx_inbox_recipient
     ON inbox_message (recipient_email, created_at);
+
+-- Recordatorio "falta menos de 24 hs" (ver EventReminderScheduler): NULL = todavia
+-- no se mando. Sirve para no mandarlo dos veces: la tarea lo "reclama" con un
+-- UPDATE ... WHERE reminder_sent_at IS NULL, y solo quien lo reclamo manda los mails.
+ALTER TABLE event ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMP;

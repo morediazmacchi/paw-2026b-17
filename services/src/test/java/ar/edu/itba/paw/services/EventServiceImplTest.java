@@ -1,5 +1,6 @@
 package ar.edu.itba.paw.services;
 
+import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventCategoryInfo;
 import ar.edu.itba.paw.model.Registration;
@@ -24,6 +25,8 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -46,6 +49,10 @@ public class EventServiceImplTest {
     private NotificationService mockNotificationService;
     @Mock
     private RegistrationService mockRegistrationService;
+
+    // La bandeja: se verifica que cada accion deje su aviso.
+    @Mock
+    private InboxService mockInboxService;
 
     @InjectMocks
     private EventServiceImpl eventService;
@@ -268,6 +275,36 @@ public class EventServiceImplTest {
                 .notifyEventCancelled(any(Event.class), org.mockito.ArgumentMatchers.eq(waitlisted));
         verify(mockNotificationService, never())
                 .notifyEventCancelled(any(Event.class), org.mockito.ArgumentMatchers.eq(pending));
+    }
+
+    @Test
+    public void testCancelTellsEveryoneStillWaitingInTheInboxButNotTheRejected() {
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(someEvent()));
+        when(mockRegistrationService.findByEventId(EVENT_ID)).thenReturn(Arrays.asList(
+                new Registration(EVENT_ID, "confirmado@mail.com", "C", RegistrationStatus.CONFIRMED),
+                new Registration(EVENT_ID, "espera@mail.com", "E", RegistrationStatus.WAITLISTED),
+                new Registration(EVENT_ID, "pendiente@mail.com", "P", RegistrationStatus.PENDING),
+                new Registration(EVENT_ID, "rechazado@mail.com", "R", RegistrationStatus.REJECTED)));
+
+        eventService.cancel(EVENT_ID, CREATOR_EMAIL);
+
+        verify(mockInboxService).add("confirmado@mail.com", InboxMessageType.EVENT_CANCELLED, EVENT_ID, null, null);
+        verify(mockInboxService).add("espera@mail.com", InboxMessageType.EVENT_CANCELLED, EVENT_ID, null, null);
+        verify(mockInboxService).add("pendiente@mail.com", InboxMessageType.EVENT_CANCELLED, EVENT_ID, null, null);
+        verify(mockInboxService, never()).add(eq("rechazado@mail.com"), any(), any(), any(), any());
+    }
+
+    @Test
+    public void testUpdateTellsOnlyConfirmedRegistrantsInTheInbox() {
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(someEvent()));
+        when(mockRegistrationService.findByEventId(EVENT_ID)).thenReturn(Arrays.asList(
+                new Registration(EVENT_ID, "confirmado@mail.com", "C", RegistrationStatus.CONFIRMED),
+                new Registration(EVENT_ID, "espera@mail.com", "E", RegistrationStatus.WAITLISTED)));
+
+        eventService.update(EVENT_ID, someEvent(), CREATOR_EMAIL);
+
+        verify(mockInboxService).add("confirmado@mail.com", InboxMessageType.EVENT_UPDATED, EVENT_ID, null, null);
+        verify(mockInboxService, never()).add(eq("espera@mail.com"), any(), any(), any(), any());
     }
 
     @Test

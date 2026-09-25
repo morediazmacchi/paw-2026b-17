@@ -2,6 +2,7 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.persistence.EventDao;
@@ -26,17 +27,20 @@ public class RegistrationServiceImpl implements RegistrationService {
     private final UserService userService;
     private final NotificationService notificationService;
     private final WaitlistService waitlistService;
+    private final InboxService inboxService;
 
     @Autowired
     public RegistrationServiceImpl(final RegistrationDao registrationDao, final EventDao eventDao,
                                     final UserService userService,
                                     final NotificationService notificationService,
-                                    final WaitlistService waitlistService) {
+                                    final WaitlistService waitlistService,
+                                    final InboxService inboxService) {
         this.registrationDao = registrationDao;
         this.eventDao = eventDao;
         this.userService = userService;
         this.notificationService = notificationService;
         this.waitlistService = waitlistService;
+        this.inboxService = inboxService;
     }
 
     @Override
@@ -88,15 +92,23 @@ public class RegistrationServiceImpl implements RegistrationService {
         // dueno del evento. Lo que cambia es el texto, no la logica. Sin este if,
         // a quien quedo en lista de espera (o pendiente de revision) le llegaria
         // un mail que dice "confirmamos tu lugar", que es justo lo que no paso.
+        // Y al lado de cada mail, su aviso en la bandeja (misma transaccion).
         if (full) {
             notificationService.notifyWaitlistJoined(event, registration);
             notificationService.notifyNewWaitlistEntry(event, registration);
+            inboxService.add(normalizedEmail, InboxMessageType.REGISTERED_WAITLISTED, eventId, null, null);
         } else if (status == RegistrationStatus.PENDING) {
             notificationService.notifyRegistrationPending(event, registration);
             notificationService.notifyNewPendingRegistration(event, registration);
+            inboxService.add(normalizedEmail, InboxMessageType.REGISTERED_PENDING, eventId, null, null);
+            inboxService.add(event.getCreatorEmail(), InboxMessageType.NEW_PENDING, eventId,
+                    registration.getDisplayName(), null);
         } else {
             notificationService.notifyRegistrationConfirmed(event, registration);
             notificationService.notifyNewRegistration(event, registration);
+            inboxService.add(normalizedEmail, InboxMessageType.REGISTERED_CONFIRMED, eventId, null, null);
+            inboxService.add(event.getCreatorEmail(), InboxMessageType.NEW_REGISTRATION, eventId,
+                    registration.getDisplayName(), null);
 
             // "Se lleno" es un CAMBIO de estado, no un estado: el aviso sale solo
             // en el pedido que ocupo el ultimo lugar. Se vuelve a preguntar DESPUES
@@ -209,6 +221,9 @@ public class RegistrationServiceImpl implements RegistrationService {
         final long eventId = cancelled.getEventId();
         // Se mira ANTES de borrar: despues la fila ya no existe.
         final boolean wasConfirmed = cancelled.getStatus() == RegistrationStatus.CONFIRMED;
+        // Al organizador le importa tambien si se baja alguien pendiente: tenia
+        // ese pedido para responder, y ya no esta.
+        final boolean organizerCares = wasConfirmed || cancelled.getStatus() == RegistrationStatus.PENDING;
 
         registrationDao.delete(registrationId);
         // El cupo que se acaba de soltar se le ofrece enseguida al primero de la
@@ -223,6 +238,11 @@ public class RegistrationServiceImpl implements RegistrationService {
         if (wasConfirmed) {
             eventDao.findById(eventId).ifPresent(event ->
                     notificationService.notifyRegistrationCancelled(event, cancelled, invited > 0));
+        }
+        if (organizerCares) {
+            eventDao.findById(eventId).ifPresent(event ->
+                    inboxService.add(event.getCreatorEmail(), InboxMessageType.REGISTRATION_CANCELLED, eventId,
+                            cancelled.getDisplayName(), null));
         }
         return true;
     }
@@ -259,6 +279,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         registration.setStatus(RegistrationStatus.CONFIRMED);
         eventDao.findById(registration.getEventId())
                 .ifPresent(event -> notificationService.notifyRegistrationApproved(event, registration));
+        inboxService.add(registration.getEmail(), InboxMessageType.REQUEST_APPROVED, registration.getEventId(), null, null);
         return true;
     }
 
@@ -274,6 +295,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         final long eventId = registration.getEventId();
         eventDao.findById(eventId)
                 .ifPresent(event -> notificationService.notifyRegistrationRejected(event, registration));
+        inboxService.add(registration.getEmail(), InboxMessageType.REQUEST_REJECTED, eventId, null, null);
         // El cupo que esta inscripcion tenia reservado (ver occupied()) se
         // libera: se lo ofrecemos enseguida a quien siga en la lista de espera.
         waitlistService.reconcile(eventId);

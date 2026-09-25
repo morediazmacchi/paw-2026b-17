@@ -42,4 +42,12 @@ public interface EventDao {
 
     // Mismos filtros que search() (mismo WHERE), sin orden ni paginado: el total para el paginador.
     long countSearch(EventSearchCriteria criteria);
+
+    // Recordatorio de 24 hs: los eventos (publicos o privados) no cancelados que
+    // empiezan entre "from" y "until" y a los que todavia no se les mando.
+    List<Long> findIdsNeedingReminder(java.util.Date from, java.util.Date until);
+
+    // Marca el recordatorio como mandado. true solo si ESTA llamada lo marco (si
+    // ya estaba marcado devuelve false): asi nunca se manda dos veces.
+    boolean markReminderSent(long id, java.util.Date when);
 }

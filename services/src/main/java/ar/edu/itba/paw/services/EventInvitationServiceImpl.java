@@ -3,6 +3,7 @@ package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventInvitation;
+import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.EventInvitationDao;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,13 +27,16 @@ public class EventInvitationServiceImpl implements EventInvitationService {
     private final EventInvitationDao invitationDao;
     private final EventDao eventDao;
     private final NotificationService notificationService;
+    private final InboxService inboxService;
 
     @Autowired
     public EventInvitationServiceImpl(final EventInvitationDao invitationDao, final EventDao eventDao,
-                                       final NotificationService notificationService) {
+                                       final NotificationService notificationService,
+                                       final InboxService inboxService) {
         this.invitationDao = invitationDao;
         this.eventDao = eventDao;
         this.notificationService = notificationService;
+        this.inboxService = inboxService;
     }
 
     @Override
@@ -51,6 +55,7 @@ public class EventInvitationServiceImpl implements EventInvitationService {
         final EventInvitation invitation = new EventInvitation(eventId, normalizedEmail, newToken(), creatorEmail);
         invitationDao.create(invitation);
         notificationService.notifyEventInvitation(event, invitation);
+        inboxService.add(normalizedEmail, InboxMessageType.PRIVATE_INVITE, eventId, null, null);
         return EventInvitationResult.SENT;
     }
 

@@ -1,5 +1,6 @@
 package ar.edu.itba.paw.services;
 
+import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventInvitation;
 import ar.edu.itba.paw.model.EventVisibility;
@@ -22,6 +23,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -39,6 +41,10 @@ public class EventInvitationServiceImplTest {
     private EventDao mockEventDao;
     @Mock
     private NotificationService mockNotificationService;
+
+    // La bandeja: se verifica que cada accion deje su aviso.
+    @Mock
+    private InboxService mockInboxService;
 
     @InjectMocks
     private EventInvitationServiceImpl invitationService;
@@ -103,6 +109,16 @@ public class EventInvitationServiceImplTest {
         invitationService.invite(EVENT_ID, CREATOR_EMAIL, INVITEE_EMAIL);
 
         verify(mockNotificationService).notifyEventInvitation(eq(event), any(EventInvitation.class));
+    }
+
+    @Test
+    public void testInviteLeavesAMessageInTheInviteesInbox() {
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
+        when(mockInvitationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
+
+        invitationService.invite(EVENT_ID, CREATOR_EMAIL, INVITEE_EMAIL);
+
+        verify(mockInboxService).add(NORMALIZED_INVITEE_EMAIL, InboxMessageType.PRIVATE_INVITE, EVENT_ID, null, null);
     }
 
     @Test

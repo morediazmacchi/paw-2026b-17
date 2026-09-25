@@ -2,6 +2,7 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.WaitlistInvitation;
@@ -40,16 +41,19 @@ public class WaitlistServiceImpl implements WaitlistService {
     private final RegistrationDao registrationDao;
     private final EventDao eventDao;
     private final NotificationService notificationService;
+    private final InboxService inboxService;
 
     @Autowired
     public WaitlistServiceImpl(final WaitlistInvitationDao invitationDao,
                                final RegistrationDao registrationDao,
                                final EventDao eventDao,
-                               final NotificationService notificationService) {
+                               final NotificationService notificationService,
+                               final InboxService inboxService) {
         this.invitationDao = invitationDao;
         this.registrationDao = registrationDao;
         this.eventDao = eventDao;
         this.notificationService = notificationService;
+        this.inboxService = inboxService;
     }
 
     @Override
@@ -134,6 +138,7 @@ public class WaitlistServiceImpl implements WaitlistService {
 
         invitationDao.create(new WaitlistInvitation(registration.getId(), token, expiresAt));
         notificationService.notifyWaitlistInvitation(event, registration, expiresAt);
+        inboxService.add(registration.getEmail(), InboxMessageType.WAITLIST_SPOT_OFFERED, event.getId(), null, null);
         LOGGER.info("Invitacion enviada a la inscripcion {} del evento {}", registration.getId(), event.getId());
     }
 
@@ -203,6 +208,11 @@ public class WaitlistServiceImpl implements WaitlistService {
         // resultado es el mismo, tiene su lugar.
         notificationService.notifyRegistrationConfirmed(event, registration);
         notificationService.notifyNewRegistration(event, registration);
+        // En la bandeja, el organizador ve un aviso propio de este caso (y no
+        // tambien NEW_REGISTRATION: seria dos veces lo mismo).
+        inboxService.add(registration.getEmail(), InboxMessageType.REGISTERED_CONFIRMED, event.getId(), null, null);
+        inboxService.add(event.getCreatorEmail(), InboxMessageType.WAITLIST_ACCEPTED, event.getId(),
+                registration.getDisplayName(), null);
         return InvitationResult.ACCEPTED;
     }
 
@@ -226,6 +236,9 @@ public class WaitlistServiceImpl implements WaitlistService {
 
         registrationDao.delete(registration.getId());
         if (event != null) {
+            // Este no manda mail: solo queda en la bandeja del organizador.
+            inboxService.add(event.getCreatorEmail(), InboxMessageType.WAITLIST_DECLINED, event.getId(),
+                    registration.getDisplayName(), null);
             // El cupo que acaba de soltar se le ofrece al siguiente enseguida.
             reconcileLocked(event, now);
         }

@@ -960,4 +960,39 @@ public class EventJdbcDaoTest {
 
         assertEquals(1, eventDao.findByCreatorEmail(CREATOR_EMAIL).size());
     }
+
+    // ---- recordatorio de 24 hs ----
+
+    private static final long HORA = 60L * 60 * 1000;
+
+    private long eventInHours(final long hours, final String title) {
+        jdbcTemplate.update(
+                "INSERT INTO event (title, event_date, address, creator_email) VALUES (?, ?, ?, ?)",
+                title, new Timestamp(System.currentTimeMillis() + hours * HORA), "Corrientes 1234", CREATOR_EMAIL);
+        return jdbcTemplate.queryForObject("SELECT id FROM event WHERE title = ?", Long.class, title);
+    }
+
+    @Test
+    public void testFindIdsNeedingReminderOnlyReturnsEventsInTheWindowNotCancelledNorReminded() {
+        final long enDiezHoras = eventInHours(10, "En diez horas");
+        eventInHours(30, "En treinta horas");
+        eventInHours(-2, "Ya paso");
+        final long cancelado = eventInHours(5, "Cancelado");
+        eventDao.cancel(cancelado);
+        final long yaAvisado = eventInHours(8, "Ya avisado");
+        eventDao.markReminderSent(yaAvisado, new Date());
+
+        final Date now = new Date();
+        final List<Long> ids = eventDao.findIdsNeedingReminder(now, new Date(now.getTime() + 24 * HORA));
+
+        assertEquals(Collections.singletonList(enDiezHoras), ids);
+    }
+
+    @Test
+    public void testMarkReminderSentOnlyWorksTheFirstTime() {
+        final long id = eventInHours(10, "Una vez");
+
+        assertTrue(eventDao.markReminderSent(id, new Date()));
+        assertFalse(eventDao.markReminderSent(id, new Date()));
+    }
 }

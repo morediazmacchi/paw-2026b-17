@@ -402,6 +402,43 @@ public class NotificationServiceImpl implements NotificationService {
      * Los datos del evento que usan las tres plantillas. Se arma una sola vez
      * aca en vez de repetirlo en cada metodo.
      */
+    @Async
+    @Override
+    public void notifyEventReminder(final Event event, final Registration registration) {
+        try {
+            final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
+            variables.put("personName", displayName(registration.getName(), registration.getEmail()));
+
+            mailService.send(registration.getEmail(),
+                    "event-reminder",
+                    "mail.eventReminder.subject",
+                    new Object[]{ event.getTitle() },
+                    variables,
+                    DEFAULT_LOCALE);
+        } catch (final RuntimeException e) {
+            LOGGER.error("Fallo el recordatorio de 24 hs, evento {}", event.getId(), e);
+        }
+    }
+
+    @Async
+    @Override
+    public void notifyOrganizerEventReminder(final Event event) {
+        try {
+            final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
+            variables.put("personName", displayName(null, event.getCreatorEmail()));
+            variables.put("attendeesUrl", baseUrl + "/perfil/eventos/" + event.getId() + "/inscriptos");
+
+            mailService.send(event.getCreatorEmail(),
+                    "event-reminder-organizer",
+                    "mail.organizerReminder.subject",
+                    new Object[]{ event.getTitle() },
+                    variables,
+                    DEFAULT_LOCALE);
+        } catch (final RuntimeException e) {
+            LOGGER.error("Fallo el recordatorio de 24 hs al organizador, evento {}", event.getId(), e);
+        }
+    }
+
     private Map<String, Object> eventVariables(final Event event, final Locale locale) {
         final Map<String, Object> variables = new HashMap<>();
         variables.put("eventTitle", event.getTitle());

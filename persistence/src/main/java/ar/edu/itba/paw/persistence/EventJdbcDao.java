@@ -251,6 +251,23 @@ public class EventJdbcDao implements EventDao {
     }
 
     @Override
+    public List<Long> findIdsNeedingReminder(final java.util.Date from, final java.util.Date until) {
+        return jdbcTemplate.queryForList(
+                "SELECT e.id FROM event e WHERE e.event_date > ? AND e.event_date <= ? "
+                        + "AND e.cancelled_at IS NULL AND e.reminder_sent_at IS NULL",
+                Long.class, new Timestamp(from.getTime()), new Timestamp(until.getTime()));
+    }
+
+    @Override
+    public boolean markReminderSent(final long id, final java.util.Date when) {
+        // El "IS NULL" es lo que lo hace atomico: si dos procesos llegaran a la vez,
+        // la base deja que uno solo actualice la fila; el otro ve 0 filas cambiadas.
+        return jdbcTemplate.update(
+                "UPDATE event SET reminder_sent_at = ? WHERE id = ? AND reminder_sent_at IS NULL",
+                new Timestamp(when.getTime()), id) == 1;
+    }
+
+    @Override
     public Optional<Event> findById(final long id) {
         final Optional<Event> event = jdbcTemplate.query(SELECT_BASE + " WHERE e.id = ?", ROW_MAPPER, id)
                 .stream().findFirst();

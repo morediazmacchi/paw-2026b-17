@@ -1,5 +1,6 @@
 package ar.edu.itba.paw.services;
 
+import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationStatus;
@@ -50,6 +51,10 @@ public class RegistrationServiceImplTest {
     // que es justo el caso "no hay ninguna invitacion dando vueltas".
     @Mock
     private WaitlistService mockWaitlistService;
+
+    // La bandeja: se verifica que cada accion deje su aviso.
+    @Mock
+    private InboxService mockInboxService;
 
     @InjectMocks
     private RegistrationServiceImpl registrationService;
@@ -334,6 +339,99 @@ public class RegistrationServiceImplTest {
         // Para el organizador no cambio nada: el cupo disponible es el mismo.
         verify(mockNotificationService, never())
                 .notifyRegistrationCancelled(any(Event.class), any(Registration.class), anyBoolean());
+    }
+
+    // ---- avisos en la bandeja ----
+
+    private static Event eventWithCreator(final Integer maxCapacity) {
+        final Event event = eventWithCapacity(maxCapacity);
+        event.setCreatorEmail(CREATOR_EMAIL);
+        return event;
+    }
+
+    @Test
+    public void testRegisterWithFreeSpotLeavesAMessageForThePersonAndForTheOrganizer() {
+        when(mockRegistrationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_EMAIL)).thenReturn(Optional.empty());
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(10)));
+
+        registrationService.register(EVENT_ID, EMAIL, NAME);
+
+        verify(mockInboxService).add(NORMALIZED_EMAIL, InboxMessageType.REGISTERED_CONFIRMED, EVENT_ID, null, null);
+        verify(mockInboxService).add(CREATOR_EMAIL, InboxMessageType.NEW_REGISTRATION, EVENT_ID, NAME, null);
+    }
+
+    @Test
+    public void testRegisterOnAFullEventOnlyTellsThePersonTheyAreWaitlisted() {
+        when(mockRegistrationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_EMAIL)).thenReturn(Optional.empty());
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(2)));
+        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(2L);
+
+        registrationService.register(EVENT_ID, EMAIL, NAME);
+
+        verify(mockInboxService).add(NORMALIZED_EMAIL, InboxMessageType.REGISTERED_WAITLISTED, EVENT_ID, null, null);
+        verify(mockInboxService, never()).add(eq(CREATOR_EMAIL), any(), any(), any(), any());
+    }
+
+    @Test
+    public void testRegisterOnAnEventRequiringApprovalAsksTheOrganizerToAnswer() {
+        when(mockRegistrationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_EMAIL)).thenReturn(Optional.empty());
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(10)));
+
+        registrationService.register(EVENT_ID, EMAIL, NAME);
+
+        verify(mockInboxService).add(NORMALIZED_EMAIL, InboxMessageType.REGISTERED_PENDING, EVENT_ID, null, null);
+        verify(mockInboxService).add(CREATOR_EMAIL, InboxMessageType.NEW_PENDING, EVENT_ID, NAME, null);
+    }
+
+    @Test
+    public void testCancelOfAConfirmedRegistrationTellsTheOrganizerInTheInbox() {
+        when(mockRegistrationDao.findById(REGISTRATION_ID))
+                .thenReturn(Optional.of(registrationWith(RegistrationStatus.CONFIRMED)));
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(10)));
+
+        registrationService.cancel(REGISTRATION_ID, NORMALIZED_EMAIL);
+
+        verify(mockInboxService).add(CREATOR_EMAIL, InboxMessageType.REGISTRATION_CANCELLED, EVENT_ID, NAME, null);
+    }
+
+    @Test
+    public void testCancelOfAPendingRequestTellsTheOrganizerInTheInboxButSendsNoMail() {
+        when(mockRegistrationDao.findById(REGISTRATION_ID))
+                .thenReturn(Optional.of(registrationWith(RegistrationStatus.PENDING)));
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(10)));
+
+        registrationService.cancel(REGISTRATION_ID, NORMALIZED_EMAIL);
+
+        verify(mockInboxService).add(CREATOR_EMAIL, InboxMessageType.REGISTRATION_CANCELLED, EVENT_ID, NAME, null);
+        verify(mockNotificationService, never())
+                .notifyRegistrationCancelled(any(Event.class), any(Registration.class), anyBoolean());
+    }
+
+    @Test
+    public void testCancelFromTheWaitlistDoesNotTellTheOrganizer() {
+        when(mockRegistrationDao.findById(REGISTRATION_ID))
+                .thenReturn(Optional.of(registrationWith(RegistrationStatus.WAITLISTED)));
+
+        registrationService.cancel(REGISTRATION_ID, NORMALIZED_EMAIL);
+
+        verify(mockInboxService, never()).add(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    public void testApproveAndRejectTellThePerson() {
+        final Registration aprobada = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, RegistrationStatus.PENDING);
+        aprobada.setId(5);
+        final Registration rechazada = new Registration(EVENT_ID, "otra@mail.com", "Otra", RegistrationStatus.PENDING);
+        rechazada.setId(6);
+        when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(aprobada));
+        when(mockRegistrationDao.findById(6)).thenReturn(Optional.of(rechazada));
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(null)));
+
+        registrationService.approve(5, CREATOR_EMAIL);
+        registrationService.reject(6, CREATOR_EMAIL);
+
+        verify(mockInboxService).add(NORMALIZED_EMAIL, InboxMessageType.REQUEST_APPROVED, EVENT_ID, null, null);
+        verify(mockInboxService).add("otra@mail.com", InboxMessageType.REQUEST_REJECTED, EVENT_ID, null, null);
     }
 
     // ---- isFull() ----
