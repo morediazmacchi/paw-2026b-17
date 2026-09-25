@@ -16,6 +16,13 @@
             <a class="btn btn-medium" href="<c:url value='/login'/>"><paw:icon name="user"/> <c:out value="${loginLabel}"/></a>
         </sec:authorize>
         <sec:authorize access="isAuthenticated()">
+            <%-- unreadInboxCount lo pone UnreadInboxInterceptor en todas las paginas. --%>
+            <spring:message code="common.nav.inbox" var="inboxLabel"/>
+            <a class="btn btn-medium" href="<c:url value='/perfil/bandeja'/>"><paw:icon name="bell"/> <c:out value="${inboxLabel}"/>
+                <c:if test="${unreadInboxCount > 0}">
+                    <span class="navbar-badge"><c:out value="${unreadInboxCount}"/></span>
+                </c:if>
+            </a>
             <spring:message code="common.nav.profile" var="profileLabel"/>
             <a class="btn btn-medium" href="<c:url value='/perfil'/>"><paw:icon name="user"/> <c:out value="${profileLabel}"/></a>
         </sec:authorize>

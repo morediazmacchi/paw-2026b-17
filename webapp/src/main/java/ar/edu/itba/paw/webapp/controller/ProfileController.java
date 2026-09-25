@@ -1,6 +1,7 @@
 package ar.edu.itba.paw.webapp.controller;
 
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.InboxMessage;
 import ar.edu.itba.paw.model.EventInvitation;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationStatus;
@@ -10,6 +11,8 @@ import ar.edu.itba.paw.services.EventInvitationResult;
 import ar.edu.itba.paw.services.EventInvitationService;
 import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.FavoriteService;
+import ar.edu.itba.paw.services.InboxService;
+import ar.edu.itba.paw.services.PageResult;
 import ar.edu.itba.paw.services.ProfileUpdateResult;
 import ar.edu.itba.paw.services.RegistrationService;
 import ar.edu.itba.paw.services.ReviewResult;
@@ -51,13 +54,14 @@ public class ProfileController {
     private final ReviewService reviewService;
     private final EventInvitationService eventInvitationService;
     private final MessageSource messageSource;
+    private final InboxService inboxService;
 
     @Autowired
     public ProfileController(final UserService userService,
                               final RegistrationService registrationService, final EventService eventService,
                               final FavoriteService favoriteService, final ReviewService reviewService,
                               final EventInvitationService eventInvitationService,
-                              final MessageSource messageSource) {
+                              final MessageSource messageSource, final InboxService inboxService) {
         this.userService = userService;
         this.registrationService = registrationService;
         this.eventService = eventService;
@@ -65,6 +69,7 @@ public class ProfileController {
         this.reviewService = reviewService;
         this.eventInvitationService = eventInvitationService;
         this.messageSource = messageSource;
+        this.inboxService = inboxService;
     }
 
     private String messageFor(final FieldError fieldError) {
@@ -293,6 +298,45 @@ public class ProfileController {
         mav.addObject("favoritesCount", favoriteEvents.size());
         mav.addObject("eventsCount", eventsCountFor(user));
         return mav;
+    }
+
+    // Bandeja de mensajes. Al abrirla se marcan todos como leidos, pero DESPUES
+    // de traer la pagina: los que llegaron desde la ultima vez se muestran como
+    // "nuevo" esta vez, y el numerito de la navbar ya sale en 0.
+    @RequestMapping(value = "/perfil/bandeja", method = RequestMethod.GET)
+    public ModelAndView bandeja(@RequestParam(value = "page", required = false) final String page,
+                                final Principal principal) {
+        final User user = currentUser(principal);
+        final PageResult<InboxMessage> result = inboxService.findPage(user.getEmail(), parsePage(page));
+
+        // El titulo de cada evento, para armar el texto ("Ana se anoto en <titulo>").
+        final Map<Long, Event> eventsById = new HashMap<>();
+        for (final InboxMessage message : result.getContent()) {
+            if (message.getEventId() != null && !eventsById.containsKey(message.getEventId())) {
+                eventService.findById(message.getEventId()).ifPresent(e -> eventsById.put(e.getId(), e));
+            }
+        }
+        inboxService.markAllRead(user.getEmail());
+
+        final ModelAndView mav = new ModelAndView("auth/bandeja");
+        mav.addObject("user", user);
+        mav.addObject("messages", result.getContent());
+        mav.addObject("eventsById", eventsById);
+        mav.addObject("currentPage", result.getPage());
+        mav.addObject("totalPages", result.getTotalPages());
+        mav.addObject("registrationsCount", registrationsCountFor(user));
+        mav.addObject("favoritesCount", favoritesCountFor(user));
+        mav.addObject("eventsCount", eventsCountFor(user));
+        return mav;
+    }
+
+    // Un numero de pagina roto (?page=abc, ?page=-3) no es un error: se muestra la primera.
+    private static int parsePage(final String value) {
+        try {
+            return value == null ? 1 : Math.max(Integer.parseInt(value), 1);
+        } catch (final NumberFormatException e) {
+            return 1;
+        }
     }
 
     @RequestMapping(value = "/perfil/eventos", method = RequestMethod.GET)

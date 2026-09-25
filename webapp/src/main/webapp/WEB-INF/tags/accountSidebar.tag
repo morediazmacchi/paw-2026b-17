@@ -44,6 +44,14 @@
                 <span class="account-sidebar-badge"><c:out value="${favoritesCount}"/></span>
             </c:if>
         </a>
+        <spring:message code="profile.tabs.inbox" var="inboxLabel"/>
+        <a class="account-sidebar-link ${active == 'inbox' ? 'account-sidebar-link-active' : ''}"
+           href="<c:url value='/perfil/bandeja'/>">
+            <paw:icon name="bell"/> <c:out value="${inboxLabel}"/>
+            <c:if test="${unreadInboxCount > 0}">
+                <span class="account-sidebar-badge"><c:out value="${unreadInboxCount}"/></span>
+            </c:if>
+        </a>
         <spring:message code="profile.tabs.events" var="eventsLabel"/>
         <a class="account-sidebar-link ${active == 'events' ? 'account-sidebar-link-active' : ''}"
            href="<c:url value='/perfil/eventos'/>">

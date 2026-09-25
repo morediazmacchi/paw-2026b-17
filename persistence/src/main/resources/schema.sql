@@ -227,3 +227,26 @@ ALTER TABLE event ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP;
 -- para latitud (-90 a 90) y longitud (-180 a 180) con precision de sobra.
 ALTER TABLE event ADD COLUMN IF NOT EXISTS latitude NUMERIC(9,6);
 ALTER TABLE event ADD COLUMN IF NOT EXISTS longitude NUMERIC(9,6);
+
+-- Bandeja de mensajes (/perfil/bandeja): un aviso por cada cosa que le pasa a
+-- alguien (se anoto, lo aceptaron, alguien se dio de baja de su evento...).
+-- Complementa al mail, no lo reemplaza. Por email y no por user_id: a quien
+-- invitaron a un evento privado puede no tener cuenta todavia (mismo criterio
+-- que registration y event_invitation). type = InboxMessageType.name(), sin
+-- CHECK a proposito (mismo criterio que event.visibility): los valores son de
+-- un enum de Java y van a crecer con cada tarea nueva (preguntas, recordatorios).
+-- read_at NULL = sin leer.
+CREATE TABLE IF NOT EXISTS inbox_message (
+    id               SERIAL PRIMARY KEY,
+    recipient_email  VARCHAR(150) NOT NULL,
+    type             VARCHAR(40)  NOT NULL,
+    event_id         INTEGER REFERENCES event(id) ON DELETE CASCADE,
+    actor_name       VARCHAR(150),
+    body             VARCHAR(2000),
+    created_at       TIMESTAMP NOT NULL DEFAULT now(),
+    read_at          TIMESTAMP
+);
+
+-- La bandeja siempre se lee por destinatario y de la mas nueva a la mas vieja.
+CREATE INDEX IF NOT EXISTS idx_inbox_recipient
+    ON inbox_message (recipient_email, created_at);

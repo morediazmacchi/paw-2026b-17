@@ -78,12 +78,27 @@
                                               ubicacion="${event.neighborhood.displayName}" precio="${event.price}"
                                               imagenId="${event.imageId}" cancelado="${event.cancelled}">
                                     <%-- Integrado en la misma card, a la derecha, como el resto de los
-                                         botones de accion (Cancelar en los eventos que vienen). --%>
-                                    <c:if test="${empty myReview and !event.cancelled}">
+                                         botones de accion (Cancelar en los eventos que vienen).
+                                         Solo si tuvo su lugar CONFIRMADO: en lista de espera,
+                                         pendiente o rechazada no fue, y ReviewService lo rechazaria
+                                         igual (NOT_ELIGIBLE). Mejor no ofrecer el boton. --%>
+                                    <c:if test="${empty myReview and !event.cancelled and registration.status == 'CONFIRMED'}">
                                         <button type="button" class="btn btn-medium btn-accent" data-open-modal="reviewModal-${event.id}">
                                             <c:out value="${reviewButtonLabel}"/>
                                         </button>
                                     </c:if>
+                                    <%-- Si no fue (o el evento no ocurrio), en vez del boton se
+                                         explica por que: cancelado, lista de espera, pendiente o
+                                         rechazada. La clave sale del propio estado (PENDING ->
+                                         auth.registrations.pastStatus.PENDING). --%>
+                                    <c:choose>
+                                        <c:when test="${event.cancelled}">
+                                            <span class="pill"><spring:message code="auth.registrations.pastStatus.CANCELLED_EVENT"/></span>
+                                        </c:when>
+                                        <c:when test="${registration.status != 'CONFIRMED'}">
+                                            <span class="pill"><spring:message code="auth.registrations.pastStatus.${registration.status}"/></span>
+                                        </c:when>
+                                    </c:choose>
                                 </paw:eventRow>
 
                                 <c:if test="${not empty myReview}">
@@ -96,7 +111,7 @@
                                     </div>
                                 </c:if>
 
-                                <c:if test="${empty myReview and !event.cancelled}">
+                                <c:if test="${empty myReview and !event.cancelled and registration.status == 'CONFIRMED'}">
                                     <div class="modal-overlay" id="reviewModal-${event.id}" hidden>
                                         <div class="modal-box">
                                             <div class="modal-header">

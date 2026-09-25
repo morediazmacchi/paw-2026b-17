@@ -1,6 +1,10 @@
 package ar.edu.itba.paw.webapp.config;
 
+import ar.edu.itba.paw.services.InboxService;
+import ar.edu.itba.paw.webapp.interceptor.UnreadInboxInterceptor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
@@ -19,6 +23,7 @@ import org.springframework.web.multipart.MultipartResolver;
 import org.springframework.web.multipart.support.StandardServletMultipartResolver;
 import org.springframework.web.servlet.ViewResolver;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import org.springframework.web.servlet.view.InternalResourceViewResolver;
@@ -122,6 +127,20 @@ public class WebConfig implements WebMvcConfigurer {
         dbp.addScript(postgresMigrationsSql);
         dbp.addScript(dataSql);
         return dbp;
+    }
+
+    // @Lazy: esta clase define el DataSource que el propio InboxService necesita
+    // (a traves de su DAO). Sin @Lazy, Spring tendria que crear el service mientras
+    // todavia esta armando esta config. Con @Lazy inyecta un "representante" y
+    // resuelve el service de verdad la primera vez que se usa (en un request).
+    @Autowired
+    @Lazy
+    private InboxService inboxService;
+
+    // El numerito de la bandeja en la navbar de todas las paginas (ver UnreadInboxInterceptor).
+    @Override
+    public void addInterceptors(final InterceptorRegistry registry) {
+        registry.addInterceptor(new UnreadInboxInterceptor(inboxService));
     }
 
     // Esto es lo que mostro Sotuyo en clase: le dice a Spring que las carpetas
