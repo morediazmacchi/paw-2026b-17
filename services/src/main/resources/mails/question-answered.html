@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<!--
+  El organizador respondio MI pregunta -> le llega a quien pregunto.
+  Variables: personName, questionText, answerText, eventTitle, eventDate, eventUrl
+-->
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::content})}">
+<body>
+<th:block th:fragment="content">
+
+  <h1 style="margin:0 0 8px; font-size:22px; line-height:1.3; color:#111827;"
+      th:text="#{mail.questionAnswered.title}">Titulo</h1>
+
+  <p style="margin:0 0 4px; color:#6b7280;"
+     th:text="#{mail.questionAnswered.greeting(${personName})}">Hola</p>
+
+  <p style="margin:0 0 12px;"
+     th:text="#{mail.questionAnswered.body(${eventTitle})}">Cuerpo</p>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+         style="background-color:#f9fafb; border:1px solid #e5e7eb; border-radius:10px; padding:16px; margin:0 0 20px;">
+    <tr><td>
+      <div style="font-size:13px; color:#6b7280; margin-bottom:4px;" th:text="#{mail.questionAnswered.question}">Tu pregunta</div>
+      <div style="font-size:15px; color:#111827; margin-bottom:12px;" th:text="${questionText}">pregunta</div>
+      <div style="font-size:13px; color:#6b7280; margin-bottom:4px;" th:text="#{mail.questionAnswered.answer}">Respuesta</div>
+      <div style="font-size:15px; color:#111827;" th:text="${answerText}">respuesta</div>
+    </td></tr>
+  </table>
+
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0 0;">
+    <tr><td style="background-color:#111827; border-radius:8px;">
+      <a th:href="${eventUrl}" href="#"
+         style="display:inline-block; padding:12px 22px; color:#ffffff;
+                text-decoration:none; font-size:15px; font-weight:600;"
+         th:text="#{mail.questionAnswered.cta}">Ver el evento</a>
+    </td></tr>
+  </table>
+
+</th:block>
+</body>
+</html>

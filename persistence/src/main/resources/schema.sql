@@ -255,3 +255,15 @@ CREATE INDEX IF NOT EXISTS idx_inbox_recipient
 -- no se mando. Sirve para no mandarlo dos veces: la tarea lo "reclama" con un
 -- UPDATE ... WHERE reminder_sent_at IS NULL, y solo quien lo reclamo manda los mails.
 ALTER TABLE event ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMP;
+
+-- Preguntas y respuestas de un evento. answer_text NULL = todavia sin responder.
+-- Se responde con UPDATE ... WHERE answer_text IS NULL: una sola respuesta, nunca se pisa.
+CREATE TABLE IF NOT EXISTS event_question (
+    id            SERIAL PRIMARY KEY,
+    event_id      INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
+    user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    question_text VARCHAR(300) NOT NULL,
+    answer_text   VARCHAR(300),
+    created_at    TIMESTAMP NOT NULL DEFAULT now(),
+    answered_at   TIMESTAMP
+);

@@ -2,6 +2,7 @@ package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventInvitation;
+import ar.edu.itba.paw.model.EventQuestion;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.User;
 
@@ -96,4 +97,10 @@ public interface NotificationService {
 
     /** El evento empieza en menos de 24 hs -> recordatorio a su organizador. */
     void notifyOrganizerEventReminder(Event event);
+
+    /** Alguien pregunto en el evento -> mail al organizador. */
+    void notifyNewQuestion(Event event, EventQuestion question);
+
+    /** El organizador respondio -> mail a quien pregunto. */
+    void notifyQuestionAnswered(Event event, EventQuestion question);
 }

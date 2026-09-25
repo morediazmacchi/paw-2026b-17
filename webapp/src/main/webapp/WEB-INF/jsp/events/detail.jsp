@@ -224,6 +224,99 @@
                     <p class="creator-rating-empty"><spring:message code="event.detail.noCreatorReviews"/></p>
                 </c:otherwise>
             </c:choose>
+
+            <h2 class="detail-section-heading" id="preguntas"><spring:message code="event.questions.heading"/></h2>
+            <c:if test="${not empty questionMessage}">
+                <p class="alert"><spring:message code="event.questions.flash.${questionMessage}"/></p>
+            </c:if>
+
+            <%-- Preguntar: logueado, no organizador, evento abierto. Anonimo: link al login
+                 que vuelve aca. Cerrado: solo el aviso. --%>
+            <c:choose>
+                <c:when test="${not questionsOpen}">
+                    <p class="creator-rating-empty"><spring:message code="event.questions.closed"/></p>
+                </c:when>
+                <c:when test="${isOwner}"></c:when>
+                <c:otherwise>
+                    <sec:authorize access="isAuthenticated()">
+                        <form action="<c:url value='/eventos/${event.id}/preguntas'/>" method="post" novalidate="novalidate">
+                            <div class="form-group">
+                                <label for="question-text"><spring:message code="event.questions.askLabel"/></label>
+                                <textarea id="question-text" name="text" maxlength="300"></textarea>
+                            </div>
+                            <spring:message code="event.questions.askButton" var="askButtonLabel"/>
+                            <paw:button text="${askButtonLabel}" cssClass="btn-accent"/>
+                        </form>
+                    </sec:authorize>
+                    <sec:authorize access="isAnonymous()">
+                        <c:set var="questionsReturnPath" value="/eventos/${event.id}"/>
+                        <c:url value="/login" var="loginToAskUrl">
+                            <c:param name="redirect" value="${questionsReturnPath}"/>
+                        </c:url>
+                        <p><a class="btn-link" href="${loginToAskUrl}"><spring:message code="event.questions.loginToAsk"/></a></p>
+                    </sec:authorize>
+                </c:otherwise>
+            </c:choose>
+
+            <c:choose>
+                <c:when test="${empty questions}">
+                    <p class="creator-rating-empty"><spring:message code="event.questions.empty"/></p>
+                </c:when>
+                <c:otherwise>
+                    <c:forEach var="question" items="${questions}">
+                        <div class="creator-review-item">
+                            <div class="creator-review-event">
+                                <span class="creator-review-event-title">
+                                    <c:choose>
+                                        <c:when test="${not empty question.askerName}"><c:out value="${question.askerName}"/></c:when>
+                                        <c:otherwise><spring:message code="event.questions.unnamedAsker"/></c:otherwise>
+                                    </c:choose>
+                                </span>
+                                <span class="creator-review-date"><fmt:formatDate value="${question.createdAt}" pattern="dd/MM/yyyy"/></span>
+                            </div>
+                            <p class="review-comment"><c:out value="${question.text}"/></p>
+                            <c:choose>
+                                <c:when test="${question.answered}">
+                                    <p class="review-comment question-answer">
+                                        <strong><spring:message code="event.questions.answerPrefix"/></strong>
+                                        <c:out value="${question.answer}"/>
+                                    </p>
+                                </c:when>
+                                <c:when test="${isOwner}">
+                                    <form action="<c:url value='/eventos/${event.id}/preguntas/${question.id}/responder'/>"
+                                          method="post" novalidate="novalidate">
+                                        <div class="form-group">
+                                            <label for="answer-${question.id}"><spring:message code="event.questions.answerLabel"/></label>
+                                            <textarea id="answer-${question.id}" name="text" maxlength="300"></textarea>
+                                        </div>
+                                        <spring:message code="event.questions.answerButton" var="answerButtonLabel"/>
+                                        <paw:button text="${answerButtonLabel}" cssClass="btn-accent"/>
+                                    </form>
+                                </c:when>
+                                <c:otherwise>
+                                    <p class="creator-rating-empty"><spring:message code="event.questions.unanswered"/></p>
+                                </c:otherwise>
+                            </c:choose>
+                        </div>
+                    </c:forEach>
+
+                    <c:if test="${questionsTotalPages > 1}">
+                        <nav class="pager">
+                            <c:if test="${questionsPage > 1}">
+                                <a class="pager-arrow" href="<c:url value='/eventos/${event.id}'><c:param name='preguntasPage' value='${questionsPage - 1}'/></c:url>#preguntas">
+                                    <spring:message code="event.list.prevPage"/>
+                                </a>
+                            </c:if>
+                            <span class="pager-number pager-number-active"><c:out value="${questionsPage}"/> / <c:out value="${questionsTotalPages}"/></span>
+                            <c:if test="${questionsPage < questionsTotalPages}">
+                                <a class="pager-arrow" href="<c:url value='/eventos/${event.id}'><c:param name='preguntasPage' value='${questionsPage + 1}'/></c:url>#preguntas">
+                                    <spring:message code="event.list.nextPage"/>
+                                </a>
+                            </c:if>
+                        </nav>
+                    </c:if>
+                </c:otherwise>
+            </c:choose>
         </div>
 
         <aside class="detail-side">

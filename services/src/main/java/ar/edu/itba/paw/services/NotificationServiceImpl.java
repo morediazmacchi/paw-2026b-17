@@ -2,6 +2,7 @@ package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventInvitation;
+import ar.edu.itba.paw.model.EventQuestion;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.User;
 import org.slf4j.Logger;
@@ -436,6 +437,49 @@ public class NotificationServiceImpl implements NotificationService {
                     DEFAULT_LOCALE);
         } catch (final RuntimeException e) {
             LOGGER.error("Fallo el recordatorio de 24 hs al organizador, evento {}", event.getId(), e);
+        }
+    }
+
+    @Async
+    @Override
+    public void notifyNewQuestion(final Event event, final EventQuestion question) {
+        try {
+            final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
+            variables.put("personName", displayName(null, event.getCreatorEmail()));
+            variables.put("askerName", displayName(question.getAskerName(), question.getAskerEmail()));
+            variables.put("questionText", question.getText());
+            // Directo a la seccion de preguntas del detalle.
+            variables.put("eventUrl", baseUrl + "/eventos/" + event.getId() + "#preguntas");
+
+            mailService.send(event.getCreatorEmail(),
+                    "new-question",
+                    "mail.newQuestion.subject",
+                    new Object[]{ event.getTitle() },
+                    variables,
+                    DEFAULT_LOCALE);
+        } catch (final RuntimeException e) {
+            LOGGER.error("Fallo el aviso de pregunta nueva, evento {}", event.getId(), e);
+        }
+    }
+
+    @Async
+    @Override
+    public void notifyQuestionAnswered(final Event event, final EventQuestion question) {
+        try {
+            final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
+            variables.put("personName", displayName(question.getAskerName(), question.getAskerEmail()));
+            variables.put("questionText", question.getText());
+            variables.put("answerText", question.getAnswer());
+            variables.put("eventUrl", baseUrl + "/eventos/" + event.getId() + "#preguntas");
+
+            mailService.send(question.getAskerEmail(),
+                    "question-answered",
+                    "mail.questionAnswered.subject",
+                    new Object[]{ event.getTitle() },
+                    variables,
+                    DEFAULT_LOCALE);
+        } catch (final RuntimeException e) {
+            LOGGER.error("Fallo el aviso de pregunta respondida, evento {}", event.getId(), e);
         }
     }
 

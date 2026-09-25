@@ -2198,3 +2198,10 @@ button.btn-accent {
     color: var(--text-muted);
     font-size: 0.8rem;
 }
+
+/* Respuesta del organizador debajo de su pregunta (detail.jsp, #preguntas). */
+.question-answer {
+    margin-left: 16px;
+    padding-left: 12px;
+    border-left: 2px solid #e5e7eb;
+}

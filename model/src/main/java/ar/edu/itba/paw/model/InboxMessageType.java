@@ -24,5 +24,9 @@ public enum InboxMessageType {
     WAITLIST_ACCEPTED,
     WAITLIST_DECLINED,
     // Recordatorio automatico para el organizador: su evento empieza en menos de 24 hs.
-    EVENT_TOMORROW
+    EVENT_TOMORROW,
+    // Al organizador: alguien pregunto en su evento.
+    NEW_QUESTION,
+    // A quien pregunto: el organizador le respondio.
+    QUESTION_ANSWERED
 }

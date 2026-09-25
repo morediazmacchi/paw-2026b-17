@@ -4,6 +4,7 @@ import ar.edu.itba.paw.model.Barrio;
 import ar.edu.itba.paw.model.Category;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventCategoryInfo;
+import ar.edu.itba.paw.model.EventQuestion;
 import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.EventSort;
 import ar.edu.itba.paw.model.EventVisibility;
@@ -13,13 +14,16 @@ import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.Review;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.CategoryService;
+import ar.edu.itba.paw.services.AnswerResult;
 import ar.edu.itba.paw.services.EventCancelResult;
 import ar.edu.itba.paw.services.EventInvitationService;
+import ar.edu.itba.paw.services.EventQuestionService;
 import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.EventUpdateResult;
 import ar.edu.itba.paw.services.FavoriteService;
 import ar.edu.itba.paw.services.ImageService;
 import ar.edu.itba.paw.services.PageResult;
+import ar.edu.itba.paw.services.QuestionResult;
 import ar.edu.itba.paw.services.RegistrationResult;
 import ar.edu.itba.paw.services.RegistrationService;
 import ar.edu.itba.paw.services.ReviewService;
@@ -27,6 +31,7 @@ import ar.edu.itba.paw.services.UserService;
 import ar.edu.itba.paw.webapp.exception.EventNotFoundException;
 import ar.edu.itba.paw.webapp.form.CategoriaSeleccionForm;
 import ar.edu.itba.paw.webapp.form.EventForm;
+import ar.edu.itba.paw.webapp.form.QuestionForm;
 import ar.edu.itba.paw.webapp.util.SafeRedirect;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
@@ -79,6 +84,7 @@ public class EventController {
     private final FavoriteService favoriteService;
     private final ReviewService reviewService;
     private final EventInvitationService eventInvitationService;
+    private final EventQuestionService eventQuestionService;
     private final MessageSource messageSource;
 
     @Autowired
@@ -86,7 +92,7 @@ public class EventController {
                             final RegistrationService registrationService, final ImageService imageService,
                             final UserService userService, final FavoriteService favoriteService,
                             final ReviewService reviewService, final EventInvitationService eventInvitationService,
-                            final MessageSource messageSource) {
+                            final EventQuestionService eventQuestionService, final MessageSource messageSource) {
         this.eventService = eventService;
         this.categoryService = categoryService;
         this.registrationService = registrationService;
@@ -95,6 +101,7 @@ public class EventController {
         this.favoriteService = favoriteService;
         this.reviewService = reviewService;
         this.eventInvitationService = eventInvitationService;
+        this.eventQuestionService = eventQuestionService;
         this.messageSource = messageSource;
     }
 
@@ -373,7 +380,9 @@ public class EventController {
     }
 
     @RequestMapping(value = "/eventos/{id}", method = RequestMethod.GET)
-    public ModelAndView detail(@PathVariable final long id, final Principal principal) {
+    public ModelAndView detail(@PathVariable final long id,
+                                @RequestParam(value = "preguntasPage", required = false) final String preguntasPage,
+                                final Principal principal) {
         final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
         // Privado y sin sesion: todavia no sabemos quien sos. Al login, y de
         // vuelta aca (WebAuthConfig.loginSuccessHandler) para chequear si estas invitado.
@@ -417,6 +426,12 @@ public class EventController {
             mav.addObject("isOwner", event.getCreatorEmail().equalsIgnoreCase(user.getEmail()));
         }
         addCreatorReputation(mav, event.getCreatorEmail());
+        final PageResult<EventQuestion> questions = eventQuestionService.findPage(id, parsePage(preguntasPage));
+        mav.addObject("questions", questions.getContent());
+        mav.addObject("questionsPage", questions.getPage());
+        mav.addObject("questionsTotalPages", questions.getTotalPages());
+        // Mismo criterio que el service: pasado o cancelado ya no recibe preguntas.
+        mav.addObject("questionsOpen", !event.isCancelled() && event.getEventDate().after(new Date()));
         return mav;
     }
 
@@ -765,6 +780,43 @@ public class EventController {
         }
         redirectAttributes.addFlashAttribute("rsvp", rsvpParam);
         return new ModelAndView("redirect:/eventos/" + id);
+    }
+
+    // Preguntar. No hace falta tocar WebAuthConfig: no esta en el permitAll, asi
+    // que ya exige estar logueado. El resultado vuelve como flash attribute
+    // "questionMessage" y detail.jsp elige el cartel con eso.
+    @RequestMapping(value = "/eventos/{id}/preguntas", method = RequestMethod.POST)
+    public ModelAndView ask(@PathVariable final long id, @Valid final QuestionForm form,
+                            final BindingResult errors, final Principal principal,
+                            final RedirectAttributes redirectAttributes) {
+        final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
+        // Mismo chequeo que el detalle: en un privado, solo quien puede verlo pregunta.
+        final Optional<Registration> myRegistration =
+                registrationService.findByEventAndEmail(id, principal.getName());
+        if (!canView(event, principal, myRegistration)) {
+            throw new EventNotFoundException(id);
+        }
+        if (errors.hasErrors()) {
+            redirectAttributes.addFlashAttribute("questionMessage", "INVALID");
+        } else {
+            final QuestionResult result = eventQuestionService.ask(id, currentUser(principal), form.getText());
+            redirectAttributes.addFlashAttribute("questionMessage", result.name());
+        }
+        return new ModelAndView("redirect:/eventos/" + id + "#preguntas");
+    }
+
+    // Responder. Que quien responde sea el organizador lo chequea el service.
+    @RequestMapping(value = "/eventos/{id}/preguntas/{questionId}/responder", method = RequestMethod.POST)
+    public ModelAndView answer(@PathVariable final long id, @PathVariable final long questionId,
+                               @Valid final QuestionForm form, final BindingResult errors,
+                               final Principal principal, final RedirectAttributes redirectAttributes) {
+        if (errors.hasErrors()) {
+            redirectAttributes.addFlashAttribute("questionMessage", "INVALID");
+        } else {
+            final AnswerResult result = eventQuestionService.answer(id, questionId, principal.getName(), form.getText());
+            redirectAttributes.addFlashAttribute("questionMessage", result.name());
+        }
+        return new ModelAndView("redirect:/eventos/" + id + "#preguntas");
     }
 
     // Busca el evento y confirma que quien esta pidiendolo es su creador. Si no
