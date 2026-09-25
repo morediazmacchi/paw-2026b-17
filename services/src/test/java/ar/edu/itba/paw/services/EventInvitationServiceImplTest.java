@@ -72,7 +72,7 @@ public class EventInvitationServiceImplTest {
 
     @Test
     public void testInviteCreatesTheInvitationWithTheNormalizedEmail() {
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
         when(mockInvitationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
 
         final EventInvitationResult result = invitationService.invite(EVENT_ID, CREATOR_EMAIL, INVITEE_EMAIL);
@@ -93,7 +93,7 @@ public class EventInvitationServiceImplTest {
      */
     @Test
     public void testInviteGeneratesANonEmptyToken() {
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
         when(mockInvitationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
 
         invitationService.invite(EVENT_ID, CREATOR_EMAIL, INVITEE_EMAIL);
@@ -106,7 +106,7 @@ public class EventInvitationServiceImplTest {
     @Test
     public void testInviteSendsTheNotification() {
         final Event event = privateEvent();
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(event));
         when(mockInvitationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
 
         invitationService.invite(EVENT_ID, CREATOR_EMAIL, INVITEE_EMAIL);
@@ -116,7 +116,7 @@ public class EventInvitationServiceImplTest {
 
     @Test
     public void testInviteLeavesAMessageInTheInviteesInbox() {
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
         when(mockInvitationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
 
         invitationService.invite(EVENT_ID, CREATOR_EMAIL, INVITEE_EMAIL);
@@ -126,7 +126,7 @@ public class EventInvitationServiceImplTest {
 
     @Test
     public void testInviteReturnsAlreadyInvitedWhenThatEmailIsAlreadyInvited() {
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
         when(mockInvitationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_INVITEE_EMAIL))
                 .thenReturn(Optional.of(new EventInvitation(EVENT_ID, NORMALIZED_INVITEE_EMAIL, "tok", CREATOR_EMAIL)));
 
@@ -138,7 +138,7 @@ public class EventInvitationServiceImplTest {
 
     @Test
     public void testInviteReturnsNotAllowedWhenTheEventIsNotPrivate() {
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(publicEvent()));
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(publicEvent()));
 
         final EventInvitationResult result = invitationService.invite(EVENT_ID, CREATOR_EMAIL, INVITEE_EMAIL);
 
@@ -148,7 +148,7 @@ public class EventInvitationServiceImplTest {
 
     @Test
     public void testInviteReturnsNotAllowedWhenTheRequesterIsNotTheCreator() {
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
 
         final EventInvitationResult result = invitationService.invite(EVENT_ID, "otro@mail.com", INVITEE_EMAIL);
 
@@ -158,7 +158,7 @@ public class EventInvitationServiceImplTest {
 
     @Test
     public void testInviteReturnsNotAllowedWhenTheEventDoesNotExist() {
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.empty());
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.empty());
 
         final EventInvitationResult result = invitationService.invite(EVENT_ID, CREATOR_EMAIL, INVITEE_EMAIL);
 
@@ -220,7 +220,7 @@ public class EventInvitationServiceImplTest {
     public void testInviteReturnsFullWhenConfirmedPlusInvitationsReachTheCapacity() {
         final Event event = privateEvent();
         event.setMaxCapacity(3);
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(event));
         when(mockInvitationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
         when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(1L);
         when(mockInvitationDao.countOutstanding(EVENT_ID)).thenReturn(2L);
@@ -234,7 +234,7 @@ public class EventInvitationServiceImplTest {
     public void testInviteStillWorksWhileThereIsRoomLeft() {
         final Event event = privateEvent();
         event.setMaxCapacity(3);
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(event));
         when(mockInvitationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
         when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(1L);
         when(mockInvitationDao.countOutstanding(EVENT_ID)).thenReturn(1L);

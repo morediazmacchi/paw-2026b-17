@@ -561,8 +561,7 @@ public class EventController {
         event.setCategories(categorias);
         event.setRequiresApproval(form.isRequiereAprobacion());
         event.setVisibility(form.isPrivado() ? EventVisibility.PRIVATE : EventVisibility.PUBLIC);
-        event.setLatitude(parseCoordinate(form.getLatitud()));
-        event.setLongitude(parseCoordinate(form.getLongitud()));
+        applyPin(event, form);
         try {
             eventService.create(event);
         } catch (final IllegalArgumentException e) {
@@ -592,6 +591,21 @@ public class EventController {
         }
         final String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+
+    // Pin del mapa (opcional): solo se guarda si llegan las DOS coordenadas, son
+    // numeros y estan dentro de rango (latitud -90..90, longitud -180..180). Fuera de
+    // eso se ignora en silencio, como una coordenada no numerica: es un dato
+    // opcional, y un valor absurdo (o que no entra en NUMERIC(9,6)) no tiene que
+    // tumbar la publicacion ni guardarse a medias.
+    private static void applyPin(final Event event, final EventForm form) {
+        final Double latitude = parseCoordinate(form.getLatitud());
+        final Double longitude = parseCoordinate(form.getLongitud());
+        final boolean valid = latitude != null && longitude != null
+                && latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180;
+        event.setLatitude(valid ? latitude : null);
+        event.setLongitude(valid ? longitude : null);
     }
 
     // El pin del mapa (latitud/longitud) es un campo oculto que solo el JS
@@ -773,9 +787,13 @@ public class EventController {
         // de saber que cartel corresponde ("te diste de baja del evento",
         // "saliste de la lista de espera" o "cancelaste tu pedido pendiente").
         final RegistrationStatus status = registration.map(Registration::getStatus).orElse(null);
-        registration.ifPresent(r -> registrationService.cancel(r.getId(), user.getEmail()));
+        final boolean cancelled = registration
+                .map(r -> registrationService.cancel(r.getId(), user.getEmail())).orElse(false);
         final String rsvpParam;
-        if (status == RegistrationStatus.WAITLISTED) {
+        if (registration.isPresent() && !cancelled && status == RegistrationStatus.REJECTED) {
+            // Un rechazado no puede darse de baja: la fila es lo que le impide volver a anotarse.
+            rsvpParam = "rechazado";
+        } else if (status == RegistrationStatus.WAITLISTED) {
             rsvpParam = "baja-waitlist";
         } else if (status == RegistrationStatus.PENDING) {
             rsvpParam = "baja-pendiente";
@@ -949,8 +967,7 @@ public class EventController {
         changes.setCategories(categorias);
         changes.setRequiresApproval(form.isRequiereAprobacion());
         changes.setVisibility(form.isPrivado() ? EventVisibility.PRIVATE : EventVisibility.PUBLIC);
-        changes.setLatitude(parseCoordinate(form.getLatitud()));
-        changes.setLongitude(parseCoordinate(form.getLongitud()));
+        applyPin(changes, form);
         final EventUpdateResult result = eventService.update(id, changes, principal.getName());
         switch (result) {
             case CAPACITY_TOO_LOW:

@@ -318,7 +318,7 @@ public class RegistrationServiceImplTest {
     public void testCancelTellsTheOrganizerThatTheSpotIsOpenWhenNobodyWasWaiting() {
         when(mockRegistrationDao.findById(REGISTRATION_ID))
                 .thenReturn(Optional.of(registrationWith(RegistrationStatus.CONFIRMED)));
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(10)));
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(10)));
 
         registrationService.cancel(REGISTRATION_ID, NORMALIZED_EMAIL);
 
@@ -331,7 +331,6 @@ public class RegistrationServiceImplTest {
     public void testCancelTellsTheOrganizerWhenTheSpotWentToTheWaitlist() {
         when(mockRegistrationDao.findById(REGISTRATION_ID))
                 .thenReturn(Optional.of(registrationWith(RegistrationStatus.CONFIRMED)));
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(10)));
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(10)));
         final Registration waiting = registrationWith(RegistrationStatus.WAITLISTED);
         waiting.setId(99);
@@ -348,6 +347,7 @@ public class RegistrationServiceImplTest {
     public void testCancelDoesNotNotifyWhenSomeoneLeavesTheWaitlist() {
         when(mockRegistrationDao.findById(REGISTRATION_ID))
                 .thenReturn(Optional.of(registrationWith(RegistrationStatus.WAITLISTED)));
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(10)));
 
         registrationService.cancel(REGISTRATION_ID, NORMALIZED_EMAIL);
 
@@ -402,7 +402,7 @@ public class RegistrationServiceImplTest {
     public void testCancelOfAConfirmedRegistrationTellsTheOrganizerInTheInbox() {
         when(mockRegistrationDao.findById(REGISTRATION_ID))
                 .thenReturn(Optional.of(registrationWith(RegistrationStatus.CONFIRMED)));
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(10)));
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(10)));
 
         registrationService.cancel(REGISTRATION_ID, NORMALIZED_EMAIL);
 
@@ -413,7 +413,7 @@ public class RegistrationServiceImplTest {
     public void testCancelOfAPendingRequestTellsTheOrganizerInTheInboxButSendsNoMail() {
         when(mockRegistrationDao.findById(REGISTRATION_ID))
                 .thenReturn(Optional.of(registrationWith(RegistrationStatus.PENDING)));
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(10)));
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(10)));
 
         registrationService.cancel(REGISTRATION_ID, NORMALIZED_EMAIL);
 
@@ -426,6 +426,7 @@ public class RegistrationServiceImplTest {
     public void testCancelFromTheWaitlistDoesNotTellTheOrganizer() {
         when(mockRegistrationDao.findById(REGISTRATION_ID))
                 .thenReturn(Optional.of(registrationWith(RegistrationStatus.WAITLISTED)));
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(10)));
 
         registrationService.cancel(REGISTRATION_ID, NORMALIZED_EMAIL);
 
@@ -580,11 +581,40 @@ public class RegistrationServiceImplTest {
         final Registration registration = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, RegistrationStatus.CONFIRMED);
         registration.setId(5);
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(10)));
 
         final boolean result = registrationService.cancel(5, NORMALIZED_EMAIL);
 
         assertTrue(result);
         verify(mockRegistrationDao).delete(5);
+    }
+
+    // Un rechazado / revocado no puede "darse de baja": si borrara su fila se saltearia
+    // el rechazo (y podria volver a anotarse).
+    @Test
+    public void testCancelReturnsFalseAndKeepsTheRowWhenTheRegistrationWasRejected() {
+        final Registration registration = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, RegistrationStatus.REJECTED);
+        registration.setId(5);
+        when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(10)));
+
+        assertFalse(registrationService.cancel(5, NORMALIZED_EMAIL));
+        verify(mockRegistrationDao, never()).delete(anyLong());
+    }
+
+    // Orden de locks: el evento se bloquea ANTES de tocar (borrar) la inscripcion.
+    @Test
+    public void testCancelLocksTheEventBeforeDeletingTheRegistration() {
+        final Registration registration = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, RegistrationStatus.CONFIRMED);
+        registration.setId(5);
+        when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(10)));
+
+        registrationService.cancel(5, NORMALIZED_EMAIL);
+
+        final org.mockito.InOrder inOrder = org.mockito.Mockito.inOrder(mockEventDao, mockRegistrationDao);
+        inOrder.verify(mockEventDao).findByIdForUpdate(EVENT_ID);
+        inOrder.verify(mockRegistrationDao).delete(5);
     }
 
     @Test
@@ -788,6 +818,7 @@ public class RegistrationServiceImplTest {
         registration.setId(5);
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
         when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(null)));
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(null)));
 
         final boolean result = registrationService.reject(5, CREATOR_EMAIL);
 
@@ -803,6 +834,7 @@ public class RegistrationServiceImplTest {
         registration.setId(5);
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
         when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(null)));
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(null)));
 
         registrationService.reject(5, CREATOR_EMAIL);
 
@@ -842,7 +874,6 @@ public class RegistrationServiceImplTest {
     @Test
     public void testRevokeMarksAConfirmedRegistrationAsRejectedAndTellsThePerson() {
         when(mockRegistrationDao.findById(7)).thenReturn(Optional.of(confirmedRegistration(7, NORMALIZED_EMAIL)));
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(10)));
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(10)));
 
         assertTrue(registrationService.revoke(7, CREATOR_EMAIL));
@@ -857,7 +888,6 @@ public class RegistrationServiceImplTest {
     @Test
     public void testRevokePromotesTheFirstPersonOnTheWaitlist() {
         when(mockRegistrationDao.findById(7)).thenReturn(Optional.of(confirmedRegistration(7, NORMALIZED_EMAIL)));
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(2)));
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(2)));
         // Con el lugar revocado ya no cuenta como confirmado: queda 1 de 2.
         when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(1L);
@@ -882,7 +912,7 @@ public class RegistrationServiceImplTest {
     @Test
     public void testRevokeReturnsFalseWhenTheEventBelongsToSomeoneElse() {
         when(mockRegistrationDao.findById(7)).thenReturn(Optional.of(confirmedRegistration(7, NORMALIZED_EMAIL)));
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(10)));
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(10)));
 
         assertFalse(registrationService.revoke(7, "otro@mail.com"));
         verify(mockRegistrationDao, never()).updateStatus(anyLong(), any());

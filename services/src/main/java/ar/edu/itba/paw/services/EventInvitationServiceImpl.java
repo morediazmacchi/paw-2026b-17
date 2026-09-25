@@ -46,7 +46,9 @@ public class EventInvitationServiceImpl implements EventInvitationService {
     @Override
     @Transactional
     public EventInvitationResult invite(final long eventId, final String creatorEmail, final String inviteeEmail) {
-        final Event event = eventDao.findById(eventId).orElse(null);
+        // Con lock: dos invitaciones simultaneas no pueden pasar el cupo (cada una
+        // reserva un lugar y se cuenta contra el cupo).
+        final Event event = eventDao.findByIdForUpdate(eventId).orElse(null);
         if (event == null || !event.isPrivate() || !event.getCreatorEmail().equalsIgnoreCase(creatorEmail.trim())) {
             return EventInvitationResult.NOT_ALLOWED;
         }

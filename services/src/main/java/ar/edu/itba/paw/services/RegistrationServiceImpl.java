@@ -240,12 +240,29 @@ public class RegistrationServiceImpl implements RegistrationService {
     @Override
     @Transactional
     public boolean cancel(final long registrationId, final String email) {
-        final Optional<Registration> registration = registrationDao.findById(registrationId);
-        if (!registration.isPresent() || !registration.get().getEmail().equalsIgnoreCase(email.trim())) {
+        final Registration unlocked = registrationDao.findById(registrationId).orElse(null);
+        if (unlocked == null || !unlocked.getEmail().equalsIgnoreCase(email.trim())) {
             return false;
         }
-        final Registration cancelled = registration.get();
-        final long eventId = cancelled.getEventId();
+        final long eventId = unlocked.getEventId();
+        // REGLA DE ORDEN DE LOCKS (igual en register/approve/reject/revoke/cancel/
+        // promote): primero la fila del evento, despues las de registration. Si una
+        // operacion agarrara una inscripcion y recien despues pidiera el evento, otra
+        // que ya lo tiene y quiere esa misma inscripcion la esperaria: deadlock.
+        final Event event = eventDao.findByIdForUpdate(eventId).orElse(null);
+        // Se vuelve a leer ya con el lock: mientras esperaba, el organizador pudo
+        // aceptarla, revocarla, etc.
+        final Registration cancelled = registrationDao.findById(registrationId).orElse(null);
+        if (event == null || cancelled == null) {
+            return false;
+        }
+        // Una inscripcion rechazada o revocada es un estado terminal: la fila es
+        // justamente lo que le impide volver a anotarse. Si pudiera "darse de baja"
+        // la borraria y se saltearia el rechazo (ademas de reactivar la invitacion
+        // que hubiera tenido a un evento privado).
+        if (cancelled.getStatus() == RegistrationStatus.REJECTED) {
+            return false;
+        }
         // Se mira ANTES de borrar: despues la fila ya no existe.
         final boolean wasConfirmed = cancelled.getStatus() == RegistrationStatus.CONFIRMED;
         // Al organizador le importa tambien si se baja alguien pendiente: tenia
@@ -255,7 +272,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         registrationDao.delete(registrationId);
         // Si se libero un lugar de verdad, el primero de la lista de espera lo
         // ocupa enseguida. Va en la misma transaccion: o pasan las dos cosas o no
-        // pasa ninguna. Devuelve a cuantos confirmo, para poder contarselo al
+        // pasa ninguna. Devuelve a cuantos movio, para poder contarselo al
         // organizador sin volver a consultar. Que se vaya alguien pendiente o de
         // la lista de espera no libera nada: no ocupaban cupo.
         final int promoted = wasConfirmed ? promoteFromWaitlist(eventId) : 0;
@@ -264,13 +281,11 @@ public class RegistrationServiceImpl implements RegistrationService {
         // lista de espera no le cambia nada al organizador: el cupo disponible
         // era el mismo antes y despues.
         if (wasConfirmed) {
-            eventDao.findById(eventId).ifPresent(event ->
-                    notificationService.notifyRegistrationCancelled(event, cancelled, promoted > 0));
+            notificationService.notifyRegistrationCancelled(event, cancelled, promoted > 0);
         }
         if (organizerCares) {
-            eventDao.findById(eventId).ifPresent(event ->
-                    inboxService.add(event.getCreatorEmail(), InboxMessageType.REGISTRATION_CANCELLED, eventId,
-                            cancelled.getDisplayName(), null));
+            inboxService.add(event.getCreatorEmail(), InboxMessageType.REGISTRATION_CANCELLED, eventId,
+                    cancelled.getDisplayName(), null);
         }
         return true;
     }
@@ -299,13 +314,22 @@ public class RegistrationServiceImpl implements RegistrationService {
     @Override
     @Transactional
     public ApprovalResult approve(final long registrationId, final String creatorEmail) {
-        final Registration registration = pendingOwnedBy(registrationId, creatorEmail).orElse(null);
-        if (registration == null) {
+        final Registration unlocked = pendingOwnedBy(registrationId, creatorEmail).orElse(null);
+        if (unlocked == null) {
             return ApprovalResult.NOT_FOUND;
         }
         // Bloquea el evento: dos aceptaciones simultaneas no pueden pasarse del cupo.
-        final Event event = eventDao.findByIdForUpdate(registration.getEventId()).orElse(null);
+        final Event event = eventDao.findByIdForUpdate(unlocked.getEventId()).orElse(null);
         if (event == null) {
+            return ApprovalResult.NOT_FOUND;
+        }
+        // Se vuelve a leer ya con el lock: mientras esperaba, otra aceptacion o un
+        // rechazo del mismo pedido pudo haberlo cambiado (y no hay que aceptarlo, ni
+        // mandar el mail, dos veces).
+        final Registration registration = registrationDao.findById(registrationId)
+                .filter(r -> r.getStatus() == RegistrationStatus.PENDING)
+                .orElse(null);
+        if (registration == null) {
             return ApprovalResult.NOT_FOUND;
         }
         // El organizador mira todos los pedidos y acepta hasta que se llena el
@@ -339,15 +363,26 @@ public class RegistrationServiceImpl implements RegistrationService {
     @Override
     @Transactional
     public boolean reject(final long registrationId, final String creatorEmail) {
-        final Registration registration = pendingOwnedBy(registrationId, creatorEmail).orElse(null);
+        final Registration unlocked = pendingOwnedBy(registrationId, creatorEmail).orElse(null);
+        if (unlocked == null) {
+            return false;
+        }
+        // Evento primero (ver cancel()): ademas serializa esto con una aceptacion
+        // simultanea del mismo pedido.
+        final long eventId = unlocked.getEventId();
+        final Event event = eventDao.findByIdForUpdate(eventId).orElse(null);
+        if (event == null) {
+            return false;
+        }
+        final Registration registration = registrationDao.findById(registrationId)
+                .filter(r -> r.getStatus() == RegistrationStatus.PENDING)
+                .orElse(null);
         if (registration == null) {
             return false;
         }
         registrationDao.updateStatus(registrationId, RegistrationStatus.REJECTED);
         registration.setStatus(RegistrationStatus.REJECTED);
-        final long eventId = registration.getEventId();
-        eventDao.findById(eventId)
-                .ifPresent(event -> notificationService.notifyRegistrationRejected(event, registration));
+        notificationService.notifyRegistrationRejected(event, registration);
         inboxService.add(registration.getEmail(), InboxMessageType.REQUEST_REJECTED, eventId, null, null);
         // Un pedido pendiente no ocupaba cupo: rechazarlo no libera ningun lugar.
         return true;
@@ -356,18 +391,29 @@ public class RegistrationServiceImpl implements RegistrationService {
     @Override
     @Transactional
     public boolean revoke(final long registrationId, final String creatorEmail) {
+        final Registration unlocked = registrationDao.findById(registrationId).orElse(null);
+        if (unlocked == null) {
+            return false;
+        }
+        // El evento se bloquea ANTES de tocar nada: escribir en la bandeja toma un
+        // lock compartido sobre la fila del evento, y si dos revocaciones simultaneas
+        // lo tomaran antes de pedir el lock exclusivo (en promoteFromWaitlist), cada
+        // una esperaria a la otra: deadlock.
+        final long eventId = unlocked.getEventId();
+        final Event event = eventDao.findByIdForUpdate(eventId).orElse(null);
+        if (event == null || !event.getCreatorEmail().equalsIgnoreCase(creatorEmail.trim())) {
+            return false;
+        }
+        // Se vuelve a leer ya con el lock (otra operacion pudo cambiarla mientras esperaba).
         final Registration registration = registrationDao.findById(registrationId)
                 .filter(r -> r.getStatus() == RegistrationStatus.CONFIRMED)
-                .filter(r -> ownsEvent(r.getEventId(), creatorEmail))
                 .orElse(null);
         if (registration == null) {
             return false;
         }
-        final long eventId = registration.getEventId();
         registrationDao.updateStatus(registrationId, RegistrationStatus.REJECTED);
         registration.setStatus(RegistrationStatus.REJECTED);
-        eventDao.findById(eventId)
-                .ifPresent(event -> notificationService.notifyRegistrationRevoked(event, registration));
+        notificationService.notifyRegistrationRevoked(event, registration);
         inboxService.add(registration.getEmail(), InboxMessageType.REGISTRATION_REVOKED, eventId, null, null);
         // El lugar que quedo libre se lo lleva el primero de la lista de espera.
         promoteFromWaitlist(eventId);
