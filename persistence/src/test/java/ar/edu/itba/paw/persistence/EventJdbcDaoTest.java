@@ -530,7 +530,7 @@ public class EventJdbcDaoTest {
         final long id = eventDao.create(new Event(TITLE, null, future, address,
                 Barrio.PALERMO, null, BigDecimal.ZERO, capacity, CREATOR_EMAIL, Collections.singletonList(categoryId))).getId();
         for (int i = 0; i < confirmed; i++) {
-            insertRegistration(id, "conf" + i + "-" + id + "@mail.com", "confirmed");
+            insertRegistration(id, "conf" + i + "-" + id + "@mail.com", "CONFIRMED");
         }
         return id;
     }
@@ -584,7 +584,7 @@ public class EventJdbcDaoTest {
     public void testSearchWithFewSpotsLeftDoesNotCountPeopleOnTheWaitlist() {
         final long eventId = eventWith(10, 3, "Con lista de espera");
         for (int i = 0; i < 4; i++) {
-            insertRegistration(eventId, "wl" + i + "@mail.com", "waitlisted");
+            insertRegistration(eventId, "wl" + i + "@mail.com", "WAITLISTED");
         }
 
         // 7 libres: los de la lista de espera no ocupan cupo, asi que NO entra.
@@ -596,7 +596,7 @@ public class EventJdbcDaoTest {
         final long eventId = eventWith(10, 3, "Con invitaciones");
         for (int i = 0; i < 4; i++) {
             final String email = "wl" + i + "@mail.com";
-            insertRegistration(eventId, email, "waitlisted");
+            insertRegistration(eventId, email, "WAITLISTED");
             insertPendingInvitation(registrationId(eventId, email));
         }
 
@@ -628,7 +628,7 @@ public class EventJdbcDaoTest {
         // organizador decida).
         final long eventId = eventWith(10, 3, "Con pendientes");
         for (int i = 0; i < 4; i++) {
-            insertRegistration(eventId, "pend" + i + "@mail.com", "pending");
+            insertRegistration(eventId, "pend" + i + "@mail.com", "PENDING");
         }
 
         final List<Long> ids = idsOf(eventDao.search(fewSpotsCriteria()));
@@ -689,11 +689,11 @@ public class EventJdbcDaoTest {
         // 2 pendientes de aprobacion + 1 invitacion sin contestar. La lista de
         // espera sin invitacion NO ocupa lugar.
         final long reservado = eventWith(10, 5, "Con reservas");
-        insertRegistration(reservado, "pend1@mail.com", "pending");
-        insertRegistration(reservado, "pend2@mail.com", "pending");
-        insertRegistration(reservado, "wl1@mail.com", "waitlisted");
+        insertRegistration(reservado, "pend1@mail.com", "PENDING");
+        insertRegistration(reservado, "pend2@mail.com", "PENDING");
+        insertRegistration(reservado, "wl1@mail.com", "WAITLISTED");
         insertPendingInvitation(registrationId(reservado, "wl1@mail.com"));
-        insertRegistration(reservado, "wl2@mail.com", "waitlisted");
+        insertRegistration(reservado, "wl2@mail.com", "WAITLISTED");
         final long cincoLibres = eventWith(10, 5, "Cinco libres");
 
         assertEquals(Arrays.asList(reservado, cincoLibres), idsOf(eventDao.search(sortedBy(EventSort.CUPOS_ASC))));
@@ -745,8 +745,8 @@ public class EventJdbcDaoTest {
     public void testSearchWithSoldOutKeepsOnlyEventsWithoutSpotsLeft() {
         final long lleno = eventWith(10, 10, "Lleno");
         final long llenoConReservas = eventWith(10, 8, "Lleno con reservas");
-        insertRegistration(llenoConReservas, "pend1@mail.com", "pending");
-        insertRegistration(llenoConReservas, "pend2@mail.com", "pending");
+        insertRegistration(llenoConReservas, "pend1@mail.com", "PENDING");
+        insertRegistration(llenoConReservas, "pend2@mail.com", "PENDING");
         eventWith(10, 9, "Un libre");
         eventWith(null, 50, "Sin limite");
 

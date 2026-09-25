@@ -3,6 +3,7 @@ package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.Registration;
+import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.RegistrationDao;
 import org.slf4j.Logger;
@@ -71,7 +72,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         // de espera. El orden de la lista sale de registration.registered_at, que
         // la base completa sola, asi que no hay ninguna posicion que guardar.
         final boolean full = isFull(event);
-        final String status = registrationStatus(event, full);
+        final RegistrationStatus status = registrationStatus(event, full);
 
         // Si viola el UNIQUE(event_id, email), se propaga: quien llama reintenta en otra transaccion.
         final Registration registration = new Registration(eventId, normalizedEmail, name, status);
@@ -90,7 +91,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         if (full) {
             notificationService.notifyWaitlistJoined(event, registration);
             notificationService.notifyNewWaitlistEntry(event, registration);
-        } else if (Registration.STATUS_PENDING.equals(status)) {
+        } else if (status == RegistrationStatus.PENDING) {
             notificationService.notifyRegistrationPending(event, registration);
             notificationService.notifyNewPendingRegistration(event, registration);
         } else {
@@ -112,14 +113,14 @@ public class RegistrationServiceImpl implements RegistrationService {
     // Se distingue el caso porque el cartel no dice lo mismo: "ya estabas
     // anotado" (tenes lugar) vs "ya estas en la lista de espera" vs "todavia
     // estan revisando tu pedido" vs "ya te habian rechazado".
-    private static RegistrationResult alreadyExistsResult(final String status) {
-        if (Registration.STATUS_WAITLISTED.equals(status)) {
+    private static RegistrationResult alreadyExistsResult(final RegistrationStatus status) {
+        if (status == RegistrationStatus.WAITLISTED) {
             return RegistrationResult.ALREADY_WAITLISTED;
         }
-        if (Registration.STATUS_PENDING.equals(status)) {
+        if (status == RegistrationStatus.PENDING) {
             return RegistrationResult.ALREADY_PENDING;
         }
-        if (Registration.STATUS_REJECTED.equals(status)) {
+        if (status == RegistrationStatus.REJECTED) {
             return RegistrationResult.REJECTED;
         }
         return RegistrationResult.ALREADY_REGISTERED;
@@ -128,18 +129,18 @@ public class RegistrationServiceImpl implements RegistrationService {
     // Sin lugar -> lista de espera (gana siempre: no tiene sentido "pending"
     // sin cupo todavia). Con lugar y el evento pide confirmacion -> pending.
     // Con lugar y no pide confirmacion -> confirmed, como siempre.
-    private static String registrationStatus(final Event event, final boolean full) {
+    private static RegistrationStatus registrationStatus(final Event event, final boolean full) {
         if (full) {
-            return Registration.STATUS_WAITLISTED;
+            return RegistrationStatus.WAITLISTED;
         }
-        return event.isRequiresApproval() ? Registration.STATUS_PENDING : Registration.STATUS_CONFIRMED;
+        return event.isRequiresApproval() ? RegistrationStatus.PENDING : RegistrationStatus.CONFIRMED;
     }
 
-    private static RegistrationResult registrationResult(final String status) {
-        if (Registration.STATUS_WAITLISTED.equals(status)) {
+    private static RegistrationResult registrationResult(final RegistrationStatus status) {
+        if (status == RegistrationStatus.WAITLISTED) {
             return RegistrationResult.WAITLISTED;
         }
-        if (Registration.STATUS_PENDING.equals(status)) {
+        if (status == RegistrationStatus.PENDING) {
             return RegistrationResult.PENDING;
         }
         return RegistrationResult.CONFIRMED;
@@ -207,7 +208,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         final Registration cancelled = registration.get();
         final long eventId = cancelled.getEventId();
         // Se mira ANTES de borrar: despues la fila ya no existe.
-        final boolean wasConfirmed = Registration.STATUS_CONFIRMED.equals(cancelled.getStatus());
+        final boolean wasConfirmed = cancelled.getStatus() == RegistrationStatus.CONFIRMED;
 
         registrationDao.delete(registrationId);
         // El cupo que se acaba de soltar se le ofrece enseguida al primero de la
@@ -254,8 +255,8 @@ public class RegistrationServiceImpl implements RegistrationService {
         if (registration == null) {
             return false;
         }
-        registrationDao.updateStatus(registrationId, Registration.STATUS_CONFIRMED);
-        registration.setStatus(Registration.STATUS_CONFIRMED);
+        registrationDao.updateStatus(registrationId, RegistrationStatus.CONFIRMED);
+        registration.setStatus(RegistrationStatus.CONFIRMED);
         eventDao.findById(registration.getEventId())
                 .ifPresent(event -> notificationService.notifyRegistrationApproved(event, registration));
         return true;
@@ -268,8 +269,8 @@ public class RegistrationServiceImpl implements RegistrationService {
         if (registration == null) {
             return false;
         }
-        registrationDao.updateStatus(registrationId, Registration.STATUS_REJECTED);
-        registration.setStatus(Registration.STATUS_REJECTED);
+        registrationDao.updateStatus(registrationId, RegistrationStatus.REJECTED);
+        registration.setStatus(RegistrationStatus.REJECTED);
         final long eventId = registration.getEventId();
         eventDao.findById(eventId)
                 .ifPresent(event -> notificationService.notifyRegistrationRejected(event, registration));
@@ -286,7 +287,7 @@ public class RegistrationServiceImpl implements RegistrationService {
     // interesa por que no se pudo, solo que no se pudo.
     private Optional<Registration> pendingOwnedBy(final long registrationId, final String creatorEmail) {
         return registrationDao.findById(registrationId)
-                .filter(r -> Registration.STATUS_PENDING.equals(r.getStatus()))
+                .filter(r -> r.getStatus() == RegistrationStatus.PENDING)
                 .filter(r -> ownsEvent(r.getEventId(), creatorEmail));
     }
 

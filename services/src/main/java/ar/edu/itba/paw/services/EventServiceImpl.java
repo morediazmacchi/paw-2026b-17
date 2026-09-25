@@ -4,6 +4,7 @@ package ar.edu.itba.paw.services;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.Registration;
+import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.persistence.EventDao;
 import org.slf4j.Logger;
@@ -107,7 +108,7 @@ public class EventServiceImpl implements EventService {
         // pendiente/rechazado/en lista de espera todavia no tiene un lugar
         // asegurado en base al cual le importe que cambio el evento.
         for (final Registration registration : registrationService.findByEventId(eventId)) {
-            if (Registration.STATUS_CONFIRMED.equals(registration.getStatus())) {
+            if (registration.getStatus() == RegistrationStatus.CONFIRMED) {
                 notificationService.notifyEventUpdated(changes, registration);
             }
         }
@@ -129,7 +130,7 @@ public class EventServiceImpl implements EventService {
         // Solo a los confirmados: a alguien pendiente/rechazado/en lista de
         // espera nunca le llego a tener un lugar, no hay nada que "perder".
         for (final Registration registration : registrationService.findByEventId(eventId)) {
-            if (Registration.STATUS_CONFIRMED.equals(registration.getStatus())) {
+            if (registration.getStatus() == RegistrationStatus.CONFIRMED) {
                 notificationService.notifyEventCancelled(event, registration);
             }
         }

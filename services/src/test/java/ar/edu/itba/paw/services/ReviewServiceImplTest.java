@@ -2,6 +2,7 @@ package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.Registration;
+import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.Review;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.persistence.ReviewDao;
@@ -88,7 +89,7 @@ public class ReviewServiceImplTest {
         when(mockReviewDao.findByEventAndUser(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
         when(mockEventService.findById(EVENT_ID)).thenReturn(Optional.of(pastEvent()));
         when(mockRegistrationService.findByEventAndEmail(EVENT_ID, USER_EMAIL))
-                .thenReturn(Optional.of(new Registration(EVENT_ID, USER_EMAIL, "Ana", Registration.STATUS_CONFIRMED)));
+                .thenReturn(Optional.of(new Registration(EVENT_ID, USER_EMAIL, "Ana", RegistrationStatus.CONFIRMED)));
 
         final ReviewResult result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
 
@@ -159,7 +160,7 @@ public class ReviewServiceImplTest {
         when(mockReviewDao.findByEventAndUser(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
         when(mockEventService.findById(EVENT_ID)).thenReturn(Optional.of(pastEvent()));
         when(mockRegistrationService.findByEventAndEmail(EVENT_ID, USER_EMAIL))
-                .thenReturn(Optional.of(new Registration(EVENT_ID, USER_EMAIL, "Ana", Registration.STATUS_WAITLISTED)));
+                .thenReturn(Optional.of(new Registration(EVENT_ID, USER_EMAIL, "Ana", RegistrationStatus.WAITLISTED)));
 
         final ReviewResult result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
 

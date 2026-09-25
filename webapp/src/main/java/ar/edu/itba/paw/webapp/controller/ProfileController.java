@@ -3,6 +3,7 @@ package ar.edu.itba.paw.webapp.controller;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventInvitation;
 import ar.edu.itba.paw.model.Registration;
+import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.Review;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.EventInvitationResult;
@@ -336,7 +337,7 @@ public class ProfileController {
         for (final Event event : createdEvents) {
             if (!event.isCancelled()) {
                 final long confirmed = registrationService.findByEventId(event.getId()).stream()
-                        .filter(r -> Registration.STATUS_CONFIRMED.equals(r.getStatus()))
+                        .filter(r -> r.getStatus() == RegistrationStatus.CONFIRMED)
                         .count();
                 confirmedCountsByEventId.put(event.getId(), confirmed);
             }

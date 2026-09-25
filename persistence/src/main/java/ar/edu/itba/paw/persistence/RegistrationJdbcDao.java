@@ -2,6 +2,7 @@
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.Registration;
+import ar.edu.itba.paw.model.RegistrationStatus;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -24,7 +25,7 @@ public class RegistrationJdbcDao implements RegistrationDao {
         registration.setEmail(rs.getString("email"));
         registration.setName(rs.getString("name"));
         registration.setRegisteredAt(rs.getTimestamp("registered_at"));
-        registration.setStatus(rs.getString("status"));
+        registration.setStatus(RegistrationStatus.valueOf(rs.getString("status")));
         return registration;
     };
 
@@ -46,7 +47,7 @@ public class RegistrationJdbcDao implements RegistrationDao {
         args.put("event_id", registration.getEventId());
         args.put("email", registration.getEmail());
         args.put("name", registration.getName());
-        args.put("status", registration.getStatus());
+        args.put("status", registration.getStatus().name());
 
         final Number id = jdbcInsert.executeAndReturnKey(args);
         registration.setId(id.longValue());
@@ -63,7 +64,7 @@ public class RegistrationJdbcDao implements RegistrationDao {
     public long countConfirmed(final long eventId) {
         final Long count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM registration WHERE event_id = ? AND status = ?",
-                Long.class, eventId, Registration.STATUS_CONFIRMED);
+                Long.class, eventId, RegistrationStatus.CONFIRMED.name());
         return count == null ? 0 : count;
     }
 
@@ -98,7 +99,7 @@ public class RegistrationJdbcDao implements RegistrationDao {
                         + "LEFT JOIN waitlist_invitation i ON i.registration_id = r.id "
                         + "WHERE r.event_id = ? AND r.status = ? AND i.id IS NULL "
                         + "ORDER BY r.registered_at LIMIT ?",
-                ROW_MAPPER, eventId, Registration.STATUS_WAITLISTED, limit);
+                ROW_MAPPER, eventId, RegistrationStatus.WAITLISTED.name(), limit);
     }
 
     @Override
@@ -108,12 +109,12 @@ public class RegistrationJdbcDao implements RegistrationDao {
                         + "JOIN event e ON e.id = r.event_id "
                         + "WHERE r.status = ? AND e.max_capacity IS NOT NULL AND e.event_date > ? "
                         + "AND e.cancelled_at IS NULL",
-                Long.class, Registration.STATUS_WAITLISTED, new java.sql.Timestamp(now.getTime()));
+                Long.class, RegistrationStatus.WAITLISTED.name(), new java.sql.Timestamp(now.getTime()));
     }
 
     @Override
-    public void updateStatus(final long id, final String status) {
-        jdbcTemplate.update("UPDATE registration SET status = ? WHERE id = ?", status, id);
+    public void updateStatus(final long id, final RegistrationStatus status) {
+        jdbcTemplate.update("UPDATE registration SET status = ? WHERE id = ?", status.name(), id);
     }
 
     @Override
@@ -125,7 +126,7 @@ public class RegistrationJdbcDao implements RegistrationDao {
     public long countPending(final long eventId) {
         final Long count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM registration WHERE event_id = ? AND status = ?",
-                Long.class, eventId, Registration.STATUS_PENDING);
+                Long.class, eventId, RegistrationStatus.PENDING.name());
         return count == null ? 0 : count;
     }
 
@@ -133,6 +134,6 @@ public class RegistrationJdbcDao implements RegistrationDao {
     public List<Registration> findPendingByEvent(final long eventId) {
         return jdbcTemplate.query(
                 "SELECT * FROM registration WHERE event_id = ? AND status = ? ORDER BY registered_at",
-                ROW_MAPPER, eventId, Registration.STATUS_PENDING);
+                ROW_MAPPER, eventId, RegistrationStatus.PENDING.name());
     }
 }

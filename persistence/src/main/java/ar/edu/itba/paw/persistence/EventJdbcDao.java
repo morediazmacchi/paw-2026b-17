@@ -8,7 +8,7 @@ import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.EventSort;
 import ar.edu.itba.paw.model.EventVisibility;
 import ar.edu.itba.paw.model.InvitationStatus;
-import ar.edu.itba.paw.model.Registration;
+import ar.edu.itba.paw.model.RegistrationStatus;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -57,7 +57,7 @@ public class EventJdbcDao implements EventDao {
     // Los estados van como parametros y no escritos en el SQL: si cambia como se
     // guardan en la base, se cambia en Java y no en cada query.
     private static List<Object> availableSpotsParams() {
-        return Arrays.asList(Registration.STATUS_CONFIRMED, Registration.STATUS_PENDING,
+        return Arrays.asList(RegistrationStatus.CONFIRMED.name(), RegistrationStatus.PENDING.name(),
                 InvitationStatus.PENDING.name());
     }
 

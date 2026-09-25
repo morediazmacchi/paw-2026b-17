@@ -2,6 +2,7 @@
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.Registration;
+import ar.edu.itba.paw.model.RegistrationStatus;
 
 import java.util.List;
 import java.util.Optional;
@@ -19,9 +20,9 @@ public interface RegistrationDao {
      */
     List<Registration> findNextWaitlisted(long eventId, int limit);
 
-    /** Para pasar de 'waitlisted' a 'confirmed' cuando alguien acepta su invitacion
-     *  (o de 'pending' a 'confirmed'/'rejected' cuando el creador decide). */
-    void updateStatus(long id, String status);
+    /** Para pasar de WAITLISTED a CONFIRMED cuando alguien acepta su invitacion
+     *  (o de PENDING a CONFIRMED/REJECTED cuando el creador decide). */
+    void updateStatus(long id, RegistrationStatus status);
 
     /**
      * Ids de los eventos futuros, con cupo limitado, que tienen gente en lista de

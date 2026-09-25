@@ -3,6 +3,7 @@ package ar.edu.itba.paw.services;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.InvitationStatus;
 import ar.edu.itba.paw.model.Registration;
+import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.WaitlistInvitation;
 import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.RegistrationDao;
@@ -57,7 +58,7 @@ public class WaitlistServiceImplTest {
     }
 
     private static Registration waitlisted(final long id) {
-        final Registration registration = new Registration(EVENT_ID, "a@a.com", "Ana", Registration.STATUS_WAITLISTED);
+        final Registration registration = new Registration(EVENT_ID, "a@a.com", "Ana", RegistrationStatus.WAITLISTED);
         registration.setId(id);
         return registration;
     }
@@ -187,7 +188,7 @@ public class WaitlistServiceImplTest {
 
         assertEquals(InvitationResult.ACCEPTED, result);
         verify(mockInvitationDao).markAccepted(5);
-        verify(mockRegistrationDao).updateStatus(88, Registration.STATUS_CONFIRMED);
+        verify(mockRegistrationDao).updateStatus(88, RegistrationStatus.CONFIRMED);
     }
 
     @Test

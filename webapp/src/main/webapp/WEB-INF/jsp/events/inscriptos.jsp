@@ -52,13 +52,13 @@
                             <td><fmt:formatDate value="${registration.registeredAt}" pattern="dd/MM/yyyy HH:mm"/></td>
                             <td>
                                 <c:choose>
-                                    <c:when test="${registration.status == 'confirmed'}">
+                                    <c:when test="${registration.status == 'CONFIRMED'}">
                                         <span class="pill pill-active"><spring:message code="event.attendees.statusConfirmed"/></span>
                                     </c:when>
-                                    <c:when test="${registration.status == 'pending'}">
+                                    <c:when test="${registration.status == 'PENDING'}">
                                         <span class="pill"><spring:message code="event.attendees.statusPending"/></span>
                                     </c:when>
-                                    <c:when test="${registration.status == 'rejected'}">
+                                    <c:when test="${registration.status == 'REJECTED'}">
                                         <span class="pill"><spring:message code="event.attendees.statusRejected"/></span>
                                     </c:when>
                                     <c:otherwise>

@@ -64,8 +64,8 @@ CREATE TABLE IF NOT EXISTS event_category (
     PRIMARY KEY (event_id, category_id)
 );
 
--- 'pending': la inscripcion espera que el creador la acepte o la rechace
--- (evento con requires_approval). 'rejected' es un estado terminal: el
+-- PENDING: la inscripcion espera que el creador la acepte o la rechace
+-- (evento con requires_approval). REJECTED es un estado terminal: el
 -- creador la rechazo (ver RegistrationServiceImpl.reject()).
 CREATE TABLE IF NOT EXISTS registration (
     id                SERIAL PRIMARY KEY,
@@ -73,8 +73,8 @@ CREATE TABLE IF NOT EXISTS registration (
     email             VARCHAR(150) NOT NULL,
     name              VARCHAR(150),
     registered_at     TIMESTAMP NOT NULL DEFAULT now(),
-    status            VARCHAR(20) DEFAULT 'confirmed' NOT NULL
-                          CHECK (status IN ('confirmed', 'waitlisted', 'pending', 'rejected')),
+    status            VARCHAR(20) DEFAULT 'CONFIRMED' NOT NULL
+                          CHECK (status IN ('CONFIRMED', 'WAITLISTED', 'PENDING', 'REJECTED')),
     UNIQUE (event_id, email)
 );
 
@@ -159,12 +159,13 @@ CREATE INDEX IF NOT EXISTS idx_registration_waitlist
     ON registration (event_id, status, registered_at);
 
 -- Eventos con confirmacion manual del organizador. Si esta en true, una
--- inscripcion nueva no nace 'confirmed' sino 'pending': el creador la tiene
+-- inscripcion nueva no nace CONFIRMED sino PENDING: el creador la tiene
 -- que aceptar o rechazar el mismo (ver RegistrationServiceImpl.register()).
 ALTER TABLE event ADD COLUMN IF NOT EXISTS requires_approval BOOLEAN NOT NULL DEFAULT false;
 
--- 'pending' (esperando que el creador decida) y 'rejected' (el creador la
--- rechazo) se suman a los valores posibles de status. El CHECK de mas arriba
+-- PENDING (esperando que el creador decida) y REJECTED (el creador la
+-- rechazo) se suman a los valores posibles de status. Los 4 estados se guardan
+-- en MAYUSCULA (RegistrationStatus.name(), ver postgres-migrations.sql). El CHECK de mas arriba
 -- (en el CREATE TABLE de "registration") ya nace con los 4 valores para
 -- cualquier base nueva (HSQLDB de los tests, o un Postgres recien creado).
 --

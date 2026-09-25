@@ -3,6 +3,7 @@ package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.Registration;
+import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.WaitlistInvitation;
 import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.RegistrationDao;
@@ -195,8 +196,8 @@ public class WaitlistServiceImpl implements WaitlistService {
         }
 
         invitationDao.markAccepted(invitation.getId());
-        registrationDao.updateStatus(registration.getId(), Registration.STATUS_CONFIRMED);
-        registration.setStatus(Registration.STATUS_CONFIRMED);
+        registrationDao.updateStatus(registration.getId(), RegistrationStatus.CONFIRMED);
+        registration.setStatus(RegistrationStatus.CONFIRMED);
 
         // Mismo mail que cuando alguien se anota normalmente: para la persona el
         // resultado es el mismo, tiene su lugar.

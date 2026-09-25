@@ -3,6 +3,7 @@ package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.Registration;
+import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.Review;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.persistence.ReviewDao;
@@ -54,7 +55,7 @@ public class ReviewServiceImpl implements ReviewService {
         // Solo quien tuvo su lugar confirmado fue al evento. Estar en lista de
         // espera, pendiente de aprobacion o rechazado no alcanza.
         final Optional<Registration> registration = registrationService.findByEventAndEmail(eventId, user.getEmail());
-        if (!registration.isPresent() || !Registration.STATUS_CONFIRMED.equals(registration.get().getStatus())) {
+        if (!registration.isPresent() || registration.get().getStatus() != RegistrationStatus.CONFIRMED) {
             return ReviewResult.NOT_ELIGIBLE;
         }
         reviewDao.create(new Review(eventId, user.getId(), rating, comment));

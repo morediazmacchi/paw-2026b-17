@@ -4,25 +4,18 @@ import java.util.Date;
 
 public class Registration {
 
-    // Tienen que coincidir con el CHECK de la columna status en la tabla registration.
-    public static final String STATUS_CONFIRMED = "confirmed";
-    public static final String STATUS_WAITLISTED = "waitlisted";
-    // Solo existe en eventos con requiresApproval=true: espera a que el creador la acepte o la rechace.
-    public static final String STATUS_PENDING = "pending";
-    // Estado terminal: el creador la rechazo (ver RegistrationServiceImpl.reject()).
-    public static final String STATUS_REJECTED = "rejected";
-
     private long id;
     private long eventId;
     private String email;
     private String name;
     private Date registeredAt;
-    private String status;
+    private RegistrationStatus status;
 
     public Registration() {
     }
 
-    public Registration(final long eventId, final String email, final String name, final String status) {
+    public Registration(final long eventId, final String email, final String name,
+                        final RegistrationStatus status) {
         this.eventId = eventId;
         this.email = email;
         this.name = name;
@@ -39,6 +32,6 @@ public class Registration {
     public void setName(final String name) { this.name = name; }
     public Date getRegisteredAt() { return registeredAt; }
     public void setRegisteredAt(final Date registeredAt) { this.registeredAt = registeredAt; }
-    public String getStatus() { return status; }
-    public void setStatus(final String status) { this.status = status; }
+    public RegistrationStatus getStatus() { return status; }
+    public void setStatus(final RegistrationStatus status) { this.status = status; }
 }

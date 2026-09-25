@@ -9,6 +9,7 @@ import ar.edu.itba.paw.model.EventSort;
 import ar.edu.itba.paw.model.EventVisibility;
 import ar.edu.itba.paw.model.Image;
 import ar.edu.itba.paw.model.Registration;
+import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.Review;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.CategoryService;
@@ -406,12 +407,12 @@ public class EventController {
             // baja", "Salir de la lista de espera" o "Cancelar mi pedido"
             // segun en que estado quedo. Un rechazo NO cuenta como "anotado":
             // ese estado no tiene nada que cancelar, es terminal.
-            final String myStatus = myRegistration.map(Registration::getStatus).orElse(null);
+            final RegistrationStatus myStatus = myRegistration.map(Registration::getStatus).orElse(null);
             mav.addObject("registered", myRegistration.isPresent()
-                    && !Registration.STATUS_REJECTED.equals(myStatus));
-            mav.addObject("waitlisted", Registration.STATUS_WAITLISTED.equals(myStatus));
-            mav.addObject("pendingApproval", Registration.STATUS_PENDING.equals(myStatus));
-            mav.addObject("rejected", Registration.STATUS_REJECTED.equals(myStatus));
+                    && myStatus != RegistrationStatus.REJECTED);
+            mav.addObject("waitlisted", myStatus == RegistrationStatus.WAITLISTED);
+            mav.addObject("pendingApproval", myStatus == RegistrationStatus.PENDING);
+            mav.addObject("rejected", myStatus == RegistrationStatus.REJECTED);
             // El creador no se anota a su propio evento (ver RegistrationServiceImpl.
             // register()): la tarjeta de RSVP se lo dice en vez de ofrecerle un
             // boton que el service le va a rechazar igual.
@@ -749,12 +750,12 @@ public class EventController {
         // Se mira ANTES de borrar: despues la fila ya no existe y no hay forma
         // de saber que cartel corresponde ("te diste de baja del evento",
         // "saliste de la lista de espera" o "cancelaste tu pedido pendiente").
-        final String status = registration.map(Registration::getStatus).orElse(null);
+        final RegistrationStatus status = registration.map(Registration::getStatus).orElse(null);
         registration.ifPresent(r -> registrationService.cancel(r.getId(), user.getEmail()));
         final String rsvpParam;
-        if (Registration.STATUS_WAITLISTED.equals(status)) {
+        if (status == RegistrationStatus.WAITLISTED) {
             rsvpParam = "baja-waitlist";
-        } else if (Registration.STATUS_PENDING.equals(status)) {
+        } else if (status == RegistrationStatus.PENDING) {
             rsvpParam = "baja-pendiente";
         } else {
             rsvpParam = "baja";

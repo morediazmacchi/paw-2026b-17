@@ -3,6 +3,7 @@ package ar.edu.itba.paw.services;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventCategoryInfo;
 import ar.edu.itba.paw.model.Registration;
+import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.persistence.EventDao;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -221,9 +222,9 @@ public class EventServiceImplTest {
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(someEvent()));
         final Event changes = someEvent();
         final Registration confirmed = new Registration(EVENT_ID, "confirmado@mail.com", "Confirmado",
-                Registration.STATUS_CONFIRMED);
+                RegistrationStatus.CONFIRMED);
         final Registration waitlisted = new Registration(EVENT_ID, "espera@mail.com", "Espera",
-                Registration.STATUS_WAITLISTED);
+                RegistrationStatus.WAITLISTED);
         when(mockRegistrationService.findByEventId(EVENT_ID)).thenReturn(Arrays.asList(confirmed, waitlisted));
 
         final EventUpdateResult result = eventService.update(EVENT_ID, changes, CREATOR_EMAIL);
@@ -250,11 +251,11 @@ public class EventServiceImplTest {
     public void testCancelSucceedsAndNotifiesOnlyConfirmedRegistrants() {
         when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(someEvent()));
         final Registration confirmed = new Registration(EVENT_ID, "confirmado@mail.com", "Confirmado",
-                Registration.STATUS_CONFIRMED);
+                RegistrationStatus.CONFIRMED);
         final Registration waitlisted = new Registration(EVENT_ID, "espera@mail.com", "Espera",
-                Registration.STATUS_WAITLISTED);
+                RegistrationStatus.WAITLISTED);
         final Registration pending = new Registration(EVENT_ID, "pendiente@mail.com", "Pendiente",
-                Registration.STATUS_PENDING);
+                RegistrationStatus.PENDING);
         when(mockRegistrationService.findByEventId(EVENT_ID))
                 .thenReturn(Arrays.asList(confirmed, waitlisted, pending));
 

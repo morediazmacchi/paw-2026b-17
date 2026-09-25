@@ -31,11 +31,27 @@
 -- ResourceDatabasePopulator separa el script en sentencias cortando por ";"
 -- sin entender el dollar-quoting ($$) de Postgres: partia el bloque DO a la
 -- mitad y tiraba "Unterminated dollar quote". Por eso el camino de abajo, que
--- son tres ALTER TABLE simples, ninguno con nada adentro que lleve ";".
+-- son sentencias simples, ninguna con nada adentro que lleve ";".
+--
+-- Estados en MAYUSCULA (RegistrationStatus.name()/valueOf(), mismo criterio que
+-- InvitationStatus, EventVisibility y Barrio). Antes eran minuscula.
+-- OJO, el orden importa:
+--   1. Los DROP primero: mientras este el CHECK viejo (solo minuscula), el
+--      UPDATE a mayuscula lo violaria.
+--   2. El UPDATE solo toca las filas que todavia estan en minuscula: la primera
+--      vez migra los datos, de ahi en mas no hace nada.
+--   3. El ADD al final, ya con los datos en mayuscula.
+-- Este bloque REEMPLAZA al que ponia el CHECK en minuscula (no se agrega otro
+-- al final): si quedaran los dos, en el segundo arranque el viejo intentaria
+-- poner el CHECK en minuscula sobre datos en mayuscula y la app no levantaria.
+-- Consecuencia: un WAR de antes de este cambio ya no sirve contra esta base
+-- (su migracion choca con los datos en mayuscula). Hacer pull antes de deployar.
 ALTER TABLE registration DROP CONSTRAINT IF EXISTS registration_status_check;
 ALTER TABLE registration DROP CONSTRAINT IF EXISTS registration_status_ck;
+UPDATE registration SET status = UPPER(status) WHERE status <> UPPER(status);
+ALTER TABLE registration ALTER COLUMN status SET DEFAULT 'CONFIRMED';
 ALTER TABLE registration ADD CONSTRAINT registration_status_ck
-    CHECK (status IN ('confirmed', 'waitlisted', 'pending', 'rejected'));
+    CHECK (status IN ('CONFIRMED', 'WAITLISTED', 'PENDING', 'REJECTED'));
 
 -- Categorias multiples por evento (evento N:M categoria, ver event_category
 -- en schema.sql). El Postgres real que ya esta corriendo tiene la columna

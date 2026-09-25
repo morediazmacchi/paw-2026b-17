@@ -2,6 +2,7 @@ package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.Registration;
+import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.RegistrationDao;
 import org.junit.Test;
@@ -71,7 +72,7 @@ public class RegistrationServiceImplTest {
 
     @Test
     public void testRegisterReturnsAlreadyRegisteredWhenTheEmailIsAlreadyInThatEvent() {
-        final Registration existing = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, Registration.STATUS_CONFIRMED);
+        final Registration existing = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, RegistrationStatus.CONFIRMED);
         when(mockRegistrationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_EMAIL)).thenReturn(Optional.of(existing));
 
         final RegistrationResult result = registrationService.register(EVENT_ID, EMAIL, NAME);
@@ -110,12 +111,12 @@ public class RegistrationServiceImplTest {
         // es lo que despues deja armar la lista de espera en orden.
         final ArgumentCaptor<Registration> saved = ArgumentCaptor.forClass(Registration.class);
         verify(mockRegistrationDao).create(saved.capture());
-        assertEquals(Registration.STATUS_WAITLISTED, saved.getValue().getStatus());
+        assertEquals(RegistrationStatus.WAITLISTED, saved.getValue().getStatus());
     }
 
     @Test
     public void testRegisterWhenAlreadyOnTheWaitlistReturnsAlreadyWaitlisted() {
-        final Registration existing = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, Registration.STATUS_WAITLISTED);
+        final Registration existing = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, RegistrationStatus.WAITLISTED);
         when(mockRegistrationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_EMAIL)).thenReturn(Optional.of(existing));
 
         final RegistrationResult result = registrationService.register(EVENT_ID, EMAIL, NAME);
@@ -199,7 +200,7 @@ public class RegistrationServiceImplTest {
 
         final ArgumentCaptor<Registration> saved = ArgumentCaptor.forClass(Registration.class);
         verify(mockRegistrationDao).create(saved.capture());
-        assertEquals(Registration.STATUS_PENDING, saved.getValue().getStatus());
+        assertEquals(RegistrationStatus.PENDING, saved.getValue().getStatus());
     }
 
     // Sin cupo, la lista de espera gana: no tiene sentido "esperando revision"
@@ -215,7 +216,7 @@ public class RegistrationServiceImplTest {
 
     @Test
     public void testRegisterWhenAlreadyPendingReturnsAlreadyPending() {
-        final Registration existing = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, Registration.STATUS_PENDING);
+        final Registration existing = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, RegistrationStatus.PENDING);
         when(mockRegistrationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_EMAIL)).thenReturn(Optional.of(existing));
 
         assertEquals(RegistrationResult.ALREADY_PENDING, registrationService.register(EVENT_ID, EMAIL, NAME));
@@ -223,7 +224,7 @@ public class RegistrationServiceImplTest {
 
     @Test
     public void testRegisterWhenPreviouslyRejectedReturnsRejected() {
-        final Registration existing = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, Registration.STATUS_REJECTED);
+        final Registration existing = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, RegistrationStatus.REJECTED);
         when(mockRegistrationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_EMAIL)).thenReturn(Optional.of(existing));
 
         assertEquals(RegistrationResult.REJECTED, registrationService.register(EVENT_ID, EMAIL, NAME));
@@ -288,7 +289,7 @@ public class RegistrationServiceImplTest {
 
     private static final long REGISTRATION_ID = 7;
 
-    private static Registration registrationWith(final String status) {
+    private static Registration registrationWith(final RegistrationStatus status) {
         final Registration registration = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, status);
         registration.setId(REGISTRATION_ID);
         return registration;
@@ -297,7 +298,7 @@ public class RegistrationServiceImplTest {
     @Test
     public void testCancelTellsTheOrganizerThatTheSpotIsOpenWhenNobodyWasWaiting() {
         when(mockRegistrationDao.findById(REGISTRATION_ID))
-                .thenReturn(Optional.of(registrationWith(Registration.STATUS_CONFIRMED)));
+                .thenReturn(Optional.of(registrationWith(RegistrationStatus.CONFIRMED)));
         when(mockWaitlistService.reconcile(EVENT_ID)).thenReturn(0);
         when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(10)));
 
@@ -311,7 +312,7 @@ public class RegistrationServiceImplTest {
     @Test
     public void testCancelTellsTheOrganizerWhenTheSpotWentToTheWaitlist() {
         when(mockRegistrationDao.findById(REGISTRATION_ID))
-                .thenReturn(Optional.of(registrationWith(Registration.STATUS_CONFIRMED)));
+                .thenReturn(Optional.of(registrationWith(RegistrationStatus.CONFIRMED)));
         when(mockWaitlistService.reconcile(EVENT_ID)).thenReturn(1);
         when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(10)));
 
@@ -325,7 +326,7 @@ public class RegistrationServiceImplTest {
     @Test
     public void testCancelDoesNotNotifyWhenSomeoneLeavesTheWaitlist() {
         when(mockRegistrationDao.findById(REGISTRATION_ID))
-                .thenReturn(Optional.of(registrationWith(Registration.STATUS_WAITLISTED)));
+                .thenReturn(Optional.of(registrationWith(RegistrationStatus.WAITLISTED)));
         when(mockWaitlistService.reconcile(EVENT_ID)).thenReturn(0);
 
         registrationService.cancel(REGISTRATION_ID, NORMALIZED_EMAIL);
@@ -414,7 +415,7 @@ public class RegistrationServiceImplTest {
     @Test
     public void testFindByEmailDelegatesToTheDao() {
         final List<Registration> registrations = Collections.singletonList(
-                new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, Registration.STATUS_CONFIRMED));
+                new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, RegistrationStatus.CONFIRMED));
         when(mockRegistrationDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(registrations);
 
         final List<Registration> result = registrationService.findByEmail(NORMALIZED_EMAIL);
@@ -426,7 +427,7 @@ public class RegistrationServiceImplTest {
 
     @Test
     public void testCancelDeletesWhenTheEmailOwnsTheRegistration() {
-        final Registration registration = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, Registration.STATUS_CONFIRMED);
+        final Registration registration = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, RegistrationStatus.CONFIRMED);
         registration.setId(5);
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
 
@@ -448,7 +449,7 @@ public class RegistrationServiceImplTest {
 
     @Test
     public void testCancelReturnsFalseWhenTheRegistrationBelongsToSomeoneElse() {
-        final Registration registration = new Registration(EVENT_ID, "otro@mail.com", NAME, Registration.STATUS_CONFIRMED);
+        final Registration registration = new Registration(EVENT_ID, "otro@mail.com", NAME, RegistrationStatus.CONFIRMED);
         registration.setId(5);
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
 
@@ -462,7 +463,7 @@ public class RegistrationServiceImplTest {
 
     @Test
     public void testFindByEventAndEmailNormalizesTheEmail() {
-        final Registration registration = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, Registration.STATUS_CONFIRMED);
+        final Registration registration = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, RegistrationStatus.CONFIRMED);
         when(mockRegistrationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_EMAIL)).thenReturn(Optional.of(registration));
 
         final Optional<Registration> result = registrationService.findByEventAndEmail(EVENT_ID, EMAIL);
@@ -485,7 +486,7 @@ public class RegistrationServiceImplTest {
     @Test
     public void testFindByEventIdDelegatesToTheDao() {
         final List<Registration> registrations = Collections.singletonList(
-                new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, Registration.STATUS_CONFIRMED));
+                new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, RegistrationStatus.CONFIRMED));
         when(mockRegistrationDao.findByEventId(EVENT_ID)).thenReturn(registrations);
 
         final List<Registration> result = registrationService.findByEventId(EVENT_ID);
@@ -499,7 +500,7 @@ public class RegistrationServiceImplTest {
     public void testFindPendingByEventDelegatesToTheDaoWhenTheCreatorAsks() {
         when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(null)));
         final List<Registration> pending = Collections.singletonList(
-                new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, Registration.STATUS_PENDING));
+                new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, RegistrationStatus.PENDING));
         when(mockRegistrationDao.findPendingByEvent(EVENT_ID)).thenReturn(pending);
 
         final List<Registration> result = registrationService.findPendingByEvent(EVENT_ID, CREATOR_EMAIL);
@@ -528,7 +529,7 @@ public class RegistrationServiceImplTest {
 
     @Test
     public void testApproveConfirmsAPendingRegistrationOwnedByTheCreator() {
-        final Registration registration = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, Registration.STATUS_PENDING);
+        final Registration registration = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, RegistrationStatus.PENDING);
         registration.setId(5);
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
         when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(null)));
@@ -536,12 +537,12 @@ public class RegistrationServiceImplTest {
         final boolean result = registrationService.approve(5, CREATOR_EMAIL);
 
         assertTrue(result);
-        verify(mockRegistrationDao).updateStatus(5, Registration.STATUS_CONFIRMED);
+        verify(mockRegistrationDao).updateStatus(5, RegistrationStatus.CONFIRMED);
     }
 
     @Test
     public void testApproveReturnsFalseWhenTheEventBelongsToSomeoneElse() {
-        final Registration registration = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, Registration.STATUS_PENDING);
+        final Registration registration = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, RegistrationStatus.PENDING);
         registration.setId(5);
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
         when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(null)));
@@ -549,19 +550,19 @@ public class RegistrationServiceImplTest {
         final boolean result = registrationService.approve(5, "otro@mail.com");
 
         assertFalse(result);
-        verify(mockRegistrationDao, never()).updateStatus(5, Registration.STATUS_CONFIRMED);
+        verify(mockRegistrationDao, never()).updateStatus(5, RegistrationStatus.CONFIRMED);
     }
 
     @Test
     public void testApproveReturnsFalseWhenTheRegistrationIsNotPending() {
-        final Registration registration = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, Registration.STATUS_CONFIRMED);
+        final Registration registration = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, RegistrationStatus.CONFIRMED);
         registration.setId(5);
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
 
         final boolean result = registrationService.approve(5, CREATOR_EMAIL);
 
         assertFalse(result);
-        verify(mockRegistrationDao, never()).updateStatus(5, Registration.STATUS_CONFIRMED);
+        verify(mockRegistrationDao, never()).updateStatus(5, RegistrationStatus.CONFIRMED);
     }
 
     @Test
@@ -575,7 +576,7 @@ public class RegistrationServiceImplTest {
 
     @Test
     public void testRejectMarksAPendingRegistrationOwnedByTheCreatorAsRejected() {
-        final Registration registration = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, Registration.STATUS_PENDING);
+        final Registration registration = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, RegistrationStatus.PENDING);
         registration.setId(5);
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
         when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(null)));
@@ -583,14 +584,14 @@ public class RegistrationServiceImplTest {
         final boolean result = registrationService.reject(5, CREATOR_EMAIL);
 
         assertTrue(result);
-        verify(mockRegistrationDao).updateStatus(5, Registration.STATUS_REJECTED);
+        verify(mockRegistrationDao).updateStatus(5, RegistrationStatus.REJECTED);
     }
 
     // El lugar que la inscripcion rechazada tenia reservado se libera: hay que
     // ofrecerselo enseguida a quien siga en la lista de espera.
     @Test
     public void testRejectReconcilesTheWaitlistToOfferTheFreedSpot() {
-        final Registration registration = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, Registration.STATUS_PENDING);
+        final Registration registration = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, RegistrationStatus.PENDING);
         registration.setId(5);
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
         when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(null)));
@@ -602,7 +603,7 @@ public class RegistrationServiceImplTest {
 
     @Test
     public void testRejectReturnsFalseWhenTheEventBelongsToSomeoneElse() {
-        final Registration registration = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, Registration.STATUS_PENDING);
+        final Registration registration = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, RegistrationStatus.PENDING);
         registration.setId(5);
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
         when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(null)));
@@ -610,12 +611,12 @@ public class RegistrationServiceImplTest {
         final boolean result = registrationService.reject(5, "otro@mail.com");
 
         assertFalse(result);
-        verify(mockRegistrationDao, never()).updateStatus(5, Registration.STATUS_REJECTED);
+        verify(mockRegistrationDao, never()).updateStatus(5, RegistrationStatus.REJECTED);
     }
 
     @Test
     public void testRejectReturnsFalseWhenTheRegistrationIsNotPending() {
-        final Registration registration = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, Registration.STATUS_WAITLISTED);
+        final Registration registration = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, RegistrationStatus.WAITLISTED);
         registration.setId(5);
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
 
