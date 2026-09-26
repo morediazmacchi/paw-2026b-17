@@ -16,7 +16,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
     var steps = Array.prototype.slice.call(form.querySelectorAll(".wizard-step"));
     var indicators = Array.prototype.slice.call(document.querySelectorAll("[data-step-indicator]"));
-    var cancelBtn = document.querySelector(".wizard-cancel");
     var backBtn = document.querySelector("[data-wizard-back]");
     var nextBtn = document.querySelector("[data-wizard-next]");
     var submitWrap = document.querySelector(".wizard-submit");
@@ -44,7 +43,6 @@ document.addEventListener("DOMContentLoaded", function () {
             dot.classList.toggle("wizard-progress-step-active", i === index);
             dot.classList.toggle("wizard-progress-step-done", i < index);
         });
-        cancelBtn.hidden = index !== 0;
         backBtn.hidden = index === 0;
         var isLastStep = index === steps.length - 1;
         nextBtn.hidden = isLastStep;
@@ -93,13 +91,156 @@ document.addEventListener("DOMContentLoaded", function () {
                 : "";
     }
 
-    if (fechaHidden && fechaDateInput && fechaHoursInput && fechaMinutesInput) {
-        // Nunca se puede elegir un dia anterior a hoy: se lo decimos al
-        // navegador via "min" para que checkValidity() lo rechace solo, sin
-        // JS a medida por cada click de "Siguiente".
-        var today = new Date();
-        fechaDateInput.min = today.getFullYear() + "-" + pad2(today.getMonth() + 1) + "-" + pad2(today.getDate());
+    // Limites de fecha: nunca antes de hoy, nunca mas de 2 anios a partir de
+    // hoy (mismo tope que EventController). Antes esto se lo pasabamos al
+    // <input type="date"> nativo via min/max para que el navegador solo
+    // rechazara lo invalido; ahora que ese input es hidden (lo reemplaza el
+    // almanaque de mas abajo), los mismos limites se usan a mano para
+    // deshabilitar los dias fuera de rango en la grilla.
+    var today = new Date();
+    today.setHours(0, 0, 0, 0);
+    var minDate = today;
+    var maxDate = new Date(today.getFullYear() + 2, today.getMonth(), today.getDate());
 
+    var MONTH_NAMES = ["enero", "febrero", "marzo", "abril", "mayo", "junio",
+        "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+
+    function isoDate(date) {
+        return date.getFullYear() + "-" + pad2(date.getMonth() + 1) + "-" + pad2(date.getDate());
+    }
+
+    // Mismo dia (year/month/date), ignorando la hora.
+    function sameDay(a, b) {
+        return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+    }
+
+    var calendarModal = document.getElementById("fechaCalendarModal");
+    var calendarMonthLabel = document.querySelector("[data-calendar-month-label]");
+    var calendarDaysEl = document.querySelector("[data-calendar-days]");
+    var calendarPrevBtn = document.querySelector("[data-calendar-prev]");
+    var calendarNextBtn = document.querySelector("[data-calendar-next]");
+    var fechaTriggerText = document.querySelector("[data-calendar-trigger-text]");
+    // Mes que se esta mostrando en el almanaque (arranca en el mes de la
+    // fecha ya elegida, si hay una, o en el de hoy).
+    var viewYear = today.getFullYear();
+    var viewMonth = today.getMonth();
+
+    function updateTriggerText() {
+        if (!fechaTriggerText) {
+            return;
+        }
+        if (!fechaDateInput.value) {
+            fechaTriggerText.textContent = "Elegí una fecha";
+            fechaTriggerText.classList.remove("calendar-trigger-text-filled");
+            return;
+        }
+        var parts = fechaDateInput.value.split("-");
+        var chosen = new Date(+parts[0], +parts[1] - 1, +parts[2]);
+        fechaTriggerText.textContent = chosen.getDate() + " de " + MONTH_NAMES[chosen.getMonth()] + " de " + chosen.getFullYear();
+        fechaTriggerText.classList.add("calendar-trigger-text-filled");
+    }
+
+    // Grilla fija de 6 semanas (42 dias), empezando un lunes: alcanza para
+    // cualquier mes sin tener que calcular cuantas filas hacen falta, y los
+    // dias de mas se ven mas apagados (calendar-day-outside) en vez de vacios.
+    function renderCalendar() {
+        if (!calendarDaysEl) {
+            return;
+        }
+        if (calendarMonthLabel) {
+            calendarMonthLabel.textContent = MONTH_NAMES[viewMonth] + " " + viewYear;
+        }
+        var firstOfMonth = new Date(viewYear, viewMonth, 1);
+        // getDay(): 0=domingo..6=sabado. Se corre para que 0=lunes..6=domingo.
+        var firstWeekday = (firstOfMonth.getDay() + 6) % 7;
+        var chosen = fechaDateInput.value ? (function () {
+            var p = fechaDateInput.value.split("-");
+            return new Date(+p[0], +p[1] - 1, +p[2]);
+        })() : null;
+
+        calendarDaysEl.innerHTML = "";
+        for (var i = 0; i < 42; i++) {
+            var cellDate = new Date(viewYear, viewMonth, 1 - firstWeekday + i);
+            var button = document.createElement("button");
+            button.type = "button";
+            button.className = "calendar-day";
+            button.textContent = cellDate.getDate();
+            button.dataset.calendarDate = isoDate(cellDate);
+            if (cellDate.getMonth() !== viewMonth) {
+                button.classList.add("calendar-day-outside");
+            }
+            if (sameDay(cellDate, today)) {
+                button.classList.add("calendar-day-today");
+            }
+            if (chosen && sameDay(cellDate, chosen)) {
+                button.classList.add("calendar-day-selected");
+            }
+            if (cellDate < minDate || cellDate > maxDate) {
+                button.disabled = true;
+            }
+            calendarDaysEl.appendChild(button);
+        }
+
+        // No tiene sentido navegar a un mes que va a quedar 100% deshabilitado.
+        if (calendarPrevBtn) {
+            calendarPrevBtn.disabled = viewYear === minDate.getFullYear() && viewMonth === minDate.getMonth();
+        }
+        if (calendarNextBtn) {
+            calendarNextBtn.disabled = viewYear === maxDate.getFullYear() && viewMonth === maxDate.getMonth();
+        }
+    }
+
+    if (calendarDaysEl) {
+        calendarDaysEl.addEventListener("click", function (event) {
+            var button = event.target.closest(".calendar-day");
+            if (!button || button.disabled) {
+                return;
+            }
+            fechaDateInput.value = button.dataset.calendarDate;
+            syncFechaHidden();
+            updateTriggerText();
+            if (calendarModal) {
+                calendarModal.hidden = true;
+            }
+        });
+    }
+
+    if (calendarPrevBtn) {
+        calendarPrevBtn.addEventListener("click", function () {
+            var d = new Date(viewYear, viewMonth - 1, 1);
+            viewYear = d.getFullYear();
+            viewMonth = d.getMonth();
+            renderCalendar();
+        });
+    }
+
+    if (calendarNextBtn) {
+        calendarNextBtn.addEventListener("click", function () {
+            var d = new Date(viewYear, viewMonth + 1, 1);
+            viewYear = d.getFullYear();
+            viewMonth = d.getMonth();
+            renderCalendar();
+        });
+    }
+
+    // Al abrir el almanaque, siempre mostrar el mes de la fecha ya elegida
+    // (si hay una) en vez de quedarse en el mes de la ultima navegacion.
+    var fechaTriggerBtn = document.getElementById("fechaEventoTrigger");
+    if (fechaTriggerBtn) {
+        fechaTriggerBtn.addEventListener("click", function () {
+            if (fechaDateInput.value) {
+                var p = fechaDateInput.value.split("-");
+                viewYear = +p[0];
+                viewMonth = +p[1] - 1;
+            } else {
+                viewYear = today.getFullYear();
+                viewMonth = today.getMonth();
+            }
+            renderCalendar();
+        });
+    }
+
+    if (fechaHidden && fechaDateInput && fechaHoursInput && fechaMinutesInput) {
         if (fechaHidden.value) {
             var parts = fechaHidden.value.split("T");
             fechaDateInput.value = parts[0] || "";
@@ -107,8 +248,9 @@ document.addEventListener("DOMContentLoaded", function () {
             fechaHoursInput.value = timeParts[0] ? +timeParts[0] : "";
             fechaMinutesInput.value = timeParts[1] ? +timeParts[1] : "";
         }
+        updateTriggerText();
+        renderCalendar();
 
-        fechaDateInput.addEventListener("change", syncFechaHidden);
         fechaHoursInput.addEventListener("change", syncFechaHidden);
         fechaMinutesInput.addEventListener("change", syncFechaHidden);
     }
@@ -118,9 +260,6 @@ document.addEventListener("DOMContentLoaded", function () {
     // motivo esto: una fecha pasada rechazada en silencio). Mejor un mensaje
     // propio, con el mismo estilo de alerta que ya se usa en el resto del sitio.
     function messageForField(field) {
-        if (field === fechaDateInput && field.validity.rangeUnderflow) {
-            return "La fecha tiene que ser hoy o una fecha futura.";
-        }
         if ((field === fechaHoursInput || field === fechaMinutesInput)
                 && (field.validity.rangeUnderflow || field.validity.rangeOverflow)) {
             return "El horario no es válido.";
@@ -133,9 +272,12 @@ document.addEventListener("DOMContentLoaded", function () {
         return field.validationMessage || "Completá este campo antes de seguir.";
     }
 
-    // Cada campo del paso se valida con la API nativa (checkValidity): "min" en
-    // la fecha hace que una fecha pasada ya venga invalida sola, y min/max en
-    // hora/minutos hacen lo mismo con un horario fuera de rango.
+    // Cada campo del paso se valida con la API nativa (checkValidity): min/max
+    // en hora/minutos hacen que un horario fuera de rango ya venga invalido
+    // solo. La fecha ya no pasa por ahi (el input real es hidden, un hidden
+    // no se valida solo): el almanaque no deja clickear un dia fuera de rango,
+    // asi que lo unico que falta chequear a mano es que se haya elegido
+    // alguna, igual que con las categorias.
     function validateStep(index) {
         syncFechaHidden();
         var stepCategoryCheckboxes = Array.prototype.slice.call(
@@ -144,6 +286,12 @@ document.addEventListener("DOMContentLoaded", function () {
                 && !stepCategoryCheckboxes.some(function (checkbox) { return checkbox.checked; })) {
             showStepError("Elegí al menos una categoría antes de seguir.");
             stepCategoryCheckboxes[0].focus();
+            return false;
+        }
+        var stepFechaTrigger = steps[index].querySelector("#fechaEventoTrigger");
+        if (stepFechaTrigger && !fechaDateInput.value) {
+            showStepError("Elegí una fecha antes de seguir.");
+            stepFechaTrigger.focus();
             return false;
         }
         var fields = steps[index].querySelectorAll("input, select, textarea");

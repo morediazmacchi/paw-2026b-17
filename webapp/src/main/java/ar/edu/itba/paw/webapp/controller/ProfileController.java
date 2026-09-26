@@ -485,7 +485,8 @@ public class ProfileController {
         }
         final EventInvitationResult result = eventInvitationService.invite(id, user.getEmail(), form.getEmail());
         final String param = result == EventInvitationResult.ALREADY_INVITED ? "alreadyInvited"
-                : result == EventInvitationResult.FULL ? "full" : "sent";
+                : result == EventInvitationResult.FULL ? "full"
+                : result == EventInvitationResult.SELF_INVITE ? "selfInvite" : "sent";
         return new ModelAndView("redirect:/perfil/eventos/" + id + "/invitar?" + param);
     }
 

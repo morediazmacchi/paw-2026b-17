@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="${pageContext.request.contextPath}/css/style.css">
     <script src="<c:url value='/js/disable-on-submit.js'/>"></script>
     <script src="<c:url value='/js/password-toggle.js'/>"></script>
+    <script src="<c:url value='/js/password-confirm.js'/>"></script>
 </head>
 <body>
 
@@ -72,6 +73,10 @@
                        errorMessage="${passwordFieldErrors.newPassword}"/>
             <paw:input name="confirmarPassword" label="${confirmPasswordLabel}" type="password"
                        errorMessage="${passwordFieldErrors.confirmarPassword}"/>
+            <%-- La revalida el server tambien; esto solo evita el viaje al back
+                 cuando el error es obvio (no coinciden). Arranca oculto: JS lo
+                 muestra si hace falta, sin esperar a un POST. --%>
+            <span id="confirmarPasswordMismatchError" class="error-message" hidden><spring:message code="PasswordMismatch.changePasswordForm.confirmarPassword"/></span>
             <paw:button text="${changePasswordButtonLabel}"/>
         </form>
     </main>

@@ -110,4 +110,14 @@
             <line x1="1" y1="1" x2="23" y2="23"/>
         </svg>
     </c:when>
+    <c:when test="${name == 'chevron-left'}">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"/>
+        </svg>
+    </c:when>
+    <c:when test="${name == 'chevron-right'}">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"/>
+        </svg>
+    </c:when>
 </c:choose>

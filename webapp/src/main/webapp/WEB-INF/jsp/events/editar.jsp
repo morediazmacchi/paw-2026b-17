@@ -16,6 +16,8 @@
     <script src="<c:url value='/js/quick-options.js'/>"></script>
     <script src="<c:url value='/js/event-location-map.js'/>"></script>
     <script src="<c:url value='/js/image-picker.js'/>"></script>
+    <%-- data-open-modal/data-close-modal del almanaque de fecha (ver event-wizard.js). --%>
+    <script src="<c:url value='/js/modal.js'/>"></script>
     <script src="<c:url value='/js/event-wizard.js'/>"></script>
 </head>
 <body>
@@ -107,9 +109,17 @@
                     </c:if>
                 </div>
                 <div class="form-group">
-                    <label for="fechaEventoDate"><c:out value="${dateLabel}"/></label>
+                    <label for="fechaEventoTrigger"><c:out value="${dateLabel}"/></label>
                     <div class="wizard-datetime-row">
-                        <input type="date" id="fechaEventoDate" required="required"/>
+                        <%-- El <input type="date"> nativo no se puede restylear (el popup
+                             lo dibuja el SO/navegador): en su lugar, un boton que abre el
+                             almanaque propio de mas abajo (mismo modal generico de siempre). --%>
+                        <button type="button" id="fechaEventoTrigger" class="calendar-trigger"
+                                data-open-modal="fechaCalendarModal">
+                            <paw:icon name="calendar"/>
+                            <span class="calendar-trigger-text" data-calendar-trigger-text></span>
+                        </button>
+                        <input type="hidden" id="fechaEventoDate"/>
                         <%-- Nada de <input type="time">: ese widget depende de la
                              configuracion regional del navegador y en muchas
                              termina mostrando AM/PM igual. Dos campos numéricos
@@ -130,6 +140,37 @@
                          combinando los campos de arriba (splitea eventForm.fechaEvento
                          en fecha/hora/minutos al cargar la pagina, ver su codigo). --%>
                     <input type="hidden" id="fechaEvento" name="fechaEvento" value="<c:out value='${eventForm.fechaEvento}'/>"/>
+                </div>
+
+                <%-- Almanaque: la grilla de dias la arma event-wizard.js. Los dias
+                     fuera de hoy..+2anios vienen deshabilitados desde el propio JS,
+                     asi que no hace falta validar despues "fecha fuera de rango":
+                     no se puede clickear una fecha invalida. --%>
+                <div class="modal-overlay calendar-modal" id="fechaCalendarModal" hidden>
+                    <div class="modal-box calendar-box">
+                        <div class="modal-header">
+                            <h2><c:out value="${dateLabel}"/></h2>
+                            <button type="button" class="modal-close" data-close-modal
+                                    aria-label="<spring:message code='event.detail.closeButton'/>">
+                                <paw:icon name="close"/>
+                            </button>
+                        </div>
+                        <div class="calendar-header">
+                            <button type="button" class="calendar-nav" data-calendar-prev
+                                    aria-label="<spring:message code='event.publish.prevMonth'/>">
+                                <paw:icon name="chevron-left"/>
+                            </button>
+                            <span class="calendar-month-label" data-calendar-month-label></span>
+                            <button type="button" class="calendar-nav" data-calendar-next
+                                    aria-label="<spring:message code='event.publish.nextMonth'/>">
+                                <paw:icon name="chevron-right"/>
+                            </button>
+                        </div>
+                        <div class="calendar-weekdays">
+                            <span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span>
+                        </div>
+                        <div class="calendar-days" data-calendar-days></div>
+                    </div>
                 </div>
             </div>
 
@@ -280,12 +321,12 @@
             <p class="alert wizard-step-error" hidden></p>
 
             <div class="wizard-actions">
-                <a class="btn btn-medium wizard-cancel" href="<c:url value='/perfil/eventos'/>">
-                    <c:out value="${cancelButtonLabel}"/>
-                </a>
                 <button type="button" class="btn btn-medium wizard-back" data-wizard-back hidden>
                     <c:out value="${backButtonLabel}"/>
                 </button>
+                <a class="btn btn-medium wizard-cancel" href="<c:url value='/perfil/eventos'/>">
+                    <c:out value="${cancelButtonLabel}"/>
+                </a>
                 <button type="button" class="btn btn-medium btn-accent wizard-next" data-wizard-next>
                     <c:out value="${nextButtonLabel}"/>
                 </button>

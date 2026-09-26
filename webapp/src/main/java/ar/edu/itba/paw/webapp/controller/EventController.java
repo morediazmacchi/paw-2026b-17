@@ -328,6 +328,14 @@ public class EventController {
         }
     }
 
+    // Tope para publicar/editar un evento: no se puede armar (ni mover) uno para
+    // dentro de mas de 2 anios a partir de hoy.
+    private static Date maxEventDate() {
+        final Calendar calendar = Calendar.getInstance();
+        calendar.add(Calendar.YEAR, 2);
+        return calendar.getTime();
+    }
+
     // "Hasta" tiene que incluir todo ese dia: se corre al dia siguiente a las 00:00
     // y en la query se compara con "<", no "<=".
     private static Date parseDateEndOfDay(final String value) {
@@ -535,6 +543,13 @@ public class EventController {
             // defecto, para que no explote si falta la clave.
             errors.rejectValue("fechaEvento", "Future",
                     "La fecha del evento tiene que ser futura");
+            return publishFormWithErrors(form, errors, null);
+        }
+        // El codigo "TooFarInFuture" sigue el mismo mecanismo que "Future": busca
+        // TooFarInFuture.eventForm.fechaEvento en los messages.properties.
+        if (parsedDate.after(maxEventDate())) {
+            errors.rejectValue("fechaEvento", "TooFarInFuture",
+                    "La fecha del evento no puede ser de mas de 2 anios a partir de hoy");
             return publishFormWithErrors(form, errors, null);
         }
 
@@ -938,6 +953,11 @@ public class EventController {
         }
         if (parsedDate.before(new Date())) {
             errors.rejectValue("fechaEvento", "Future", "La fecha del evento tiene que ser futura");
+            return editarFormWithErrors(id, form, errors, null);
+        }
+        if (parsedDate.after(maxEventDate())) {
+            errors.rejectValue("fechaEvento", "TooFarInFuture",
+                    "La fecha del evento no puede ser de mas de 2 anios a partir de hoy");
             return editarFormWithErrors(id, form, errors, null);
         }
 

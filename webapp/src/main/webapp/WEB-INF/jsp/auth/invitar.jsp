@@ -35,6 +35,9 @@
         <c:if test="${param.full != null}">
             <p class="alert"><spring:message code="auth.invite.fullMessage"/></p>
         </c:if>
+        <c:if test="${param.selfInvite != null}">
+            <p class="alert"><spring:message code="auth.invite.selfInviteMessage"/></p>
+        </c:if>
 
         <spring:message code="auth.invite.emailLabel" var="emailLabel"/>
         <spring:message code="auth.invite.submitButton" var="submitButtonLabel"/>

@@ -54,6 +54,9 @@ public class EventInvitationServiceImpl implements EventInvitationService {
         }
 
         final String normalizedEmail = inviteeEmail.trim().toLowerCase();
+        if (normalizedEmail.equals(creatorEmail.trim().toLowerCase())) {
+            return EventInvitationResult.SELF_INVITE;
+        }
         if (invitationDao.findByEventAndEmail(eventId, normalizedEmail).isPresent()) {
             return EventInvitationResult.ALREADY_INVITED;
         }
