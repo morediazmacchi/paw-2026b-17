@@ -110,6 +110,7 @@ public class EventJdbcDao implements EventDao {
         event.setLatitude(rawLatitude == null ? null : rawLatitude.doubleValue());
         final BigDecimal rawLongitude = rs.getBigDecimal("longitude");
         event.setLongitude(rawLongitude == null ? null : rawLongitude.doubleValue());
+        event.setParking(rs.getBoolean("has_parking"));
         return event;
     };
 
@@ -124,7 +125,7 @@ public class EventJdbcDao implements EventDao {
                 .usingGeneratedKeyColumns("id")
                 .usingColumns("title", "description", "event_date", "address", "neighborhood",
                         "price", "max_capacity", "creator_email", "requires_approval",
-                        "visibility", "latitude", "longitude");
+                        "visibility", "latitude", "longitude", "has_parking");
     }
 
     @Override
@@ -142,6 +143,7 @@ public class EventJdbcDao implements EventDao {
         args.put("visibility", event.getVisibility().name());
         args.put("latitude", event.getLatitude());
         args.put("longitude", event.getLongitude());
+        args.put("has_parking", event.isParking());
 
         final Number id = jdbcInsert.executeAndReturnKey(args);
         event.setId(id.longValue());
@@ -155,7 +157,7 @@ public class EventJdbcDao implements EventDao {
         jdbcTemplate.update(
                 "UPDATE event SET title = ?, description = ?, event_date = ?, address = ?, neighborhood = ?, "
                         + "price = ?, max_capacity = ?, requires_approval = ?, "
-                        + "visibility = ?, latitude = ?, longitude = ?, "
+                        + "visibility = ?, latitude = ?, longitude = ?, has_parking = ?, "
                         // Si cambio la fecha, el recordatorio de 24 hs vuelve a "no mandado"
                         // para que salga para la fecha nueva. Del lado derecho del SET,
                         // event_date es todavia el valor viejo (SQL estandar).
@@ -165,7 +167,7 @@ public class EventJdbcDao implements EventDao {
                 event.getAddress(), event.getNeighborhood() == null ? null : event.getNeighborhood().name(),
                 event.getPrice(), event.getMaxCapacity(),
                 event.isRequiresApproval(), event.getVisibility().name(),
-                event.getLatitude(), event.getLongitude(),
+                event.getLatitude(), event.getLongitude(), event.isParking(),
                 new Timestamp(event.getEventDate().getTime()), event.getId());
         // Reemplaza todas las categorias de una: mas simple que calcular el
         // diff (altas/bajas/cambios de extra_info) entre lo que habia y lo

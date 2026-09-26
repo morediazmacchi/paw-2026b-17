@@ -77,6 +77,9 @@ public class EventForm {
     // (ver EventVisibility).
     private boolean privado;
 
+    // Mismo criterio que privado/requiereAprobacion: checkbox comun, ausente = false.
+    private boolean estacionamiento;
+
     public EventForm() {
     }
 
@@ -115,4 +118,7 @@ public class EventForm {
 
     public boolean isPrivado() { return privado; }
     public void setPrivado(final boolean privado) { this.privado = privado; }
+
+    public boolean isEstacionamiento() { return estacionamiento; }
+    public void setEstacionamiento(final boolean estacionamiento) { this.estacionamiento = estacionamiento; }
 }

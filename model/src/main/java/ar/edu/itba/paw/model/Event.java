@@ -50,6 +50,10 @@ public class Event {
     // motivo que cancelledAt para no ir en el constructor.
     private Double latitude;
     private Double longitude;
+    // Si el evento cuenta con estacionamiento para los asistentes. Mismo
+    // motivo que requiresApproval para no ir en el constructor: no romper los
+    // "new Event(...)" existentes. false por default, igual que la columna.
+    private boolean parking;
 
     public Event() {
     }
@@ -117,6 +121,8 @@ public class Event {
     public void setLatitude(final Double latitude) { this.latitude = latitude; }
     public Double getLongitude() { return longitude; }
     public void setLongitude(final Double longitude) { this.longitude = longitude; }
+    public boolean isParking() { return parking; }
+    public void setParking(final boolean parking) { this.parking = parking; }
 
     // Los dos vienen juntos o ninguno (ver EventController): si falta uno el
     // otro no sirve para nada, mejor no mostrar un pin a medias. "is..." (no

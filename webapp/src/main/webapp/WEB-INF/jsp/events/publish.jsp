@@ -253,6 +253,13 @@
                     </label>
                     <p class="wizard-field-hint"><spring:message code="event.publish.privateHint"/></p>
                 </div>
+                <div class="form-group">
+                    <label class="filter-checkbox">
+                        <input type="checkbox" id="estacionamiento" name="estacionamiento" value="true"
+                               ${eventForm.estacionamiento ? 'checked="checked"' : ''}/>
+                        <spring:message code="event.publish.parkingLabel"/>
+                    </label>
+                </div>
             </div>
 
             <%-- ---- Paso 5: revisar y publicar ---- --%>
@@ -300,6 +307,12 @@
                         <spring:message code="event.publish.privateLabel" var="privateLabel"/>
                         <span class="wizard-review-label"><c:out value="${privateLabel}"/></span>
                         <span class="wizard-review-value" data-review="privado"
+                              data-yes-label="${yesLabel}" data-no-label="${noLabel}"></span>
+                    </div>
+                    <div class="wizard-review-row">
+                        <spring:message code="event.publish.parkingLabel" var="parkingLabel"/>
+                        <span class="wizard-review-label"><c:out value="${parkingLabel}"/></span>
+                        <span class="wizard-review-value" data-review="estacionamiento"
                               data-yes-label="${yesLabel}" data-no-label="${noLabel}"></span>
                     </div>
                     <div class="wizard-review-row" data-review-image-row hidden>

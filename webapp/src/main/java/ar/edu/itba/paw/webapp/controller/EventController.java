@@ -576,12 +576,18 @@ public class EventController {
         event.setCategories(categorias);
         event.setRequiresApproval(form.isRequiereAprobacion());
         event.setVisibility(form.isPrivado() ? EventVisibility.PRIVATE : EventVisibility.PUBLIC);
+        event.setParking(form.isEstacionamiento());
         applyPin(event, form);
+        final Event created;
         try {
-            eventService.create(event);
+            created = eventService.create(event);
         } catch (final IllegalArgumentException e) {
             errors.rejectValue("categorias", "categoria.invalida", e.getMessage());
             return publishFormWithErrors(form, errors, null);
+        }
+        // Privado: derecho a invitar, para no tener que ir hasta "Mis eventos" a buscarlo.
+        if (created.isPrivate()) {
+            return new ModelAndView("redirect:/perfil/eventos/" + created.getId() + "/invitar");
         }
         return new ModelAndView("redirect:/eventos");
     }
@@ -907,6 +913,7 @@ public class EventController {
         form.setCupoMaximo(event.getMaxCapacity() == null ? "0" : String.valueOf(event.getMaxCapacity()));
         form.setRequiereAprobacion(event.isRequiresApproval());
         form.setPrivado(event.isPrivate());
+        form.setEstacionamiento(event.isParking());
         if (event.isLocationPinned()) {
             form.setLatitud(String.valueOf(event.getLatitude()));
             form.setLongitud(String.valueOf(event.getLongitude()));
@@ -987,6 +994,7 @@ public class EventController {
         changes.setCategories(categorias);
         changes.setRequiresApproval(form.isRequiereAprobacion());
         changes.setVisibility(form.isPrivado() ? EventVisibility.PRIVATE : EventVisibility.PUBLIC);
+        changes.setParking(form.isEstacionamiento());
         applyPin(changes, form);
         final EventUpdateResult result = eventService.update(id, changes, principal.getName());
         switch (result) {

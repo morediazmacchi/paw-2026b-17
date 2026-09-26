@@ -397,6 +397,7 @@ document.addEventListener("DOMContentLoaded", function () {
         // mira .value, que en un checkbox siempre es "true" este o no tildado).
         setReviewCheckbox("requiereAprobacion");
         setReviewCheckbox("privado");
+        setReviewCheckbox("estacionamiento");
 
         // Solo se previsualiza la primera foto elegida (con un contador al
         // lado si eligio mas de una): mostrar las 5 en el resumen no aporta

@@ -2142,8 +2142,36 @@ button.btn-accent {
     outline-offset: 2px;
 }
 
-.detail-gallery-link-active {
-    outline-color: var(--accent);
+/* Carrusel de fotos (modal generico .modal-overlay/.modal-box, ver detail.jsp
+   y event-gallery.js): mas ancho que el resto de los modales (ese es
+   angosto a proposito para formularios) porque aca lo que importa es que la
+   foto se vea grande. */
+.gallery-box {
+    max-width: 720px;
+    padding: 16px;
+}
+
+.gallery-viewer {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.gallery-photo {
+    flex: 1;
+    min-width: 0;
+    max-height: 70vh;
+    object-fit: contain;
+    border-radius: 8px;
+}
+
+.gallery-nav {
+    flex-shrink: 0;
+}
+
+.gallery-counter {
+    color: var(--text-muted);
+    font-size: 0.85rem;
 }
 
 .image-picker-message {

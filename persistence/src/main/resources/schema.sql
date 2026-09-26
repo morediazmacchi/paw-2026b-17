@@ -249,3 +249,7 @@ CREATE TABLE IF NOT EXISTS event_question (
     created_at    TIMESTAMP NOT NULL DEFAULT now(),
     answered_at   TIMESTAMP
 );
+
+-- Si el evento cuenta con estacionamiento para los asistentes. Checkbox
+-- comun (mismo criterio que requires_approval): ausente en el form = false.
+ALTER TABLE event ADD COLUMN IF NOT EXISTS has_parking BOOLEAN NOT NULL DEFAULT false;

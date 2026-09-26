@@ -29,7 +29,17 @@
 <spring:message code="event.detail.backButton" var="backLabel"/>
 <section class="detail-hero">
     <c:if test="${not empty event.imageId}">
-        <img class="detail-hero-img" src="<c:url value='/image/${event.imageId}'/>" alt=""/>
+        <c:choose>
+            <c:when test="${fn:length(event.imageIds) > 1}">
+                <a class="detail-hero-photo" href="<c:url value='/image/${event.imageId}'/>"
+                   data-open-modal="eventGalleryModal" data-gallery-index="0">
+                    <img class="detail-hero-img" src="<c:url value='/image/${event.imageId}'/>" alt=""/>
+                </a>
+            </c:when>
+            <c:otherwise>
+                <img class="detail-hero-img" src="<c:url value='/image/${event.imageId}'/>" alt=""/>
+            </c:otherwise>
+        </c:choose>
     </c:if>
     <div class="detail-hero-overlay"></div>
     <a class="detail-hero-back" href="<c:url value='/eventos'/>"><c:out value="${backLabel}"/></a>
@@ -69,17 +79,41 @@
 </section>
 
 <%-- Galeria: solo si hay mas de una foto (la primera ya se ve en el hero de
-     arriba). Tocar una miniatura la pone de portada (event-gallery.js); sin JS
-     es un link a la foto entera. --%>
+     arriba). Tocar la principal o cualquier miniatura abre el carrusel de mas
+     abajo con todas las fotos (event-gallery.js); sin JS cada una sigue
+     siendo un link a la foto entera. --%>
 <c:if test="${fn:length(event.imageIds) > 1}">
     <section class="detail-gallery">
-        <c:forEach var="imgId" items="${event.imageIds}">
-            <a class="detail-gallery-link${imgId == event.imageId ? ' detail-gallery-link-active' : ''}"
-               href="<c:url value='/image/${imgId}'/>">
+        <c:forEach var="imgId" items="${event.imageIds}" varStatus="loop">
+            <a class="detail-gallery-link" href="<c:url value='/image/${imgId}'/>"
+               data-open-modal="eventGalleryModal" data-gallery-index="${loop.index}">
                 <img class="detail-gallery-thumb" src="<c:url value='/image/${imgId}'/>" alt=""/>
             </a>
         </c:forEach>
     </section>
+
+    <spring:message code="event.detail.closeButton" var="galleryCloseLabel"/>
+    <spring:message code="event.detail.prevPhoto" var="galleryPrevLabel"/>
+    <spring:message code="event.detail.nextPhoto" var="galleryNextLabel"/>
+    <div class="modal-overlay gallery-modal" id="eventGalleryModal" hidden>
+        <div class="modal-box gallery-box">
+            <div class="modal-header">
+                <span class="gallery-counter" data-gallery-counter></span>
+                <button type="button" class="modal-close" data-close-modal aria-label="${galleryCloseLabel}">
+                    <paw:icon name="close"/>
+                </button>
+            </div>
+            <div class="gallery-viewer">
+                <button type="button" class="calendar-nav gallery-nav" data-gallery-prev aria-label="${galleryPrevLabel}">
+                    <paw:icon name="chevron-left"/>
+                </button>
+                <img class="gallery-photo" data-gallery-photo alt=""/>
+                <button type="button" class="calendar-nav gallery-nav" data-gallery-next aria-label="${galleryNextLabel}">
+                    <paw:icon name="chevron-right"/>
+                </button>
+            </div>
+        </div>
+    </div>
 </c:if>
 
 <main class="page detail-page">
@@ -165,6 +199,18 @@
                     <c:choose>
                         <c:when test="${not empty event.maxCapacity}"><spring:message code="event.detail.capacityValue" arguments="${event.maxCapacity}"/></c:when>
                         <c:otherwise><spring:message code="event.detail.capacityUnlimited"/></c:otherwise>
+                    </c:choose>
+                </span>
+            </div>
+        </div>
+        <div class="detail-meta-item">
+            <span class="detail-meta-icon"><paw:icon name="car"/></span>
+            <div>
+                <span class="detail-meta-label"><spring:message code="event.detail.parkingLabelSmall"/></span>
+                <span class="detail-meta-value">
+                    <c:choose>
+                        <c:when test="${event.parking}"><spring:message code="common.yes"/></c:when>
+                        <c:otherwise><spring:message code="common.no"/></c:otherwise>
                     </c:choose>
                 </span>
             </div>
