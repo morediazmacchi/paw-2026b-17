@@ -97,8 +97,34 @@
                                 </label>
                                 <input type="hidden" name="categorias[${catStatus.index}].categoryId" value="${cat.id}"/>
                                 <div class="wizard-category-extra" ${catForm.seleccionada ? '' : 'hidden'}>
-                                    <textarea name="categorias[${catStatus.index}].extraInfo" maxlength="500"
-                                              placeholder="${categoryExtraInfoLabel}"><c:out value="${catForm.extraInfo}"/></textarea>
+                                    <c:choose>
+                                        <%-- "Otros" es la comodin: no tiene preguntas puntuales,
+                                             sigue con el texto libre de siempre. Las demas
+                                             categorias (ya existentes, fijas) tienen sus propias
+                                             2 preguntas en vez de un campo generico -- pensado
+                                             para dar mas info util de un vistazo en el detalle
+                                             del evento (ver event-wizard.js y detail.jsp). --%>
+                                        <c:when test="${cat.name == 'Otros'}">
+                                            <textarea name="categorias[${catStatus.index}].extraInfo" maxlength="500"
+                                                      placeholder="${categoryExtraInfoLabel}"><c:out value="${catForm.extraInfo}"/></textarea>
+                                        </c:when>
+                                        <c:otherwise>
+                                            <spring:message code="event.publish.categoryQuestion.${cat.name}.1" var="catQuestion1"/>
+                                            <spring:message code="event.publish.categoryQuestion.${cat.name}.2" var="catQuestion2"/>
+                                            <div class="wizard-category-questions" data-category-questions>
+                                                <textarea class="wizard-category-question" rows="2" maxlength="200"
+                                                          data-question="${catQuestion1}" placeholder="${catQuestion1}"></textarea>
+                                                <textarea class="wizard-category-question" rows="2" maxlength="200"
+                                                          data-question="${catQuestion2}" placeholder="${catQuestion2}"></textarea>
+                                            </div>
+                                            <%-- Lo que realmente viaja al server: event-wizard.js combina las
+                                                 dos respuestas de arriba en "Pregunta: Respuesta" por linea,
+                                                 igual formato que ya entendia extraInfo (texto libre). --%>
+                                            <textarea name="categorias[${catStatus.index}].extraInfo" maxlength="500"
+                                                      class="wizard-category-extra-hidden" hidden
+                                                      data-category-extra-hidden><c:out value="${catForm.extraInfo}"/></textarea>
+                                        </c:otherwise>
+                                    </c:choose>
                                 </div>
                             </div>
                         </c:forEach>

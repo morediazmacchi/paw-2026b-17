@@ -12,6 +12,10 @@
     <link rel="stylesheet" href="${pageContext.request.contextPath}/css/style.css">
     <script src="<c:url value='/js/hero-carousel.js'/>"></script>
     <script src="<c:url value='/js/favorite-toggle.js'/>"></script>
+    <%-- data-open-modal/data-close-modal de los almanaques "Desde"/"Hasta". --%>
+    <script src="<c:url value='/js/modal.js'/>"></script>
+    <script src="<c:url value='/js/date-filter-calendar.js'/>"></script>
+    <script src="<c:url value='/js/price-range.js'/>"></script>
 </head>
 <body>
 
@@ -89,7 +93,8 @@
     <spring:message code="event.list.clearFiltersButton" var="clearFiltersLabel"/>
     <spring:message code="event.list.clearAllButton" var="clearAllLabel"/>
 
-    <form method="get" action="<c:url value='/eventos'/>" class="filter-bar-v2">
+    <form method="get" action="<c:url value='/eventos'/>">
+    <div class="filter-bar-v2">
         <details class="filter-dropdown" name="filter-group">
             <summary>
                 <span class="filter-dropdown-label"><c:out value="${categoryLabel}"/></span>
@@ -143,12 +148,85 @@
                 </span>
             </summary>
             <div class="filter-dropdown-panel">
-                <paw:input name="fechaDesde" label="${dateFromLabel}" type="date" required="${false}"
-                           value="${fechaDesde}"/>
-                <paw:input name="fechaHasta" label="${dateToLabel}" type="date" required="${false}"
-                           value="${fechaHasta}" errorMessage="${filterErrors.fechaHasta}"/>
+                <%-- Mismo almanaque que publicar/editar evento (ver event-wizard.js),
+                     pero sin hora y sin techo de +2 anios: aca son los dos extremos de
+                     un rango, y la unica regla es que uno no cruce al otro. Cada
+                     almanaque deshabilita los dias invalidos segun lo que ya este
+                     elegido en el otro (ver date-filter-calendar.js), en vez de
+                     esperar a que el server rechace el rango al filtrar. --%>
+                <div class="form-group">
+                    <label for="fechaDesdeTrigger"><c:out value="${dateFromLabel}"/></label>
+                    <button type="button" id="fechaDesdeTrigger" class="calendar-trigger"
+                            data-open-modal="fechaDesdeCalendarModal">
+                        <paw:icon name="calendar"/>
+                        <span class="calendar-trigger-text" data-calendar-trigger-text></span>
+                    </button>
+                    <input type="hidden" id="fechaDesde" name="fechaDesde" value="<c:out value='${fechaDesde}'/>"/>
+                </div>
+                <div class="form-group">
+                    <label for="fechaHastaTrigger"><c:out value="${dateToLabel}"/></label>
+                    <button type="button" id="fechaHastaTrigger" class="calendar-trigger"
+                            data-open-modal="fechaHastaCalendarModal">
+                        <paw:icon name="calendar"/>
+                        <span class="calendar-trigger-text" data-calendar-trigger-text></span>
+                    </button>
+                    <input type="hidden" id="fechaHasta" name="fechaHasta" value="<c:out value='${fechaHasta}'/>"/>
+                    <c:if test="${not empty filterErrors.fechaHasta}">
+                        <span class="error-message"><c:out value="${filterErrors.fechaHasta}"/></span>
+                    </c:if>
+                </div>
             </div>
         </details>
+
+        <spring:message code="event.detail.closeButton" var="calendarCloseLabel"/>
+        <spring:message code="event.publish.prevMonth" var="calendarPrevLabel"/>
+        <spring:message code="event.publish.nextMonth" var="calendarNextLabel"/>
+        <div class="modal-overlay calendar-modal" id="fechaDesdeCalendarModal" hidden>
+            <div class="modal-box calendar-box">
+                <div class="modal-header">
+                    <h2><c:out value="${dateFromLabel}"/></h2>
+                    <button type="button" class="modal-close" data-close-modal aria-label="${calendarCloseLabel}">
+                        <paw:icon name="close"/>
+                    </button>
+                </div>
+                <div class="calendar-header">
+                    <button type="button" class="calendar-nav" data-calendar-prev aria-label="${calendarPrevLabel}">
+                        <paw:icon name="chevron-left"/>
+                    </button>
+                    <span class="calendar-month-label" data-calendar-month-label></span>
+                    <button type="button" class="calendar-nav" data-calendar-next aria-label="${calendarNextLabel}">
+                        <paw:icon name="chevron-right"/>
+                    </button>
+                </div>
+                <div class="calendar-weekdays">
+                    <span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span>
+                </div>
+                <div class="calendar-days" data-calendar-days></div>
+            </div>
+        </div>
+        <div class="modal-overlay calendar-modal" id="fechaHastaCalendarModal" hidden>
+            <div class="modal-box calendar-box">
+                <div class="modal-header">
+                    <h2><c:out value="${dateToLabel}"/></h2>
+                    <button type="button" class="modal-close" data-close-modal aria-label="${calendarCloseLabel}">
+                        <paw:icon name="close"/>
+                    </button>
+                </div>
+                <div class="calendar-header">
+                    <button type="button" class="calendar-nav" data-calendar-prev aria-label="${calendarPrevLabel}">
+                        <paw:icon name="chevron-left"/>
+                    </button>
+                    <span class="calendar-month-label" data-calendar-month-label></span>
+                    <button type="button" class="calendar-nav" data-calendar-next aria-label="${calendarNextLabel}">
+                        <paw:icon name="chevron-right"/>
+                    </button>
+                </div>
+                <div class="calendar-weekdays">
+                    <span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span>
+                </div>
+                <div class="calendar-days" data-calendar-days></div>
+            </div>
+        </div>
 
         <details class="filter-dropdown" name="filter-group">
             <summary>
@@ -156,11 +234,33 @@
                 <span class="filter-dropdown-value">
                     <c:choose>
                         <c:when test="${empty precioMin && empty precioMax}"><c:out value="${allLabel}"/></c:when>
-                        <c:otherwise><c:out value="${empty precioMin ? '$0' : precioMin}"/> &ndash; <c:out value="${empty precioMax ? '&#8734;' : precioMax}"/></c:otherwise>
+                        <c:otherwise><c:out value="${empty precioMin ? '$0' : precioMin}"/> &ndash;
+                            <c:choose>
+                                <c:when test="${empty precioMax}"><spring:message code="event.list.priceRangeNoMax"/></c:when>
+                                <c:otherwise><c:out value="${precioMax}"/></c:otherwise>
+                            </c:choose>
+                        </c:otherwise>
                     </c:choose>
                 </span>
             </summary>
             <div class="filter-dropdown-panel">
+                <%-- Slider de dos puntas tipo Airbnb (ver price-range.js): sincronizado
+                     con los dos inputs numericos de abajo, que siguen siendo los que
+                     realmente viajan al servidor (y los que permiten un valor exacto
+                     o mas alto que el tope visual del slider). --%>
+                <div class="price-range" data-price-range>
+                    <div class="price-range-track">
+                        <div class="price-range-fill" data-price-range-fill></div>
+                    </div>
+                    <input type="range" class="price-range-input" min="0" max="50000" step="500"
+                           value="${empty precioMin ? 0 : precioMin}" data-price-range-min/>
+                    <input type="range" class="price-range-input" min="0" max="50000" step="500"
+                           value="${empty precioMax ? 50000 : precioMax}" data-price-range-max/>
+                </div>
+                <div class="price-range-labels">
+                    <span><spring:message code="event.price.free"/></span>
+                    <span><spring:message code="event.list.priceRangeMaxLabel"/></span>
+                </div>
                 <paw:input name="precioMin" label="${priceFromLabel}" type="number" min="0" required="${false}"
                            value="${precioMin}"/>
                 <paw:input name="precioMax" label="${priceToLabel}" type="number" min="0" required="${false}"
@@ -225,30 +325,11 @@
             </div>
         </details>
 
-        <%-- Ordenar va en el mismo form que los filtros: al apretar "Filtrar" viajan
-             juntos, y la paginacion ya repite ?sort=. Radios (y no un select con
-             onchange) para que funcione igual sin JavaScript. --%>
-        <spring:message code="event.list.sortLabel" var="sortLabel"/>
-        <details class="filter-dropdown" name="filter-group">
-            <summary>
-                <span class="filter-dropdown-label"><c:out value="${sortLabel}"/></span>
-                <span class="filter-dropdown-value"><spring:message code="event.list.sort.${sort}"/></span>
-            </summary>
-            <div class="filter-dropdown-panel">
-                <c:forEach var="option" items="${sortOptions}">
-                    <label class="filter-checkbox">
-                        <input type="radio" name="sort" value="${option}" ${sort == option.name() ? 'checked="checked"' : ''}/>
-                        <spring:message code="event.list.sort.${option}"/>
-                    </label>
-                </c:forEach>
-            </div>
-        </details>
-
         <paw:button text="${filterButtonLabel}" cssClass="btn-accent"/>
         <c:if test="${hasActiveFilters}">
             <a class="btn btn-medium filter-clear-all" href="<c:url value='/eventos'/>">&times; <c:out value="${clearAllLabel}"/></a>
         </c:if>
-    </form>
+    </div>
 
     <c:if test="${not empty rsvp}">
         <c:choose>
@@ -264,12 +345,30 @@
         </c:choose>
     </c:if>
 
-    <c:if test="${hasActiveFilters}">
-        <div class="results-header">
-            <h2 class="results-count"><spring:message code="event.list.resultsCount" arguments="${totalElements}"/></h2>
-            <a class="results-clear" href="<c:url value='/eventos'/>"><c:out value="${clearFiltersLabel}"/></a>
-        </div>
-    </c:if>
+    <%-- Ordenar, aparte de los filtros: un <select> comun que dispara el mismo
+         GET apenas se elige una opcion (sin esperar a "Filtrar"). Sigue adentro
+         de este form para viajar junto con los filtros ya puestos; solo cambia
+         donde se ve (esta fila, arriba del listado, no el acordeon de arriba). --%>
+    <spring:message code="event.list.sortLabel" var="sortLabel"/>
+    <div class="results-header">
+        <c:if test="${hasActiveFilters}">
+            <div class="results-info">
+                <h2 class="results-count"><spring:message code="event.list.resultsCount" arguments="${totalElements}"/></h2>
+                <a class="results-clear" href="<c:url value='/eventos'/>"><c:out value="${clearFiltersLabel}"/></a>
+            </div>
+        </c:if>
+        <label class="sort-select">
+            <span><c:out value="${sortLabel}"/></span>
+            <select name="sort" onchange="this.form.submit()">
+                <c:forEach var="option" items="${sortOptions}">
+                    <option value="${option}" ${sort == option.name() ? 'selected="selected"' : ''}>
+                        <spring:message code="event.list.sort.${option}"/>
+                    </option>
+                </c:forEach>
+            </select>
+        </label>
+    </div>
+    </form>
 
     <c:choose>
         <c:when test="${empty events}">

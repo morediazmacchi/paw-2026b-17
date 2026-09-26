@@ -74,6 +74,47 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     });
 
+    // Categorias con preguntas propias (todas menos "Otros", ver publish.jsp):
+    // lo que realmente viaja al server sigue siendo un solo extraInfo (no se
+    // toco el form ni la base), asi que las 2 respuestas se combinan en
+    // "Pregunta: Respuesta" por linea adentro de un textarea oculto.
+    var categoryQuestionGroups = Array.prototype.slice.call(
+            form.querySelectorAll("[data-category-questions]"));
+    categoryQuestionGroups.forEach(function (group) {
+        var hidden = group.parentNode.querySelector("[data-category-extra-hidden]");
+        var questionInputs = Array.prototype.slice.call(group.querySelectorAll(".wizard-category-question"));
+        if (!hidden || questionInputs.length === 0) {
+            return;
+        }
+
+        // Precarga (volver de un error de validacion, o editar un evento que
+        // ya tenia esto guardado): si el texto de siempre tiene exactamente
+        // una linea "Pregunta: Respuesta" por cada input, en ese orden, se
+        // reparte. Si no matchea (texto viejo, de antes de este cambio, u
+        // otro formato) no se toca nada: ese texto se preserva tal cual en
+        // el oculto hasta que la persona edite algo a mano.
+        var lines = hidden.value ? hidden.value.split("\n") : [];
+        var matches = lines.length === questionInputs.length && questionInputs.every(function (input, i) {
+            return lines[i].indexOf(input.dataset.question + ": ") === 0;
+        });
+        if (matches) {
+            questionInputs.forEach(function (input, i) {
+                input.value = lines[i].slice((input.dataset.question + ": ").length);
+            });
+        }
+
+        function recombine() {
+            hidden.value = questionInputs
+                    .filter(function (input) { return input.value.trim() !== ""; })
+                    .map(function (input) { return input.dataset.question + ": " + input.value.trim(); })
+                    .join("\n");
+        }
+
+        questionInputs.forEach(function (input) {
+            input.addEventListener("input", recombine);
+        });
+    });
+
     var fechaHidden = form.querySelector("#fechaEvento");
     var fechaDateInput = form.querySelector("#fechaEventoDate");
     var fechaHoursInput = form.querySelector("#fechaEventoHours");
