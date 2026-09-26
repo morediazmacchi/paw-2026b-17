@@ -95,7 +95,7 @@ public class ProfileController {
     // Para el badge de "Mis inscripciones" en accountSidebar.tag: se pide en
     // todas las paginas de la cuenta, no solo en /perfil/inscripciones.
     private int registrationsCountFor(final User user) {
-        return registrationService.findByEmail(user.getEmail()).size();
+        return registrationService.findByUserId(user.getId()).size();
     }
 
     // Mismo motivo que registrationsCountFor: el badge de "Favoritos" en el
@@ -107,7 +107,7 @@ public class ProfileController {
     // Mismo motivo que registrationsCountFor: el badge de "Mis eventos" en el
     // sidebar se pide en todas las paginas de la cuenta.
     private int eventsCountFor(final User user) {
-        return eventService.findByCreatorEmail(user.getEmail()).size();
+        return eventService.findByCreatorId(user.getId()).size();
     }
 
     // No hace falta antMatcher propio para /perfil ni /perfil/contrasena: no
@@ -201,7 +201,7 @@ public class ProfileController {
     @RequestMapping(value = "/perfil/inscripciones", method = RequestMethod.GET)
     public ModelAndView misInscripciones(final Principal principal) {
         final User user = currentUser(principal);
-        final List<Registration> registrations = registrationService.findByEmail(user.getEmail());
+        final List<Registration> registrations = registrationService.findByUserId(user.getId());
 
         final Map<Long, Event> eventsById = new HashMap<>();
         for (final Registration registration : registrations) {
@@ -250,7 +250,7 @@ public class ProfileController {
     @RequestMapping(value = "/perfil/inscripciones/{id}/cancelar", method = RequestMethod.POST)
     public ModelAndView cancelarInscripcion(@PathVariable final long id, final Principal principal,
                                              final RedirectAttributes redirectAttributes) {
-        registrationService.cancel(id, principal.getName());
+        registrationService.cancel(id, currentUser(principal).getId());
         redirectAttributes.addFlashAttribute("cancelled", true);
         return new ModelAndView("redirect:/perfil/inscripciones");
     }
@@ -316,7 +316,7 @@ public class ProfileController {
     public ModelAndView bandeja(@RequestParam(value = "page", required = false) final String page,
                                 final Principal principal) {
         final User user = currentUser(principal);
-        final PageResult<InboxMessage> result = inboxService.findPage(user.getEmail(), parsePage(page));
+        final PageResult<InboxMessage> result = inboxService.findPage(user.getId(), parsePage(page));
 
         // El titulo de cada evento, para armar el texto ("Ana se anoto en <titulo>").
         final Map<Long, Event> eventsById = new HashMap<>();
@@ -325,7 +325,7 @@ public class ProfileController {
                 eventService.findById(message.getEventId()).ifPresent(e -> eventsById.put(e.getId(), e));
             }
         }
-        inboxService.markAllRead(user.getEmail());
+        inboxService.markAllRead(user.getId());
 
         final ModelAndView mav = new ModelAndView("auth/bandeja");
         mav.addObject("user", user);
@@ -351,8 +351,8 @@ public class ProfileController {
     @RequestMapping(value = "/perfil/eventos", method = RequestMethod.GET)
     public ModelAndView misEventos(final Principal principal) {
         final User user = currentUser(principal);
-        final List<Event> createdEvents = eventService.findByCreatorEmail(user.getEmail());
-        final List<Review> myReviews = reviewService.findByCreatorEmail(user.getEmail());
+        final List<Event> createdEvents = eventService.findByCreatorId(user.getId());
+        final List<Review> myReviews = reviewService.findByCreatorId(user.getId());
 
         final ModelAndView mav = new ModelAndView("auth/eventos");
         mav.addObject("user", user);
@@ -360,7 +360,7 @@ public class ProfileController {
         mav.addObject("registrationsCount", registrationsCountFor(user));
         mav.addObject("favoritesCount", favoritesCountFor(user));
         mav.addObject("eventsCount", createdEvents.size());
-        mav.addObject("creatorAverageRating", reviewService.findCreatorAverageRating(user.getEmail()));
+        mav.addObject("creatorAverageRating", reviewService.findCreatorAverageRating(user.getId()));
         mav.addObject("creatorReviewCount", myReviews.size());
         if (!myReviews.isEmpty()) {
             // Para el popup "Ver mis reseñas": mismo patron que
@@ -378,7 +378,7 @@ public class ProfileController {
         for (final Event event : createdEvents) {
             if (event.isRequiresApproval()) {
                 pendingCountsByEventId.put(event.getId(),
-                        registrationService.findPendingByEvent(event.getId(), user.getEmail()).size());
+                        registrationService.findPendingByEvent(event.getId(), user.getId()).size());
             }
         }
         mav.addObject("pendingCountsByEventId", pendingCountsByEventId);
@@ -411,14 +411,14 @@ public class ProfileController {
                                               final Principal principal) {
         final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
         final User user = currentUser(principal);
-        if (!event.getCreatorEmail().equalsIgnoreCase(user.getEmail())) {
+        if (!Long.valueOf(user.getId()).equals(event.getCreatorId())) {
             throw new EventNotFoundException(id);
         }
 
         final ModelAndView mav = new ModelAndView("auth/inscriptos");
         mav.addObject("user", user);
         mav.addObject("event", event);
-        mav.addObject("pendingRegistrations", registrationService.findPendingByEvent(id, user.getEmail()));
+        mav.addObject("pendingRegistrations", registrationService.findPendingByEvent(id, user.getId()));
         mav.addObject("approved", approvedParam != null);
         mav.addObject("rejected", rejectedParam != null);
         mav.addObject("fullNotice", fullParam != null);
@@ -436,7 +436,7 @@ public class ProfileController {
     @RequestMapping(value = "/perfil/eventos/{id}/inscriptos/{registrationId}/aceptar", method = RequestMethod.POST)
     public ModelAndView approveRegistration(@PathVariable final long id, @PathVariable final long registrationId,
                                              final Principal principal) {
-        final ApprovalResult result = registrationService.approve(registrationId, principal.getName());
+        final ApprovalResult result = registrationService.approve(registrationId, currentUser(principal).getId());
         final String param = result == ApprovalResult.FULL ? "?full" : result == ApprovalResult.APPROVED ? "?approved" : "";
         return new ModelAndView("redirect:/perfil/eventos/" + id + "/inscriptos" + param);
     }
@@ -444,7 +444,7 @@ public class ProfileController {
     @RequestMapping(value = "/perfil/eventos/{id}/inscriptos/{registrationId}/rechazar", method = RequestMethod.POST)
     public ModelAndView rejectRegistration(@PathVariable final long id, @PathVariable final long registrationId,
                                             final Principal principal) {
-        registrationService.reject(registrationId, principal.getName());
+        registrationService.reject(registrationId, currentUser(principal).getId());
         return new ModelAndView("redirect:/perfil/eventos/" + id + "/inscriptos?rejected");
     }
 
@@ -452,7 +452,7 @@ public class ProfileController {
     @RequestMapping(value = "/perfil/eventos/{id}/inscriptos/{registrationId}/revocar", method = RequestMethod.POST)
     public ModelAndView revokeRegistration(@PathVariable final long id, @PathVariable final long registrationId,
                                             final Principal principal) {
-        final boolean revoked = registrationService.revoke(registrationId, principal.getName());
+        final boolean revoked = registrationService.revoke(registrationId, currentUser(principal).getId());
         return new ModelAndView("redirect:/eventos/" + id + "/inscriptos" + (revoked ? "?revoked" : ""));
     }
 
@@ -466,7 +466,7 @@ public class ProfileController {
                                     final Principal principal) {
         final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
         final User user = currentUser(principal);
-        if (!event.getCreatorEmail().equalsIgnoreCase(user.getEmail()) || !event.isPrivate()) {
+        if (!Long.valueOf(user.getId()).equals(event.getCreatorId()) || !event.isPrivate()) {
             throw new EventNotFoundException(id);
         }
         return inviteFormView(event, user, new InviteForm(), null, sentParam != null, alreadyInvitedParam != null);
@@ -477,13 +477,13 @@ public class ProfileController {
                                 final Principal principal) {
         final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
         final User user = currentUser(principal);
-        if (!event.getCreatorEmail().equalsIgnoreCase(user.getEmail()) || !event.isPrivate()) {
+        if (!Long.valueOf(user.getId()).equals(event.getCreatorId()) || !event.isPrivate()) {
             throw new EventNotFoundException(id);
         }
         if (errors.hasErrors()) {
             return inviteFormView(event, user, form, errors, false, false);
         }
-        final EventInvitationResult result = eventInvitationService.invite(id, user.getEmail(), form.getEmail());
+        final EventInvitationResult result = eventInvitationService.invite(id, user.getId(), form.getEmail());
         final String param = result == EventInvitationResult.ALREADY_INVITED ? "alreadyInvited"
                 : result == EventInvitationResult.FULL ? "full"
                 : result == EventInvitationResult.SELF_INVITE ? "selfInvite" : "sent";
@@ -492,7 +492,7 @@ public class ProfileController {
 
     private ModelAndView inviteFormView(final Event event, final User user, final InviteForm form,
                                          final BindingResult errors, final boolean sent, final boolean alreadyInvited) {
-        final List<EventInvitation> invitations = eventInvitationService.findByEvent(event.getId(), user.getEmail());
+        final List<EventInvitation> invitations = eventInvitationService.findByEvent(event.getId(), user.getId());
         final ModelAndView mav = new ModelAndView("auth/invitar");
         mav.addObject("user", user);
         mav.addObject("event", event);

@@ -25,6 +25,15 @@ public class Event {
     private BigDecimal price = BigDecimal.ZERO;
     private Integer maxCapacity;
     private String creatorEmail;
+    // FK de verdad contra users.id (ver schema.sql): de aca en mas es la
+    // fuente de la verdad para "quien es el dueno de este evento" (las
+    // comparaciones de ownership usan esto, no mas creatorEmail). Null solo
+    // puede pasar en una fila vieja que todavia no paso por el backfill de
+    // postgres-migrations.sql; toda fila nueva la trae siempre resuelta
+    // desde el Principal autenticado (ver EventController). No va en el
+    // constructor por el mismo motivo que requiresApproval: no romper los
+    // "new Event(...)" existentes (muchos en tests).
+    private Long creatorId;
     // Un evento puede tener varias categorias (relacion N:M, ver event_category
     // en schema.sql). categoryName y extraInfo de cada una solo se llenan al
     // leer (join con category / event_category), no hace falta setearlos para
@@ -105,6 +114,8 @@ public class Event {
     public void setMaxCapacity(final Integer maxCapacity) { this.maxCapacity = maxCapacity; }
     public String getCreatorEmail() { return creatorEmail; }
     public void setCreatorEmail(final String creatorEmail) { this.creatorEmail = creatorEmail; }
+    public Long getCreatorId() { return creatorId; }
+    public void setCreatorId(final Long creatorId) { this.creatorId = creatorId; }
     public List<EventCategoryInfo> getCategories() { return categories; }
     public void setCategories(final List<EventCategoryInfo> categories) {
         this.categories = categories == null ? new ArrayList<>() : categories;

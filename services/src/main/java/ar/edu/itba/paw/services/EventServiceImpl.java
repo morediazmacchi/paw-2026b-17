@@ -8,8 +8,6 @@ import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.persistence.EventDao;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -20,8 +18,6 @@ import java.util.Optional;
 
 @Service
 public class EventServiceImpl implements EventService {
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(EventServiceImpl.class);
 
     private final EventDao eventDao;
     private final UserService userService;
@@ -50,12 +46,11 @@ public class EventServiceImpl implements EventService {
         } catch (final DataIntegrityViolationException e) {
             throw new IllegalArgumentException("La categoria elegida no existe", e);
         }
-        User creator = null;
-        try {
-            creator = userService.findOrCreate(created.getCreatorEmail(), null);
-        } catch (final RuntimeException e) {
-            LOGGER.warn("No se pudo crear/actualizar el user para {}", created.getCreatorEmail(), e);
-        }
+        // El creador ya viene resuelto (creatorId, ver EventController.publish()):
+        // a diferencia de antes, no hace falta userService.findOrCreate() para
+        // garantizar una fila en users, el Principal autenticado ya la implica.
+        // Solo se busca para el nombre que va en el mail de bienvenida.
+        final User creator = userService.findById(created.getCreatorId()).orElse(null);
         // Devuelve enseguida: el mail sale en otro hilo (@Async).
         notificationService.notifyEventCreated(created, creator == null ? null : creator.getName());
         return created;
@@ -71,8 +66,8 @@ public class EventServiceImpl implements EventService {
     public List<Event> findByCategory(final long categoryId) { return eventDao.findByCategory(categoryId); }
     @Override
     @Transactional(readOnly = true)
-    public List<Event> findByCreatorEmail(final String email) {
-        return eventDao.findByCreatorEmail(email.trim().toLowerCase());
+    public List<Event> findByCreatorId(final long creatorId) {
+        return eventDao.findByCreatorId(creatorId);
     }
     @Override
     @Transactional(readOnly = true)
@@ -90,12 +85,12 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional
-    public EventUpdateResult update(final long eventId, final Event changes, final String callerEmail) {
+    public EventUpdateResult update(final long eventId, final Event changes, final long callerId) {
         // Con lock (SELECT ... FOR UPDATE), igual que register(): mientras se
         // chequea y se cambia el cupo, nadie se puede anotar. Sin esto, alguien
         // podia confirmarse entre el chequeo y el UPDATE y quedar mas gente que cupo.
         final Optional<Event> existing = eventDao.findByIdForUpdate(eventId);
-        if (!existing.isPresent() || !existing.get().getCreatorEmail().equalsIgnoreCase(callerEmail)) {
+        if (!existing.isPresent() || !Long.valueOf(callerId).equals(existing.get().getCreatorId())) {
             return EventUpdateResult.NOT_FOUND;
         }
         if (existing.get().isCancelled()) {
@@ -126,9 +121,9 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional
-    public EventCancelResult cancel(final long eventId, final String callerEmail) {
+    public EventCancelResult cancel(final long eventId, final long callerId) {
         final Optional<Event> existing = eventDao.findById(eventId);
-        if (!existing.isPresent() || !existing.get().getCreatorEmail().equalsIgnoreCase(callerEmail)) {
+        if (!existing.isPresent() || !Long.valueOf(callerId).equals(existing.get().getCreatorId())) {
             return EventCancelResult.NOT_FOUND;
         }
         final Event event = existing.get();

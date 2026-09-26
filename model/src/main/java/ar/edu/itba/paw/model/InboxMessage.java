@@ -13,6 +13,11 @@ public class InboxMessage {
 
     private long id;
     private String recipientEmail;
+    // Optimista, igual que EventInvitation.userId: se completa si el
+    // destinatario ya tenia cuenta al mandarse el aviso (ver
+    // InboxServiceImpl.add()), o mas adelante solo, cuando se registra (ver
+    // UserServiceImpl.register()). Null para siempre es un caso normal.
+    private Long userId;
     private InboxMessageType type;
     // Casi todos hablan de un evento; null si alguno no.
     private Long eventId;
@@ -42,6 +47,8 @@ public class InboxMessage {
     public void setId(final long id) { this.id = id; }
     public String getRecipientEmail() { return recipientEmail; }
     public void setRecipientEmail(final String recipientEmail) { this.recipientEmail = recipientEmail; }
+    public Long getUserId() { return userId; }
+    public void setUserId(final Long userId) { this.userId = userId; }
     public InboxMessageType getType() { return type; }
     public void setType(final InboxMessageType type) { this.type = type; }
     public Long getEventId() { return eventId; }

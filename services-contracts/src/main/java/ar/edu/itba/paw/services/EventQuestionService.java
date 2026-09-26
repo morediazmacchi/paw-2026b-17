@@ -10,7 +10,7 @@ public interface EventQuestionService {
     QuestionResult ask(long eventId, User asker, String text);
 
     /** Respuesta del organizador. Si sale bien, le avisa a quien pregunto (mail + bandeja). */
-    AnswerResult answer(long eventId, long questionId, String answererEmail, String text);
+    AnswerResult answer(long eventId, long questionId, long answererId, String text);
 
     /** Las preguntas del evento, mas nuevas primero. */
     PageResult<EventQuestion> findPage(long eventId, int page);

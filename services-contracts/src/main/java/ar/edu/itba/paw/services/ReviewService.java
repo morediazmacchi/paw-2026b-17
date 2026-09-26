@@ -19,11 +19,11 @@ public interface ReviewService {
     ReviewResult create(long eventId, User user, int rating, String comment);
 
     /** Puntaje del promotor: promedio de todas las reseñas de sus eventos (0 si no tiene). */
-    double findCreatorAverageRating(String creatorEmail);
+    double findCreatorAverageRating(long creatorId);
 
     /**
-     * Todas las reseñas de todos los eventos que creo ese email: el promedio
+     * Todas las reseñas de todos los eventos que creo ese usuario: el promedio
      * (para el detalle de evento y "Mis eventos") sale de promediar esta lista.
      */
-    List<Review> findByCreatorEmail(String creatorEmail);
+    List<Review> findByCreatorId(long creatorId);
 }

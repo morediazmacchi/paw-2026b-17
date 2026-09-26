@@ -253,3 +253,31 @@ CREATE TABLE IF NOT EXISTS event_question (
 -- Si el evento cuenta con estacionamiento para los asistentes. Checkbox
 -- comun (mismo criterio que requires_approval): ausente en el form = false.
 ALTER TABLE event ADD COLUMN IF NOT EXISTS has_parking BOOLEAN NOT NULL DEFAULT false;
+
+-- Migracion de creator_email/email/invited_by (String) a una FK de verdad
+-- contra users.id. Nullable a proposito (no se puede agregar NOT NULL a una
+-- columna nueva sobre una tabla que ya tiene filas sin romper el arranque):
+-- postgres-migrations.sql la backfillea contra la base real; de aca en mas
+-- el codigo Java siempre la completa (viene resuelta del Principal
+-- autenticado, ver EventController/ProfileController), asi que en la
+-- practica nunca queda NULL para una fila nueva. Las columnas viejas
+-- (creator_email/email/invited_by) se quedan por ahora: todavia las lee
+-- NotificationService (le alcanza con Event/Registration/EventInvitation
+-- enteros, nunca las toca directo) y sirven de respaldo mientras esto
+-- termina de asentarse. Sacarlas es una tarea aparte, mas adelante.
+ALTER TABLE event ADD COLUMN IF NOT EXISTS creator_id INTEGER REFERENCES users(id);
+ALTER TABLE registration ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id);
+ALTER TABLE event_invitation ADD COLUMN IF NOT EXISTS invited_by_user_id INTEGER REFERENCES users(id);
+
+-- Grupo B: a quien invitan a un evento privado (event_invitation.email) o le
+-- llega un aviso a la bandeja (inbox_message.recipient_email) puede no tener
+-- cuenta todavia -- a diferencia de creator_id/registration.user_id de arriba,
+-- que siempre tienen un User real detras. Por eso esta FK es la unica fuente
+-- optimista: se completa SI YA existe una cuenta en el momento de invitar/
+-- avisar (ver EventInvitationServiceImpl.invite()/InboxServiceImpl.add()), y
+-- si no existe, se reconcilia sola despues, cuando esa persona se registra
+-- (ver UserServiceImpl.register(), que linkea por email todo lo que haya
+-- quedado con user_id NULL). El email se queda siendo el dato de verdad: un
+-- user_id en NULL para siempre es un caso normal, no un error.
+ALTER TABLE event_invitation ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id);
+ALTER TABLE inbox_message ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id);

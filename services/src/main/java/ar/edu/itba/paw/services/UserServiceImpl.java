@@ -4,6 +4,8 @@ package ar.edu.itba.paw.services;
 import ar.edu.itba.paw.model.TokenPurpose;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.VerificationToken;
+import ar.edu.itba.paw.persistence.EventInvitationDao;
+import ar.edu.itba.paw.persistence.InboxMessageDao;
 import ar.edu.itba.paw.persistence.UserDao;
 import ar.edu.itba.paw.persistence.VerificationTokenDao;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,14 +31,23 @@ public class UserServiceImpl implements UserService {
     private final VerificationTokenDao tokenDao;
     private final PasswordEncoder passwordEncoder;
     private final NotificationService notificationService;
+    // Reconciliacion del Grupo B (ver schema.sql): habla directo con los DAOs,
+    // no con EventInvitationService/InboxService, para no depender de la capa
+    // de servicios (evita un ciclo y esto no necesita nada de su logica de
+    // negocio, es un simple UPDATE por email).
+    private final EventInvitationDao invitationDao;
+    private final InboxMessageDao inboxMessageDao;
 
     @Autowired
     public UserServiceImpl(final UserDao userDao, final VerificationTokenDao tokenDao,
-                           final PasswordEncoder passwordEncoder, final NotificationService notificationService) {
+                           final PasswordEncoder passwordEncoder, final NotificationService notificationService,
+                           final EventInvitationDao invitationDao, final InboxMessageDao inboxMessageDao) {
         this.userDao = userDao;
         this.tokenDao = tokenDao;
         this.passwordEncoder = passwordEncoder;
         this.notificationService = notificationService;
+        this.invitationDao = invitationDao;
+        this.inboxMessageDao = inboxMessageDao;
     }
 
     @Override
@@ -80,6 +91,12 @@ public class UserServiceImpl implements UserService {
         } else {
             userId = userDao.create(new User(normalizedEmail, name)).getId();
         }
+        // Reconciliacion del Grupo B: si esta persona ya venia con invitaciones
+        // o avisos de bandeja sin resolver (invitada sin cuenta, ver
+        // EventInvitationServiceImpl.invite()/InboxServiceImpl.add()), ahora
+        // que tiene un id se los enlazamos. No hace nada si no tenia ninguno.
+        invitationDao.linkUserId(normalizedEmail, userId);
+        inboxMessageDao.linkUserId(normalizedEmail, userId);
         // El hash recien aca, despues del chequeo de EMAIL_TAKEN: BCrypt es lento
         // a proposito y no tiene sentido pagarlo si el registro se rechaza.
         userDao.setPassword(userId, passwordEncoder.encode(rawPassword));

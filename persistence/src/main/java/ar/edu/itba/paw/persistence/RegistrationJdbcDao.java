@@ -24,6 +24,8 @@ public class RegistrationJdbcDao implements RegistrationDao {
         registration.setEventId(rs.getLong("event_id"));
         registration.setEmail(rs.getString("email"));
         registration.setName(rs.getString("name"));
+        final Integer userId = rs.getObject("user_id", Integer.class);
+        registration.setUserId(userId == null ? null : userId.longValue());
         registration.setRegisteredAt(rs.getTimestamp("registered_at"));
         registration.setStatus(RegistrationStatus.valueOf(rs.getString("status")));
         return registration;
@@ -38,7 +40,7 @@ public class RegistrationJdbcDao implements RegistrationDao {
         this.jdbcInsert = new SimpleJdbcInsert(ds)
                 .withTableName("registration")
                 .usingGeneratedKeyColumns("id")
-                .usingColumns("event_id", "email", "name", "status");
+                .usingColumns("event_id", "email", "name", "status", "user_id");
     }
 
     @Override
@@ -48,6 +50,7 @@ public class RegistrationJdbcDao implements RegistrationDao {
         args.put("email", registration.getEmail());
         args.put("name", registration.getName());
         args.put("status", registration.getStatus().name());
+        args.put("user_id", registration.getUserId());
 
         final Number id = jdbcInsert.executeAndReturnKey(args);
         registration.setId(id.longValue());
@@ -55,9 +58,9 @@ public class RegistrationJdbcDao implements RegistrationDao {
     }
 
     @Override
-    public Optional<Registration> findByEventAndEmail(final long eventId, final String email) {
-        return jdbcTemplate.query("SELECT * FROM registration WHERE event_id = ? AND email = ?",
-                ROW_MAPPER, eventId, email).stream().findFirst();
+    public Optional<Registration> findByEventAndUserId(final long eventId, final long userId) {
+        return jdbcTemplate.query("SELECT * FROM registration WHERE event_id = ? AND user_id = ?",
+                ROW_MAPPER, eventId, userId).stream().findFirst();
     }
 
     @Override
@@ -75,10 +78,10 @@ public class RegistrationJdbcDao implements RegistrationDao {
     }
 
     @Override
-    public List<Registration> findByEmail(final String email) {
+    public List<Registration> findByUserId(final long userId) {
         return jdbcTemplate.query(
-                "SELECT * FROM registration WHERE email = ? ORDER BY registered_at DESC",
-                ROW_MAPPER, email);
+                "SELECT * FROM registration WHERE user_id = ? ORDER BY registered_at DESC",
+                ROW_MAPPER, userId);
     }
 
     @Override

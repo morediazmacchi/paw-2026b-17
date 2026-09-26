@@ -98,6 +98,8 @@ public class EventJdbcDao implements EventDao {
         event.setPrice(rs.getBigDecimal("price"));
         event.setMaxCapacity(rs.getObject("max_capacity", Integer.class));
         event.setCreatorEmail(rs.getString("creator_email"));
+        final Integer creatorId = rs.getObject("creator_id", Integer.class);
+        event.setCreatorId(creatorId == null ? null : creatorId.longValue());
         event.setCreatedAt(rs.getTimestamp("created_at"));
         event.setRequiresApproval(rs.getBoolean("requires_approval"));
         event.setVisibility(EventVisibility.valueOf(rs.getString("visibility")));
@@ -124,7 +126,7 @@ public class EventJdbcDao implements EventDao {
                 .withTableName("event")
                 .usingGeneratedKeyColumns("id")
                 .usingColumns("title", "description", "event_date", "address", "neighborhood",
-                        "price", "max_capacity", "creator_email", "requires_approval",
+                        "price", "max_capacity", "creator_email", "creator_id", "requires_approval",
                         "visibility", "latitude", "longitude", "has_parking");
     }
 
@@ -139,6 +141,7 @@ public class EventJdbcDao implements EventDao {
         args.put("price", event.getPrice());
         args.put("max_capacity", event.getMaxCapacity());
         args.put("creator_email", event.getCreatorEmail());
+        args.put("creator_id", event.getCreatorId());
         args.put("requires_approval", event.isRequiresApproval());
         args.put("visibility", event.getVisibility().name());
         args.put("latitude", event.getLatitude());
@@ -312,9 +315,9 @@ public class EventJdbcDao implements EventDao {
     }
 
     @Override
-    public List<Event> findByCreatorEmail(final String email) {
-        final List<Event> events = jdbcTemplate.query(SELECT_BASE + " WHERE e.creator_email = ? ORDER BY e.event_date DESC",
-                ROW_MAPPER, email);
+    public List<Event> findByCreatorId(final long creatorId) {
+        final List<Event> events = jdbcTemplate.query(SELECT_BASE + " WHERE e.creator_id = ? ORDER BY e.event_date DESC",
+                ROW_MAPPER, creatorId);
         attachRelated(events);
         return events;
     }
@@ -391,11 +394,11 @@ public class EventJdbcDao implements EventDao {
         if (criteria.getMinOrganizerRating() != null) {
             // El promedio es de TODAS las reseñas del creador (todos sus eventos),
             // el mismo numero que se muestra en el detalle y en "Mis eventos"
-            // (ver ReviewDao.findAverageRatingByCreatorEmail, que usa el mismo AVG):
+            // (ver ReviewDao.findAverageRatingByCreatorId, que usa el mismo AVG):
             // no es el promedio de este evento solo. Si uno cambia, cambiar el otro.
-            sql.append(" AND e.creator_email IN ("
-                    + "SELECT e2.creator_email FROM review r2 JOIN event e2 ON e2.id = r2.event_id "
-                    + "GROUP BY e2.creator_email HAVING AVG(CAST(r2.rating AS DOUBLE PRECISION)) >= ?)");
+            sql.append(" AND e.creator_id IN ("
+                    + "SELECT e2.creator_id FROM review r2 JOIN event e2 ON e2.id = r2.event_id "
+                    + "GROUP BY e2.creator_id HAVING AVG(CAST(r2.rating AS DOUBLE PRECISION)) >= ?)");
             params.add(criteria.getMinOrganizerRating());
         }
 

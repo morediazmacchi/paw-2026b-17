@@ -2,6 +2,7 @@ package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationStatus;
+import ar.edu.itba.paw.model.User;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -37,13 +38,18 @@ public class RegistrationJdbcDaoTest {
     @Autowired
     private RegistrationDao registrationDao;
 
+    @Autowired
+    private UserDao userDao;
+
     private JdbcTemplate jdbcTemplate;
     private long eventId;
+    private long userId;
 
     @Before
     public void setUp() {
         jdbcTemplate = new JdbcTemplate(ds);
         eventId = insertEvent();
+        userId = userDao.create(new User(EMAIL, NAME)).getId();
     }
 
     // El evento no necesita categoria para estos tests (son de inscripciones,
@@ -56,11 +62,26 @@ public class RegistrationJdbcDaoTest {
         return jdbcTemplate.queryForObject("SELECT id FROM event ORDER BY id DESC LIMIT 1", Long.class);
     }
 
-    private static Registration someRegistration(final long eventId) {
-        return new Registration(eventId, EMAIL, NAME, RegistrationStatus.CONFIRMED);
+    private Registration someRegistration(final long eventId) {
+        return registrationFor(eventId, EMAIL, userId, NAME, RegistrationStatus.CONFIRMED);
     }
 
-    // ---- create() + findByEventAndEmail() ----
+    // registration.user_id ahora es una FK de verdad contra users.id: cada
+    // email "de utileria" de estos tests necesita su propia fila en users
+    // (userDao.create), no alcanza con inventar un id suelto.
+    private Registration registrationFor(final long eventId, final String email, final String name,
+                                          final RegistrationStatus status) {
+        return registrationFor(eventId, email, userDao.create(new User(email, name)).getId(), name, status);
+    }
+
+    private Registration registrationFor(final long eventId, final String email, final long userId,
+                                          final String name, final RegistrationStatus status) {
+        final Registration registration = new Registration(eventId, email, name, status);
+        registration.setUserId(userId);
+        return registration;
+    }
+
+    // ---- create() + findByEventAndUserId() ----
 
     @Test
     public void testCreateAssignsAGeneratedId() {
@@ -70,10 +91,10 @@ public class RegistrationJdbcDaoTest {
     }
 
     @Test
-    public void testCreateAndFindByEventAndEmailReturnTheSameRegistration() {
+    public void testCreateAndFindByEventAndUserIdReturnTheSameRegistration() {
         registrationDao.create(someRegistration(eventId));
 
-        final Optional<Registration> found = registrationDao.findByEventAndEmail(eventId, EMAIL);
+        final Optional<Registration> found = registrationDao.findByEventAndUserId(eventId, userId);
 
         assertTrue(found.isPresent());
         assertEquals(NAME, found.get().getName());
@@ -81,8 +102,8 @@ public class RegistrationJdbcDaoTest {
     }
 
     @Test
-    public void testFindByEventAndEmailReturnsEmptyWhenNotRegistered() {
-        final Optional<Registration> found = registrationDao.findByEventAndEmail(eventId, EMAIL);
+    public void testFindByEventAndUserIdReturnsEmptyWhenNotRegistered() {
+        final Optional<Registration> found = registrationDao.findByEventAndUserId(eventId, userId);
 
         assertFalse(found.isPresent());
     }
@@ -102,8 +123,8 @@ public class RegistrationJdbcDaoTest {
 
     @Test
     public void testCountConfirmedCountsOnlyConfirmedStatus() {
-        registrationDao.create(new Registration(eventId, "confirmado@mail.com", NAME, RegistrationStatus.CONFIRMED));
-        registrationDao.create(new Registration(eventId, "espera@mail.com", NAME, RegistrationStatus.WAITLISTED));
+        registrationDao.create(registrationFor(eventId, "confirmado@mail.com", NAME, RegistrationStatus.CONFIRMED));
+        registrationDao.create(registrationFor(eventId, "espera@mail.com", NAME, RegistrationStatus.WAITLISTED));
 
         assertEquals(1, registrationDao.countConfirmed(eventId));
     }
@@ -125,22 +146,22 @@ public class RegistrationJdbcDaoTest {
         assertEquals(EMAIL, found.get().getEmail());
     }
 
-    // ---- findByEmail() ("Mis inscripciones") ----
+    // ---- findByUserId() ("Mis inscripciones") ----
 
     @Test
-    public void testFindByEmailReturnsOnlyThatEmailsRegistrations() {
+    public void testFindByUserIdReturnsOnlyThatUsersRegistrations() {
         registrationDao.create(someRegistration(eventId));
-        registrationDao.create(new Registration(eventId, "otro@mail.com", "Otro", RegistrationStatus.CONFIRMED));
+        registrationDao.create(registrationFor(eventId, "otro@mail.com", "Otro", RegistrationStatus.CONFIRMED));
 
-        final List<Registration> found = registrationDao.findByEmail(EMAIL);
+        final List<Registration> found = registrationDao.findByUserId(userId);
 
         assertEquals(1, found.size());
         assertEquals(EMAIL, found.get(0).getEmail());
     }
 
     @Test
-    public void testFindByEmailReturnsEmptyWhenNeverRegistered() {
-        assertTrue(registrationDao.findByEmail(EMAIL).isEmpty());
+    public void testFindByUserIdReturnsEmptyWhenNeverRegistered() {
+        assertTrue(registrationDao.findByUserId(userId).isEmpty());
     }
 
     // ---- findByEventId() ("Ver inscriptos" del organizador) ----
@@ -148,7 +169,7 @@ public class RegistrationJdbcDaoTest {
     @Test
     public void testFindByEventIdReturnsAllRegistrationsForThatEvent() {
         registrationDao.create(someRegistration(eventId));
-        registrationDao.create(new Registration(eventId, "otro@mail.com", "Otro", RegistrationStatus.CONFIRMED));
+        registrationDao.create(registrationFor(eventId, "otro@mail.com", "Otro", RegistrationStatus.CONFIRMED));
 
         final List<Registration> found = registrationDao.findByEventId(eventId);
 
@@ -159,7 +180,7 @@ public class RegistrationJdbcDaoTest {
     public void testFindByEventIdDoesNotReturnRegistrationsOfOtherEvents() {
         final long otherEventId = insertEvent();
         registrationDao.create(someRegistration(eventId));
-        registrationDao.create(new Registration(otherEventId, "otro@mail.com", "Otro", RegistrationStatus.CONFIRMED));
+        registrationDao.create(registrationFor(otherEventId, "otro@mail.com", "Otro", RegistrationStatus.CONFIRMED));
 
         final List<Registration> found = registrationDao.findByEventId(eventId);
 
@@ -193,9 +214,9 @@ public class RegistrationJdbcDaoTest {
 
     @Test
     public void testCountPendingCountsOnlyPendingStatus() {
-        registrationDao.create(new Registration(eventId, "pendiente@mail.com", NAME, RegistrationStatus.PENDING));
-        registrationDao.create(new Registration(eventId, "confirmado@mail.com", NAME, RegistrationStatus.CONFIRMED));
-        registrationDao.create(new Registration(eventId, "rechazado@mail.com", NAME, RegistrationStatus.REJECTED));
+        registrationDao.create(registrationFor(eventId, "pendiente@mail.com", NAME, RegistrationStatus.PENDING));
+        registrationDao.create(registrationFor(eventId, "confirmado@mail.com", NAME, RegistrationStatus.CONFIRMED));
+        registrationDao.create(registrationFor(eventId, "rechazado@mail.com", NAME, RegistrationStatus.REJECTED));
 
         assertEquals(1, registrationDao.countPending(eventId));
     }
@@ -210,14 +231,14 @@ public class RegistrationJdbcDaoTest {
     @Test
     public void testFindPendingByEventReturnsOnlyPendingOrderedByOldestFirst() throws InterruptedException {
         final Registration first = registrationDao.create(
-                new Registration(eventId, "primero@mail.com", NAME, RegistrationStatus.PENDING));
+                registrationFor(eventId, "primero@mail.com", NAME, RegistrationStatus.PENDING));
         // HSQLDB trunca registered_at a milisegundos: sin esta pausa, las dos
         // filas podrian quedar con el mismo timestamp y el orden no estaria
         // garantizado.
         Thread.sleep(5);
         final Registration second = registrationDao.create(
-                new Registration(eventId, "segundo@mail.com", NAME, RegistrationStatus.PENDING));
-        registrationDao.create(new Registration(eventId, "confirmado@mail.com", NAME, RegistrationStatus.CONFIRMED));
+                registrationFor(eventId, "segundo@mail.com", NAME, RegistrationStatus.PENDING));
+        registrationDao.create(registrationFor(eventId, "confirmado@mail.com", NAME, RegistrationStatus.CONFIRMED));
 
         final List<Registration> pending = registrationDao.findPendingByEvent(eventId);
 

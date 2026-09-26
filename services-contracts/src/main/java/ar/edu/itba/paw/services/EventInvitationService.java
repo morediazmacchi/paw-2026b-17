@@ -15,18 +15,20 @@ public interface EventInvitationService {
      * tiene sentido ahi, un evento publico ya tiene un link que se puede
      * compartir sin necesitar esto.
      */
-    EventInvitationResult invite(long eventId, String creatorEmail, String inviteeEmail);
+    EventInvitationResult invite(long eventId, long creatorId, String inviteeEmail);
 
     /**
-     * Si a este email se le mando una invitacion a este evento. Es lo que deja
-     * ver (y anotarse a) un evento privado: el email es el del usuario logueado
-     * (ver EventController.canView).
+     * Si a este usuario se le mando una invitacion a este evento. Es lo que
+     * deja ver (y anotarse a) un evento privado: el id es el del usuario
+     * logueado (ver EventController.canView). Por id y no por email: el
+     * email de la invitacion puede haber quedado desactualizado si la
+     * persona invitada cambio el suyo despues (ver linkUserId).
      */
-    boolean isInvited(long eventId, String email);
+    boolean isInvited(long eventId, long userId);
 
     /**
      * Pantalla "a quien invite" del creador. Vacia si el evento no existe o
-     * no es de ese email (no revela cual de las dos cosas paso).
+     * no es de ese creador (no revela cual de las dos cosas paso).
      */
-    List<EventInvitation> findByEvent(long eventId, String creatorEmail);
+    List<EventInvitation> findByEvent(long eventId, long creatorId);
 }

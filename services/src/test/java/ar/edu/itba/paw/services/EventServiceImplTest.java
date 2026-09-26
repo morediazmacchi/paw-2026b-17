@@ -23,7 +23,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -36,8 +35,9 @@ public class EventServiceImplTest {
     private static final long EVENT_ID = 1;
     private static final long CATEGORY_ID = 7;
     private static final String CREATOR_EMAIL = "creador@mail.com";
+    private static final long CREATOR_ID = 42;
 
-    private static final String OTHER_EMAIL = "otro@mail.com";
+    private static final long OTHER_ID = 43;
 
     @Mock
     private EventDao mockEventDao;
@@ -62,6 +62,7 @@ public class EventServiceImplTest {
         event.setId(EVENT_ID);
         event.setCategories(Collections.singletonList(new EventCategoryInfo(CATEGORY_ID)));
         event.setCreatorEmail(CREATOR_EMAIL);
+        event.setCreatorId(CREATOR_ID);
         return event;
     }
 
@@ -83,10 +84,12 @@ public class EventServiceImplTest {
     }
 
     @Test
-    public void testCreateStillReturnsTheEventWhenUserServiceFails() {
+    public void testCreateStillReturnsTheEventWhenCreatorLookupFindsNothing() {
+        // El creador ya viene resuelto (creatorId) desde el controller: esto
+        // solo puede pasar si esa fila desapareciera justo entre medio. No
+        // tiene que romper la creacion del evento, solo el nombre del mail.
         when(mockEventDao.create(any(Event.class))).thenReturn(someEvent());
-        when(mockUserService.findOrCreate(anyString(), any()))
-                .thenThrow(new RuntimeException("no se pudo crear el user"));
+        when(mockUserService.findById(CREATOR_ID)).thenReturn(Optional.empty());
 
         final Event result = eventService.create(someEvent());
 
@@ -135,23 +138,14 @@ public class EventServiceImplTest {
     }
 
     @Test
-    public void testFindByCreatorEmailReturnsWhatTheDaoReturns() {
+    public void testFindByCreatorIdReturnsWhatTheDaoReturns() {
         final List<Event> events = Collections.singletonList(someEvent());
-        when(mockEventDao.findByCreatorEmail(CREATOR_EMAIL)).thenReturn(events);
+        when(mockEventDao.findByCreatorId(CREATOR_ID)).thenReturn(events);
 
-        final List<Event> result = eventService.findByCreatorEmail(CREATOR_EMAIL);
+        final List<Event> result = eventService.findByCreatorId(CREATOR_ID);
 
         assertEquals(1, result.size());
         assertEquals(CREATOR_EMAIL, result.get(0).getCreatorEmail());
-    }
-
-    @Test
-    public void testFindByCreatorEmailNormalizesTheEmail() {
-        when(mockEventDao.findByCreatorEmail(CREATOR_EMAIL)).thenReturn(Collections.singletonList(someEvent()));
-
-        eventService.findByCreatorEmail("  CREADOR@Mail.com ");
-
-        org.mockito.Mockito.verify(mockEventDao).findByCreatorEmail(CREATOR_EMAIL);
     }
 
     @Test
@@ -161,7 +155,7 @@ public class EventServiceImplTest {
         changes.setMaxCapacity(20);
         when(mockRegistrationService.occupiedSpots(EVENT_ID)).thenReturn(5L);
 
-        final EventUpdateResult result = eventService.update(EVENT_ID, changes, CREATOR_EMAIL);
+        final EventUpdateResult result = eventService.update(EVENT_ID, changes, CREATOR_ID);
 
         assertEquals(EventUpdateResult.UPDATED, result);
         verify(mockEventDao).update(changes);
@@ -171,7 +165,7 @@ public class EventServiceImplTest {
     public void testUpdateWhenCallerIsNotTheCreatorReturnsNotFound() {
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(someEvent()));
 
-        final EventUpdateResult result = eventService.update(EVENT_ID, someEvent(), OTHER_EMAIL);
+        final EventUpdateResult result = eventService.update(EVENT_ID, someEvent(), OTHER_ID);
 
         assertEquals(EventUpdateResult.NOT_FOUND, result);
         verify(mockEventDao, never()).update(any(Event.class));
@@ -181,7 +175,7 @@ public class EventServiceImplTest {
     public void testUpdateWhenTheEventDoesNotExistReturnsNotFound() {
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.empty());
 
-        final EventUpdateResult result = eventService.update(EVENT_ID, someEvent(), CREATOR_EMAIL);
+        final EventUpdateResult result = eventService.update(EVENT_ID, someEvent(), CREATOR_ID);
 
         assertEquals(EventUpdateResult.NOT_FOUND, result);
         verify(mockEventDao, never()).update(any(Event.class));
@@ -194,7 +188,7 @@ public class EventServiceImplTest {
         changes.setMaxCapacity(3);
         when(mockRegistrationService.occupiedSpots(EVENT_ID)).thenReturn(5L);
 
-        final EventUpdateResult result = eventService.update(EVENT_ID, changes, CREATOR_EMAIL);
+        final EventUpdateResult result = eventService.update(EVENT_ID, changes, CREATOR_ID);
 
         assertEquals(EventUpdateResult.CAPACITY_TOO_LOW, result);
         verify(mockEventDao, never()).update(any(Event.class));
@@ -207,7 +201,7 @@ public class EventServiceImplTest {
         changes.setMaxCapacity(5);
         when(mockRegistrationService.occupiedSpots(EVENT_ID)).thenReturn(5L);
 
-        final EventUpdateResult result = eventService.update(EVENT_ID, changes, CREATOR_EMAIL);
+        final EventUpdateResult result = eventService.update(EVENT_ID, changes, CREATOR_ID);
 
         assertEquals(EventUpdateResult.UPDATED, result);
     }
@@ -219,7 +213,7 @@ public class EventServiceImplTest {
         final Event changes = someEvent();
         changes.setMaxCapacity(20);
 
-        eventService.update(EVENT_ID, changes, CREATOR_EMAIL);
+        eventService.update(EVENT_ID, changes, CREATOR_ID);
 
         verify(mockRegistrationService).promoteFromWaitlist(EVENT_ID);
     }
@@ -230,7 +224,7 @@ public class EventServiceImplTest {
         final Event changes = someEvent();
         changes.setMaxCapacity(null);
 
-        final EventUpdateResult result = eventService.update(EVENT_ID, changes, CREATOR_EMAIL);
+        final EventUpdateResult result = eventService.update(EVENT_ID, changes, CREATOR_ID);
 
         assertEquals(EventUpdateResult.UPDATED, result);
         verify(mockRegistrationService, never()).occupiedSpots(EVENT_ID);
@@ -246,7 +240,7 @@ public class EventServiceImplTest {
                 RegistrationStatus.WAITLISTED);
         when(mockRegistrationService.findByEventId(EVENT_ID)).thenReturn(Arrays.asList(confirmed, waitlisted));
 
-        final EventUpdateResult result = eventService.update(EVENT_ID, changes, CREATOR_EMAIL);
+        final EventUpdateResult result = eventService.update(EVENT_ID, changes, CREATOR_ID);
 
         assertEquals(EventUpdateResult.UPDATED, result);
         verify(mockNotificationService).notifyEventUpdated(changes, confirmed);
@@ -261,7 +255,7 @@ public class EventServiceImplTest {
         changes.setMaxCapacity(3);
         when(mockRegistrationService.occupiedSpots(EVENT_ID)).thenReturn(5L);
 
-        eventService.update(EVENT_ID, changes, CREATOR_EMAIL);
+        eventService.update(EVENT_ID, changes, CREATOR_ID);
 
         verify(mockNotificationService, never()).notifyEventUpdated(any(Event.class), any(Registration.class));
     }
@@ -278,7 +272,7 @@ public class EventServiceImplTest {
         when(mockRegistrationService.findByEventId(EVENT_ID))
                 .thenReturn(Arrays.asList(confirmed, waitlisted, pending));
 
-        final EventCancelResult result = eventService.cancel(EVENT_ID, CREATOR_EMAIL);
+        final EventCancelResult result = eventService.cancel(EVENT_ID, CREATOR_ID);
 
         assertEquals(EventCancelResult.CANCELLED, result);
         verify(mockEventDao).cancel(EVENT_ID);
@@ -298,7 +292,7 @@ public class EventServiceImplTest {
                 new Registration(EVENT_ID, "pendiente@mail.com", "P", RegistrationStatus.PENDING),
                 new Registration(EVENT_ID, "rechazado@mail.com", "R", RegistrationStatus.REJECTED)));
 
-        eventService.cancel(EVENT_ID, CREATOR_EMAIL);
+        eventService.cancel(EVENT_ID, CREATOR_ID);
 
         verify(mockInboxService).add("confirmado@mail.com", InboxMessageType.EVENT_CANCELLED, EVENT_ID, null, null);
         verify(mockInboxService).add("espera@mail.com", InboxMessageType.EVENT_CANCELLED, EVENT_ID, null, null);
@@ -313,7 +307,7 @@ public class EventServiceImplTest {
                 new Registration(EVENT_ID, "confirmado@mail.com", "C", RegistrationStatus.CONFIRMED),
                 new Registration(EVENT_ID, "espera@mail.com", "E", RegistrationStatus.WAITLISTED)));
 
-        eventService.update(EVENT_ID, someEvent(), CREATOR_EMAIL);
+        eventService.update(EVENT_ID, someEvent(), CREATOR_ID);
 
         verify(mockInboxService).add("confirmado@mail.com", InboxMessageType.EVENT_UPDATED, EVENT_ID, null, null);
         verify(mockInboxService, never()).add(eq("espera@mail.com"), any(), any(), any(), any());
@@ -323,7 +317,7 @@ public class EventServiceImplTest {
     public void testCancelWhenCallerIsNotTheCreatorReturnsNotFound() {
         when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(someEvent()));
 
-        final EventCancelResult result = eventService.cancel(EVENT_ID, OTHER_EMAIL);
+        final EventCancelResult result = eventService.cancel(EVENT_ID, OTHER_ID);
 
         assertEquals(EventCancelResult.NOT_FOUND, result);
         verify(mockEventDao, never()).cancel(EVENT_ID);
@@ -333,7 +327,7 @@ public class EventServiceImplTest {
     public void testCancelWhenTheEventDoesNotExistReturnsNotFound() {
         when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.empty());
 
-        final EventCancelResult result = eventService.cancel(EVENT_ID, CREATOR_EMAIL);
+        final EventCancelResult result = eventService.cancel(EVENT_ID, CREATOR_ID);
 
         assertEquals(EventCancelResult.NOT_FOUND, result);
         verify(mockEventDao, never()).cancel(EVENT_ID);
@@ -345,7 +339,7 @@ public class EventServiceImplTest {
         alreadyCancelled.setCancelledAt(new java.util.Date());
         when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(alreadyCancelled));
 
-        final EventCancelResult result = eventService.cancel(EVENT_ID, CREATOR_EMAIL);
+        final EventCancelResult result = eventService.cancel(EVENT_ID, CREATOR_ID);
 
         assertEquals(EventCancelResult.ALREADY_CANCELLED, result);
         verify(mockEventDao, never()).cancel(EVENT_ID);

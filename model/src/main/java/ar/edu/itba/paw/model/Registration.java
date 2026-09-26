@@ -10,6 +10,13 @@ public class Registration {
     private String name;
     private Date registeredAt;
     private RegistrationStatus status;
+    // FK de verdad contra users.id (ver schema.sql): quien se anota siempre
+    // esta logueado (RegistrationServiceImpl.register() lo exige), asi que
+    // esto siempre esta resuelto para una fila nueva. Null solo en una fila
+    // vieja que todavia no paso por el backfill de postgres-migrations.sql.
+    // No va en el constructor por el mismo motivo que en Event: no romper
+    // los "new Registration(...)" existentes (muchos en tests).
+    private Long userId;
 
     public Registration() {
     }
@@ -30,6 +37,8 @@ public class Registration {
     public void setEmail(final String email) { this.email = email; }
     public String getName() { return name; }
     public void setName(final String name) { this.name = name; }
+    public Long getUserId() { return userId; }
+    public void setUserId(final Long userId) { this.userId = userId; }
     public Date getRegisteredAt() { return registeredAt; }
     public void setRegisteredAt(final Date registeredAt) { this.registeredAt = registeredAt; }
     // Como mostrar a esta persona en un aviso ("Juan se anoto"): el nombre si lo

@@ -25,7 +25,7 @@ public class EventSearchCriteria {
     private Date toDate;
     private List<Barrio> barrios;
     // Solo eventos cuyo creador tenga un promedio de estrellas (entre todos sus
-    // eventos, ver ReviewDao.findByCreatorEmail) mayor o igual a este valor.
+    // eventos, ver ReviewDao.findByCreatorId) mayor o igual a este valor.
     private Integer minOrganizerRating;
     // Solo eventos a los que les quedan entre FEW_SPOTS_MIN y FEW_SPOTS_MAX
     // lugares libres. Es un si/no, no un rango que elija quien navega.

@@ -14,11 +14,16 @@ public interface InboxService {
      */
     void add(String recipientEmail, InboxMessageType type, Long eventId, String actorName, String body);
 
-    /** Una pagina de la bandeja, mas nuevos primero. Una pagina invalida se toma como la 1. */
-    PageResult<InboxMessage> findPage(String email, int page);
+    /**
+     * Una pagina de la bandeja de ese usuario logueado, mas nuevos primero. Una
+     * pagina invalida se toma como la 1. Por id y no por email: es la propia
+     * bandeja de quien pregunta, no la de un tercero que puede no tener cuenta
+     * (para eso esta add(), que si recibe un email).
+     */
+    PageResult<InboxMessage> findPage(long userId, int page);
 
-    long countUnread(String email);
+    long countUnread(long userId);
 
     /** Al abrir la bandeja se marcan todos como leidos. */
-    void markAllRead(String email);
+    void markAllRead(long userId);
 }

@@ -34,7 +34,7 @@ public interface EventDao {
 
     // "Mis eventos": todos los del creador (pasados y cancelados incluidos, a
     // diferencia de search()), mas recientes primero.
-    List<Event> findByCreatorEmail(String email);
+    List<Event> findByCreatorId(long creatorId);
 
     // Combina todos los filtros con AND (un campo en null en criteria significa "sin filtrar por
     // esto"); solo eventos futuros y no cancelados; ordenado y paginado segun criteria.

@@ -39,7 +39,7 @@ public class EventQuestionServiceImpl implements EventQuestionService {
         if (event == null) {
             return QuestionResult.NOT_ALLOWED;
         }
-        if (event.getCreatorEmail().equalsIgnoreCase(asker.getEmail())) {
+        if (Long.valueOf(asker.getId()).equals(event.getCreatorId())) {
             return QuestionResult.OWN_EVENT;
         }
         if (event.isCancelled() || !event.getEventDate().after(new Date())) {
@@ -57,7 +57,7 @@ public class EventQuestionServiceImpl implements EventQuestionService {
 
     @Override
     @Transactional
-    public AnswerResult answer(final long eventId, final long questionId, final String answererEmail,
+    public AnswerResult answer(final long eventId, final long questionId, final long answererId,
                                final String text) {
         final EventQuestion question = questionDao.findById(questionId).orElse(null);
         // Que la pregunta sea DE ESTE evento: si no, con un POST armado a mano se
@@ -66,7 +66,7 @@ public class EventQuestionServiceImpl implements EventQuestionService {
             return AnswerResult.NOT_ALLOWED;
         }
         final Event event = eventService.findById(eventId).orElse(null);
-        if (event == null || !event.getCreatorEmail().equalsIgnoreCase(answererEmail)) {
+        if (event == null || !Long.valueOf(answererId).equals(event.getCreatorId())) {
             return AnswerResult.NOT_ALLOWED;
         }
         if (!questionDao.answer(questionId, text.trim(), new Date())) {

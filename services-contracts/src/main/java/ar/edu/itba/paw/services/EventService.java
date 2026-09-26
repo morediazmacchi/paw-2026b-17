@@ -16,8 +16,8 @@ public interface EventService {
     // resultados si pedis una que no existe.
     PageResult<Event> search(EventSearchCriteria criteria);
 
-    // "Mis eventos": todos los creados por este email, mas recientes primero.
-    List<Event> findByCreatorEmail(String email);
+    // "Mis eventos": todos los creados por este usuario, mas recientes primero.
+    List<Event> findByCreatorId(long creatorId);
 
     /**
      * Edita un evento existente. No cambia quien lo creo ni cuando se creo
@@ -26,11 +26,11 @@ public interface EventService {
      * @param changes los valores nuevos; su propio id se ignora, se usa el
      *                eventId del primer parametro
      */
-    EventUpdateResult update(long eventId, Event changes, String callerEmail);
+    EventUpdateResult update(long eventId, Event changes, long callerId);
 
     /**
      * Cancela (soft-delete) un evento existente y avisa por mail a cada
      * inscripto confirmado.
      */
-    EventCancelResult cancel(long eventId, String callerEmail);
+    EventCancelResult cancel(long eventId, long callerId);
 }

@@ -1,6 +1,7 @@
 package ar.edu.itba.paw.webapp.interceptor;
 
 import ar.edu.itba.paw.services.InboxService;
+import ar.edu.itba.paw.services.UserService;
 import org.springframework.web.servlet.HandlerInterceptor;
 import org.springframework.web.servlet.ModelAndView;
 
@@ -24,9 +25,11 @@ import java.security.Principal;
 public class UnreadInboxInterceptor implements HandlerInterceptor {
 
     private final InboxService inboxService;
+    private final UserService userService;
 
-    public UnreadInboxInterceptor(final InboxService inboxService) {
+    public UnreadInboxInterceptor(final InboxService inboxService, final UserService userService) {
         this.inboxService = inboxService;
+        this.userService = userService;
     }
 
     @Override
@@ -40,6 +43,9 @@ public class UnreadInboxInterceptor implements HandlerInterceptor {
         if (viewName == null || viewName.startsWith("redirect:")) {
             return;
         }
-        mav.addObject("unreadInboxCount", inboxService.countUnread(principal.getName()));
+        // countUnread() es por user_id: el principal solo trae el email de la
+        // sesion, hay que resolver la cuenta primero.
+        userService.findByEmail(principal.getName())
+                .ifPresent(user -> mav.addObject("unreadInboxCount", inboxService.countUnread(user.getId())));
     }
 }

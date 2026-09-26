@@ -397,14 +397,15 @@ public class EventController {
         if (event.isPrivate() && principal == null) {
             return new ModelAndView("redirect:/login?redirect=/eventos/" + id);
         }
+        final User user = principal == null ? null : currentUser(principal);
         // Para un evento privado, la inscripcion propia (si existe) no es solo
         // dato para la tarjeta de RSVP: es tambien la prueba de que quien pide
         // esto tiene algo que ver con el evento. Por eso se busca ANTES del
         // chequeo de acceso, en vez de mas abajo como antes.
-        final Optional<Registration> myRegistration = principal == null
+        final Optional<Registration> myRegistration = user == null
                 ? Optional.empty()
-                : registrationService.findByEventAndEmail(id, principal.getName());
-        if (!canView(event, principal, myRegistration)) {
+                : registrationService.findByEventAndUserId(id, user.getId());
+        if (!canView(event, user, myRegistration)) {
             // Mismo 404 que un id inexistente: no hay que revelar que el
             // evento existe pero que no es para vos.
             throw new EventNotFoundException(id);
@@ -414,13 +415,12 @@ public class EventController {
         mav.addObject("event", event);
         // Quien fue invitado a un evento privado tiene su lugar reservado: para esa
         // persona el evento no esta "lleno" aunque el cupo ya este contado entero.
-        mav.addObject("full", principal != null
-                ? registrationService.isFullFor(id, principal.getName())
+        mav.addObject("full", user != null
+                ? registrationService.isFullFor(id, user.getId())
                 : registrationService.isFull(id));
         mav.addObject("finished", event.getEventDate().before(new Date()));
         mav.addObject("availableSpots", registrationService.availableSpots(id));
-        if (principal != null) {
-            final User user = currentUser(principal);
+        if (user != null) {
             mav.addObject("favorite", favoriteService.isFavorite(user.getId(), id));
             // No alcanza con saber SI esta anotada: el boton dice "Darme de
             // baja", "Salir de la lista de espera" o "Cancelar mi pedido"
@@ -435,9 +435,11 @@ public class EventController {
             // El creador no se anota a su propio evento (ver RegistrationServiceImpl.
             // register()): la tarjeta de RSVP se lo dice en vez de ofrecerle un
             // boton que el service le va a rechazar igual.
-            mav.addObject("isOwner", event.getCreatorEmail().equalsIgnoreCase(user.getEmail()));
+            mav.addObject("isOwner", Long.valueOf(user.getId()).equals(event.getCreatorId()));
         }
-        addCreatorReputation(mav, event.getCreatorEmail());
+        if (event.getCreatorId() != null) {
+            addCreatorReputation(mav, event.getCreatorId());
+        }
         final PageResult<EventQuestion> questions = eventQuestionService.findPage(id, parsePage(preguntasPage));
         mav.addObject("questions", questions.getContent());
         mav.addObject("questionsPage", questions.getPage());
@@ -451,30 +453,30 @@ public class EventController {
     // solo su creador, alguien que ya tenga una fila de inscripcion (en
     // cualquier estado, incluido rechazado: si te rechazaron es porque en
     // algun momento tuviste acceso, no tiene sentido que ahora te vuelvas a
-    // topar con un 404), o alguien cuyo email (el de su sesion) fue invitado.
+    // topar con un 404), o alguien cuya cuenta (la de su sesion) fue invitada.
     // El link del mail solo dice que evento es: quien sos lo dice tu sesion.
-    private boolean canView(final Event event, final Principal principal,
+    private boolean canView(final Event event, final User user,
                              final Optional<Registration> myRegistration) {
         if (!event.isPrivate()) {
             return true;
         }
-        if (principal != null && event.getCreatorEmail().equalsIgnoreCase(principal.getName())) {
+        if (user != null && Long.valueOf(user.getId()).equals(event.getCreatorId())) {
             return true;
         }
         if (myRegistration.isPresent()) {
             return true;
         }
-        return principal != null && eventInvitationService.isInvited(event.getId(), principal.getName());
+        return user != null && eventInvitationService.isInvited(event.getId(), user.getId());
     }
 
     // Puntaje del promotor (todas sus reseñas, de todos sus eventos) + la lista
     // completa para el popup "Ver reseñas de este promotor", con la mini info
     // del evento reseñado en cada una (reviewEventsById).
-    private void addCreatorReputation(final ModelAndView mav, final String creatorEmail) {
-        final List<Review> creatorReviews = reviewService.findByCreatorEmail(creatorEmail);
+    private void addCreatorReputation(final ModelAndView mav, final long creatorId) {
+        final List<Review> creatorReviews = reviewService.findByCreatorId(creatorId);
         mav.addObject("creatorReviewCount", creatorReviews.size());
         if (!creatorReviews.isEmpty()) {
-            mav.addObject("creatorAverageRating", reviewService.findCreatorAverageRating(creatorEmail));
+            mav.addObject("creatorAverageRating", reviewService.findCreatorAverageRating(creatorId));
             mav.addObject("creatorReviews", creatorReviews);
             final Map<Long, Event> reviewEventsById = new HashMap<>();
             for (final Review review : creatorReviews) {
@@ -571,8 +573,10 @@ public class EventController {
 
         // El creador es quien esta logueado, nunca un campo del form: si viniera del
         // form, cualquiera podria publicar un evento a nombre de otro email.
+        final User creator = currentUser(principal);
         final Event event = new Event(form.getTitulo(), form.getDescripcion(), parsedDate, form.getDireccion(),
-                parsedBarrio, imageIds, parsedPrice, parsedCapacity, principal.getName(), null);
+                parsedBarrio, imageIds, parsedPrice, parsedCapacity, creator.getEmail(), null);
+        event.setCreatorId(creator.getId());
         event.setCategories(categorias);
         event.setRequiresApproval(form.isRequiereAprobacion());
         event.setVisibility(form.isPrivado() ? EventVisibility.PRIVATE : EventVisibility.PUBLIC);
@@ -730,11 +734,14 @@ public class EventController {
     public ModelAndView rsvp(@PathVariable final long id,
                               final Principal principal, final RedirectAttributes redirectAttributes) {
         final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
+        // Quien se inscribe es quien esta logueado, nunca un campo del form:
+        // mismo motivo que el creator_email de publish().
+        final User user = currentUser(principal);
         // Mismo chequeo que el detalle: el boton ya esta escondido en la UI si
         // no tenes acceso, pero un POST directo no se puede confiar solo en eso.
         final Optional<Registration> myRegistration =
-                registrationService.findByEventAndEmail(id, principal.getName());
-        if (!canView(event, principal, myRegistration)) {
+                registrationService.findByEventAndUserId(id, user.getId());
+        if (!canView(event, user, myRegistration)) {
             throw new EventNotFoundException(id);
         }
         // La UI ya esconde el boton en este caso (ver detail.jsp), pero un POST
@@ -743,9 +750,6 @@ public class EventController {
             redirectAttributes.addFlashAttribute("rsvp", "finalizado");
             return new ModelAndView("redirect:/eventos/" + id);
         }
-        // Quien se inscribe es quien esta logueado, nunca un campo del form:
-        // mismo motivo que el creator_email de publish().
-        final User user = currentUser(principal);
         // Ya no hace falta atrapar IllegalStateException: el service dejo de
         // lanzarla cuando el evento esta lleno, ahora devuelve WAITLISTED.
         final RegistrationResult result = registerRetryingOnConflict(id, user);
@@ -782,10 +786,10 @@ public class EventController {
 
     private RegistrationResult registerRetryingOnConflict(final long id, final User user) {
         try {
-            return registrationService.register(id, user.getEmail(), user.getName());
+            return registrationService.register(id, user);
         } catch (final DataIntegrityViolationException e) {
             // Reintento en una transaccion nueva: la anterior quedo abortada por el conflicto.
-            return registrationService.register(id, user.getEmail(), user.getName());
+            return registrationService.register(id, user);
         }
     }
 
@@ -803,13 +807,13 @@ public class EventController {
             return new ModelAndView("redirect:/eventos/" + id);
         }
         final User user = currentUser(principal);
-        final Optional<Registration> registration = registrationService.findByEventAndEmail(id, user.getEmail());
+        final Optional<Registration> registration = registrationService.findByEventAndUserId(id, user.getId());
         // Se mira ANTES de borrar: despues la fila ya no existe y no hay forma
         // de saber que cartel corresponde ("te diste de baja del evento",
         // "saliste de la lista de espera" o "cancelaste tu pedido pendiente").
         final RegistrationStatus status = registration.map(Registration::getStatus).orElse(null);
         final boolean cancelled = registration
-                .map(r -> registrationService.cancel(r.getId(), user.getEmail())).orElse(false);
+                .map(r -> registrationService.cancel(r.getId(), user.getId())).orElse(false);
         final String rsvpParam;
         if (registration.isPresent() && !cancelled && status == RegistrationStatus.REJECTED) {
             // Un rechazado no puede darse de baja: la fila es lo que le impide volver a anotarse.
@@ -833,16 +837,17 @@ public class EventController {
                             final BindingResult errors, final Principal principal,
                             final RedirectAttributes redirectAttributes) {
         final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
+        final User user = currentUser(principal);
         // Mismo chequeo que el detalle: en un privado, solo quien puede verlo pregunta.
         final Optional<Registration> myRegistration =
-                registrationService.findByEventAndEmail(id, principal.getName());
-        if (!canView(event, principal, myRegistration)) {
+                registrationService.findByEventAndUserId(id, user.getId());
+        if (!canView(event, user, myRegistration)) {
             throw new EventNotFoundException(id);
         }
         if (errors.hasErrors()) {
             redirectAttributes.addFlashAttribute("questionMessage", "INVALID");
         } else {
-            final QuestionResult result = eventQuestionService.ask(id, currentUser(principal), form.getText());
+            final QuestionResult result = eventQuestionService.ask(id, user, form.getText());
             redirectAttributes.addFlashAttribute("questionMessage", result.name());
         }
         return new ModelAndView("redirect:/eventos/" + id + "#preguntas");
@@ -856,7 +861,7 @@ public class EventController {
         if (errors.hasErrors()) {
             redirectAttributes.addFlashAttribute("questionMessage", "INVALID");
         } else {
-            final AnswerResult result = eventQuestionService.answer(id, questionId, principal.getName(), form.getText());
+            final AnswerResult result = eventQuestionService.answer(id, questionId, currentUser(principal).getId(), form.getText());
             redirectAttributes.addFlashAttribute("questionMessage", result.name());
         }
         return new ModelAndView("redirect:/eventos/" + id + "#preguntas");
@@ -868,7 +873,7 @@ public class EventController {
     // existe. La usan "ver inscriptos" y "editar", que comparten este mismo chequeo.
     private Event eventForOwner(final long id, final Principal principal) {
         final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
-        if (!event.getCreatorEmail().equalsIgnoreCase(currentUser(principal).getEmail())) {
+        if (!Long.valueOf(currentUser(principal).getId()).equals(event.getCreatorId())) {
             throw new EventNotFoundException(id);
         }
         return event;
@@ -996,7 +1001,7 @@ public class EventController {
         changes.setVisibility(form.isPrivado() ? EventVisibility.PRIVATE : EventVisibility.PUBLIC);
         changes.setParking(form.isEstacionamiento());
         applyPin(changes, form);
-        final EventUpdateResult result = eventService.update(id, changes, principal.getName());
+        final EventUpdateResult result = eventService.update(id, changes, currentUser(principal).getId());
         switch (result) {
             case CAPACITY_TOO_LOW:
                 errors.rejectValue("cupoMaximo", "cupo.muyBajo",
@@ -1038,7 +1043,7 @@ public class EventController {
     // el mismo NOT_FOUND de siempre.
     @RequestMapping(value = "/eventos/{id}/cancelar", method = RequestMethod.POST)
     public ModelAndView cancelar(@PathVariable final long id, final Principal principal) {
-        final EventCancelResult result = eventService.cancel(id, principal.getName());
+        final EventCancelResult result = eventService.cancel(id, currentUser(principal).getId());
         if (result == EventCancelResult.NOT_FOUND) {
             throw new EventNotFoundException(id);
         }
@@ -1058,12 +1063,13 @@ public class EventController {
         // Mismo chequeo de acceso que detail() y rsvp(): si no podes ver el evento,
         // tampoco podes guardarlo (si no, "Mis favoritos" mostraria sus datos).
         final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
+        final User user = currentUser(principal);
         final Optional<Registration> myRegistration =
-                registrationService.findByEventAndEmail(id, principal.getName());
-        if (!canView(event, principal, myRegistration)) {
+                registrationService.findByEventAndUserId(id, user.getId());
+        if (!canView(event, user, myRegistration)) {
             throw new EventNotFoundException(id);
         }
-        favoriteService.add(currentUser(principal).getId(), id);
+        favoriteService.add(user.getId(), id);
         return new ModelAndView("redirect:" + safeReturnTo(returnTo, id));
     }
 

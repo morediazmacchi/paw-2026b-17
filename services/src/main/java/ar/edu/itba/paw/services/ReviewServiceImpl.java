@@ -54,7 +54,7 @@ public class ReviewServiceImpl implements ReviewService {
         }
         // Solo quien tuvo su lugar confirmado fue al evento. Estar en lista de
         // espera, pendiente de aprobacion o rechazado no alcanza.
-        final Optional<Registration> registration = registrationService.findByEventAndEmail(eventId, user.getEmail());
+        final Optional<Registration> registration = registrationService.findByEventAndUserId(eventId, user.getId());
         if (!registration.isPresent() || registration.get().getStatus() != RegistrationStatus.CONFIRMED) {
             return ReviewResult.NOT_ELIGIBLE;
         }
@@ -64,13 +64,13 @@ public class ReviewServiceImpl implements ReviewService {
 
     @Override
     @Transactional(readOnly = true)
-    public double findCreatorAverageRating(final String creatorEmail) {
-        return reviewDao.findAverageRatingByCreatorEmail(creatorEmail);
+    public double findCreatorAverageRating(final long creatorId) {
+        return reviewDao.findAverageRatingByCreatorId(creatorId);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<Review> findByCreatorEmail(final String creatorEmail) {
-        return reviewDao.findByCreatorEmail(creatorEmail);
+    public List<Review> findByCreatorId(final long creatorId) {
+        return reviewDao.findByCreatorId(creatorId);
     }
 }

@@ -60,22 +60,22 @@ public class ReviewJdbcDao implements ReviewDao {
     }
 
     @Override
-    public List<Review> findByCreatorEmail(final String creatorEmail) {
+    public List<Review> findByCreatorId(final long creatorId) {
         return jdbcTemplate.query(
                 "SELECT r.* FROM review r JOIN event e ON e.id = r.event_id "
-                        + "WHERE e.creator_email = ? ORDER BY r.created_at DESC",
-                ROW_MAPPER, creatorEmail);
+                        + "WHERE e.creator_id = ? ORDER BY r.created_at DESC",
+                ROW_MAPPER, creatorId);
     }
 
     @Override
-    public double findAverageRatingByCreatorEmail(final String creatorEmail) {
+    public double findAverageRatingByCreatorId(final long creatorId) {
         // Sin reseñas, AVG da NULL: COALESCE lo convierte en 0. El CAST es porque
         // rating es INTEGER y HSQLDB (la base de los tests) hace AVG entero:
         // 5 y 4 darian 4 en vez de 4.5. Postgres no lo necesita, pero no le molesta.
         final Double average = jdbcTemplate.queryForObject(
                 "SELECT COALESCE(AVG(CAST(r.rating AS DOUBLE PRECISION)), 0) FROM review r JOIN event e ON e.id = r.event_id "
-                        + "WHERE e.creator_email = ?",
-                Double.class, creatorEmail);
+                        + "WHERE e.creator_id = ?",
+                Double.class, creatorId);
         return average == null ? 0 : average;
     }
 }

@@ -24,6 +24,10 @@ public class EventInvitationJdbcDao implements EventInvitationDao {
         invitation.setEmail(rs.getString("email"));
         invitation.setToken(rs.getString("token"));
         invitation.setInvitedBy(rs.getString("invited_by"));
+        final Integer invitedByUserId = rs.getObject("invited_by_user_id", Integer.class);
+        invitation.setInvitedByUserId(invitedByUserId == null ? null : invitedByUserId.longValue());
+        final Integer userId = rs.getObject("user_id", Integer.class);
+        invitation.setUserId(userId == null ? null : userId.longValue());
         invitation.setCreatedAt(rs.getTimestamp("created_at"));
         return invitation;
     };
@@ -37,7 +41,7 @@ public class EventInvitationJdbcDao implements EventInvitationDao {
         this.jdbcInsert = new SimpleJdbcInsert(ds)
                 .withTableName("event_invitation")
                 .usingGeneratedKeyColumns("id")
-                .usingColumns("event_id", "email", "token", "invited_by");
+                .usingColumns("event_id", "email", "token", "invited_by", "invited_by_user_id", "user_id");
     }
 
     @Override
@@ -47,6 +51,8 @@ public class EventInvitationJdbcDao implements EventInvitationDao {
         args.put("email", invitation.getEmail());
         args.put("token", invitation.getToken());
         args.put("invited_by", invitation.getInvitedBy());
+        args.put("invited_by_user_id", invitation.getInvitedByUserId());
+        args.put("user_id", invitation.getUserId());
 
         final Number id = jdbcInsert.executeAndReturnKey(args);
         invitation.setId(id.longValue());
@@ -57,6 +63,12 @@ public class EventInvitationJdbcDao implements EventInvitationDao {
     public Optional<EventInvitation> findByEventAndEmail(final long eventId, final String email) {
         return jdbcTemplate.query("SELECT * FROM event_invitation WHERE event_id = ? AND email = ?",
                 ROW_MAPPER, eventId, email).stream().findFirst();
+    }
+
+    @Override
+    public Optional<EventInvitation> findByEventAndUserId(final long eventId, final long userId) {
+        return jdbcTemplate.query("SELECT * FROM event_invitation WHERE event_id = ? AND user_id = ?",
+                ROW_MAPPER, eventId, userId).stream().findFirst();
     }
 
     @Override
@@ -78,5 +90,12 @@ public class EventInvitationJdbcDao implements EventInvitationDao {
         return jdbcTemplate.query(
                 "SELECT * FROM event_invitation WHERE event_id = ? ORDER BY created_at DESC",
                 ROW_MAPPER, eventId);
+    }
+
+    @Override
+    public void linkUserId(final String email, final long userId) {
+        jdbcTemplate.update(
+                "UPDATE event_invitation SET user_id = ? WHERE email = ? AND user_id IS NULL",
+                userId, email);
     }
 }

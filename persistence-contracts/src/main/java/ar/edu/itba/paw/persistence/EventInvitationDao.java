@@ -15,6 +15,14 @@ public interface EventInvitationDao {
     Optional<EventInvitation> findByEventAndEmail(long eventId, String email);
 
     /**
+     * Igual que findByEventAndEmail, pero para cuando quien pregunta ya esta
+     * logueado: busca por user_id en vez de por email. A diferencia del email
+     * de la invitacion (que puede haber quedado desactualizado si la persona
+     * cambio el suyo despues), el id no cambia nunca.
+     */
+    Optional<EventInvitation> findByEventAndUserId(long eventId, long userId);
+
+    /**
      * Invitaciones de este evento cuya persona todavia no se anoto (no tiene
      * ninguna inscripcion, del estado que sea): cada una tiene un lugar reservado
      * y cuenta como cupo ocupado. Cuando la persona se anota, el lugar pasa a ser
@@ -27,4 +35,12 @@ public interface EventInvitationDao {
 
     // Pantalla "a quien invite" del creador, mas recientes primero.
     List<EventInvitation> findByEvent(long eventId);
+
+    /**
+     * Reconciliacion (ver UserServiceImpl.register()): alguien invitado sin
+     * cuenta todavia acaba de crearse una. Completa el user_id de todas sus
+     * invitaciones que quedaron sin resolver (user_id NULL), sin tocar las que
+     * ya lo tenian.
+     */
+    void linkUserId(String email, long userId);
 }

@@ -92,3 +92,39 @@ SELECT e.id, e.image_id FROM event e
 WHERE e.image_id IS NOT NULL;
 
 ALTER TABLE event DROP COLUMN IF EXISTS image_id;
+
+-- Backfill de creator_id/user_id/invited_by_user_id (ver schema.sql: las tres
+-- columnas nacen NULL en la base real, recien agregadas). Se resuelven contra
+-- users por email, sin distinguir mayusculas/minusculas (asi se comparan en
+-- Java: normalizedEmail = email.trim().toLowerCase()). Idempotente: solo
+-- toca las filas que todavia estan sin completar (IS NULL), asi que correrlo
+-- de nuevo en cada arranque no pisa nada ya resuelto.
+--
+-- Si alguna fila vieja no encuentra un user con ese email (no deberia pasar:
+-- crear un evento o anotarse siempre paso por userService.findOrCreate en su
+-- momento, asi que services todo email de creator_email/registration.email
+-- tiene su fila en users) queda en NULL sin romper nada: las columnas viejas
+-- (creator_email/email/invited_by) se quedan intactas como respaldo.
+UPDATE event e SET creator_id = u.id
+FROM users u
+WHERE LOWER(u.email) = LOWER(e.creator_email) AND e.creator_id IS NULL;
+
+UPDATE registration r SET user_id = u.id
+FROM users u
+WHERE LOWER(u.email) = LOWER(r.email) AND r.user_id IS NULL;
+
+UPDATE event_invitation ei SET invited_by_user_id = u.id
+FROM users u
+WHERE LOWER(u.email) = LOWER(ei.invited_by) AND ei.invited_by_user_id IS NULL;
+
+-- Grupo B (ver schema.sql): backfill "optimista" para invitados/destinatarios
+-- que YA tenian cuenta antes de este cambio. Quien todavia no tenia cuenta en
+-- ese momento sigue en NULL aca -- se completa solo, desde Java, el dia que
+-- esa persona se registre (ver UserServiceImpl.register()).
+UPDATE event_invitation ei SET user_id = u.id
+FROM users u
+WHERE LOWER(u.email) = LOWER(ei.email) AND ei.user_id IS NULL;
+
+UPDATE inbox_message im SET user_id = u.id
+FROM users u
+WHERE LOWER(u.email) = LOWER(im.recipient_email) AND im.user_id IS NULL;

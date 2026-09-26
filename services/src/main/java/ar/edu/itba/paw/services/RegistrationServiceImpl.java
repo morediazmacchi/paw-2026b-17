@@ -5,11 +5,10 @@ import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationStatus;
+import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.EventInvitationDao;
 import ar.edu.itba.paw.persistence.RegistrationDao;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,24 +21,19 @@ import java.util.Optional;
 @Service
 public class RegistrationServiceImpl implements RegistrationService {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(RegistrationServiceImpl.class);
-
     private final RegistrationDao registrationDao;
     private final EventDao eventDao;
-    private final UserService userService;
     private final NotificationService notificationService;
     private final EventInvitationDao invitationDao;
     private final InboxService inboxService;
 
     @Autowired
     public RegistrationServiceImpl(final RegistrationDao registrationDao, final EventDao eventDao,
-                                    final UserService userService,
                                     final NotificationService notificationService,
                                     final EventInvitationDao invitationDao,
                                     final InboxService inboxService) {
         this.registrationDao = registrationDao;
         this.eventDao = eventDao;
-        this.userService = userService;
         this.notificationService = notificationService;
         this.invitationDao = invitationDao;
         this.inboxService = inboxService;
@@ -47,11 +41,8 @@ public class RegistrationServiceImpl implements RegistrationService {
 
     @Override
     @Transactional
-    public RegistrationResult register(final long eventId, final String email, final String name) {
-        // Normalizado: "Test@mail.com" y "test@mail.com" son la misma persona.
-        final String normalizedEmail = email.trim().toLowerCase();
-
-        final Registration existing = registrationDao.findByEventAndEmail(eventId, normalizedEmail).orElse(null);
+    public RegistrationResult register(final long eventId, final User user) {
+        final Registration existing = registrationDao.findByEventAndUserId(eventId, user.getId()).orElse(null);
         if (existing != null) {
             return alreadyExistsResult(existing.getStatus());
         }
@@ -64,7 +55,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         // aprobacion a si mismo en uno con requiresApproval, ni "invitarse" a
         // uno privado del que ya es dueño. Va antes de tocar la base: no se
         // crea ninguna fila ni sale ningun mail.
-        if (normalizedEmail.equalsIgnoreCase(event.getCreatorEmail())) {
+        if (Long.valueOf(user.getId()).equals(event.getCreatorId())) {
             return RegistrationResult.OWN_EVENT;
         }
 
@@ -74,6 +65,12 @@ public class RegistrationServiceImpl implements RegistrationService {
             return RegistrationResult.CANCELLED;
         }
 
+        // Normalizado: "Test@mail.com" y "test@mail.com" son la misma persona.
+        // Ya no hace falta para buscar la invitacion (eso ahora es por user_id,
+        // ver mas abajo), pero si para las columnas email/name de la propia
+        // inscripcion y para los avisos de bandeja (inboxService.add()).
+        final String normalizedEmail = user.getEmail().trim().toLowerCase();
+
         // Que el evento este lleno ya no es un error: la persona entra a la lista
         // de espera. El orden de la lista sale de registration.registered_at, que
         // la base completa sola, asi que no hay ninguna posicion que guardar.
@@ -81,19 +78,18 @@ public class RegistrationServiceImpl implements RegistrationService {
         // invitacion esta contada en occupied()): para el, el evento no esta lleno
         // y entra confirmado sin pasar por la aprobacion del organizador, que ya
         // lo eligio al invitarlo.
-        final boolean invited = invitationDao.findByEventAndEmail(eventId, normalizedEmail).isPresent();
+        final boolean invited = invitationDao.findByEventAndUserId(eventId, user.getId()).isPresent();
         final boolean full = isFull(event, invited);
         final RegistrationStatus status = registrationStatus(event, full, invited);
 
         // Si viola el UNIQUE(event_id, email), se propaga: quien llama reintenta en otra transaccion.
-        final Registration registration = new Registration(eventId, normalizedEmail, name, status);
+        final Registration registration = new Registration(eventId, normalizedEmail, user.getName(), status);
+        // Quien se anota siempre esta logueado (el endpoint lo exige, ver
+        // EventController.rsvp()): a diferencia de antes, no hace falta
+        // userService.findOrCreate() para garantizar una fila en users, el
+        // Principal autenticado ya la implica y ya trae su id.
+        registration.setUserId(user.getId());
         registrationDao.create(registration);
-
-        try {
-            userService.findOrCreate(normalizedEmail, name);
-        } catch (final RuntimeException e) {
-            LOGGER.warn("No se pudo crear/actualizar el user para {}", normalizedEmail, e);
-        }
 
         // Tres avisos posibles, siempre en otro hilo: uno a la persona y otro al
         // dueno del evento. Lo que cambia es el texto, no la logica. Sin este if,
@@ -181,11 +177,10 @@ public class RegistrationServiceImpl implements RegistrationService {
 
     @Override
     @Transactional(readOnly = true)
-    public boolean isFullFor(final long eventId, final String email) {
+    public boolean isFullFor(final long eventId, final long userId) {
         final Event event = eventDao.findById(eventId)
                 .orElseThrow(() -> new IllegalArgumentException("Evento inexistente: " + eventId));
-        final boolean invited = email != null
-                && invitationDao.findByEventAndEmail(eventId, email.trim().toLowerCase()).isPresent();
+        final boolean invited = invitationDao.findByEventAndUserId(eventId, userId).isPresent();
         return isFull(event, invited);
     }
 
@@ -233,15 +228,15 @@ public class RegistrationServiceImpl implements RegistrationService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<Registration> findByEmail(final String email) {
-        return registrationDao.findByEmail(email);
+    public List<Registration> findByUserId(final long userId) {
+        return registrationDao.findByUserId(userId);
     }
 
     @Override
     @Transactional
-    public boolean cancel(final long registrationId, final String email) {
+    public boolean cancel(final long registrationId, final long userId) {
         final Registration unlocked = registrationDao.findById(registrationId).orElse(null);
-        if (unlocked == null || !unlocked.getEmail().equalsIgnoreCase(email.trim())) {
+        if (unlocked == null || !Long.valueOf(userId).equals(unlocked.getUserId())) {
             return false;
         }
         final long eventId = unlocked.getEventId();
@@ -292,8 +287,8 @@ public class RegistrationServiceImpl implements RegistrationService {
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<Registration> findByEventAndEmail(final long eventId, final String email) {
-        return registrationDao.findByEventAndEmail(eventId, email.trim().toLowerCase());
+    public Optional<Registration> findByEventAndUserId(final long eventId, final long userId) {
+        return registrationDao.findByEventAndUserId(eventId, userId);
     }
 
     @Override
@@ -304,8 +299,8 @@ public class RegistrationServiceImpl implements RegistrationService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<Registration> findPendingByEvent(final long eventId, final String creatorEmail) {
-        if (!ownsEvent(eventId, creatorEmail)) {
+    public List<Registration> findPendingByEvent(final long eventId, final long creatorId) {
+        if (!ownsEvent(eventId, creatorId)) {
             return Collections.emptyList();
         }
         return registrationDao.findPendingByEvent(eventId);
@@ -313,8 +308,8 @@ public class RegistrationServiceImpl implements RegistrationService {
 
     @Override
     @Transactional
-    public ApprovalResult approve(final long registrationId, final String creatorEmail) {
-        final Registration unlocked = pendingOwnedBy(registrationId, creatorEmail).orElse(null);
+    public ApprovalResult approve(final long registrationId, final long creatorId) {
+        final Registration unlocked = pendingOwnedBy(registrationId, creatorId).orElse(null);
         if (unlocked == null) {
             return ApprovalResult.NOT_FOUND;
         }
@@ -362,8 +357,8 @@ public class RegistrationServiceImpl implements RegistrationService {
 
     @Override
     @Transactional
-    public boolean reject(final long registrationId, final String creatorEmail) {
-        final Registration unlocked = pendingOwnedBy(registrationId, creatorEmail).orElse(null);
+    public boolean reject(final long registrationId, final long creatorId) {
+        final Registration unlocked = pendingOwnedBy(registrationId, creatorId).orElse(null);
         if (unlocked == null) {
             return false;
         }
@@ -390,7 +385,7 @@ public class RegistrationServiceImpl implements RegistrationService {
 
     @Override
     @Transactional
-    public boolean revoke(final long registrationId, final String creatorEmail) {
+    public boolean revoke(final long registrationId, final long creatorId) {
         final Registration unlocked = registrationDao.findById(registrationId).orElse(null);
         if (unlocked == null) {
             return false;
@@ -401,7 +396,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         // una esperaria a la otra: deadlock.
         final long eventId = unlocked.getEventId();
         final Event event = eventDao.findByIdForUpdate(eventId).orElse(null);
-        if (event == null || !event.getCreatorEmail().equalsIgnoreCase(creatorEmail.trim())) {
+        if (event == null || !Long.valueOf(creatorId).equals(event.getCreatorId())) {
             return false;
         }
         // Se vuelve a leer ya con el lock (otra operacion pudo cambiarla mientras esperaba).
@@ -470,15 +465,15 @@ public class RegistrationServiceImpl implements RegistrationService {
     // Optional.empty() cubre los tres motivos de "no" (no existe, no esta
     // pending, o es de otro creador) sin distinguirlos: a quien llama no le
     // interesa por que no se pudo, solo que no se pudo.
-    private Optional<Registration> pendingOwnedBy(final long registrationId, final String creatorEmail) {
+    private Optional<Registration> pendingOwnedBy(final long registrationId, final long creatorId) {
         return registrationDao.findById(registrationId)
                 .filter(r -> r.getStatus() == RegistrationStatus.PENDING)
-                .filter(r -> ownsEvent(r.getEventId(), creatorEmail));
+                .filter(r -> ownsEvent(r.getEventId(), creatorId));
     }
 
-    private boolean ownsEvent(final long eventId, final String creatorEmail) {
+    private boolean ownsEvent(final long eventId, final long creatorId) {
         return eventDao.findById(eventId)
-                .map(event -> event.getCreatorEmail().equalsIgnoreCase(creatorEmail.trim()))
+                .map(event -> Long.valueOf(creatorId).equals(event.getCreatorId()))
                 .orElse(false);
     }
 }

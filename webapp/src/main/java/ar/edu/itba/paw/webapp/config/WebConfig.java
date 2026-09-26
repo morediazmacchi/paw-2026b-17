@@ -1,6 +1,7 @@
 package ar.edu.itba.paw.webapp.config;
 
 import ar.edu.itba.paw.services.InboxService;
+import ar.edu.itba.paw.services.UserService;
 import ar.edu.itba.paw.webapp.interceptor.UnreadInboxInterceptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -137,10 +138,14 @@ public class WebConfig implements WebMvcConfigurer {
     @Lazy
     private InboxService inboxService;
 
+    @Autowired
+    @Lazy
+    private UserService userService;
+
     // El numerito de la bandeja en la navbar de todas las paginas (ver UnreadInboxInterceptor).
     @Override
     public void addInterceptors(final InterceptorRegistry registry) {
-        registry.addInterceptor(new UnreadInboxInterceptor(inboxService));
+        registry.addInterceptor(new UnreadInboxInterceptor(inboxService, userService));
     }
 
     // Esto es lo que mostro Sotuyo en clase: le dice a Spring que las carpetas

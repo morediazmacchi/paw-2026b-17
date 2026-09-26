@@ -15,6 +15,16 @@ public class EventInvitation {
     private String email;
     private String token;
     private String invitedBy;
+    // FK de verdad contra users.id (ver schema.sql): quien invita es siempre
+    // el creador del evento, logueado. Null solo en una fila vieja sin
+    // backfillear todavia (ver postgres-migrations.sql).
+    private Long invitedByUserId;
+    // El INVITADO (no el que invita): puede no tener cuenta todavia, asi que
+    // esto es optimista -- se completa si ya existia una cuenta al invitar
+    // (ver EventInvitationServiceImpl.invite()), o mas adelante solo, cuando
+    // esa persona se registra (ver UserServiceImpl.register()). Un valor en
+    // null para siempre es un caso normal, no una fila vieja sin migrar.
+    private Long userId;
     private Date createdAt;
 
     public EventInvitation() {
@@ -37,6 +47,10 @@ public class EventInvitation {
     public void setToken(final String token) { this.token = token; }
     public String getInvitedBy() { return invitedBy; }
     public void setInvitedBy(final String invitedBy) { this.invitedBy = invitedBy; }
+    public Long getInvitedByUserId() { return invitedByUserId; }
+    public void setInvitedByUserId(final Long invitedByUserId) { this.invitedByUserId = invitedByUserId; }
+    public Long getUserId() { return userId; }
+    public void setUserId(final Long userId) { this.userId = userId; }
     public Date getCreatedAt() { return createdAt; }
     public void setCreatedAt(final Date createdAt) { this.createdAt = createdAt; }
 }

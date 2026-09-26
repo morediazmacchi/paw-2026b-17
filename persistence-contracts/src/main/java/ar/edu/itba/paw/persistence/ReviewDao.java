@@ -13,11 +13,11 @@ public interface ReviewDao {
     Optional<Review> findByEventAndUser(long eventId, long userId);
 
     // Para el promedio del promotor y el popup "Ver reseñas de este promotor":
-    // todas las reseñas de todos los eventos que creo ese email.
-    List<Review> findByCreatorEmail(String creatorEmail);
+    // todas las reseñas de todos los eventos que creo ese usuario.
+    List<Review> findByCreatorId(long creatorId);
 
-    // Promedio de estrellas de todas las reseñas de los eventos de ese email
+    // Promedio de estrellas de todas las reseñas de los eventos de ese creador
     // (0 si no tiene ninguna). Es el UNICO lugar donde se calcula el promedio que
     // se muestra; el filtro "puntaje minimo" de EventJdbcDao usa el mismo AVG.
-    double findAverageRatingByCreatorEmail(String creatorEmail);
+    double findAverageRatingByCreatorId(long creatorId);
 }

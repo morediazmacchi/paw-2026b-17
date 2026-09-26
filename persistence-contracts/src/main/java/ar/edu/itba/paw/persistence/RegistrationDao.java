@@ -9,7 +9,7 @@ import java.util.Optional;
 
 public interface RegistrationDao {
     Registration create(Registration registration);
-    Optional<Registration> findByEventAndEmail(long eventId, String email);
+    Optional<Registration> findByEventAndUserId(long eventId, long userId);
     long countConfirmed(long eventId);
 
     Optional<Registration> findById(long id);
@@ -25,7 +25,7 @@ public interface RegistrationDao {
     void updateStatus(long id, RegistrationStatus status);
 
     // "Mis inscripciones": mas recientes primero.
-    List<Registration> findByEmail(String email);
+    List<Registration> findByUserId(long userId);
 
     // "Ver inscriptos" del organizador: todos los de un evento, en orden de
     // llegada (mas antiguos primero) -- al reves que findByEmail a proposito,

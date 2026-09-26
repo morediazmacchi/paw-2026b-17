@@ -41,22 +41,25 @@ public class ReviewJdbcDaoTest {
 
     private JdbcTemplate jdbcTemplate;
     private long userId;
+    private long creatorId;
     private long eventId;
 
     @Before
     public void setUp() {
         jdbcTemplate = new JdbcTemplate(ds);
         userId = userDao.create(new User("asistente@mail.com", "Ana")).getId();
-        eventId = insertEvent("Recital", CREATOR_EMAIL);
+        creatorId = userDao.create(new User(CREATOR_EMAIL, "Creador")).getId();
+        eventId = insertEvent("Recital", CREATOR_EMAIL, creatorId);
     }
 
     // El evento no necesita categoria para estos tests (son de reseñas, no de
     // categorias): sin la columna category_id, una fila de event ya no
-    // depende de que exista una.
-    private long insertEvent(final String title, final String creatorEmail) {
+    // depende de que exista una. creatorId null (el evento "no relacionado" de
+    // los tests de abajo) es igual de valido: la columna es nullable.
+    private long insertEvent(final String title, final String creatorEmail, final Long creatorId) {
         jdbcTemplate.update(
-                "INSERT INTO event (title, event_date, address, creator_email) VALUES (?, ?, ?, ?)",
-                title, new Timestamp(System.currentTimeMillis()), "Corrientes 1234", creatorEmail);
+                "INSERT INTO event (title, event_date, address, creator_email, creator_id) VALUES (?, ?, ?, ?, ?)",
+                title, new Timestamp(System.currentTimeMillis()), "Corrientes 1234", creatorEmail, creatorId);
         return jdbcTemplate.queryForObject(
                 "SELECT id FROM event WHERE title = ? AND creator_email = ?", Long.class, title, creatorEmail);
     }
@@ -104,17 +107,17 @@ public class ReviewJdbcDaoTest {
         assertTrue(created.getId() > 0);
     }
 
-    // ---- findByCreatorEmail() ----
+    // ---- findByCreatorId() ----
 
     @Test
-    public void testFindByCreatorEmailReturnsReviewsAcrossAllTheirEvents() {
-        final long otherEventId = insertEvent("Torneo", CREATOR_EMAIL);
-        final long unrelatedEventId = insertEvent("Muestra", "otro@mail.com");
+    public void testFindByCreatorIdReturnsReviewsAcrossAllTheirEvents() {
+        final long otherEventId = insertEvent("Torneo", CREATOR_EMAIL, creatorId);
+        final long unrelatedEventId = insertEvent("Muestra", "otro@mail.com", null);
         reviewDao.create(new Review(eventId, userId, 5, "Buenisimo"));
         reviewDao.create(new Review(otherEventId, userId, 3, "Regular"));
         reviewDao.create(new Review(unrelatedEventId, userId, 1, "No cuenta"));
 
-        final List<Review> found = reviewDao.findByCreatorEmail(CREATOR_EMAIL);
+        final List<Review> found = reviewDao.findByCreatorId(creatorId);
 
         assertEquals(2, found.size());
         assertTrue(found.stream().anyMatch(r -> r.getEventId() == eventId));
@@ -122,25 +125,25 @@ public class ReviewJdbcDaoTest {
     }
 
     @Test
-    public void testFindByCreatorEmailReturnsEmptyWhenNoReviews() {
-        assertTrue(reviewDao.findByCreatorEmail(CREATOR_EMAIL).isEmpty());
+    public void testFindByCreatorIdReturnsEmptyWhenNoReviews() {
+        assertTrue(reviewDao.findByCreatorId(creatorId).isEmpty());
     }
 
-    // ---- findAverageRatingByCreatorEmail() ----
+    // ---- findAverageRatingByCreatorId() ----
 
     @Test
     public void testAverageRatingJoinsAllTheCreatorsEventsAndIgnoresOthers() {
-        final long otherEventId = insertEvent("Torneo", CREATOR_EMAIL);
-        final long unrelatedEventId = insertEvent("Muestra", "otro@mail.com");
+        final long otherEventId = insertEvent("Torneo", CREATOR_EMAIL, creatorId);
+        final long unrelatedEventId = insertEvent("Muestra", "otro@mail.com", null);
         reviewDao.create(new Review(eventId, userId, 5, "Buenisimo"));
         reviewDao.create(new Review(otherEventId, userId, 4, "Bien"));
         reviewDao.create(new Review(unrelatedEventId, userId, 1, "No cuenta"));
 
-        assertEquals(4.5, reviewDao.findAverageRatingByCreatorEmail(CREATOR_EMAIL), 0.0001);
+        assertEquals(4.5, reviewDao.findAverageRatingByCreatorId(creatorId), 0.0001);
     }
 
     @Test
     public void testAverageRatingIsZeroWhenNoReviews() {
-        assertEquals(0, reviewDao.findAverageRatingByCreatorEmail(CREATOR_EMAIL), 0.0001);
+        assertEquals(0, reviewDao.findAverageRatingByCreatorId(creatorId), 0.0001);
     }
 }

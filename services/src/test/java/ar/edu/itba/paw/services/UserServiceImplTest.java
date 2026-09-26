@@ -3,6 +3,8 @@ package ar.edu.itba.paw.services;
 import ar.edu.itba.paw.model.TokenPurpose;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.VerificationToken;
+import ar.edu.itba.paw.persistence.EventInvitationDao;
+import ar.edu.itba.paw.persistence.InboxMessageDao;
 import ar.edu.itba.paw.persistence.UserDao;
 import ar.edu.itba.paw.persistence.VerificationTokenDao;
 import org.junit.Test;
@@ -46,6 +48,12 @@ public class UserServiceImplTest {
 
     @Mock
     private NotificationService mockNotificationService;
+
+    @Mock
+    private EventInvitationDao mockInvitationDao;
+
+    @Mock
+    private InboxMessageDao mockInboxMessageDao;
 
     @InjectMocks
     private UserServiceImpl userService;
@@ -125,6 +133,9 @@ public class UserServiceImplTest {
         // Cuenta nueva: no puede loguearse hasta confirmar el mail.
         verify(mockUserDao).setVerified(USER_ID, false);
         verify(mockNotificationService).notifyAccountVerification(any(User.class), any(String.class), any());
+        // Reconciliacion Grupo B: invitaciones/avisos que la esperaban sin cuenta.
+        verify(mockInvitationDao).linkUserId(NORMALIZED_EMAIL, USER_ID);
+        verify(mockInboxMessageDao).linkUserId(NORMALIZED_EMAIL, USER_ID);
     }
 
     @Test
@@ -156,6 +167,8 @@ public class UserServiceImplTest {
         verify(mockUserDao).addRole(USER_ID, "ROLE_USER");
         verify(mockUserDao).setVerified(USER_ID, false);
         verify(mockNotificationService).notifyAccountVerification(any(User.class), any(String.class), any());
+        verify(mockInvitationDao).linkUserId(NORMALIZED_EMAIL, USER_ID);
+        verify(mockInboxMessageDao).linkUserId(NORMALIZED_EMAIL, USER_ID);
     }
 
     @Test

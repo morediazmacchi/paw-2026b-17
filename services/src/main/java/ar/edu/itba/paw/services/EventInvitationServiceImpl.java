@@ -30,31 +30,37 @@ public class EventInvitationServiceImpl implements EventInvitationService {
     private final RegistrationDao registrationDao;
     private final NotificationService notificationService;
     private final InboxService inboxService;
+    private final UserService userService;
 
     @Autowired
     public EventInvitationServiceImpl(final EventInvitationDao invitationDao, final EventDao eventDao,
                                        final RegistrationDao registrationDao,
                                        final NotificationService notificationService,
-                                       final InboxService inboxService) {
+                                       final InboxService inboxService,
+                                       final UserService userService) {
         this.invitationDao = invitationDao;
         this.eventDao = eventDao;
         this.registrationDao = registrationDao;
         this.notificationService = notificationService;
         this.inboxService = inboxService;
+        this.userService = userService;
     }
 
     @Override
     @Transactional
-    public EventInvitationResult invite(final long eventId, final String creatorEmail, final String inviteeEmail) {
+    public EventInvitationResult invite(final long eventId, final long creatorId, final String inviteeEmail) {
         // Con lock: dos invitaciones simultaneas no pueden pasar el cupo (cada una
         // reserva un lugar y se cuenta contra el cupo).
         final Event event = eventDao.findByIdForUpdate(eventId).orElse(null);
-        if (event == null || !event.isPrivate() || !event.getCreatorEmail().equalsIgnoreCase(creatorEmail.trim())) {
+        if (event == null || !event.isPrivate() || !Long.valueOf(creatorId).equals(event.getCreatorId())) {
             return EventInvitationResult.NOT_ALLOWED;
         }
 
         final String normalizedEmail = inviteeEmail.trim().toLowerCase();
-        if (normalizedEmail.equals(creatorEmail.trim().toLowerCase())) {
+        // El invitado (Group B) todavia se identifica por mail, no por user_id:
+        // puede no tener cuenta. Para el autoinvite se compara igual contra el
+        // mail del creador (event.getCreatorEmail() sigue poblado en paralelo).
+        if (normalizedEmail.equals(event.getCreatorEmail().trim().toLowerCase())) {
             return EventInvitationResult.SELF_INVITE;
         }
         if (invitationDao.findByEventAndEmail(eventId, normalizedEmail).isPresent()) {
@@ -68,7 +74,13 @@ public class EventInvitationServiceImpl implements EventInvitationService {
             return EventInvitationResult.FULL;
         }
 
-        final EventInvitation invitation = new EventInvitation(eventId, normalizedEmail, newToken(), creatorEmail);
+        final EventInvitation invitation = new EventInvitation(eventId, normalizedEmail, newToken(),
+                event.getCreatorEmail());
+        invitation.setInvitedByUserId(creatorId);
+        // Optimista (Grupo B, ver schema.sql): si el invitado ya tiene cuenta,
+        // se enlaza de una. Si no, queda en null y se reconcilia solo cuando
+        // se registre (ver UserServiceImpl.register()).
+        userService.findByEmail(normalizedEmail).ifPresent(invitee -> invitation.setUserId(invitee.getId()));
         invitationDao.create(invitation);
         notificationService.notifyEventInvitation(event, invitation);
         inboxService.add(normalizedEmail, InboxMessageType.PRIVATE_INVITE, eventId, null, null);
@@ -77,18 +89,15 @@ public class EventInvitationServiceImpl implements EventInvitationService {
 
     @Override
     @Transactional(readOnly = true)
-    public boolean isInvited(final long eventId, final String email) {
-        if (email == null) {
-            return false;
-        }
-        return invitationDao.findByEventAndEmail(eventId, email.trim().toLowerCase()).isPresent();
+    public boolean isInvited(final long eventId, final long userId) {
+        return invitationDao.findByEventAndUserId(eventId, userId).isPresent();
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<EventInvitation> findByEvent(final long eventId, final String creatorEmail) {
+    public List<EventInvitation> findByEvent(final long eventId, final long creatorId) {
         return eventDao.findById(eventId)
-                .filter(event -> event.getCreatorEmail().equalsIgnoreCase(creatorEmail.trim()))
+                .filter(event -> Long.valueOf(creatorId).equals(event.getCreatorId()))
                 .map(event -> invitationDao.findByEvent(eventId))
                 .orElse(Collections.emptyList());
     }

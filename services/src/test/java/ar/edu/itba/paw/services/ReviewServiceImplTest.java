@@ -31,6 +31,7 @@ public class ReviewServiceImplTest {
     private static final long EVENT_ID = 1;
     private static final long USER_ID = 2;
     private static final String CREATOR_EMAIL = "creador@mail.com";
+    private static final long CREATOR_ID = 20;
     private static final String USER_EMAIL = "asistente@mail.com";
     private static final int RATING = 4;
     private static final String COMMENT = "Buen evento";
@@ -57,6 +58,7 @@ public class ReviewServiceImplTest {
         final Event event = new Event();
         event.setId(EVENT_ID);
         event.setCreatorEmail(CREATOR_EMAIL);
+        event.setCreatorId(CREATOR_ID);
         event.setEventDate(new Date(System.currentTimeMillis() - 86_400_000L)); // ayer
         return event;
     }
@@ -88,7 +90,7 @@ public class ReviewServiceImplTest {
     public void testCreateSucceedsWhenTheEventFinishedAndTheUserWasRegistered() {
         when(mockReviewDao.findByEventAndUser(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
         when(mockEventService.findById(EVENT_ID)).thenReturn(Optional.of(pastEvent()));
-        when(mockRegistrationService.findByEventAndEmail(EVENT_ID, USER_EMAIL))
+        when(mockRegistrationService.findByEventAndUserId(EVENT_ID, USER_ID))
                 .thenReturn(Optional.of(new Registration(EVENT_ID, USER_EMAIL, "Ana", RegistrationStatus.CONFIRMED)));
 
         final ReviewResult result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
@@ -134,7 +136,7 @@ public class ReviewServiceImplTest {
     public void testCreateFailsWhenTheUserWasNeverRegistered() {
         when(mockReviewDao.findByEventAndUser(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
         when(mockEventService.findById(EVENT_ID)).thenReturn(Optional.of(pastEvent()));
-        when(mockRegistrationService.findByEventAndEmail(EVENT_ID, USER_EMAIL)).thenReturn(Optional.empty());
+        when(mockRegistrationService.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
 
         final ReviewResult result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
 
@@ -159,7 +161,7 @@ public class ReviewServiceImplTest {
     public void testCreateFailsWhenTheUserOnlyReachedTheWaitlist() {
         when(mockReviewDao.findByEventAndUser(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
         when(mockEventService.findById(EVENT_ID)).thenReturn(Optional.of(pastEvent()));
-        when(mockRegistrationService.findByEventAndEmail(EVENT_ID, USER_EMAIL))
+        when(mockRegistrationService.findByEventAndUserId(EVENT_ID, USER_ID))
                 .thenReturn(Optional.of(new Registration(EVENT_ID, USER_EMAIL, "Ana", RegistrationStatus.WAITLISTED)));
 
         final ReviewResult result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
@@ -172,30 +174,30 @@ public class ReviewServiceImplTest {
 
     @Test
     public void testFindCreatorAverageRatingReturnsWhatTheDaoCalculates() {
-        when(mockReviewDao.findAverageRatingByCreatorEmail(CREATOR_EMAIL)).thenReturn(4.5);
+        when(mockReviewDao.findAverageRatingByCreatorId(CREATOR_ID)).thenReturn(4.5);
 
-        assertEquals(4.5, reviewService.findCreatorAverageRating(CREATOR_EMAIL), 0.0001);
+        assertEquals(4.5, reviewService.findCreatorAverageRating(CREATOR_ID), 0.0001);
     }
 
-    // ---- findByCreatorEmail() ----
+    // ---- findByCreatorId() ----
 
     @Test
-    public void testFindByCreatorEmailReturnsWhatTheDaoReturns() {
+    public void testFindByCreatorIdReturnsWhatTheDaoReturns() {
         final List<Review> reviews = Arrays.asList(
                 new Review(EVENT_ID, USER_ID, 5, "Genial"),
                 new Review(EVENT_ID + 1, USER_ID, 3, "Regular"));
-        when(mockReviewDao.findByCreatorEmail(CREATOR_EMAIL)).thenReturn(reviews);
+        when(mockReviewDao.findByCreatorId(CREATOR_ID)).thenReturn(reviews);
 
-        final List<Review> result = reviewService.findByCreatorEmail(CREATOR_EMAIL);
+        final List<Review> result = reviewService.findByCreatorId(CREATOR_ID);
 
         assertEquals(2, result.size());
     }
 
     @Test
-    public void testFindByCreatorEmailReturnsEmptyWhenNoReviews() {
-        when(mockReviewDao.findByCreatorEmail(CREATOR_EMAIL)).thenReturn(Collections.emptyList());
+    public void testFindByCreatorIdReturnsEmptyWhenNoReviews() {
+        when(mockReviewDao.findByCreatorId(CREATOR_ID)).thenReturn(Collections.emptyList());
 
-        final List<Review> result = reviewService.findByCreatorEmail(CREATOR_EMAIL);
+        final List<Review> result = reviewService.findByCreatorId(CREATOR_ID);
 
         assertTrue(result.isEmpty());
     }

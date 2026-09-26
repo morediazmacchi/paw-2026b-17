@@ -2,6 +2,7 @@ package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.InboxMessage;
 import ar.edu.itba.paw.model.InboxMessageType;
+import ar.edu.itba.paw.model.User;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -36,6 +37,9 @@ public class InboxMessageJdbcDaoTest {
 
     @Autowired
     private InboxMessageDao inboxMessageDao;
+
+    @Autowired
+    private UserDao userDao;
 
     private JdbcTemplate jdbcTemplate;
     private long eventId;
@@ -133,5 +137,81 @@ public class InboxMessageJdbcDaoTest {
         jdbcTemplate.update("DELETE FROM event WHERE id = ?", eventId);
 
         assertEquals(0, inboxMessageDao.countByRecipient(EMAIL));
+    }
+
+    // ---- user_id (Grupo B) ----
+
+    @Test
+    public void testCreateAndFindKeepTheOptimisticallyLinkedUserId() {
+        final long recipientId = userDao.create(new User(EMAIL, "Ana")).getId();
+        final InboxMessage msg = message(EMAIL, InboxMessageType.NEW_REGISTRATION);
+        msg.setUserId(recipientId);
+
+        inboxMessageDao.create(msg);
+
+        assertEquals(Long.valueOf(recipientId), inboxMessageDao.findByRecipient(EMAIL, 1, 20).get(0).getUserId());
+    }
+
+    @Test
+    public void testCreateLeavesUserIdNullWhenTheRecipientHasNoAccount() {
+        inboxMessageDao.create(message(EMAIL, InboxMessageType.NEW_REGISTRATION));
+
+        assertNull(inboxMessageDao.findByRecipient(EMAIL, 1, 20).get(0).getUserId());
+    }
+
+    @Test
+    public void testLinkUserIdFillsInThePreviouslyUnresolvedMessage() {
+        inboxMessageDao.create(message(EMAIL, InboxMessageType.NEW_REGISTRATION));
+        final long recipientId = userDao.create(new User(EMAIL, "Ana")).getId();
+
+        inboxMessageDao.linkUserId(EMAIL, recipientId);
+
+        assertEquals(Long.valueOf(recipientId), inboxMessageDao.findByRecipient(EMAIL, 1, 20).get(0).getUserId());
+    }
+
+    @Test
+    public void testLinkUserIdNeverOverwritesAnAlreadyLinkedMessage() {
+        final long firstAccountId = userDao.create(new User(EMAIL, "Ana")).getId();
+        final InboxMessage msg = message(EMAIL, InboxMessageType.NEW_REGISTRATION);
+        msg.setUserId(firstAccountId);
+        inboxMessageDao.create(msg);
+
+        inboxMessageDao.linkUserId(EMAIL, firstAccountId + 999);
+
+        assertEquals(Long.valueOf(firstAccountId), inboxMessageDao.findByRecipient(EMAIL, 1, 20).get(0).getUserId());
+    }
+
+    // ---- lectura por user_id (Grupo C) ----
+
+    @Test
+    public void testFindByRecipientUserIdOnlyReturnsThatUsersMessages() {
+        final long userId = userDao.create(new User(EMAIL, "Ana")).getId();
+        final long otherUserId = userDao.create(new User(OTHER_EMAIL, "Otro")).getId();
+        final InboxMessage mine = message(EMAIL, InboxMessageType.NEW_REGISTRATION);
+        mine.setUserId(userId);
+        final InboxMessage other = message(OTHER_EMAIL, InboxMessageType.NEW_REGISTRATION);
+        other.setUserId(otherUserId);
+        inboxMessageDao.create(mine);
+        inboxMessageDao.create(other);
+
+        final List<InboxMessage> found = inboxMessageDao.findByRecipientUserId(userId, 1, 20);
+
+        assertEquals(1, found.size());
+        assertEquals(1, inboxMessageDao.countByUserId(userId));
+    }
+
+    @Test
+    public void testCountUnreadByUserIdAndMarkAllReadByUserId() {
+        final long userId = userDao.create(new User(EMAIL, "Ana")).getId();
+        final InboxMessage msg = message(EMAIL, InboxMessageType.NEW_REGISTRATION);
+        msg.setUserId(userId);
+        inboxMessageDao.create(msg);
+
+        assertEquals(1, inboxMessageDao.countUnreadByUserId(userId));
+
+        inboxMessageDao.markAllReadByUserId(userId, new Date());
+
+        assertEquals(0, inboxMessageDao.countUnreadByUserId(userId));
+        assertFalse(inboxMessageDao.findByRecipientUserId(userId, 1, 20).get(0).isUnread());
     }
 }

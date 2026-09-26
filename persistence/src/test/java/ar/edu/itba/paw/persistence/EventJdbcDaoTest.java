@@ -52,11 +52,13 @@ public class EventJdbcDaoTest {
 
     private JdbcTemplate jdbcTemplate;
     private long categoryId;
+    private long creatorId;
 
     @Before
     public void setUp() {
         jdbcTemplate = new JdbcTemplate(ds);
         categoryId = insertCategory(CATEGORY_NAME);
+        creatorId = insertUser(CREATOR_EMAIL);
     }
 
     private long insertCategory(final String name) {
@@ -462,37 +464,41 @@ public class EventJdbcDaoTest {
         assertEquals(1, eventDao.findByCategory(otherCategoryId).size());
     }
 
-    // ---- findByCreatorEmail(): "Mis eventos" ----
+    // ---- findByCreatorId(): "Mis eventos" ----
 
     @Test
-    public void testFindByCreatorEmailReturnsOnlyEventsOfThatCreator() {
-        final String otherEmail = "otro@mail.com";
+    public void testFindByCreatorIdReturnsOnlyEventsOfThatCreator() {
+        final long otherCreatorId = insertUser("otro@mail.com");
         final Event own = new Event(TITLE, null, new Date(), "Direccion A",
                 Barrio.PALERMO, null, BigDecimal.ZERO, null, CREATOR_EMAIL, Collections.singletonList(categoryId));
+        own.setCreatorId(creatorId);
         final Event other = new Event(TITLE, null, new Date(), "Direccion B",
-                Barrio.PALERMO, null, BigDecimal.ZERO, null, otherEmail, Collections.singletonList(categoryId));
+                Barrio.PALERMO, null, BigDecimal.ZERO, null, "otro@mail.com", Collections.singletonList(categoryId));
+        other.setCreatorId(otherCreatorId);
         eventDao.create(own);
         eventDao.create(other);
 
-        final List<Event> result = eventDao.findByCreatorEmail(CREATOR_EMAIL);
+        final List<Event> result = eventDao.findByCreatorId(creatorId);
 
         assertEquals(1, result.size());
         assertEquals(CREATOR_EMAIL, result.get(0).getCreatorEmail());
     }
 
     @Test
-    public void testFindByCreatorEmailOrdersMostRecentEventDateFirst() {
+    public void testFindByCreatorIdOrdersMostRecentEventDateFirst() {
         final Date earlierDate = new Date(1_000_000_000_000L); // 2001-09-09
         final Date laterDate = new Date(2_000_000_000_000L);   // 2033-05-18
         final Event earlier = new Event(TITLE, null, earlierDate, "Direccion A",
                 Barrio.PALERMO, null, BigDecimal.ZERO, null, CREATOR_EMAIL, Collections.singletonList(categoryId));
+        earlier.setCreatorId(creatorId);
         final Event later = new Event(TITLE, null, laterDate, "Direccion B",
                 Barrio.PALERMO, null, BigDecimal.ZERO, null, CREATOR_EMAIL, Collections.singletonList(categoryId));
+        later.setCreatorId(creatorId);
         // A proposito insertados en orden "incorrecto".
         eventDao.create(earlier);
         eventDao.create(later);
 
-        final List<Event> result = eventDao.findByCreatorEmail(CREATOR_EMAIL);
+        final List<Event> result = eventDao.findByCreatorId(creatorId);
 
         assertEquals(2, result.size());
         assertEquals("Direccion B", result.get(0).getAddress());
@@ -500,8 +506,8 @@ public class EventJdbcDaoTest {
     }
 
     @Test
-    public void testFindByCreatorEmailReturnsEmptyWhenNoEvents() {
-        final List<Event> result = eventDao.findByCreatorEmail(CREATOR_EMAIL);
+    public void testFindByCreatorIdReturnsEmptyWhenNoEvents() {
+        final List<Event> result = eventDao.findByCreatorId(creatorId);
 
         assertTrue(result.isEmpty());
     }
@@ -820,13 +826,19 @@ public class EventJdbcDaoTest {
     public void testSearchFiltersByMinimumOrganizerRating() {
         final String highRatedCreator = "alto@mail.com";
         final String lowRatedCreator = "bajo@mail.com";
+        final long highRatedCreatorId = insertUser(highRatedCreator);
+        final long lowRatedCreatorId = insertUser(lowRatedCreator);
         final long reviewerId = insertUser("reviewer@mail.com");
         final Date future = new Date(System.currentTimeMillis() + 86_400_000L);
 
-        final long highRatedEventId = eventDao.create(new Event(TITLE, null, future, "Direccion A",
-                Barrio.PALERMO, null, BigDecimal.ZERO, null, highRatedCreator, Collections.singletonList(categoryId))).getId();
-        final long lowRatedEventId = eventDao.create(new Event(TITLE, null, future, "Direccion B",
-                Barrio.PALERMO, null, BigDecimal.ZERO, null, lowRatedCreator, Collections.singletonList(categoryId))).getId();
+        final Event highRatedEvent = new Event(TITLE, null, future, "Direccion A",
+                Barrio.PALERMO, null, BigDecimal.ZERO, null, highRatedCreator, Collections.singletonList(categoryId));
+        highRatedEvent.setCreatorId(highRatedCreatorId);
+        final Event lowRatedEvent = new Event(TITLE, null, future, "Direccion B",
+                Barrio.PALERMO, null, BigDecimal.ZERO, null, lowRatedCreator, Collections.singletonList(categoryId));
+        lowRatedEvent.setCreatorId(lowRatedCreatorId);
+        final long highRatedEventId = eventDao.create(highRatedEvent).getId();
+        final long lowRatedEventId = eventDao.create(lowRatedEvent).getId();
         insertReview(highRatedEventId, reviewerId, 5);
         insertReview(lowRatedEventId, reviewerId, 2);
 
@@ -843,11 +855,14 @@ public class EventJdbcDaoTest {
     @Test
     public void testCountSearchMatchesSearchWhenFilteringByOrganizerRating() {
         final String highRatedCreator = "alto@mail.com";
+        final long highRatedCreatorId = insertUser(highRatedCreator);
         final long reviewerId = insertUser("reviewer@mail.com");
         final Date future = new Date(System.currentTimeMillis() + 86_400_000L);
 
-        final long eventId = eventDao.create(new Event(TITLE, null, future, "Direccion A",
-                Barrio.PALERMO, null, BigDecimal.ZERO, null, highRatedCreator, Collections.singletonList(categoryId))).getId();
+        final Event event = new Event(TITLE, null, future, "Direccion A",
+                Barrio.PALERMO, null, BigDecimal.ZERO, null, highRatedCreator, Collections.singletonList(categoryId));
+        event.setCreatorId(highRatedCreatorId);
+        final long eventId = eventDao.create(event).getId();
         insertReview(eventId, reviewerId, 5);
 
         final EventSearchCriteria criteria = new EventSearchCriteria();
@@ -861,8 +876,10 @@ public class EventJdbcDaoTest {
     public void testSearchWithMinimumOrganizerRatingExcludesCreatorsBelowIt() {
         final long reviewerId = insertUser("reviewer@mail.com");
         final Date future = new Date(System.currentTimeMillis() + 86_400_000L);
-        final long eventId = eventDao.create(new Event(TITLE, null, future, "Direccion A",
-                Barrio.PALERMO, null, BigDecimal.ZERO, null, CREATOR_EMAIL, Collections.singletonList(categoryId))).getId();
+        final Event event = new Event(TITLE, null, future, "Direccion A",
+                Barrio.PALERMO, null, BigDecimal.ZERO, null, CREATOR_EMAIL, Collections.singletonList(categoryId));
+        event.setCreatorId(creatorId);
+        final long eventId = eventDao.create(event).getId();
         insertReview(eventId, reviewerId, 3);
 
         final EventSearchCriteria criteria = new EventSearchCriteria();
@@ -922,18 +939,19 @@ public class EventJdbcDaoTest {
         assertEquals(1, eventDao.search(criteria).size());
     }
 
-    // findAll/findByCreatorEmail SI tienen que devolver privados: "Mis eventos"
-    // (findByCreatorEmail) es justamente donde el creador los ve y los gestiona.
+    // findAll/findByCreatorId SI tienen que devolver privados: "Mis eventos"
+    // (findByCreatorId) es justamente donde el creador los ve y los gestiona.
     @Test
-    public void testFindByCreatorEmailIncludesPrivateEvents() {
+    public void testFindByCreatorIdIncludesPrivateEvents() {
         final Event privateEvent = someEvent(categoryId);
+        privateEvent.setCreatorId(creatorId);
         privateEvent.setVisibility(EventVisibility.PRIVATE);
         eventDao.create(privateEvent);
 
-        assertEquals(1, eventDao.findByCreatorEmail(CREATOR_EMAIL).size());
+        assertEquals(1, eventDao.findByCreatorId(creatorId).size());
     }
 
-    // ---- search()/findById()/findByCreatorEmail(): eventos cancelados ----
+    // ---- search()/findById()/findByCreatorId(): eventos cancelados ----
 
     /**
      * EL TEST QUE IMPIDE QUE UN EVENTO CANCELADO SE FILTRE POR EL LISTADO.
@@ -954,7 +972,7 @@ public class EventJdbcDaoTest {
         assertEquals(0, eventDao.countSearch(criteria));
     }
 
-    // findById/findByCreatorEmail SI tienen que devolver un evento cancelado:
+    // findById/findByCreatorId SI tienen que devolver un evento cancelado:
     // quien ya estaba anotado tiene que poder seguir viendolo (detalle, "Mis
     // inscripciones"), y el creador tiene que seguir viendolo en "Mis eventos".
     @Test
@@ -966,11 +984,13 @@ public class EventJdbcDaoTest {
     }
 
     @Test
-    public void testFindByCreatorEmailIncludesCancelledEvents() {
-        final Event created = eventDao.create(someEvent(categoryId));
+    public void testFindByCreatorIdIncludesCancelledEvents() {
+        final Event event = someEvent(categoryId);
+        event.setCreatorId(creatorId);
+        final Event created = eventDao.create(event);
         eventDao.cancel(created.getId());
 
-        assertEquals(1, eventDao.findByCreatorEmail(CREATOR_EMAIL).size());
+        assertEquals(1, eventDao.findByCreatorId(creatorId).size());
     }
 
     // ---- recordatorio de 24 hs ----
