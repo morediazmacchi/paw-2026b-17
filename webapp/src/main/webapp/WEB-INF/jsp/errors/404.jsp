@@ -17,11 +17,12 @@
 </paw:navbar>
 
 <main class="page page-narrow">
-    <h1><spring:message code="error.notFound.heading"/></h1>
-    <p class="empty-state">
-        <spring:message code="error.notFound.message"/>
-    </p>
-    <a class="btn btn-medium btn-accent" href="<c:url value='/eventos'/>"><spring:message code="error.notFound.button"/></a>
+    <div class="error-state">
+        <div class="error-state-icon"><paw:icon name="pin"/></div>
+        <h1><spring:message code="error.notFound.heading"/></h1>
+        <p class="error-state-message"><spring:message code="error.notFound.message"/></p>
+        <a class="btn btn-medium btn-accent" href="<c:url value='/eventos'/>"><spring:message code="error.notFound.button"/></a>
+    </div>
 </main>
 
 </body>

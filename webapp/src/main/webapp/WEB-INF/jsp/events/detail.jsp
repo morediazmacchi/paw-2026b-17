@@ -402,6 +402,14 @@
                          sentido ofrecerte ningun boton relacionado. --%>
                     <c:when test="${isOwner}">
                         <p class="alert"><spring:message code="event.detail.ownEventNote"/></p>
+                        <%-- Cancelado no se edita (mismo criterio que "Mis eventos",
+                             donde tampoco se muestra el boton para uno cancelado). --%>
+                        <c:if test="${!event.cancelled}">
+                            <spring:message code="auth.events.editButton" var="editButtonLabel"/>
+                            <a class="btn btn-medium btn-accent detail-rsvp-submit" href="<c:url value='/eventos/${event.id}/editar'/>">
+                                <c:out value="${editButtonLabel}"/>
+                            </a>
+                        </c:if>
                     </c:when>
                     <%-- Cancelado gana sobre todo lo demas: ni siquiera importa si
                          estaba finalizado o si alguien seguia anotado, no hay ninguna

@@ -23,6 +23,11 @@
                     <span class="navbar-badge"><c:out value="${unreadInboxCount}"/></span>
                 </c:if>
             </a>
+            <%-- Mismo texto/icono que ya usa el tab de "Mis inscripciones" en
+                 accountSidebar.tag: es la misma pantalla, este es solo un
+                 atajo para no tener que pasar primero por "Mi perfil". --%>
+            <spring:message code="profile.tabs.registrations" var="registrationsLabel"/>
+            <a class="btn btn-medium" href="<c:url value='/perfil/inscripciones'/>"><paw:icon name="check-square"/> <c:out value="${registrationsLabel}"/></a>
             <spring:message code="common.nav.profile" var="profileLabel"/>
             <a class="btn btn-medium" href="<c:url value='/perfil'/>"><paw:icon name="user"/> <c:out value="${profileLabel}"/></a>
         </sec:authorize>

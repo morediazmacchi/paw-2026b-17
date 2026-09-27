@@ -17,11 +17,12 @@
 </paw:navbar>
 
 <main class="page page-narrow">
-    <h1><spring:message code="error.serverError.heading"/></h1>
-    <p class="empty-state">
-        <spring:message code="error.serverError.message"/>
-    </p>
-    <a class="btn btn-medium btn-accent" href="<c:url value='/eventos'/>"><spring:message code="error.serverError.button"/></a>
+    <div class="error-state">
+        <div class="error-state-icon error-state-icon-danger"><paw:icon name="close"/></div>
+        <h1><spring:message code="error.serverError.heading"/></h1>
+        <p class="error-state-message"><spring:message code="error.serverError.message"/></p>
+        <a class="btn btn-medium btn-accent" href="<c:url value='/eventos'/>"><spring:message code="error.serverError.button"/></a>
+    </div>
 </main>
 
 </body>

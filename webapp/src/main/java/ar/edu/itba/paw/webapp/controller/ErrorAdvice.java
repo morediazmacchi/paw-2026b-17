@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.servlet.ModelAndView;
 
@@ -23,6 +24,18 @@ public class ErrorAdvice {
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ModelAndView eventNotFound(final EventNotFoundException e) {
         // No se loguea como error: que alguien escriba un id inexistente es normal.
+        return new ModelAndView("errors/404");
+    }
+
+    // Un @PathVariable numerico (ej. "long id") que llega con algo que no es
+    // un numero -- "/eventos/abc", o un numero mas grande que Long.MAX_VALUE --
+    // hace que Spring falle ANTES de que el controller pueda buscarlo y tirar
+    // el EventNotFoundException de siempre. Para quien lo escribio a mano es
+    // exactamente lo mismo que un id inexistente, asi que se muestra la misma
+    // pantalla en vez de la generica de error inesperado.
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ModelAndView invalidIdFormat(final MethodArgumentTypeMismatchException e) {
         return new ModelAndView("errors/404");
     }
 
