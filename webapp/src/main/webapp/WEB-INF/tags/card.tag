@@ -51,13 +51,15 @@
         <c:url value="/eventos/${id}/favorito/quitar" var="favRemoveUrl"/>
         <spring:message code="event.favorite.add" var="favAddLabel"/>
         <spring:message code="event.favorite.remove" var="favRemoveLabel"/>
+        <spring:message code="event.favorite.error" var="favErrorLabel"/>
         <%-- Un solo form: favorite-toggle.js lo togglea con fetch (sin recargar
              la pagina), cambiando action/clase/icono/aria-label a mano. Los
              data-* le dan al JS las dos URLs y las dos etiquetas de antemano. --%>
         <form class="card-favorite-form js-favorite-toggle"
               action="${favorito ? favRemoveUrl : favAddUrl}" method="post"
               data-add-url="${favAddUrl}" data-remove-url="${favRemoveUrl}"
-              data-add-label="${favAddLabel}" data-remove-label="${favRemoveLabel}">
+              data-add-label="${favAddLabel}" data-remove-label="${favRemoveLabel}"
+              data-error-label="${favErrorLabel}">
             <input type="hidden" name="returnTo" value="${fn:escapeXml(returnTo)}"/>
             <button type="submit" class="card-favorite-btn${favorito ? ' card-favorite-btn-active' : ''}"
                     aria-label="${favorito ? favRemoveLabel : favAddLabel}">

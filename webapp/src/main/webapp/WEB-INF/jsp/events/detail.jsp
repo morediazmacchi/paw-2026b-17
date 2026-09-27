@@ -63,9 +63,11 @@
             <c:url value="/eventos/${event.id}/favorito/quitar" var="favRemoveUrl"/>
             <spring:message code="event.favorite.add" var="favAddLabel"/>
             <spring:message code="event.favorite.remove" var="favRemoveLabel"/>
+            <spring:message code="event.favorite.error" var="favErrorLabel"/>
             <form class="js-favorite-toggle" action="${favorite ? favRemoveUrl : favAddUrl}" method="post"
                   data-add-url="${favAddUrl}" data-remove-url="${favRemoveUrl}"
-                  data-add-label="${favAddLabel}" data-remove-label="${favRemoveLabel}">
+                  data-add-label="${favAddLabel}" data-remove-label="${favRemoveLabel}"
+                  data-error-label="${favErrorLabel}">
                 <input type="hidden" name="returnTo" value="${detailUrl}"/>
                 <button type="submit" class="card-favorite-btn detail-hero-favorite-btn${favorite ? ' card-favorite-btn-active' : ''}"
                         aria-label="${favorite ? favRemoveLabel : favAddLabel}">
