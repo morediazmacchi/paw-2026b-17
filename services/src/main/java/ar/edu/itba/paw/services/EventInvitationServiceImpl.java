@@ -11,19 +11,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.security.SecureRandom;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 
 @Service
 public class EventInvitationServiceImpl implements EventInvitationService {
-
-    // Mismo criterio que WaitlistServiceImpl: 32 bytes de azar criptografico,
-    // no UUID ni nada secuencial. El token es la unica credencial de quien
-    // abre el link, tiene que ser imposible de adivinar.
-    private static final int TOKEN_BYTES = 32;
-    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final EventInvitationDao invitationDao;
     private final EventDao eventDao;
@@ -74,8 +66,7 @@ public class EventInvitationServiceImpl implements EventInvitationService {
             return EventInvitationResult.FULL;
         }
 
-        final EventInvitation invitation = new EventInvitation(eventId, normalizedEmail, newToken(),
-                event.getCreatorEmail());
+        final EventInvitation invitation = new EventInvitation(eventId, normalizedEmail, event.getCreatorEmail());
         invitation.setInvitedByUserId(creatorId);
         // Optimista (Grupo B, ver schema.sql): si el invitado ya tiene cuenta,
         // se enlaza de una. Si no, queda en null y se reconcilia solo cuando
@@ -100,12 +91,5 @@ public class EventInvitationServiceImpl implements EventInvitationService {
                 .filter(event -> Long.valueOf(creatorId).equals(event.getCreatorId()))
                 .map(event -> invitationDao.findByEvent(eventId))
                 .orElse(Collections.emptyList());
-    }
-
-    private static String newToken() {
-        final byte[] bytes = new byte[TOKEN_BYTES];
-        SECURE_RANDOM.nextBytes(bytes);
-        // Sin padding y en el alfabeto de URLs: entra tal cual en un link.
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 }

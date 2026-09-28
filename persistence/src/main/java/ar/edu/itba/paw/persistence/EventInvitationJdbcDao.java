@@ -22,7 +22,6 @@ public class EventInvitationJdbcDao implements EventInvitationDao {
         invitation.setId(rs.getLong("id"));
         invitation.setEventId(rs.getLong("event_id"));
         invitation.setEmail(rs.getString("email"));
-        invitation.setToken(rs.getString("token"));
         invitation.setInvitedBy(rs.getString("invited_by"));
         final Integer invitedByUserId = rs.getObject("invited_by_user_id", Integer.class);
         invitation.setInvitedByUserId(invitedByUserId == null ? null : invitedByUserId.longValue());
@@ -41,7 +40,7 @@ public class EventInvitationJdbcDao implements EventInvitationDao {
         this.jdbcInsert = new SimpleJdbcInsert(ds)
                 .withTableName("event_invitation")
                 .usingGeneratedKeyColumns("id")
-                .usingColumns("event_id", "email", "token", "invited_by", "invited_by_user_id", "user_id");
+                .usingColumns("event_id", "email", "invited_by", "invited_by_user_id", "user_id");
     }
 
     @Override
@@ -49,7 +48,6 @@ public class EventInvitationJdbcDao implements EventInvitationDao {
         final Map<String, Object> args = new HashMap<>();
         args.put("event_id", invitation.getEventId());
         args.put("email", invitation.getEmail());
-        args.put("token", invitation.getToken());
         args.put("invited_by", invitation.getInvitedBy());
         args.put("invited_by_user_id", invitation.getInvitedByUserId());
         args.put("user_id", invitation.getUserId());

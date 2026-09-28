@@ -531,7 +531,7 @@ public class RegistrationServiceImplTest {
         when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(1L);
         when(mockInvitationDao.countOutstanding(EVENT_ID)).thenReturn(1L);
         when(mockInvitationDao.findByEventAndUserId(EVENT_ID, USER_ID))
-                .thenReturn(Optional.of(new EventInvitation(EVENT_ID, NORMALIZED_EMAIL, "tok", CREATOR_EMAIL)));
+                .thenReturn(Optional.of(new EventInvitation(EVENT_ID, NORMALIZED_EMAIL, CREATOR_EMAIL)));
 
         assertEquals(RegistrationResult.CONFIRMED, registrationService.register(EVENT_ID, someUser()));
     }
@@ -542,7 +542,7 @@ public class RegistrationServiceImplTest {
         when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(5)));
         when(mockInvitationDao.findByEventAndUserId(EVENT_ID, USER_ID))
-                .thenReturn(Optional.of(new EventInvitation(EVENT_ID, NORMALIZED_EMAIL, "tok", CREATOR_EMAIL)));
+                .thenReturn(Optional.of(new EventInvitation(EVENT_ID, NORMALIZED_EMAIL, CREATOR_EMAIL)));
 
         assertEquals(RegistrationResult.CONFIRMED, registrationService.register(EVENT_ID, someUser()));
     }
@@ -553,7 +553,7 @@ public class RegistrationServiceImplTest {
         when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(1L);
         when(mockInvitationDao.countOutstanding(EVENT_ID)).thenReturn(1L);
         when(mockInvitationDao.findByEventAndUserId(EVENT_ID, USER_ID))
-                .thenReturn(Optional.of(new EventInvitation(EVENT_ID, NORMALIZED_EMAIL, "tok", CREATOR_EMAIL)));
+                .thenReturn(Optional.of(new EventInvitation(EVENT_ID, NORMALIZED_EMAIL, CREATOR_EMAIL)));
 
         assertFalse(registrationService.isFullFor(EVENT_ID, USER_ID));
     }

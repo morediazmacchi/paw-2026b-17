@@ -125,25 +125,6 @@ public class EventInvitationServiceImplTest {
         assertNull(saved.getValue().getUserId());
     }
 
-    /**
-     * EL TEST QUE IMPIDE MANDAR UN LINK ADIVINABLE. El token tiene que salir
-     * de SecureRandom, no de algo previsible: si dos invitaciones dieran el
-     * mismo token (o uno derivado del id), alguien podria calcular el link de
-     * otra persona y entrar a un evento privado sin haber sido invitado.
-     */
-    @Test
-    public void testInviteGeneratesANonEmptyToken() {
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
-        when(mockInvitationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
-        when(mockUserService.findByEmail(NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
-
-        invitationService.invite(EVENT_ID, CREATOR_ID, INVITEE_EMAIL);
-
-        final ArgumentCaptor<EventInvitation> saved = ArgumentCaptor.forClass(EventInvitation.class);
-        verify(mockInvitationDao).create(saved.capture());
-        assertTrue(saved.getValue().getToken() != null && saved.getValue().getToken().length() > 20);
-    }
-
     @Test
     public void testInviteSendsTheNotification() {
         final Event event = privateEvent();
@@ -171,7 +152,7 @@ public class EventInvitationServiceImplTest {
     public void testInviteReturnsAlreadyInvitedWhenThatEmailIsAlreadyInvited() {
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
         when(mockInvitationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_INVITEE_EMAIL))
-                .thenReturn(Optional.of(new EventInvitation(EVENT_ID, NORMALIZED_INVITEE_EMAIL, "tok", CREATOR_EMAIL)));
+                .thenReturn(Optional.of(new EventInvitation(EVENT_ID, NORMALIZED_INVITEE_EMAIL, CREATOR_EMAIL)));
 
         final EventInvitationResult result = invitationService.invite(EVENT_ID, CREATOR_ID, INVITEE_EMAIL);
 
@@ -214,7 +195,7 @@ public class EventInvitationServiceImplTest {
     @Test
     public void testIsInvitedReturnsTrueForTheInvitedUserId() {
         when(mockInvitationDao.findByEventAndUserId(EVENT_ID, OTHER_ID))
-                .thenReturn(Optional.of(new EventInvitation(EVENT_ID, NORMALIZED_INVITEE_EMAIL, "tok", CREATOR_EMAIL)));
+                .thenReturn(Optional.of(new EventInvitation(EVENT_ID, NORMALIZED_INVITEE_EMAIL, CREATOR_EMAIL)));
 
         assertTrue(invitationService.isInvited(EVENT_ID, OTHER_ID));
     }
@@ -232,7 +213,7 @@ public class EventInvitationServiceImplTest {
     public void testFindByEventDelegatesToTheDaoWhenTheCreatorAsks() {
         when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
         final List<EventInvitation> invitations = Collections.singletonList(
-                new EventInvitation(EVENT_ID, NORMALIZED_INVITEE_EMAIL, "tok", CREATOR_EMAIL));
+                new EventInvitation(EVENT_ID, NORMALIZED_INVITEE_EMAIL, CREATOR_EMAIL));
         when(mockInvitationDao.findByEvent(EVENT_ID)).thenReturn(invitations);
 
         final List<EventInvitation> result = invitationService.findByEvent(EVENT_ID, CREATOR_ID);

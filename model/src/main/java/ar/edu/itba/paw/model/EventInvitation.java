@@ -4,16 +4,17 @@ import java.util.Date;
 
 /**
  * Invitacion personal del creador a alguien para que pueda ver (y, si quiere,
- * anotarse) a un evento privado. El token es la unica credencial: quien lo
- * tiene, entra, sin importar con que cuenta este logueado (o si esta
- * deslogueado). Ver el comentario de la tabla event_invitation en schema.sql.
+ * anotarse) a un evento privado. Quien entra tiene que SER la persona
+ * invitada: logueado con la cuenta enlazada a esta invitacion (ver userId
+ * mas abajo y EventController.canView()). Ya no hay un token/link que valga
+ * por si solo sin sesion (ver el comentario de la tabla event_invitation en
+ * schema.sql).
  */
 public class EventInvitation {
 
     private long id;
     private long eventId;
     private String email;
-    private String token;
     private String invitedBy;
     // FK de verdad contra users.id (ver schema.sql): quien invita es siempre
     // el creador del evento, logueado. Null solo en una fila vieja sin
@@ -30,10 +31,9 @@ public class EventInvitation {
     public EventInvitation() {
     }
 
-    public EventInvitation(final long eventId, final String email, final String token, final String invitedBy) {
+    public EventInvitation(final long eventId, final String email, final String invitedBy) {
         this.eventId = eventId;
         this.email = email;
-        this.token = token;
         this.invitedBy = invitedBy;
     }
 
@@ -43,8 +43,6 @@ public class EventInvitation {
     public void setEventId(final long eventId) { this.eventId = eventId; }
     public String getEmail() { return email; }
     public void setEmail(final String email) { this.email = email; }
-    public String getToken() { return token; }
-    public void setToken(final String token) { this.token = token; }
     public String getInvitedBy() { return invitedBy; }
     public void setInvitedBy(final String invitedBy) { this.invitedBy = invitedBy; }
     public Long getInvitedByUserId() { return invitedByUserId; }

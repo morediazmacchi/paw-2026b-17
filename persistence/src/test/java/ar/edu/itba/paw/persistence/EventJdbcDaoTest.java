@@ -528,8 +528,8 @@ public class EventJdbcDaoTest {
     // persona se anota (ahi pasa a ser su inscripcion y deja de contarse aparte).
     private void insertEventInvitation(final long eventId, final String email) {
         jdbcTemplate.update(
-                "INSERT INTO event_invitation (event_id, email, token, invited_by) VALUES (?, ?, ?, ?)",
-                eventId, email, "tok-" + eventId + "-" + email, CREATOR_EMAIL);
+                "INSERT INTO event_invitation (event_id, email, invited_by) VALUES (?, ?, ?)",
+                eventId, email, CREATOR_EMAIL);
     }
 
     /** Un evento futuro con ese cupo y esa cantidad de inscriptos confirmados. */

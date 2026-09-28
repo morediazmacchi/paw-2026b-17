@@ -179,14 +179,15 @@ ALTER TABLE event ADD COLUMN IF NOT EXISTS requires_approval BOOLEAN NOT NULL DE
 -- valida (ver event_invitation, mas abajo).
 ALTER TABLE event ADD COLUMN IF NOT EXISTS visibility VARCHAR(20) NOT NULL DEFAULT 'PUBLIC';
 
--- Invitacion personal a un evento privado. Mismo espiritu que
--- waitlist_invitation: el token ES la identificacion (se puede abrir sin
--- login, o logueado con otra cuenta), no hay que ser la persona invitada para
--- que el link funcione. La diferencia con waitlist_invitation es que ac no
--- hay "aceptar o rechazar": el token solo desbloquea poder VER el evento
--- (ver EventController.canView); inscribirse de ahi en mas sigue el camino
--- normal de RegistrationServiceImpl.register(), con sus mismas reglas de
--- cupo y de confirmacion del organizador si el evento las tiene.
+-- Invitacion personal a un evento privado. A diferencia de waitlist_invitation
+-- no hay "aceptar o rechazar": esto solo desbloquea poder VER el evento (ver
+-- EventController.canView); inscribirse de ahi en mas sigue el camino normal
+-- de RegistrationServiceImpl.register(), con sus mismas reglas de cupo y de
+-- confirmacion del organizador si el evento las tiene.
+--
+-- Ya NO hay un token que funcione como credencial por si solo (ver mas abajo,
+-- "ya no se usa mas token"): quien entra tiene que SER la persona invitada,
+-- logueada con la cuenta que quedo enlazada (event_invitation.user_id).
 --
 -- UNIQUE(event_id, email) evita mandarle dos invitaciones (y dos mails) a la
 -- misma persona para el mismo evento.
@@ -194,7 +195,6 @@ CREATE TABLE IF NOT EXISTS event_invitation (
     id          SERIAL PRIMARY KEY,
     event_id    INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
     email       VARCHAR(150) NOT NULL,
-    token       VARCHAR(64) NOT NULL UNIQUE,
     invited_by  VARCHAR(150) NOT NULL,
     created_at  TIMESTAMP NOT NULL DEFAULT now(),
     UNIQUE (event_id, email)
@@ -289,3 +289,12 @@ ALTER TABLE event_invitation ADD COLUMN IF NOT EXISTS invited_by_user_id INTEGER
 -- user_id en NULL para siempre es un caso normal, no un error.
 ALTER TABLE event_invitation ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id);
 ALTER TABLE inbox_message ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id);
+
+-- Cambio de intencion de diseño: ya no se usa mas token como credencial de la
+-- invitacion (esa idea era de antes de tener event_invitation.user_id mas
+-- arriba). Quien abre el link tiene que estar logueado con la cuenta invitada
+-- (ver EventController.canView()/EventInvitationService.isInvited()); el
+-- token que alguna vez se genero y guardo ya no lo lee nadie. El DROP COLUMN
+-- de verdad vive en postgres-migrations.sql: HSQLDB (los tests) no entiende
+-- "IF EXISTS" en un DROP COLUMN, y de todas formas una base de tests nace de
+-- cero sin esta columna (el CREATE TABLE de aca arriba ya no la declara).

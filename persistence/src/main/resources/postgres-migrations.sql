@@ -128,3 +128,16 @@ WHERE LOWER(u.email) = LOWER(ei.email) AND ei.user_id IS NULL;
 UPDATE inbox_message im SET user_id = u.id
 FROM users u
 WHERE LOWER(u.email) = LOWER(im.recipient_email) AND im.user_id IS NULL;
+
+-- Cambio de intencion de diseño (ver el comentario de event_invitation en
+-- schema.sql): la invitacion ya no se abre con un token que valga por si
+-- solo, ahora hay que estar logueado con la cuenta invitada
+-- (event_invitation.user_id, backfillado arriba). El token que se llegaron a
+-- generar y guardar antes de este cambio ya no lo lee nadie del lado de Java.
+-- Mismo motivo que el DROP CONSTRAINT de mas arriba para no compartir archivo
+-- con schema.sql: se probo "ALTER TABLE ... DROP COLUMN IF EXISTS" contra
+-- HSQLDB y tira el mismo error de parseo ("object not found: IF") -- no
+-- entiende la clausula "IF EXISTS" ahi tampoco. Una base de tests nunca tuvo
+-- esta columna (el CREATE TABLE de schema.sql ya no la declara), asi que no
+-- hay nada que migrar en ese lado.
+ALTER TABLE event_invitation DROP COLUMN IF EXISTS token;

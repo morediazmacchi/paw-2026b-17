@@ -30,7 +30,6 @@ public class EventInvitationJdbcDaoTest {
 
     private static final String CREATOR_EMAIL = "creador@mail.com";
     private static final String INVITEE_EMAIL = "invitado@mail.com";
-    private static final String TOKEN = "un-token-bien-largo-y-al-azar";
 
     @Autowired
     private DataSource ds;
@@ -62,7 +61,7 @@ public class EventInvitationJdbcDaoTest {
     }
 
     private static EventInvitation someInvitation(final long eventId) {
-        return new EventInvitation(eventId, INVITEE_EMAIL, TOKEN, CREATOR_EMAIL);
+        return new EventInvitation(eventId, INVITEE_EMAIL, CREATOR_EMAIL);
     }
 
     // ---- create() ----
@@ -88,15 +87,9 @@ public class EventInvitationJdbcDaoTest {
     }
 
     @Test(expected = DataAccessException.class)
-    public void testCreateWithDuplicateTokenThrowsDataAccessException() {
-        invitationDao.create(someInvitation(eventId));
-        invitationDao.create(new EventInvitation(eventId, "otro@mail.com", TOKEN, CREATOR_EMAIL));
-    }
-
-    @Test(expected = DataAccessException.class)
     public void testCreateWithDuplicateEventAndEmailThrowsDataAccessException() {
         invitationDao.create(someInvitation(eventId));
-        invitationDao.create(new EventInvitation(eventId, INVITEE_EMAIL, "otro-token", CREATOR_EMAIL));
+        invitationDao.create(new EventInvitation(eventId, INVITEE_EMAIL, CREATOR_EMAIL));
     }
 
     // ---- findByEventAndEmail() ----
@@ -108,7 +101,6 @@ public class EventInvitationJdbcDaoTest {
         final Optional<EventInvitation> found = invitationDao.findByEventAndEmail(eventId, INVITEE_EMAIL);
 
         assertTrue(found.isPresent());
-        assertEquals(TOKEN, found.get().getToken());
     }
 
     @Test
@@ -128,7 +120,6 @@ public class EventInvitationJdbcDaoTest {
         final Optional<EventInvitation> found = invitationDao.findByEventAndUserId(eventId, inviteeId);
 
         assertTrue(found.isPresent());
-        assertEquals(TOKEN, found.get().getToken());
     }
 
     @Test
@@ -144,7 +135,7 @@ public class EventInvitationJdbcDaoTest {
     public void testFindByEventReturnsOnlyThatEventsInvitations() {
         invitationDao.create(someInvitation(eventId));
         final long otherEventId = insertEvent();
-        invitationDao.create(new EventInvitation(otherEventId, "otro@mail.com", "otro-token", CREATOR_EMAIL));
+        invitationDao.create(new EventInvitation(otherEventId, "otro@mail.com", CREATOR_EMAIL));
 
         final List<EventInvitation> found = invitationDao.findByEvent(eventId);
 
