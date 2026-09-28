@@ -191,4 +191,25 @@ public class UserJdbcDaoTest {
         userDao.setVerified(created.getId(), true);
         assertTrue(userDao.findById(created.getId()).get().isVerified());
     }
+
+    // ---- locale ----
+
+    @Test
+    public void testNewUserHasNoLocaleByDefault() {
+        // Nadie eligio idioma todavia: la pagina usa la cookie/navegador y los
+        // mails el default (ver NotificationServiceImpl), no esta columna.
+        final User created = userDao.create(new User(EMAIL, NAME));
+
+        assertNull(userDao.findById(created.getId()).get().getLocale());
+    }
+
+    @Test
+    public void testSetLocaleIsVisibleByIdAndByEmail() {
+        final User created = userDao.create(new User(EMAIL, NAME));
+
+        userDao.setLocale(created.getId(), "en");
+
+        assertEquals("en", userDao.findById(created.getId()).get().getLocale());
+        assertEquals("en", userDao.findByEmail(EMAIL).get().getLocale());
+    }
 }

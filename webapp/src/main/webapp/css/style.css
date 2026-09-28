@@ -71,6 +71,17 @@ a {
     color: var(--accent);
 }
 
+.navbar-lang {
+    display: flex;
+    gap: 4px;
+}
+
+.navbar-lang-option {
+    padding: 6px 10px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
 .pills {
     display: flex;
     gap: 8px;

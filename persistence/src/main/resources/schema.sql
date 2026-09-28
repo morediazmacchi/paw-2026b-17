@@ -103,6 +103,14 @@ CREATE TABLE IF NOT EXISTS favorite (
 -- que confirmar el mail.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS verified BOOLEAN NOT NULL DEFAULT TRUE;
 
+-- Idioma elegido (ej. "es"/"en"), para no depender solo de la cookie del
+-- navegador (LocaleController/WebConfig.localeResolver) y para saber en que
+-- idioma mandarle los mails (ver NotificationServiceImpl). NULL = todavia no
+-- eligio ninguno (cuentas viejas, o nunca toco el boton de idioma): en ese
+-- caso se usa el idioma de la cookie/navegador para la pagina, y el default
+-- (castellano) para los mails.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS preferred_locale VARCHAR(5);
+
 -- Un solo link a la vez por (usuario, proposito): antes de crear uno nuevo se
 -- borran los anteriores (ver VerificationTokenDao.deleteByUserAndPurpose).
 CREATE TABLE IF NOT EXISTS verification_token (

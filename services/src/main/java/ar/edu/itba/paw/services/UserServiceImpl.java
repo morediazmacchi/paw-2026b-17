@@ -9,6 +9,7 @@ import ar.edu.itba.paw.persistence.InboxMessageDao;
 import ar.edu.itba.paw.persistence.UserDao;
 import ar.edu.itba.paw.persistence.VerificationTokenDao;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -104,20 +105,29 @@ public class UserServiceImpl implements UserService {
         // Toda cuenta nueva (o fantasma recien completada) tiene que confirmar
         // el mail antes de poder loguearse: ver UserDetailsServiceImpl.
         userDao.setVerified(userId, false);
+        // Si todavia no habia elegido un idioma a mano (cuenta nueva, o fantasma
+        // que nunca toco el boton de idioma), le guardamos el que ya tenia puesto
+        // el sitio en esta misma request (cookie de LocaleResolver, ver WebConfig):
+        // asi el mail de confirmacion que sigue ya sale en ese idioma, no en el
+        // default (ver NotificationServiceImpl.notifyAccountVerification()).
+        if (!existing.map(User::getLocale).isPresent()) {
+            userDao.setLocale(userId, LocaleContextHolder.getLocale().getLanguage());
+        }
         sendVerificationEmail(userDao.findById(userId).orElseThrow(IllegalStateException::new), redirectAfterConfirm);
         return UserRegistrationResult.CREATED;
     }
 
     @Override
     @Transactional
-    public boolean confirmEmail(final String token) {
+    public Optional<User> confirmEmail(final String token) {
         final Optional<VerificationToken> found = validToken(token, TokenPurpose.VERIFY_EMAIL);
         if (!found.isPresent()) {
-            return false;
+            return Optional.empty();
         }
-        userDao.setVerified(found.get().getUserId(), true);
+        final long userId = found.get().getUserId();
+        userDao.setVerified(userId, true);
         tokenDao.delete(token);
-        return true;
+        return userDao.findById(userId);
     }
 
     @Override
@@ -204,5 +214,11 @@ public class UserServiceImpl implements UserService {
 
         userDao.setPassword(userId, passwordEncoder.encode(newPassword));
         return true;
+    }
+
+    @Override
+    @Transactional
+    public void updateLocale(final long userId, final String locale) {
+        userDao.setLocale(userId, locale);
     }
 }

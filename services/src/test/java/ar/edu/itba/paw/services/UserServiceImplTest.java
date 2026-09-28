@@ -172,6 +172,41 @@ public class UserServiceImplTest {
     }
 
     @Test
+    public void testRegisterSavesTheCurrentPageLocaleWhenTheAccountHadNone() {
+        // El idioma con el que se estaba navegando en el momento de registrarse
+        // (cookie de LocaleResolver, ver WebConfig) queda guardado: asi el mail
+        // de confirmacion que sigue ya sale en ese idioma (ver
+        // NotificationServiceImpl.notifyAccountVerification()).
+        org.springframework.context.i18n.LocaleContextHolder.setLocale(new java.util.Locale("en"));
+        try {
+            when(mockUserDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.empty());
+            when(mockUserDao.create(any(User.class))).thenReturn(someUser());
+            when(mockUserDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
+
+            userService.register(EMAIL, NAME, RAW_PASSWORD, null);
+
+            verify(mockUserDao).setLocale(USER_ID, "en");
+        } finally {
+            org.springframework.context.i18n.LocaleContextHolder.resetLocaleContext();
+        }
+    }
+
+    @Test
+    public void testRegisterDoesNotOverwriteALocaleTheGhostAccountAlreadyHad() {
+        // Fantasma que ya habia elegido idioma antes de registrarse de verdad
+        // (por ejemplo, alguien lo invito y de paso cambio el idioma del sitio):
+        // register() no lo pisa.
+        final User ghostWithLocale = someUser();
+        ghostWithLocale.setLocale("es");
+        when(mockUserDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(ghostWithLocale));
+        when(mockUserDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
+
+        userService.register(EMAIL, NAME, RAW_PASSWORD, null);
+
+        verify(mockUserDao, never()).setLocale(anyLong(), any());
+    }
+
+    @Test
     public void testRegisterRejectsAnEmailThatAlreadyHasAPassword() {
         final User existing = someUser();
         existing.setPassword(HASHED_PASSWORD);
@@ -248,6 +283,15 @@ public class UserServiceImplTest {
         verify(mockUserDao, never()).setPassword(anyLong(), any());
     }
 
+    // ---- updateLocale() ----
+
+    @Test
+    public void testUpdateLocaleDelegatesToTheDao() {
+        userService.updateLocale(USER_ID, "en");
+
+        verify(mockUserDao).setLocale(USER_ID, "en");
+    }
+
     // ---- confirmEmail() ----
 
     private static VerificationToken tokenOf(final TokenPurpose purpose, final Date expiresAt) {
@@ -266,10 +310,12 @@ public class UserServiceImplTest {
     public void testConfirmEmailVerifiesTheUserAndConsumesTheToken() {
         when(mockTokenDao.findByToken("some-token"))
                 .thenReturn(Optional.of(tokenOf(TokenPurpose.VERIFY_EMAIL, inOneHour())));
+        when(mockUserDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
 
-        final boolean result = userService.confirmEmail("some-token");
+        final Optional<User> result = userService.confirmEmail("some-token");
 
-        assertTrue(result);
+        assertTrue(result.isPresent());
+        assertEquals(USER_ID, result.get().getId());
         verify(mockUserDao).setVerified(USER_ID, true);
         verify(mockTokenDao).delete("some-token");
     }
@@ -278,9 +324,9 @@ public class UserServiceImplTest {
     public void testConfirmEmailFailsWhenTheTokenDoesNotExist() {
         when(mockTokenDao.findByToken("some-token")).thenReturn(Optional.empty());
 
-        final boolean result = userService.confirmEmail("some-token");
+        final Optional<User> result = userService.confirmEmail("some-token");
 
-        assertFalse(result);
+        assertFalse(result.isPresent());
         verify(mockUserDao, never()).setVerified(anyLong(), anyBoolean());
     }
 
@@ -289,9 +335,9 @@ public class UserServiceImplTest {
         when(mockTokenDao.findByToken("some-token"))
                 .thenReturn(Optional.of(tokenOf(TokenPurpose.VERIFY_EMAIL, oneHourAgo())));
 
-        final boolean result = userService.confirmEmail("some-token");
+        final Optional<User> result = userService.confirmEmail("some-token");
 
-        assertFalse(result);
+        assertFalse(result.isPresent());
         verify(mockTokenDao, never()).delete(any(String.class));
     }
 
@@ -300,9 +346,9 @@ public class UserServiceImplTest {
         when(mockTokenDao.findByToken("some-token"))
                 .thenReturn(Optional.of(tokenOf(TokenPurpose.RESET_PASSWORD, inOneHour())));
 
-        final boolean result = userService.confirmEmail("some-token");
+        final Optional<User> result = userService.confirmEmail("some-token");
 
-        assertFalse(result);
+        assertFalse(result.isPresent());
     }
 
     // ---- resendVerificationEmail() ----

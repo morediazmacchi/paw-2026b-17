@@ -5,6 +5,7 @@ import ar.edu.itba.paw.model.EventInvitation;
 import ar.edu.itba.paw.model.EventQuestion;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.persistence.UserDao;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,8 +28,9 @@ public class NotificationServiceImpl implements NotificationService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(NotificationServiceImpl.class);
 
-    // Por ahora todos los mails salen en castellano. Cuando el sitio tenga
-    // seleccion de idioma, esto sale de la preferencia del usuario.
+    // Fallback cuando el destinatario todavia no eligio idioma a mano (ver
+    // User.getLocale()/LocaleController): cuentas viejas, o alguien sin cuenta
+    // todavia (invitado por mail, ver EventInvitation.userId).
     private static final Locale DEFAULT_LOCALE = new Locale("es");
 
     // Los precios son siempre en pesos argentinos, no dependen del idioma del mail.
@@ -36,6 +38,12 @@ public class NotificationServiceImpl implements NotificationService {
 
     private final MailService mailService;
     private final MessageSource messageSource;
+    // Para resolver el idioma guardado del destinatario a partir de su id
+    // (Event.creatorId, Registration.userId, EventInvitation.userId,
+    // EventQuestion.userId): hablamos directo con el DAO, mismo criterio que
+    // UserServiceImpl usa para la reconciliacion del Grupo B, para no
+    // depender de UserService/su logica de negocio por un simple SELECT.
+    private final UserDao userDao;
 
     // De donde sale la parte fija de los links. Vive en mail.properties porque
     // cambia entre tu maquina y pampero.
@@ -44,16 +52,19 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Autowired
     public NotificationServiceImpl(final MailService mailService,
-                                   @Qualifier("mailMessageSource") final MessageSource messageSource) {
+                                   @Qualifier("mailMessageSource") final MessageSource messageSource,
+                                   final UserDao userDao) {
         this.mailService = mailService;
         this.messageSource = messageSource;
+        this.userDao = userDao;
     }
 
     @Async
     @Override
     public void notifyEventCreated(final Event event, final String creatorName) {
         try {
-            final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
+            final Locale locale = localeForUserId(event.getCreatorId());
+            final Map<String, Object> variables = eventVariables(event, locale);
             variables.put("personName", displayName(creatorName, event.getCreatorEmail()));
 
             mailService.send(event.getCreatorEmail(),
@@ -61,7 +72,7 @@ public class NotificationServiceImpl implements NotificationService {
                     "mail.eventCreated.subject",
                     new Object[]{ event.getTitle() },
                     variables,
-                    DEFAULT_LOCALE);
+                    locale);
         } catch (final RuntimeException e) {
             // Estamos en otro hilo: si no lo atrapamos aca, la excepcion no
             // aparece en ningun lado. Nadie esta esperando este metodo.
@@ -73,7 +84,8 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public void notifyRegistrationConfirmed(final Event event, final Registration registration) {
         try {
-            final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
+            final Locale locale = localeForUserId(registration.getUserId());
+            final Map<String, Object> variables = eventVariables(event, locale);
             variables.put("personName", displayName(registration.getName(), registration.getEmail()));
             // El CTA manda a "Mis inscripciones", no al evento: quien se anoto ya
             // esta viendo estos datos en este mismo mail, lo util es llevarlo a
@@ -85,7 +97,7 @@ public class NotificationServiceImpl implements NotificationService {
                     "mail.registrationConfirmed.subject",
                     new Object[]{ event.getTitle() },
                     variables,
-                    DEFAULT_LOCALE);
+                    locale);
         } catch (final RuntimeException e) {
             LOGGER.error("Fallo la notificacion de inscripcion confirmada, evento {}", event.getId(), e);
         }
@@ -95,7 +107,8 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public void notifyNewRegistration(final Event event, final Registration registration) {
         try {
-            final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
+            final Locale locale = localeForUserId(event.getCreatorId());
+            final Map<String, Object> variables = eventVariables(event, locale);
             variables.put("personName", displayName(null, event.getCreatorEmail()));
             variables.put("registrantName", displayName(registration.getName(), registration.getEmail()));
             variables.put("registrantEmail", registration.getEmail());
@@ -105,7 +118,7 @@ public class NotificationServiceImpl implements NotificationService {
                     "mail.newRegistration.subject",
                     new Object[]{ event.getTitle() },
                     variables,
-                    DEFAULT_LOCALE);
+                    locale);
         } catch (final RuntimeException e) {
             LOGGER.error("Fallo la notificacion de inscripcion nueva, evento {}", event.getId(), e);
         }
@@ -115,7 +128,8 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public void notifyRegistrationPending(final Event event, final Registration registration) {
         try {
-            final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
+            final Locale locale = localeForUserId(registration.getUserId());
+            final Map<String, Object> variables = eventVariables(event, locale);
             variables.put("personName", displayName(registration.getName(), registration.getEmail()));
             variables.put("registrationsUrl", baseUrl + "/perfil/inscripciones");
 
@@ -124,7 +138,7 @@ public class NotificationServiceImpl implements NotificationService {
                     "mail.registrationPending.subject",
                     new Object[]{ event.getTitle() },
                     variables,
-                    DEFAULT_LOCALE);
+                    locale);
         } catch (final RuntimeException e) {
             LOGGER.error("Fallo la notificacion de inscripcion pendiente, evento {}", event.getId(), e);
         }
@@ -134,7 +148,8 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public void notifyNewPendingRegistration(final Event event, final Registration registration) {
         try {
-            final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
+            final Locale locale = localeForUserId(event.getCreatorId());
+            final Map<String, Object> variables = eventVariables(event, locale);
             variables.put("personName", displayName(null, event.getCreatorEmail()));
             variables.put("registrantName", displayName(registration.getName(), registration.getEmail()));
             variables.put("registrantEmail", registration.getEmail());
@@ -147,7 +162,7 @@ public class NotificationServiceImpl implements NotificationService {
                     "mail.newPendingRegistration.subject",
                     new Object[]{ event.getTitle() },
                     variables,
-                    DEFAULT_LOCALE);
+                    locale);
         } catch (final RuntimeException e) {
             LOGGER.error("Fallo el aviso de inscripcion pendiente al creador, evento {}", event.getId(), e);
         }
@@ -157,7 +172,8 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public void notifyRegistrationApproved(final Event event, final Registration registration) {
         try {
-            final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
+            final Locale locale = localeForUserId(registration.getUserId());
+            final Map<String, Object> variables = eventVariables(event, locale);
             variables.put("personName", displayName(registration.getName(), registration.getEmail()));
             variables.put("registrationsUrl", baseUrl + "/perfil/inscripciones");
 
@@ -166,7 +182,7 @@ public class NotificationServiceImpl implements NotificationService {
                     "mail.registrationApproved.subject",
                     new Object[]{ event.getTitle() },
                     variables,
-                    DEFAULT_LOCALE);
+                    locale);
         } catch (final RuntimeException e) {
             LOGGER.error("Fallo la notificacion de inscripcion aprobada, evento {}", event.getId(), e);
         }
@@ -176,7 +192,8 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public void notifyRegistrationRejected(final Event event, final Registration registration) {
         try {
-            final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
+            final Locale locale = localeForUserId(registration.getUserId());
+            final Map<String, Object> variables = eventVariables(event, locale);
             variables.put("personName", displayName(registration.getName(), registration.getEmail()));
             variables.put("eventsUrl", baseUrl + "/eventos");
 
@@ -185,7 +202,7 @@ public class NotificationServiceImpl implements NotificationService {
                     "mail.registrationRejected.subject",
                     new Object[]{ event.getTitle() },
                     variables,
-                    DEFAULT_LOCALE);
+                    locale);
         } catch (final RuntimeException e) {
             LOGGER.error("Fallo la notificacion de inscripcion rechazada, evento {}", event.getId(), e);
         }
@@ -195,7 +212,11 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public void notifyEventInvitation(final Event event, final EventInvitation invitation) {
         try {
-            final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
+            // invitation.getUserId() es optimista (ver el modelo): si es null
+            // (todavia no tiene cuenta) localeForUserId() cae en DEFAULT_LOCALE,
+            // que es exactamente lo correcto para alguien sin preferencia guardada.
+            final Locale locale = localeForUserId(invitation.getUserId());
+            final Map<String, Object> variables = eventVariables(event, locale);
             // No hay nombre: a esta altura solo se conoce el mail al que se invito.
             variables.put("personName", displayName(null, invitation.getEmail()));
 
@@ -204,7 +225,7 @@ public class NotificationServiceImpl implements NotificationService {
                     "mail.eventInvitation.subject",
                     new Object[]{ event.getTitle() },
                     variables,
-                    DEFAULT_LOCALE);
+                    locale);
         } catch (final RuntimeException e) {
             LOGGER.error("Fallo la invitacion al evento, evento {}", event.getId(), e);
         }
@@ -214,7 +235,8 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public void notifyWaitlistJoined(final Event event, final Registration registration) {
         try {
-            final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
+            final Locale locale = localeForUserId(registration.getUserId());
+            final Map<String, Object> variables = eventVariables(event, locale);
             variables.put("personName", displayName(registration.getName(), registration.getEmail()));
             // Mismo CTA que el mail de inscripcion confirmada: desde "Mis
             // inscripciones" puede salirse de la lista si ya no le interesa.
@@ -225,7 +247,7 @@ public class NotificationServiceImpl implements NotificationService {
                     "mail.waitlistJoined.subject",
                     new Object[]{ event.getTitle() },
                     variables,
-                    DEFAULT_LOCALE);
+                    locale);
         } catch (final RuntimeException e) {
             LOGGER.error("Fallo la notificacion de lista de espera, evento {}", event.getId(), e);
         }
@@ -235,7 +257,8 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public void notifyNewWaitlistEntry(final Event event, final Registration registration) {
         try {
-            final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
+            final Locale locale = localeForUserId(event.getCreatorId());
+            final Map<String, Object> variables = eventVariables(event, locale);
             variables.put("personName", displayName(null, event.getCreatorEmail()));
             variables.put("registrantName", displayName(registration.getName(), registration.getEmail()));
             variables.put("registrantEmail", registration.getEmail());
@@ -245,7 +268,7 @@ public class NotificationServiceImpl implements NotificationService {
                     "mail.waitlistNewEntry.subject",
                     new Object[]{ event.getTitle() },
                     variables,
-                    DEFAULT_LOCALE);
+                    locale);
         } catch (final RuntimeException e) {
             LOGGER.error("Fallo el aviso de lista de espera al creador, evento {}", event.getId(), e);
         }
@@ -255,7 +278,8 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public void notifyWaitlistPromoted(final Event event, final Registration registration) {
         try {
-            final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
+            final Locale locale = localeForUserId(registration.getUserId());
+            final Map<String, Object> variables = eventVariables(event, locale);
             variables.put("personName", displayName(registration.getName(), registration.getEmail()));
             variables.put("registrationsUrl", baseUrl + "/perfil/inscripciones");
 
@@ -264,7 +288,7 @@ public class NotificationServiceImpl implements NotificationService {
                     "mail.waitlistPromoted.subject",
                     new Object[]{ event.getTitle() },
                     variables,
-                    DEFAULT_LOCALE);
+                    locale);
         } catch (final RuntimeException e) {
             LOGGER.error("Fallo el aviso de lugar de la lista de espera, evento {}", event.getId(), e);
         }
@@ -274,7 +298,8 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public void notifyRegistrationRevoked(final Event event, final Registration registration) {
         try {
-            final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
+            final Locale locale = localeForUserId(registration.getUserId());
+            final Map<String, Object> variables = eventVariables(event, locale);
             variables.put("personName", displayName(registration.getName(), registration.getEmail()));
             variables.put("eventsUrl", baseUrl + "/eventos");
 
@@ -283,7 +308,7 @@ public class NotificationServiceImpl implements NotificationService {
                     "mail.registrationRevoked.subject",
                     new Object[]{ event.getTitle() },
                     variables,
-                    DEFAULT_LOCALE);
+                    locale);
         } catch (final RuntimeException e) {
             LOGGER.error("Fallo el aviso de lugar revocado, evento {}", event.getId(), e);
         }
@@ -293,7 +318,8 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public void notifyEventFull(final Event event) {
         try {
-            final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
+            final Locale locale = localeForUserId(event.getCreatorId());
+            final Map<String, Object> variables = eventVariables(event, locale);
             variables.put("personName", displayName(null, event.getCreatorEmail()));
 
             mailService.send(event.getCreatorEmail(),
@@ -301,7 +327,7 @@ public class NotificationServiceImpl implements NotificationService {
                     "mail.eventFull.subject",
                     new Object[]{ event.getTitle() },
                     variables,
-                    DEFAULT_LOCALE);
+                    locale);
         } catch (final RuntimeException e) {
             LOGGER.error("Fallo el aviso de evento completo, evento {}", event.getId(), e);
         }
@@ -312,7 +338,8 @@ public class NotificationServiceImpl implements NotificationService {
     public void notifyRegistrationCancelled(final Event event, final Registration registration,
                                              final boolean offeredToWaitlist) {
         try {
-            final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
+            final Locale locale = localeForUserId(event.getCreatorId());
+            final Map<String, Object> variables = eventVariables(event, locale);
             variables.put("personName", displayName(null, event.getCreatorEmail()));
             variables.put("registrantName", displayName(registration.getName(), registration.getEmail()));
             variables.put("registrantEmail", registration.getEmail());
@@ -325,7 +352,7 @@ public class NotificationServiceImpl implements NotificationService {
                     "mail.registrationCancelled.subject",
                     new Object[]{ event.getTitle() },
                     variables,
-                    DEFAULT_LOCALE);
+                    locale);
         } catch (final RuntimeException e) {
             LOGGER.error("Fallo el aviso de baja al creador, evento {}", event.getId(), e);
         }
@@ -335,6 +362,7 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public void notifyAccountVerification(final User user, final String token, final String redirectAfterConfirm) {
         try {
+            final Locale locale = localeFor(user);
             final Map<String, Object> variables = new HashMap<>();
             variables.put("personName", displayName(user.getName(), user.getEmail()));
             // Si venia de algun lado (una invitacion a un evento privado), el
@@ -348,7 +376,7 @@ public class NotificationServiceImpl implements NotificationService {
                     "mail.accountVerification.subject",
                     null,
                     variables,
-                    DEFAULT_LOCALE);
+                    locale);
         } catch (final RuntimeException e) {
             LOGGER.error("Fallo el mail de confirmacion de cuenta, usuario {}", user.getId(), e);
         }
@@ -358,6 +386,7 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public void notifyPasswordReset(final User user, final String token) {
         try {
+            final Locale locale = localeFor(user);
             final Map<String, Object> variables = new HashMap<>();
             variables.put("personName", displayName(user.getName(), user.getEmail()));
             variables.put("resetUrl", baseUrl + "/login/restablecer?token=" + token);
@@ -367,7 +396,7 @@ public class NotificationServiceImpl implements NotificationService {
                     "mail.passwordReset.subject",
                     null,
                     variables,
-                    DEFAULT_LOCALE);
+                    locale);
         } catch (final RuntimeException e) {
             LOGGER.error("Fallo el mail de restablecer contraseña, usuario {}", user.getId(), e);
         }
@@ -377,7 +406,8 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public void notifyEventCancelled(final Event event, final Registration registration) {
         try {
-            final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
+            final Locale locale = localeForUserId(registration.getUserId());
+            final Map<String, Object> variables = eventVariables(event, locale);
             variables.put("personName", displayName(registration.getName(), registration.getEmail()));
             variables.put("eventsUrl", baseUrl + "/eventos");
 
@@ -386,7 +416,7 @@ public class NotificationServiceImpl implements NotificationService {
                     "mail.eventCancelled.subject",
                     new Object[]{ event.getTitle() },
                     variables,
-                    DEFAULT_LOCALE);
+                    locale);
         } catch (final RuntimeException e) {
             LOGGER.error("Fallo el aviso de evento cancelado, evento {}", event.getId(), e);
         }
@@ -396,7 +426,8 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public void notifyEventUpdated(final Event event, final Registration registration) {
         try {
-            final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
+            final Locale locale = localeForUserId(registration.getUserId());
+            final Map<String, Object> variables = eventVariables(event, locale);
             variables.put("personName", displayName(registration.getName(), registration.getEmail()));
 
             mailService.send(registration.getEmail(),
@@ -404,21 +435,18 @@ public class NotificationServiceImpl implements NotificationService {
                     "mail.eventUpdated.subject",
                     new Object[]{ event.getTitle() },
                     variables,
-                    DEFAULT_LOCALE);
+                    locale);
         } catch (final RuntimeException e) {
             LOGGER.error("Fallo el aviso de evento editado, evento {}", event.getId(), e);
         }
     }
 
-    /**
-     * Los datos del evento que usan las tres plantillas. Se arma una sola vez
-     * aca en vez de repetirlo en cada metodo.
-     */
     @Async
     @Override
     public void notifyEventReminder(final Event event, final Registration registration) {
         try {
-            final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
+            final Locale locale = localeForUserId(registration.getUserId());
+            final Map<String, Object> variables = eventVariables(event, locale);
             variables.put("personName", displayName(registration.getName(), registration.getEmail()));
 
             mailService.send(registration.getEmail(),
@@ -426,7 +454,7 @@ public class NotificationServiceImpl implements NotificationService {
                     "mail.eventReminder.subject",
                     new Object[]{ event.getTitle() },
                     variables,
-                    DEFAULT_LOCALE);
+                    locale);
         } catch (final RuntimeException e) {
             LOGGER.error("Fallo el recordatorio de 24 hs, evento {}", event.getId(), e);
         }
@@ -436,7 +464,8 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public void notifyOrganizerEventReminder(final Event event) {
         try {
-            final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
+            final Locale locale = localeForUserId(event.getCreatorId());
+            final Map<String, Object> variables = eventVariables(event, locale);
             variables.put("personName", displayName(null, event.getCreatorEmail()));
             variables.put("attendeesUrl", baseUrl + "/perfil/eventos/" + event.getId() + "/inscriptos");
 
@@ -445,7 +474,7 @@ public class NotificationServiceImpl implements NotificationService {
                     "mail.organizerReminder.subject",
                     new Object[]{ event.getTitle() },
                     variables,
-                    DEFAULT_LOCALE);
+                    locale);
         } catch (final RuntimeException e) {
             LOGGER.error("Fallo el recordatorio de 24 hs al organizador, evento {}", event.getId(), e);
         }
@@ -455,7 +484,8 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public void notifyNewQuestion(final Event event, final EventQuestion question) {
         try {
-            final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
+            final Locale locale = localeForUserId(event.getCreatorId());
+            final Map<String, Object> variables = eventVariables(event, locale);
             variables.put("personName", displayName(null, event.getCreatorEmail()));
             variables.put("askerName", displayName(question.getAskerName(), question.getAskerEmail()));
             variables.put("questionText", question.getText());
@@ -467,7 +497,7 @@ public class NotificationServiceImpl implements NotificationService {
                     "mail.newQuestion.subject",
                     new Object[]{ event.getTitle() },
                     variables,
-                    DEFAULT_LOCALE);
+                    locale);
         } catch (final RuntimeException e) {
             LOGGER.error("Fallo el aviso de pregunta nueva, evento {}", event.getId(), e);
         }
@@ -477,7 +507,8 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public void notifyQuestionAnswered(final Event event, final EventQuestion question) {
         try {
-            final Map<String, Object> variables = eventVariables(event, DEFAULT_LOCALE);
+            final Locale locale = localeForUserId(question.getUserId());
+            final Map<String, Object> variables = eventVariables(event, locale);
             variables.put("personName", displayName(question.getAskerName(), question.getAskerEmail()));
             variables.put("questionText", question.getText());
             variables.put("answerText", question.getAnswer());
@@ -488,12 +519,18 @@ public class NotificationServiceImpl implements NotificationService {
                     "mail.questionAnswered.subject",
                     new Object[]{ event.getTitle() },
                     variables,
-                    DEFAULT_LOCALE);
+                    locale);
         } catch (final RuntimeException e) {
             LOGGER.error("Fallo el aviso de pregunta respondida, evento {}", event.getId(), e);
         }
     }
 
+    /**
+     * Los datos del evento que usan casi todas las plantillas. Se arma una sola
+     * vez aca en vez de repetirlo en cada metodo. El locale es el del
+     * DESTINATARIO de ese mail puntual (ver localeFor()/localeForUserId()), no
+     * uno fijo: por eso lo recibe como parametro en vez de usar DEFAULT_LOCALE.
+     */
     private Map<String, Object> eventVariables(final Event event, final Locale locale) {
         final Map<String, Object> variables = new HashMap<>();
         variables.put("eventTitle", event.getTitle());
@@ -543,5 +580,30 @@ public class NotificationServiceImpl implements NotificationService {
         }
         final int at = email.indexOf('@');
         return at > 0 ? email.substring(0, at) : email;
+    }
+
+    /**
+     * El idioma guardado de un destinatario que YA tenemos cargado (no hace
+     * falta ir a buscarlo por id).
+     */
+    private Locale localeFor(final User user) {
+        return toLocale(user.getLocale());
+    }
+
+    /**
+     * Igual que localeFor(User), pero a partir de un id que puede no
+     * corresponder a nadie con cuenta todavia: userId null (invitado sin
+     * cuenta, ver EventInvitation.userId) o sin fila (no deberia pasar, pero
+     * no vale la pena reventar un mail por eso) caen los dos en DEFAULT_LOCALE.
+     */
+    private Locale localeForUserId(final Long userId) {
+        if (userId == null) {
+            return DEFAULT_LOCALE;
+        }
+        return userDao.findById(userId).map(User::getLocale).map(this::toLocale).orElse(DEFAULT_LOCALE);
+    }
+
+    private Locale toLocale(final String languageTag) {
+        return (languageTag == null || languageTag.isEmpty()) ? DEFAULT_LOCALE : new Locale(languageTag);
     }
 }

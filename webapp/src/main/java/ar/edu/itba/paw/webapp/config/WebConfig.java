@@ -2,6 +2,7 @@ package ar.edu.itba.paw.webapp.config;
 
 import ar.edu.itba.paw.services.InboxService;
 import ar.edu.itba.paw.services.UserService;
+import ar.edu.itba.paw.webapp.interceptor.CurrentLocaleInterceptor;
 import ar.edu.itba.paw.webapp.interceptor.UnreadInboxInterceptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,15 +23,18 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 import org.springframework.web.multipart.MultipartResolver;
 import org.springframework.web.multipart.support.StandardServletMultipartResolver;
+import org.springframework.web.servlet.LocaleResolver;
 import org.springframework.web.servlet.ViewResolver;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+import org.springframework.web.servlet.i18n.CookieLocaleResolver;
 import org.springframework.web.servlet.view.InternalResourceViewResolver;
 import org.springframework.web.servlet.view.JstlView;
 
 import javax.sql.DataSource;
+import java.util.Locale;
 
 @EnableWebMvc
 @EnableTransactionManagement
@@ -80,6 +84,24 @@ public class WebConfig implements WebMvcConfigurer {
         // conviene en desarrollo, y el costo en produccion es insignificante.
         ms.setCacheSeconds(5);
         return ms;
+    }
+
+    // Se llama localeResolver (no otro nombre): igual que messageSource(), es el
+    // nombre de bean que Spring Web busca por convencion para resolver el idioma
+    // de cada pedido. CookieLocaleResolver (en vez del default,
+    // AcceptHeaderLocaleResolver, que solo mira el header del navegador y no se
+    // puede cambiar a mano) es lo que permite el boton de idioma de la navbar
+    // (ver LocaleController) y que la eleccion sobreviva a cerrar el navegador
+    // (PAW20-82: "recordar el idioma para no tener que cambiarlo en cada visita").
+    @Bean
+    public LocaleResolver localeResolver() {
+        final CookieLocaleResolver resolver = new CookieLocaleResolver();
+        resolver.setDefaultLocale(new Locale("es"));
+        resolver.setCookieName("paw_locale");
+        // 1 anio: no es una cookie de sesion, tiene que sobrevivir a cerrar el navegador.
+        resolver.setCookieMaxAge(60 * 60 * 24 * 365);
+        resolver.setCookiePath("/");
+        return resolver;
     }
 
     @Bean
@@ -146,6 +168,7 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(final InterceptorRegistry registry) {
         registry.addInterceptor(new UnreadInboxInterceptor(inboxService, userService));
+        registry.addInterceptor(new CurrentLocaleInterceptor());
     }
 
     // Esto es lo que mostro Sotuyo en clase: le dice a Spring que las carpetas

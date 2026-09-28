@@ -7,10 +7,36 @@
 <%-- Barra superior, igual en toda la app. El body (opcional) son los botones
      propios de cada vista (volver, + Añadir evento, etc.), que se dibujan antes
      del pill de login/perfil: ese es siempre el mismo, no cada vista lo repite. --%>
+<%-- Idioma (PAW20-75): a donde volver despues de tocar ES/EN, la misma pagina
+     donde esta parado. OJO: pageContext.request.requestURI da la ruta del
+     forward interno (/WEB-INF/jsp/...) cuando el controller llego aca con un
+     forward en vez de una vista propia; la URL de verdad, si la hubo, esta en
+     este atributo que el forward deja seteado (spec de Servlet, mismo criterio
+     que list.jsp usa para el returnTo del corazon de favoritos). --%>
+<c:set var="navRequestUri" value="${empty requestScope['javax.servlet.forward.request_uri'] ? pageContext.request.requestURI : requestScope['javax.servlet.forward.request_uri']}"/>
+<c:set var="navQueryString" value="${empty requestScope['javax.servlet.forward.query_string'] ? pageContext.request.queryString : requestScope['javax.servlet.forward.query_string']}"/>
+<c:set var="navCurrentUrl" value="${navRequestUri}${empty navQueryString ? '' : '?'}${navQueryString}"/>
+<c:url value="/idioma" var="navLangEsUrl">
+    <c:param name="lang" value="es"/>
+    <c:param name="redirect" value="${navCurrentUrl}"/>
+</c:url>
+<c:url value="/idioma" var="navLangEnUrl">
+    <c:param name="lang" value="en"/>
+    <c:param name="redirect" value="${navCurrentUrl}"/>
+</c:url>
+
 <header class="navbar">
     <a class="logo" href="<c:url value='/eventos'/>">p<span class="logo-dot">.</span> plancito</a>
     <div class="navbar-actions">
         <jsp:doBody/>
+        <spring:message code="common.nav.switchToSpanish" var="switchToSpanishLabel"/>
+        <spring:message code="common.nav.switchToEnglish" var="switchToEnglishLabel"/>
+        <div class="navbar-lang">
+            <a class="pill navbar-lang-option${currentLanguage == 'es' ? ' pill-active' : ''}"
+               href="${navLangEsUrl}" title="${switchToSpanishLabel}">ES</a>
+            <a class="pill navbar-lang-option${currentLanguage == 'en' ? ' pill-active' : ''}"
+               href="${navLangEnUrl}" title="${switchToEnglishLabel}">EN</a>
+        </div>
         <sec:authorize access="isAnonymous()">
             <spring:message code="common.nav.login" var="loginLabel"/>
             <a class="btn btn-medium" href="<c:url value='/login'/>"><paw:icon name="user"/> <c:out value="${loginLabel}"/></a>

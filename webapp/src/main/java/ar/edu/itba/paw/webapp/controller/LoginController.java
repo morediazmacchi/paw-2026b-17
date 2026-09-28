@@ -1,5 +1,6 @@
 package ar.edu.itba.paw.webapp.controller;
 
+import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.UserRegistrationResult;
 import ar.edu.itba.paw.services.UserService;
 import ar.edu.itba.paw.webapp.form.SetPasswordForm;
@@ -7,6 +8,12 @@ import ar.edu.itba.paw.webapp.util.SafeRedirect;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
@@ -15,22 +22,28 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.ModelAndView;
 
+import javax.servlet.http.HttpServletRequest;
 import javax.validation.Valid;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.security.Principal;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 @Controller
 public class LoginController {
 
     private final UserService userService;
     private final MessageSource messageSource;
+    private final UserDetailsService userDetailsService;
 
     @Autowired
-    public LoginController(final UserService userService, final MessageSource messageSource) {
+    public LoginController(final UserService userService, final MessageSource messageSource,
+                           final UserDetailsService userDetailsService) {
         this.userService = userService;
         this.messageSource = messageSource;
+        this.userDetailsService = userDetailsService;
     }
 
     private String messageFor(final FieldError fieldError) {
@@ -54,7 +67,14 @@ public class LoginController {
                                @RequestParam(value = "verifyError", required = false) final String verifyError,
                                @RequestParam(value = "passwordReset", required = false) final String passwordReset,
                                @RequestParam(value = "email", required = false) final String email,
-                               @RequestParam(value = "redirect", required = false) final String redirect) {
+                               @RequestParam(value = "redirect", required = false) final String redirect,
+                               final Principal principal) {
+        // PAW20-78: si ya tenes sesion iniciada, esta pantalla no pinta nada
+        // (no tiene sentido volver a loguearse). El redirect (si vino, ej. un
+        // link viejo a "/login?redirect=/eventos/7") se sigue respetando.
+        if (principal != null) {
+            return new ModelAndView("redirect:" + (SafeRedirect.isSafe(redirect) ? redirect : "/eventos"));
+        }
         final ModelAndView mav = new ModelAndView("auth/login");
         mav.addObject("loginError", error != null);
         mav.addObject("loggedOut", logout != null);
@@ -89,13 +109,39 @@ public class LoginController {
     // click, no hay forma de que sea un POST).
     @RequestMapping(value = "/confirmar-cuenta", method = RequestMethod.GET)
     public ModelAndView confirmAccount(@RequestParam("token") final String token,
-                                       @RequestParam(value = "redirect", required = false) final String redirect) {
-        final boolean confirmed = userService.confirmEmail(token);
-        // El redirect viene del link del mail (ver RegisterController): se vuelve a
-        // validar aca porque un link se puede armar a mano.
-        final String suffix = SafeRedirect.isSafe(redirect)
-                ? "&redirect=" + URLEncoder.encode(redirect, StandardCharsets.UTF_8) : "";
-        return new ModelAndView((confirmed ? "redirect:/login?verified" : "redirect:/login?verifyError") + suffix);
+                                       @RequestParam(value = "redirect", required = false) final String redirect,
+                                       final HttpServletRequest request) {
+        final Optional<User> confirmed = userService.confirmEmail(token);
+        if (!confirmed.isPresent()) {
+            // El redirect viene del link del mail (ver RegisterController): se
+            // vuelve a validar aca porque un link se puede armar a mano.
+            final String suffix = SafeRedirect.isSafe(redirect)
+                    ? "&redirect=" + URLEncoder.encode(redirect, StandardCharsets.UTF_8) : "";
+            return new ModelAndView("redirect:/login?verifyError" + suffix);
+        }
+        // PAW20-81: el link del mail ya demuestra que es dueno de esta cuenta
+        // (nadie mas pudo haberlo recibido), asi que la sesion arranca aca mismo:
+        // no tiene sentido mandarlo a /login a tipear la contraseña que recien
+        // eligio. Es sesion normal de ahi en mas (cookie de sesion de siempre,
+        // no "quedar logueado para siempre"): un logout la cierra igual que a
+        // cualquiera.
+        autoLogin(confirmed.get(), request);
+        return new ModelAndView("redirect:" + (SafeRedirect.isSafe(redirect) ? redirect : "/eventos"));
+    }
+
+    // Arma la Authentication a mano y la guarda en la sesion HTTP, el mismo
+    // resultado al que llega el filtro de formLogin (WebAuthConfig) despues de
+    // validar usuario+contraseña: aca no hay contraseña que validar, el token
+    // consumido en confirmEmail() ya cumplio ese rol.
+    private void autoLogin(final User user, final HttpServletRequest request) {
+        final UserDetails userDetails = userDetailsService.loadUserByUsername(user.getEmail());
+        final UsernamePasswordAuthenticationToken authentication =
+                new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+        authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+        request.getSession(true).setAttribute(
+                HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY,
+                SecurityContextHolder.getContext());
     }
 
     // Siempre redirige al mismo "resent", exista o no ese email y este o no ya

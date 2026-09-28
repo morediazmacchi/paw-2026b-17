@@ -37,10 +37,13 @@ public interface UserService {
 
     /**
      * Confirma el mail de una cuenta a partir del token del link que se mandó al
-     * registrarse. true si el token era válido (existía, era de este propósito y
-     * no estaba vencido): la cuenta ya queda verified=true y el token se consume.
+     * registrarse. Optional presente (con el usuario ya confirmado, verified=true)
+     * si el token era válido (existía, era de este propósito y no estaba vencido);
+     * el token se consume en ese caso. Devuelve el usuario (no solo un boolean)
+     * porque quien llama lo usa para iniciarle la sesión ahí mismo, sin pedirle
+     * que se loguee de nuevo (ver LoginController.confirmAccount()).
      */
-    boolean confirmEmail(String token);
+    Optional<User> confirmEmail(String token);
 
     /**
      * Vuelve a mandar el mail de confirmación (el usuario perdió el anterior o
@@ -84,4 +87,13 @@ public interface UserService {
      * cuenta existe, asi que hay que probar que sos vos antes de reemplazarla.
      */
     boolean changePassword(long userId, String currentPassword, String newPassword);
+
+    /**
+     * Guarda el idioma elegido a mano (boton de la navbar, ver LocaleController)
+     * para esta cuenta: de ahi en mas sobrevive a un logout/cookie borrada (se
+     * reaplica al loguearse, ver WebAuthConfig.loginSuccessHandler()) y es el
+     * idioma en el que se le mandan los mails (ver NotificationServiceImpl).
+     * No valida el valor: quien llama ya lo valido contra los idiomas soportados.
+     */
+    void updateLocale(long userId, String locale);
 }

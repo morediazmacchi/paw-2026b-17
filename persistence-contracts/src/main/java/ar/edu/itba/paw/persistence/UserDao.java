@@ -22,4 +22,6 @@ public interface UserDao {
     void updateProfile(long userId, String name, String email);
 
     void setVerified(long userId, boolean verified);
+
+    void setLocale(long userId, String locale);
 }

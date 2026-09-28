@@ -13,6 +13,10 @@ public class User {
     // Cuentas creadas antes de este feature (o "fantasma", sin password) quedan
     // en true: solo un register() nuevo empieza en false y necesita confirmar el mail.
     private boolean verified = true;
+    // "es"/"en", o null si todavia no eligio ninguno a mano (ver LocaleController):
+    // en ese caso la pagina usa el idioma de la cookie/navegador y los mails el
+    // default de NotificationServiceImpl, no este campo.
+    private String locale;
 
     public User() {
     }
@@ -34,4 +38,6 @@ public class User {
     public void setRoles(final Set<String> roles) { this.roles = roles; }
     public boolean isVerified() { return verified; }
     public void setVerified(final boolean verified) { this.verified = verified; }
+    public String getLocale() { return locale; }
+    public void setLocale(final String locale) { this.locale = locale; }
 }

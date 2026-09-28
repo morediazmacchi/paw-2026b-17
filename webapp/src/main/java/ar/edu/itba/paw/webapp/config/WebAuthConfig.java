@@ -1,10 +1,13 @@
 package ar.edu.itba.paw.webapp.config;
 
+import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.PasswordNotSetException;
+import ar.edu.itba.paw.services.UserService;
 import ar.edu.itba.paw.webapp.util.SafeRedirect;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -17,9 +20,11 @@ import org.springframework.security.web.authentication.AuthenticationFailureHand
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.SavedRequestAwareAuthenticationSuccessHandler;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+import org.springframework.web.servlet.LocaleResolver;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 
 @Configuration
 @EnableWebSecurity
@@ -34,6 +39,19 @@ public class WebAuthConfig {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    // @Lazy por la misma razon que en WebConfig: evitar construir UserService
+    // (y su DAO, que necesita el DataSource) mientras esta config todavia se
+    // esta armando.
+    @Autowired
+    @Lazy
+    private UserService userService;
+
+    // Bean definido en WebConfig (mismo contexto, @Import de por medio): para
+    // que el login sincronice la cookie de idioma con el de la cuenta (ver
+    // loginSuccessHandler() mas abajo).
+    @Autowired
+    private LocaleResolver localeResolver;
 
     @Bean
     public DaoAuthenticationProvider authenticationProvider() {
@@ -89,6 +107,14 @@ public class WebAuthConfig {
     public AuthenticationSuccessHandler loginSuccessHandler() {
         final AuthenticationSuccessHandler defaultHandler = new SavedRequestAwareAuthenticationSuccessHandler();
         return (request, response, authentication) -> {
+            // PAW20-82: si esta cuenta ya habia elegido un idioma antes (desde
+            // este navegador o desde cualquier otro), se lo reaplicamos a la
+            // cookie de este navegador: sin esto, loguearse en un dispositivo
+            // nuevo (o con la cookie borrada) te dejaba en el idioma que la
+            // cookie/navegador diga, no en el que la cuenta tiene guardado.
+            userService.findByEmail(authentication.getName())
+                    .map(User::getLocale)
+                    .ifPresent(locale -> localeResolver.setLocale(request, response, new Locale(locale)));
             final String redirect = request.getParameter("redirect");
             if (SafeRedirect.isSafe(redirect)) {
                 response.sendRedirect(request.getContextPath() + redirect);
@@ -106,6 +132,9 @@ public class WebAuthConfig {
                         .antMatchers("/login", "/login/nueva-contrasena", "/registro").permitAll()
                         .antMatchers("/login/recuperar", "/login/restablecer").permitAll()
                         .antMatchers("/login/reenviar-confirmacion", "/confirmar-cuenta").permitAll()
+                        // Boton de idioma de la navbar (PAW20-75): tiene que andar
+                        // tambien para un visitante anonimo.
+                        .antMatchers("/idioma").permitAll()
                         .antMatchers("/error/**").permitAll()
                         .antMatchers("/favicon.ico", "/favicon.svg").permitAll()
                         .antMatchers(HttpMethod.GET, "/", "/eventos").permitAll()
