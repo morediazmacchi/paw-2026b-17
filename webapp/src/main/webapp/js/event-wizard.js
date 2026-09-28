@@ -305,6 +305,21 @@ document.addEventListener("DOMContentLoaded", function () {
                 && (field.validity.rangeUnderflow || field.validity.rangeOverflow)) {
             return "El horario no es válido.";
         }
+        // El <select> de barrio pide "required" en los dos modos de
+        // ubicacion (ver publish.jsp/editar.jsp), pero en modo "con
+        // geolocalizacion" esta oculto (event-location-map.js lo completa
+        // solo al elegir una sugerencia) -- el mensaje generico de abajo
+        // ("completa este campo") no sirve ahi, no hay ningun campo vacio a
+        // la vista. Pasa cuando todavia no se busco nada, la busqueda no
+        // encontro nada, o encontro el lugar pero no pudo identificar el
+        // barrio (parques/zonas grandes): en los tres casos hay que buscar
+        // de nuevo o pasarse a "texto plano", nunca dejar avanzar el wizard.
+        if (field.id === "barrio" && field.validity.valueMissing) {
+            var modoManualRadio = document.getElementById("modo-direccion-manual");
+            if (!modoManualRadio || !modoManualRadio.checked) {
+                return "No se pudo localizar la dirección. Revisá el nombre o seleccioná el modo \"texto plano\".";
+            }
+        }
         if (field.validity.valueMissing) {
             return "Completá este campo antes de seguir.";
         }

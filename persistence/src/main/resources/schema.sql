@@ -208,15 +208,31 @@ CREATE TABLE IF NOT EXISTS event_invitation (
 -- findByCreatorEmail() no, a proposito.
 ALTER TABLE event ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP;
 
--- Pin opcional en el mapa (Leaflet + OpenStreetMap, ver publish.jsp/editar.jsp):
--- el creador lo marca con un click al publicar/editar, no reemplaza la
--- direccion en texto (que sigue siendo obligatoria), la complementa para que
--- quien se quiere anotar vea el lugar exacto. NULL en los dos = el evento no
--- tiene pin (eventos viejos, o quien no lo toco), y el detalle no muestra
--- mapa en ese caso. NUMERIC(9,6): 3 enteros + 6 decimales, mas que suficiente
--- para latitud (-90 a 90) y longitud (-180 a 180) con precision de sobra.
+-- Pin en el mapa (Leaflet + OpenStreetMap, ver publish.jsp/editar.jsp): el
+-- creador elige a mano, de forma explicita, entre buscar la direccion contra
+-- Nominatim (mapa de solo lectura, ver event-location-map.js) o cargarla el
+-- mismo con un click. NULL en los dos = todavia no se puso ningun pin
+-- (eventos viejos de antes de este cambio, o el creador no llego a
+-- confirmar), y el detalle no muestra mapa en ese caso. NUMERIC(9,6): 3
+-- enteros + 6 decimales, mas que suficiente para latitud (-90 a 90) y
+-- longitud (-180 a 180) con precision de sobra.
 ALTER TABLE event ADD COLUMN IF NOT EXISTS latitude NUMERIC(9,6);
 ALTER TABLE event ADD COLUMN IF NOT EXISTS longitude NUMERIC(9,6);
+
+-- true = el pin de arriba lo puso el creador a mano; false = lo puso
+-- event-location-map.js al elegir una sugerencia de Nominatim. El detalle
+-- del evento lo usa para avisar "puede no ser exacto" solo en el caso manual
+-- (pasa sobre todo en parques/plazas grandes, donde Nominatim no siempre
+-- puede geocodificar). DEFAULT true a proposito: todos los pines de antes de
+-- esta columna se pusieron a mano (la unica forma que existia), asi que el
+-- backfill los deja bien etiquetados sin necesidad de un UPDATE aparte.
+ALTER TABLE event ADD COLUMN IF NOT EXISTS location_manual BOOLEAN NOT NULL DEFAULT true;
+
+-- Info de la direccion que Nominatim no puede geocodificar (piso, depto, a
+-- que timbre tocar, referencias): texto libre, nunca se manda a buscar en el
+-- mapa, solo se muestra junto a la direccion en el detalle del evento. NULL =
+-- nadie cargo nada (el campo es opcional).
+ALTER TABLE event ADD COLUMN IF NOT EXISTS address_details VARCHAR(300);
 
 -- Bandeja de mensajes (/perfil/bandeja): un aviso por cada cosa que le pasa a
 -- alguien (se anoto, lo aceptaron, alguien se dio de baja de su evento...).

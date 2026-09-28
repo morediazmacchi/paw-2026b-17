@@ -35,17 +35,33 @@ public class EventForm {
     @Size(max = 200, message = "La direccion no puede superar los 200 caracteres")
     private String direccion;
 
+    // Info de la direccion que Nominatim no geocodifica (piso, depto,
+    // referencias): texto libre y opcional, nunca se manda a buscar en el mapa.
+    @Size(max = 300, message = "El detalle de la direccion no puede superar los 300 caracteres")
+    private String detalleDireccion;
+
     @NotBlank(message = "Elegí un barrio")
     @Size(max = 80, message = "El barrio no puede superar los 80 caracteres")
     private String barrio;
 
-    // Pin opcional en el mapa (ver event-location-map.js): dos inputs ocultos
-    // que el JS completa al clickear, nunca los escribe la persona a mano.
-    // Sin JSR-303 a proposito -- si vienen vacios o con basura (nadie toco el
-    // mapa, o alguien manipulo el request) el controller los ignora en vez de
-    // bloquear la publicacion por un campo que ni siquiera es obligatorio.
+    // Pin en el mapa (ver event-location-map.js): dos inputs ocultos que el JS
+    // completa, segun el modo que haya elegido la persona (botones "con
+    // geolocalizacion" / "en texto plano" del paso 3, ninguno de los dos es
+    // un campo del form: solo deciden que controles del mismo paso se ven).
+    // Sin JSR-303 a proposito -- si vienen vacios o con basura (todavia no se
+    // puso ningun pin, o alguien manipulo el request) el controller los
+    // ignora en vez de bloquear la publicacion por un campo que ni siquiera
+    // es obligatorio.
     private String latitud;
     private String longitud;
+
+    // "true"/"false": si el pin de arriba (cuando hay uno) lo puso la persona
+    // a mano (click en el mapa, modo "texto plano") o event-location-map.js
+    // al elegir una sugerencia de Nominatim (modo "con geolocalizacion").
+    // Igual que latitud/longitud, sin JSR-303: el controller (ver
+    // EventController.applyPin()) por defecto asume "a mano" (el mas cauto)
+    // salvo que venga explicitamente "false".
+    private String pinManual;
 
     // @Digits acota a lo que entra en la columna price, NUMERIC(10,2) (hasta
     // 8 digitos enteros): sin esto, un precio mas grande pasa el @Pattern (que
@@ -98,6 +114,9 @@ public class EventForm {
     public String getDireccion() { return direccion; }
     public void setDireccion(final String direccion) { this.direccion = direccion; }
 
+    public String getDetalleDireccion() { return detalleDireccion; }
+    public void setDetalleDireccion(final String detalleDireccion) { this.detalleDireccion = detalleDireccion; }
+
     public String getBarrio() { return barrio; }
     public void setBarrio(final String barrio) { this.barrio = barrio; }
 
@@ -106,6 +125,9 @@ public class EventForm {
 
     public String getLongitud() { return longitud; }
     public void setLongitud(final String longitud) { this.longitud = longitud; }
+
+    public String getPinManual() { return pinManual; }
+    public void setPinManual(final String pinManual) { this.pinManual = pinManual; }
 
     public String getPrecio() { return precio; }
     public void setPrecio(final String precio) { this.precio = precio; }

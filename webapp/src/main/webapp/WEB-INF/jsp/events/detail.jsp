@@ -239,6 +239,11 @@
                 <span class="detail-address-icon"><paw:icon name="pin"/></span>
                 <div>
                     <p class="detail-address-line"><c:out value="${event.address}"/></p>
+                    <%-- Piso/depto/referencias (ver EventForm.detalleDireccion): texto libre,
+                         nunca geocodificado, solo se muestra aca junto a la direccion. --%>
+                    <c:if test="${not empty event.addressDetails}">
+                        <p class="detail-address-sub"><c:out value="${event.addressDetails}"/></p>
+                    </c:if>
                     <c:if test="${not empty event.neighborhood}">
                         <p class="detail-address-sub"><c:out value="${event.neighborhood.displayName}"/>, Buenos Aires</p>
                     </c:if>
@@ -252,6 +257,20 @@
                 <div id="detail-map" class="detail-map"
                      data-lat="${event.latitude}" data-lon="${event.longitude}"></div>
                 <script src="<c:url value='/js/event-detail-map.js'/>"></script>
+                <%-- No tiene que destacar, pero tiene que estar: avisa si el pin lo
+                     geocodifico Nominatim o lo puso el organizador a mano (ver
+                     Event.locationManual/event-location-map.js), porque un pin a
+                     mano puede no ser exacto. --%>
+                <p class="detail-map-note">
+                    <c:choose>
+                        <c:when test="${event.locationManual}">
+                            <spring:message code="event.detail.mapNoteManual"/>
+                        </c:when>
+                        <c:otherwise>
+                            <spring:message code="event.detail.mapNoteGeo"/>
+                        </c:otherwise>
+                    </c:choose>
+                </p>
             </c:if>
 
             <h2 class="detail-section-heading"><spring:message code="event.detail.organizerHeading"/></h2>

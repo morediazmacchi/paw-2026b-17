@@ -53,16 +53,32 @@ public class Event {
     // motivo que requiresApproval/visibility para no ir en el constructor:
     // no romper los "new Event(...)" existentes.
     private Date cancelledAt;
-    // Pin opcional en el mapa (ver publish.jsp/editar.jsp): null en los dos
-    // significa "el creador no lo toco", no que el evento no tenga direccion
-    // (esa sigue siendo "address", en texto, siempre obligatoria). Mismo
-    // motivo que cancelledAt para no ir en el constructor.
+    // Pin en el mapa (ver publish.jsp/editar.jsp): el creador elige, de forma
+    // explicita, entre buscar la direccion contra Nominatim (mapa de solo
+    // lectura, pin geocodificado) o cargarla a mano (mapa editable con click,
+    // ver locationManual mas abajo). Null en los dos significa que todavia no
+    // se puso ningun pin (eventos viejos, o el creador no llego a confirmar).
+    // Mismo motivo que cancelledAt para no ir en el constructor.
     private Double latitude;
     private Double longitude;
+    // true = el pin de arriba lo puso el creador a mano (click en el mapa);
+    // false = lo puso event-location-map.js al elegir una sugerencia de
+    // Nominatim. Solo importa una vez que hay pin (ver isLocationPinned()):
+    // el detalle lo usa para advertir "puede no ser exacto" solo en el caso
+    // manual (frecuente en parques/plazas grandes, donde Nominatim no siempre
+    // puede geocodificar). Default true (el mas cauto: "no asumas precision")
+    // a proposito, igual que la columna -- asi ningun pin viejo (de antes de
+    // esta distincion, todos puestos a mano) queda mal etiquetado como
+    // geocodificado.
+    private boolean locationManual = true;
     // Si el evento cuenta con estacionamiento para los asistentes. Mismo
     // motivo que requiresApproval para no ir en el constructor: no romper los
     // "new Event(...)" existentes. false por default, igual que la columna.
     private boolean parking;
+    // Info de la direccion que Nominatim no puede geocodificar (piso, depto,
+    // referencias): texto libre y opcional, nunca se manda a geocodificar,
+    // solo se muestra junto a "address" en el detalle. Null = nadie cargo nada.
+    private String addressDetails;
 
     public Event() {
     }
@@ -132,8 +148,12 @@ public class Event {
     public void setLatitude(final Double latitude) { this.latitude = latitude; }
     public Double getLongitude() { return longitude; }
     public void setLongitude(final Double longitude) { this.longitude = longitude; }
+    public boolean isLocationManual() { return locationManual; }
+    public void setLocationManual(final boolean locationManual) { this.locationManual = locationManual; }
     public boolean isParking() { return parking; }
     public void setParking(final boolean parking) { this.parking = parking; }
+    public String getAddressDetails() { return addressDetails; }
+    public void setAddressDetails(final String addressDetails) { this.addressDetails = addressDetails; }
 
     // Los dos vienen juntos o ninguno (ver EventController): si falta uno el
     // otro no sirve para nada, mejor no mostrar un pin a medias. "is..." (no

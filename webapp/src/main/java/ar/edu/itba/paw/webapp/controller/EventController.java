@@ -581,6 +581,7 @@ public class EventController {
         event.setRequiresApproval(form.isRequiereAprobacion());
         event.setVisibility(form.isPrivado() ? EventVisibility.PRIVATE : EventVisibility.PUBLIC);
         event.setParking(form.isEstacionamiento());
+        event.setAddressDetails(form.getDetalleDireccion());
         applyPin(event, form);
         final Event created;
         try {
@@ -631,6 +632,10 @@ public class EventController {
                 && latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180;
         event.setLatitude(valid ? latitude : null);
         event.setLongitude(valid ? longitude : null);
+        // Default "a mano" (el mas cauto, ver Event.locationManual): solo queda
+        // en false si event-location-map.js lo marco explicitamente al elegir
+        // una sugerencia de Nominatim con exito (ver selectSuggestion()).
+        event.setLocationManual(!"false".equals(form.getPinManual()));
     }
 
     // El pin del mapa (latitud/longitud) es un campo oculto que solo el JS
@@ -911,6 +916,7 @@ public class EventController {
         form.setCategorias(categoriaFormsFor(event.getCategories(), categories));
         form.setFechaEvento(new SimpleDateFormat("yyyy-MM-dd'T'HH:mm").format(event.getEventDate()));
         form.setDireccion(event.getAddress());
+        form.setDetalleDireccion(event.getAddressDetails());
         form.setBarrio(event.getNeighborhood() == null ? null : event.getNeighborhood().name());
         form.setPrecio(formatDecimal(event.getPrice()));
         // "0" es el valor que usa el atajo "Sin limite" (quick-options.js lo
@@ -922,6 +928,10 @@ public class EventController {
         if (event.isLocationPinned()) {
             form.setLatitud(String.valueOf(event.getLatitude()));
             form.setLongitud(String.valueOf(event.getLongitude()));
+            // Arranca marcando el modo (geolocalizacion/texto plano, ver
+            // publish.jsp/editar.jsp) que corresponde a como quedo el pin la
+            // ultima vez, para no perder esa eleccion al reabrir "Editar".
+            form.setPinManual(String.valueOf(event.isLocationManual()));
         }
         return form;
     }
@@ -1000,6 +1010,7 @@ public class EventController {
         changes.setRequiresApproval(form.isRequiereAprobacion());
         changes.setVisibility(form.isPrivado() ? EventVisibility.PRIVATE : EventVisibility.PUBLIC);
         changes.setParking(form.isEstacionamiento());
+        changes.setAddressDetails(form.getDetalleDireccion());
         applyPin(changes, form);
         final EventUpdateResult result = eventService.update(id, changes, currentUser(principal).getId());
         switch (result) {

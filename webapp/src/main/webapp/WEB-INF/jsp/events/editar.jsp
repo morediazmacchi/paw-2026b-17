@@ -208,9 +208,71 @@
                 </div>
                 <paw:input name="direccion" label="${addressLabel}" type="text"
                            value="${eventForm.direccion}" errorMessage="${fieldErrors.direccion}" />
+                <spring:message code="event.publish.addressDetailsLabel" var="addressDetailsLabel"/>
+                <paw:input name="detalleDireccion" label="${addressDetailsLabel}" type="text" required="${false}"
+                           value="${eventForm.detalleDireccion}" errorMessage="${fieldErrors.detalleDireccion}" />
+
+                <%-- Elegis EXPLICITAMENTE entre geocodificar la direccion contra
+                     Nominatim (mapa de solo lectura, barrio deducido) o cargarla
+                     vos a mano (select de barrio + click en el mapa). Nunca pasa
+                     solo de uno a otro (ver event-location-map.js): si Nominatim
+                     no puede identificar el barrio de un lugar (pasa con parques/
+                     zonas grandes), solo se avisa, no se cambia de modo. Si el
+                     evento ya tenia un pin, arranca en el modo con el que se puso
+                     la ultima vez (ver EventController.formFrom()). --%>
+                <c:set var="modoManual" value="${eventForm.pinManual == 'true'}"/>
                 <div class="form-group">
-                    <label for="barrio"><c:out value="${neighborhoodLabel}"/></label>
-                    <select id="barrio" name="barrio" required="required">
+                    <label><spring:message code="event.publish.addressModeLabel"/></label>
+                    <div class="address-mode-toggle">
+                        <label class="filter-checkbox">
+                            <input type="radio" id="modo-direccion-geo" name="modo-direccion" value="geo"
+                                   ${modoManual ? '' : 'checked="checked"'}/>
+                            <spring:message code="event.publish.addressModeGeo"/>
+                        </label>
+                        <label class="filter-checkbox">
+                            <input type="radio" id="modo-direccion-manual" name="modo-direccion" value="manual"
+                                   ${modoManual ? 'checked="checked"' : ''}/>
+                            <spring:message code="event.publish.addressModeManual"/>
+                        </label>
+                    </div>
+                </div>
+
+                <%-- Modo "con geolocalizacion". Los data-* son los textos de estado
+                     en el idioma actual, porque event-location-map.js es JS estatico
+                     y no puede usar spring:message (mismo criterio que
+                     favorite-toggle.js). --%>
+                <spring:message code="event.publish.geocodeButton" var="geocodeButtonLabel"/>
+                <spring:message code="event.publish.geocodeSearching" var="geocodeSearchingLabel"/>
+                <spring:message code="event.publish.geocodeNotFound" var="geocodeNotFoundLabel"/>
+                <spring:message code="event.publish.geocodeError" var="geocodeErrorLabel"/>
+                <spring:message code="event.publish.geocodeNoBarrio" var="geocodeNoBarrioLabel"/>
+                <spring:message code="event.publish.suggestionsHeading" var="suggestionsHeadingLabel"/>
+                <div id="geo-search-panel" ${modoManual ? 'hidden' : ''}>
+                    <button type="button" id="geocode-address" class="btn btn-medium"
+                            data-searching-label="${geocodeSearchingLabel}"
+                            data-not-found-label="${geocodeNotFoundLabel}"
+                            data-error-label="${geocodeErrorLabel}"
+                            data-no-barrio-label="${geocodeNoBarrioLabel}"
+                            data-suggestions-heading="${suggestionsHeadingLabel}">
+                        <c:out value="${geocodeButtonLabel}"/>
+                    </button>
+                    <p id="geocode-status" class="wizard-field-hint" role="status" hidden></p>
+                    <ul id="geocode-suggestions" class="geocode-suggestions" hidden></ul>
+                </div>
+
+                <%-- Barrio: en modo geo es solo texto (deducido, no se toca); en
+                     modo manual es el <select> de siempre. Los dos comparten esta
+                     misma columna del form (name="barrio"), asi que da igual cual
+                     de los dos esta oculto -- el que este visible es el que la
+                     persona uso. --%>
+                <c:set var="currentBarrioDisplay" value=""/>
+                <c:forEach var="b" items="${barrios}">
+                    <c:if test="${b.name() == eventForm.barrio}"><c:set var="currentBarrioDisplay" value="${b.displayName}"/></c:if>
+                </c:forEach>
+                <div class="form-group">
+                    <label><c:out value="${neighborhoodLabel}"/></label>
+                    <p id="barrio-display" class="wizard-field-hint" ${modoManual ? 'hidden' : ''}><c:out value="${currentBarrioDisplay}"/></p>
+                    <select id="barrio" name="barrio" required="required" ${modoManual ? '' : 'hidden'}>
                         <option value="" disabled="disabled" ${empty eventForm.barrio ? 'selected="selected"' : ''}></option>
                         <c:forEach var="b" items="${barrios}">
                             <option value="${b}" ${b.name() == eventForm.barrio ? 'selected' : ''}>
@@ -222,15 +284,26 @@
                         <span class="error-message"><c:out value="${fieldErrors.barrio}"/></span>
                     </c:if>
                 </div>
+                <script>
+                    window.PAW_BARRIOS = {
+                        <c:forEach var="b" items="${barrios}" varStatus="st">"${b.name()}": "<c:out value='${b.displayName}'/>"<c:if test="${!st.last}">,</c:if></c:forEach>
+                    };
+                </script>
                 <div class="form-group">
                     <label><spring:message code="event.publish.mapLabel"/></label>
-                    <p class="wizard-field-hint"><spring:message code="event.publish.mapHint"/></p>
+                    <p id="map-hint-geo" class="wizard-field-hint" ${modoManual ? 'hidden' : ''}>
+                        <spring:message code="event.publish.mapHint"/>
+                    </p>
+                    <p id="map-hint-manual" class="wizard-field-hint" ${modoManual ? '' : 'hidden'}>
+                        <spring:message code="event.publish.mapHintManual"/>
+                    </p>
                     <%-- Si el evento ya tenia un pin, event-location-map.js arranca
                          centrado ahi (ver los value de latitud/longitud de abajo);
                          si no, arranca en Buenos Aires como en publicar. --%>
                     <div id="location-map" class="wizard-map"></div>
                     <input type="hidden" id="latitud" name="latitud" value="<c:out value='${eventForm.latitud}'/>"/>
                     <input type="hidden" id="longitud" name="longitud" value="<c:out value='${eventForm.longitud}'/>"/>
+                    <input type="hidden" id="pin-manual" name="pinManual" value="<c:out value='${eventForm.pinManual}'/>"/>
                 </div>
             </div>
 

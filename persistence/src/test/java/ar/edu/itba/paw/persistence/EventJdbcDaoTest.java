@@ -282,6 +282,80 @@ public class EventJdbcDaoTest {
         assertEquals(-58.420000, found.getLongitude(), 0.000001);
     }
 
+    // ---- create()/update(): detalle de direccion (piso/depto/referencias) ----
+
+    @Test
+    public void testCreateWithoutAddressDetailsLeavesItNull() {
+        final Event created = eventDao.create(someEvent(categoryId));
+
+        final Event found = eventDao.findById(created.getId()).get();
+        assertNull(found.getAddressDetails());
+    }
+
+    @Test
+    public void testCreateAndFindByIdPersistsTheAddressDetails() {
+        final Event event = someEvent(categoryId);
+        event.setAddressDetails("Piso 3, depto B, tocar timbre 3B");
+
+        final Event created = eventDao.create(event);
+
+        final Event found = eventDao.findById(created.getId()).get();
+        assertEquals("Piso 3, depto B, tocar timbre 3B", found.getAddressDetails());
+    }
+
+    @Test
+    public void testUpdateChangesTheAddressDetails() {
+        final Event event = someEvent(categoryId);
+        event.setAddressDetails("Piso 3, depto B");
+        final Event created = eventDao.create(event);
+
+        final Event changes = someEvent(categoryId);
+        changes.setId(created.getId());
+        changes.setAddressDetails("Entrada por el fondo");
+        eventDao.update(changes);
+
+        final Event found = eventDao.findById(created.getId()).get();
+        assertEquals("Entrada por el fondo", found.getAddressDetails());
+    }
+
+    // ---- create()/update(): locationManual (pin a mano vs geocodificado) ----
+
+    @Test
+    public void testCreateDefaultsLocationManualToTrue() {
+        // El modelo ya nace en true (Event.locationManual); esto confirma que
+        // create() no lo pisa a false por accidente.
+        final Event created = eventDao.create(someEvent(categoryId));
+
+        final Event found = eventDao.findById(created.getId()).get();
+        assertTrue(found.isLocationManual());
+    }
+
+    @Test
+    public void testCreateAndFindByIdPersistsLocationManualFalse() {
+        final Event event = someEvent(categoryId);
+        event.setLocationManual(false);
+
+        final Event created = eventDao.create(event);
+
+        final Event found = eventDao.findById(created.getId()).get();
+        assertFalse(found.isLocationManual());
+    }
+
+    @Test
+    public void testUpdateChangesLocationManual() {
+        final Event event = someEvent(categoryId);
+        event.setLocationManual(false);
+        final Event created = eventDao.create(event);
+
+        final Event changes = someEvent(categoryId);
+        changes.setId(created.getId());
+        changes.setLocationManual(true);
+        eventDao.update(changes);
+
+        final Event found = eventDao.findById(created.getId()).get();
+        assertTrue(found.isLocationManual());
+    }
+
     // ---- update() ----
 
     @Test
