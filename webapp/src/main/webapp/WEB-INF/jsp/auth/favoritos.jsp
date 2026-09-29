@@ -18,7 +18,7 @@
 </paw:navbar>
 
 <div class="account-layout">
-    <paw:accountSidebar active="favorites" registrationsCount="${registrationsCount}" favoritesCount="${favoritesCount}" eventsCount="${eventsCount}"/>
+    <paw:accountSidebar active="favorites" registrationsCount="${registrationsCount}" favoritesCount="${favoritesCount}" eventsCount="${eventsCount}" invitationsCount="${invitationsCount}"/>
 
     <main class="account-main">
         <h1><spring:message code="auth.favorites.heading"/></h1>

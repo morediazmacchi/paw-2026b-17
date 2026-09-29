@@ -18,7 +18,7 @@
 </paw:navbar>
 
 <div class="account-layout">
-    <paw:accountSidebar active="inbox" registrationsCount="${registrationsCount}" favoritesCount="${favoritesCount}" eventsCount="${eventsCount}"/>
+    <paw:accountSidebar active="inbox" registrationsCount="${registrationsCount}" favoritesCount="${favoritesCount}" eventsCount="${eventsCount}" invitationsCount="${invitationsCount}"/>
 
     <main class="account-main">
         <h1><spring:message code="inbox.heading"/></h1>

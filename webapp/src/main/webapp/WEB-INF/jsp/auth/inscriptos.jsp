@@ -19,7 +19,7 @@
 </paw:navbar>
 
 <div class="account-layout">
-    <paw:accountSidebar active="events" registrationsCount="${registrationsCount}" favoritesCount="${favoritesCount}" eventsCount="${eventsCount}"/>
+    <paw:accountSidebar active="events" registrationsCount="${registrationsCount}" favoritesCount="${favoritesCount}" eventsCount="${eventsCount}" invitationsCount="${invitationsCount}"/>
 
     <main class="account-main">
         <h1><spring:message code="auth.pendingRegistrations.heading"/></h1>

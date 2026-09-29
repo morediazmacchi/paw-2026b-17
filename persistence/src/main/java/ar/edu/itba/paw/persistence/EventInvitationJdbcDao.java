@@ -91,6 +91,13 @@ public class EventInvitationJdbcDao implements EventInvitationDao {
     }
 
     @Override
+    public List<EventInvitation> findByUserId(final long userId) {
+        return jdbcTemplate.query(
+                "SELECT * FROM event_invitation WHERE user_id = ? ORDER BY created_at DESC",
+                ROW_MAPPER, userId);
+    }
+
+    @Override
     public void linkUserId(final String email, final long userId) {
         jdbcTemplate.update(
                 "UPDATE event_invitation SET user_id = ? WHERE email = ? AND user_id IS NULL",

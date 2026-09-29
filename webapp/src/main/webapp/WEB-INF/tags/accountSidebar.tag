@@ -3,6 +3,7 @@
 <%@ attribute name="registrationsCount" required="false" type="java.lang.Integer" %>
 <%@ attribute name="favoritesCount" required="false" type="java.lang.Integer" %>
 <%@ attribute name="eventsCount" required="false" type="java.lang.Integer" %>
+<%@ attribute name="invitationsCount" required="false" type="java.lang.Integer" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions" %>
 <%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
@@ -42,6 +43,14 @@
             <paw:icon name="heart"/> <c:out value="${favoritesLabel}"/>
             <c:if test="${not empty favoritesCount}">
                 <span class="account-sidebar-badge"><c:out value="${favoritesCount}"/></span>
+            </c:if>
+        </a>
+        <spring:message code="profile.tabs.invitations" var="invitationsLabel"/>
+        <a class="account-sidebar-link ${active == 'invitations' ? 'account-sidebar-link-active' : ''}"
+           href="<c:url value='/perfil/invitaciones'/>">
+            <paw:icon name="mail"/> <c:out value="${invitationsLabel}"/>
+            <c:if test="${not empty invitationsCount}">
+                <span class="account-sidebar-badge"><c:out value="${invitationsCount}"/></span>
             </c:if>
         </a>
         <spring:message code="profile.tabs.inbox" var="inboxLabel"/>

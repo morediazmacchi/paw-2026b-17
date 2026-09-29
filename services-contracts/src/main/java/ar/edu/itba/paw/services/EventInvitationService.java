@@ -31,4 +31,12 @@ public interface EventInvitationService {
      * no es de ese creador (no revela cual de las dos cosas paso).
      */
     List<EventInvitation> findByEvent(long eventId, long creatorId);
+
+    /**
+     * "Mis invitaciones": los eventos privados a los que invitaron a este
+     * usuario, mas recientes primero. No hace falta ningun chequeo de dueño
+     * (a diferencia de findByEvent de arriba): es siempre tu propio userId,
+     * el de la sesion logueada.
+     */
+    List<EventInvitation> findByUser(long userId);
 }

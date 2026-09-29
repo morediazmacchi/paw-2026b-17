@@ -36,6 +36,11 @@ public interface EventInvitationDao {
     // Pantalla "a quien invite" del creador, mas recientes primero.
     List<EventInvitation> findByEvent(long eventId);
 
+    // "Mis invitaciones" de quien las RECIBE (no del creador), mas recientes
+    // primero. Por user_id, no por email: solo tiene sentido para alguien ya
+    // logueado, y el id nunca queda desactualizado como el email podria.
+    List<EventInvitation> findByUserId(long userId);
+
     /**
      * Reconciliacion (ver UserServiceImpl.register()): alguien invitado sin
      * cuenta todavia acaba de crearse una. Completa el user_id de todas sus

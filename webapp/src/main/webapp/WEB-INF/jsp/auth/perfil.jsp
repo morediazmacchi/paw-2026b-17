@@ -21,7 +21,7 @@
 </paw:navbar>
 
 <div class="account-layout">
-    <paw:accountSidebar active="data" registrationsCount="${registrationsCount}" favoritesCount="${favoritesCount}" eventsCount="${eventsCount}"/>
+    <paw:accountSidebar active="data" registrationsCount="${registrationsCount}" favoritesCount="${favoritesCount}" eventsCount="${eventsCount}" invitationsCount="${invitationsCount}"/>
 
     <main class="account-main">
         <div class="account-identity-card">

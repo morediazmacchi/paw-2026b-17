@@ -92,4 +92,10 @@ public class EventInvitationServiceImpl implements EventInvitationService {
                 .map(event -> invitationDao.findByEvent(eventId))
                 .orElse(Collections.emptyList());
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<EventInvitation> findByUser(final long userId) {
+        return invitationDao.findByUserId(userId);
+    }
 }

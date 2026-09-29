@@ -110,6 +110,12 @@ public class ProfileController {
         return eventService.findByCreatorId(user.getId()).size();
     }
 
+    // Mismo motivo que registrationsCountFor: el badge de "Mis invitaciones"
+    // en el sidebar se pide en todas las paginas de la cuenta.
+    private int invitationsCountFor(final User user) {
+        return eventInvitationService.findByUser(user.getId()).size();
+    }
+
     // No hace falta antMatcher propio para /perfil ni /perfil/contrasena: no
     // estan en el permitAll de WebAuthConfig, asi que ya caen bajo
     // anyRequest().authenticated().
@@ -131,6 +137,7 @@ public class ProfileController {
         mav.addObject("registrationsCount", registrationsCountFor(user));
         mav.addObject("favoritesCount", favoritesCountFor(user));
         mav.addObject("eventsCount", eventsCountFor(user));
+        mav.addObject("invitationsCount", invitationsCountFor(user));
         return mav;
     }
 
@@ -158,6 +165,8 @@ public class ProfileController {
             mav.addObject("registrationsCount", registrationsCountFor(user));
             mav.addObject("favoritesCount", favoritesCountFor(user));
             mav.addObject("eventsCount", eventsCountFor(user));
+            mav.addObject("invitationsCount", invitationsCountFor(user));
+        mav.addObject("invitationsCount", invitationsCountFor(user));
             return mav;
         }
 
@@ -192,6 +201,8 @@ public class ProfileController {
             mav.addObject("registrationsCount", registrationsCountFor(user));
             mav.addObject("favoritesCount", favoritesCountFor(user));
             mav.addObject("eventsCount", eventsCountFor(user));
+            mav.addObject("invitationsCount", invitationsCountFor(user));
+        mav.addObject("invitationsCount", invitationsCountFor(user));
             return mav;
         }
 
@@ -238,6 +249,7 @@ public class ProfileController {
         mav.addObject("registrationsCount", registrations.size());
         mav.addObject("favoritesCount", favoritesCountFor(user));
         mav.addObject("eventsCount", eventsCountFor(user));
+        mav.addObject("invitationsCount", invitationsCountFor(user));
         return mav;
     }
 
@@ -306,6 +318,30 @@ public class ProfileController {
         mav.addObject("registrationsCount", registrationsCountFor(user));
         mav.addObject("favoritesCount", favoriteEvents.size());
         mav.addObject("eventsCount", eventsCountFor(user));
+        mav.addObject("invitationsCount", invitationsCountFor(user));
+        return mav;
+    }
+
+    // "Mis invitaciones": eventos privados a los que invitaron a esta usuaria,
+    // separado de la bandeja (que mezcla todos los tipos de notificacion) para
+    // acceder rapido justo a esto. Mismo patron que misFavoritos de arriba.
+    @RequestMapping(value = "/perfil/invitaciones", method = RequestMethod.GET)
+    public ModelAndView misInvitaciones(final Principal principal) {
+        final User user = currentUser(principal);
+        final List<EventInvitation> invitations = eventInvitationService.findByUser(user.getId());
+
+        final List<Event> invitedEvents = new ArrayList<>();
+        for (final EventInvitation invitation : invitations) {
+            eventService.findById(invitation.getEventId()).ifPresent(invitedEvents::add);
+        }
+
+        final ModelAndView mav = new ModelAndView("auth/invitaciones");
+        mav.addObject("user", user);
+        mav.addObject("invitedEvents", invitedEvents);
+        mav.addObject("registrationsCount", registrationsCountFor(user));
+        mav.addObject("favoritesCount", favoritesCountFor(user));
+        mav.addObject("eventsCount", eventsCountFor(user));
+        mav.addObject("invitationsCount", invitedEvents.size());
         return mav;
     }
 
@@ -336,6 +372,7 @@ public class ProfileController {
         mav.addObject("registrationsCount", registrationsCountFor(user));
         mav.addObject("favoritesCount", favoritesCountFor(user));
         mav.addObject("eventsCount", eventsCountFor(user));
+        mav.addObject("invitationsCount", invitationsCountFor(user));
         return mav;
     }
 
@@ -360,6 +397,7 @@ public class ProfileController {
         mav.addObject("registrationsCount", registrationsCountFor(user));
         mav.addObject("favoritesCount", favoritesCountFor(user));
         mav.addObject("eventsCount", createdEvents.size());
+        mav.addObject("invitationsCount", invitationsCountFor(user));
         mav.addObject("creatorAverageRating", reviewService.findCreatorAverageRating(user.getId()));
         mav.addObject("creatorReviewCount", myReviews.size());
         if (!myReviews.isEmpty()) {
@@ -430,6 +468,7 @@ public class ProfileController {
         mav.addObject("registrationsCount", registrationsCountFor(user));
         mav.addObject("favoritesCount", favoritesCountFor(user));
         mav.addObject("eventsCount", eventsCountFor(user));
+        mav.addObject("invitationsCount", invitationsCountFor(user));
         return mav;
     }
 
@@ -506,6 +545,7 @@ public class ProfileController {
         mav.addObject("registrationsCount", registrationsCountFor(user));
         mav.addObject("favoritesCount", favoritesCountFor(user));
         mav.addObject("eventsCount", eventsCountFor(user));
+        mav.addObject("invitationsCount", invitationsCountFor(user));
         return mav;
     }
 }
