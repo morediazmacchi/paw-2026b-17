@@ -525,6 +525,66 @@ public class NotificationServiceImpl implements NotificationService {
         }
     }
 
+    @Async
+    @Override
+    public void notifyEventRemovedByAdmin(final Event event, final String reason) {
+        try {
+            final Locale locale = localeForUserId(event.getCreatorId());
+            final Map<String, Object> variables = eventVariables(event, locale);
+            variables.put("personName", displayName(null, event.getCreatorEmail()));
+            variables.put("reason", reason);
+            variables.put("eventsUrl", baseUrl + "/eventos");
+
+            mailService.send(event.getCreatorEmail(),
+                    "event-removed-by-admin",
+                    "mail.eventRemovedByAdmin.subject",
+                    new Object[]{ event.getTitle() },
+                    variables,
+                    locale);
+        } catch (final RuntimeException e) {
+            LOGGER.error("Fallo el aviso de evento removido por un admin, evento {}", event.getId(), e);
+        }
+    }
+
+    @Async
+    @Override
+    public void notifyUserSuspended(final User user) {
+        try {
+            final Locale locale = localeFor(user);
+            final Map<String, Object> variables = new HashMap<>();
+            variables.put("personName", displayName(user.getName(), user.getEmail()));
+
+            mailService.send(user.getEmail(),
+                    "account-suspended",
+                    "mail.accountSuspended.subject",
+                    null,
+                    variables,
+                    locale);
+        } catch (final RuntimeException e) {
+            LOGGER.error("Fallo el aviso de cuenta suspendida, usuario {}", user.getId(), e);
+        }
+    }
+
+    @Async
+    @Override
+    public void notifyUserReactivated(final User user) {
+        try {
+            final Locale locale = localeFor(user);
+            final Map<String, Object> variables = new HashMap<>();
+            variables.put("personName", displayName(user.getName(), user.getEmail()));
+            variables.put("loginUrl", baseUrl + "/login");
+
+            mailService.send(user.getEmail(),
+                    "account-reactivated",
+                    "mail.accountReactivated.subject",
+                    null,
+                    variables,
+                    locale);
+        } catch (final RuntimeException e) {
+            LOGGER.error("Fallo el aviso de cuenta reactivada, usuario {}", user.getId(), e);
+        }
+    }
+
     /**
      * Los datos del evento que usan casi todas las plantillas. Se arma una sola
      * vez aca en vez de repetirlo en cada metodo. El locale es el del

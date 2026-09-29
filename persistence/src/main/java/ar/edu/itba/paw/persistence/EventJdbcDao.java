@@ -115,6 +115,8 @@ public class EventJdbcDao implements EventDao {
         event.setParking(rs.getBoolean("has_parking"));
         event.setAddressDetails(rs.getString("address_details"));
         event.setLocationManual(rs.getBoolean("location_manual"));
+        event.setRemovedByAdmin(rs.getBoolean("removed_by_admin"));
+        event.setRemovedReason(rs.getString("removed_reason"));
         return event;
     };
 
@@ -265,6 +267,13 @@ public class EventJdbcDao implements EventDao {
     @Override
     public void cancel(final long id) {
         jdbcTemplate.update("UPDATE event SET cancelled_at = now() WHERE id = ?", id);
+    }
+
+    @Override
+    public void removeByAdmin(final long id, final String reason) {
+        jdbcTemplate.update(
+                "UPDATE event SET cancelled_at = now(), removed_by_admin = true, removed_reason = ? WHERE id = ?",
+                reason, id);
     }
 
     @Override

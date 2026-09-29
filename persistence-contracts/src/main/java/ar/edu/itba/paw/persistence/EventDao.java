@@ -21,6 +21,11 @@ public interface EventDao {
     // es responsable de no invocarlo dos veces sobre el mismo evento.
     void cancel(long id);
 
+    // Baja por moderacion (ver ModerationService.removeEvent()): mismo mecanismo
+    // que cancel() (marca cancelled_at), pero ademas deja marcado que fue un
+    // admin y por que, para que el detalle y el mail al creador lo digan.
+    void removeByAdmin(long id, String reason);
+
     // No excluye cancelados a proposito: el detalle de un evento cancelado
     // sigue siendo accesible para quien ya estaba anotado (ver EventController).
     Optional<Event> findById(long id);

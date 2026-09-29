@@ -441,6 +441,29 @@ public class EventJdbcDaoTest {
     }
 
     @Test
+    public void testRemoveByAdminSetsCancelledAtAndTheAdminFields() {
+        final Event created = eventDao.create(someEvent(categoryId));
+
+        eventDao.removeByAdmin(created.getId(), "Contenido inapropiado");
+
+        final Event found = eventDao.findById(created.getId()).orElseThrow(AssertionError::new);
+        assertTrue(found.isCancelled());
+        assertTrue(found.isRemovedByAdmin());
+        assertEquals("Contenido inapropiado", found.getRemovedReason());
+    }
+
+    @Test
+    public void testCancelDoesNotSetRemovedByAdmin() {
+        final Event created = eventDao.create(someEvent(categoryId));
+
+        eventDao.cancel(created.getId());
+
+        final Event found = eventDao.findById(created.getId()).orElseThrow(AssertionError::new);
+        assertFalse(found.isRemovedByAdmin());
+        assertNull(found.getRemovedReason());
+    }
+
+    @Test
     public void testCreateDefaultsVisibilityToPublic() {
         final Event created = eventDao.create(someEvent(categoryId));
 

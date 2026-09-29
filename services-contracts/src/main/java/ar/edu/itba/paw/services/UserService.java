@@ -3,10 +3,14 @@ package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.User;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface UserService {
     Optional<User> findById(long id);
+
+    /** Para "Usuarios" del panel de admin (ver AdminController): todos, ordenados por id. */
+    List<User> findAll();
 
     /**
      * Busca un user por email; si no existe, lo crea. Nunca pisa un user existente.
@@ -96,4 +100,23 @@ public interface UserService {
      * No valida el valor: quien llama ya lo valido contra los idiomas soportados.
      */
     void updateLocale(long userId, String locale);
+
+    /**
+     * Suspende la cuenta (ver UserDetailsServiceImpl): no va a poder loguearse
+     * hasta que un admin la reactive. Le avisa por mail y por la bandeja.
+     */
+    void suspend(long userId);
+
+    /** Levanta una suspension. Le avisa por mail y por la bandeja. */
+    void reactivate(long userId);
+
+    /**
+     * Le da ROLE_ADMIN a un usuario. Quien puede invocar esto (solo un
+     * superadmin) lo controla la seguridad HTTP (ver WebAuthConfig), no este
+     * metodo: es una simple asignacion de rol, ya autorizada al llegar aca.
+     */
+    void grantAdmin(long userId);
+
+    /** Le saca ROLE_ADMIN a un usuario (no toca ROLE_SUPERADMIN). */
+    void revokeAdmin(long userId);
 }

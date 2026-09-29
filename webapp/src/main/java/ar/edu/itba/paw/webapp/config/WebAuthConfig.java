@@ -86,12 +86,18 @@ public class WebAuthConfig {
             }
             // DisabledException: UserDetailsServiceImpl marca disabled=true si
             // verified=false (cuenta recien registrada, todavia no confirmo el
-            // mail). A diferencia de PasswordNotSetException, esta SI la tira
-            // directo el provider (no envuelta), asi que no hace falta getCause().
+            // mail) O si un admin la suspendio (ver User.isSuspended()). A
+            // diferencia de PasswordNotSetException, esta SI la tira directo el
+            // provider (no envuelta), asi que no hace falta getCause() -- pero
+            // hay que volver a mirar el usuario para saber cual de los dos motivos
+            // es, porque el mensaje que corresponde no es el mismo.
             if (exception instanceof DisabledException) {
                 final String email = request.getParameter("email");
                 final String encodedEmail = email == null ? "" : URLEncoder.encode(email, StandardCharsets.UTF_8);
-                response.sendRedirect(request.getContextPath() + "/login?unverified&email=" + encodedEmail);
+                final boolean suspended = email != null
+                        && userService.findByEmail(email).map(User::isSuspended).orElse(false);
+                final String param = suspended ? "suspended" : "unverified";
+                response.sendRedirect(request.getContextPath() + "/login?" + param + "&email=" + encodedEmail);
                 return;
             }
             response.sendRedirect(request.getContextPath() + "/login?error");
@@ -139,6 +145,12 @@ public class WebAuthConfig {
                         .antMatchers("/favicon.ico", "/favicon.svg").permitAll()
                         .antMatchers(HttpMethod.GET, "/", "/eventos").permitAll()
                         .antMatchers(HttpMethod.GET, "/eventos/{id:[0-9]+}").permitAll()
+                        // Mas especifico primero: Spring Security usa el PRIMER
+                        // antMatcher que matchea, asi que gestion de roles (solo
+                        // superadmin) tiene que ir antes del "/admin/**" general
+                        // (cualquier admin), si no el general lo captura primero.
+                        .antMatchers("/admin/usuarios/*/promover", "/admin/usuarios/*/revocar")
+                            .hasRole("SUPERADMIN")
                         .antMatchers("/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .formLogin(form -> form

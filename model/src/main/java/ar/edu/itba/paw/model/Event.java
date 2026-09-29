@@ -79,6 +79,18 @@ public class Event {
     // referencias): texto libre y opcional, nunca se manda a geocodificar,
     // solo se muestra junto a "address" en el detalle. Null = nadie cargo nada.
     private String addressDetails;
+    // Baja por moderacion (ver ModerationService.removeEvent()): usa el MISMO
+    // mecanismo que cancel() (cancelledAt, ver mas arriba), asi que todo lo
+    // que ya trata a un evento cancelado como inactivo (busquedas, "editar",
+    // inscribirse, preguntas) automaticamente tambien excluye a un evento
+    // removido, sin duplicar esa logica. Este flag solo distingue el motivo
+    // para poder avisarle al creador y mostrar el mensaje correcto ("un admin
+    // lo dio de baja" en vez de "vos lo cancelaste"). false por default: un
+    // "new Event(...)" o una cancelacion comun no lo tocan.
+    private boolean removedByAdmin;
+    // Motivo que cargo el admin al dar de baja (ver AdminController). Null si
+    // el evento nunca fue removido por moderacion.
+    private String removedReason;
 
     public Event() {
     }
@@ -154,6 +166,10 @@ public class Event {
     public void setParking(final boolean parking) { this.parking = parking; }
     public String getAddressDetails() { return addressDetails; }
     public void setAddressDetails(final String addressDetails) { this.addressDetails = addressDetails; }
+    public boolean isRemovedByAdmin() { return removedByAdmin; }
+    public void setRemovedByAdmin(final boolean removedByAdmin) { this.removedByAdmin = removedByAdmin; }
+    public String getRemovedReason() { return removedReason; }
+    public void setRemovedReason(final String removedReason) { this.removedReason = removedReason; }
 
     // Los dos vienen juntos o ninguno (ver EventController): si falta uno el
     // otro no sirve para nada, mejor no mostrar un pin a medias. "is..." (no

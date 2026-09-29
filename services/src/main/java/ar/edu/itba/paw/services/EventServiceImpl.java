@@ -131,18 +131,45 @@ public class EventServiceImpl implements EventService {
             return EventCancelResult.ALREADY_CANCELLED;
         }
         eventDao.cancel(eventId);
-        // Mail: solo a los confirmados (son los que tenian un lugar que pierden).
-        // Bandeja: tambien a quien estaba en lista de espera o esperando que lo
-        // acepten, que si no se enteraria recien al ver el evento. Al rechazado no:
-        // ese ya no esperaba nada de este evento.
-        for (final Registration registration : registrationService.findByEventId(eventId)) {
+        notifyRegistrantsOfCancellation(event);
+        return EventCancelResult.CANCELLED;
+    }
+
+    @Override
+    @Transactional
+    public EventCancelResult removeByAdmin(final long eventId, final String reason) {
+        final Optional<Event> existing = eventDao.findById(eventId);
+        if (!existing.isPresent()) {
+            return EventCancelResult.NOT_FOUND;
+        }
+        final Event event = existing.get();
+        if (event.isCancelled()) {
+            return EventCancelResult.ALREADY_CANCELLED;
+        }
+        eventDao.removeByAdmin(eventId, reason);
+        // Mismo aviso a quien estaba anotado que una cancelacion comun (para
+        // ellos el efecto es el mismo: el evento ya no va). El creador, en
+        // cambio, recibe un aviso aparte y distinto: a el le interesa el motivo.
+        notifyRegistrantsOfCancellation(event);
+        notificationService.notifyEventRemovedByAdmin(event, reason);
+        inboxService.add(event.getCreatorEmail(), InboxMessageType.EVENT_REMOVED_BY_ADMIN, eventId, null, reason);
+        return EventCancelResult.CANCELLED;
+    }
+
+    // Mail: solo a los confirmados (son los que tenian un lugar que pierden).
+    // Bandeja: tambien a quien estaba en lista de espera o esperando que lo
+    // acepten, que si no se enteraria recien al ver el evento. Al rechazado no:
+    // ese ya no esperaba nada de este evento. Comun a cancel() y removeByAdmin():
+    // para quien esta anotado el motivo (el organizador o un admin) no cambia
+    // el aviso que le corresponde.
+    private void notifyRegistrantsOfCancellation(final Event event) {
+        for (final Registration registration : registrationService.findByEventId(event.getId())) {
             if (registration.getStatus() == RegistrationStatus.CONFIRMED) {
                 notificationService.notifyEventCancelled(event, registration);
             }
             if (registration.getStatus() != RegistrationStatus.REJECTED) {
-                inboxService.add(registration.getEmail(), InboxMessageType.EVENT_CANCELLED, eventId, null, null);
+                inboxService.add(registration.getEmail(), InboxMessageType.EVENT_CANCELLED, event.getId(), null, null);
             }
         }
-        return EventCancelResult.CANCELLED;
     }
 }

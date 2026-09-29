@@ -491,4 +491,65 @@ public class UserServiceImplTest {
 
         assertEquals(PasswordResetResult.INVALID_TOKEN, result);
     }
+
+    // ---- suspend()/reactivate() (moderacion) ----
+
+    @Test
+    public void testSuspendMarksTheUserSuspendedAndNotifies() {
+        when(mockUserDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
+
+        userService.suspend(USER_ID);
+
+        verify(mockUserDao).setSuspended(USER_ID, true);
+        verify(mockNotificationService).notifyUserSuspended(any(User.class));
+        verify(mockInboxMessageDao).create(any());
+    }
+
+    @Test
+    public void testSuspendOnAUserThatDisappearedStillSetsTheFlagButDoesNotNotify() {
+        when(mockUserDao.findById(USER_ID)).thenReturn(Optional.empty());
+
+        userService.suspend(USER_ID);
+
+        verify(mockUserDao).setSuspended(USER_ID, true);
+        verify(mockNotificationService, never()).notifyUserSuspended(any());
+    }
+
+    @Test
+    public void testReactivateMarksTheUserNotSuspendedAndNotifies() {
+        when(mockUserDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
+
+        userService.reactivate(USER_ID);
+
+        verify(mockUserDao).setSuspended(USER_ID, false);
+        verify(mockNotificationService).notifyUserReactivated(any(User.class));
+        verify(mockInboxMessageDao).create(any());
+    }
+
+    // ---- grantAdmin()/revokeAdmin() ----
+
+    @Test
+    public void testGrantAdminAddsRoleAdmin() {
+        userService.grantAdmin(USER_ID);
+
+        verify(mockUserDao).addRole(USER_ID, "ROLE_ADMIN");
+    }
+
+    @Test
+    public void testRevokeAdminRemovesRoleAdmin() {
+        userService.revokeAdmin(USER_ID);
+
+        verify(mockUserDao).removeRole(USER_ID, "ROLE_ADMIN");
+    }
+
+    // ---- findAll() ----
+
+    @Test
+    public void testFindAllDelegatesToTheDao() {
+        when(mockUserDao.findAll()).thenReturn(java.util.Collections.singletonList(someUser()));
+
+        final java.util.List<User> all = userService.findAll();
+
+        assertEquals(1, all.size());
+    }
 }

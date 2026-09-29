@@ -3,6 +3,7 @@ package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.User;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -14,8 +15,16 @@ public interface UserDao {
     Optional<User> findById(long id);
     Optional<User> findByEmail(String email);
 
+    // Para "Usuarios" del panel de admin (ver AdminController): todos, con sus
+    // roles ya cargados, ordenados por id.
+    List<User> findAll();
+
     Set<String> findRoles(long userId);
     void addRole(long userId, String role);
+
+    // Complemento de addRole(): usado para revocar ROLE_ADMIN (ver
+    // UserService.revokeAdmin()). No falla si el usuario no tenia ese rol.
+    void removeRole(long userId, String role);
 
     void setPassword(long userId, String passwordHash);
 
@@ -24,4 +33,8 @@ public interface UserDao {
     void setVerified(long userId, boolean verified);
 
     void setLocale(long userId, String locale);
+
+    // Suspension por un admin (ver UserService.suspend()/reactivate()):
+    // UserDetailsServiceImpl la lee para bloquear el login mientras este en true.
+    void setSuspended(long userId, boolean suspended);
 }

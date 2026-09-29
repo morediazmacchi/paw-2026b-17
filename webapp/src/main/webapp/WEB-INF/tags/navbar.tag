@@ -56,6 +56,12 @@
             <a class="btn btn-medium" href="<c:url value='/perfil/inscripciones'/>"><paw:icon name="check-square"/> <c:out value="${registrationsLabel}"/></a>
             <spring:message code="common.nav.profile" var="profileLabel"/>
             <a class="btn btn-medium" href="<c:url value='/perfil'/>"><paw:icon name="user"/> <c:out value="${profileLabel}"/></a>
+            <%-- Solo admins (y superadmins, que tambien tienen ROLE_ADMIN, ver
+                 data.sql): mismo gate que WebAuthConfig usa para /admin/**. --%>
+            <sec:authorize access="hasRole('ADMIN')">
+                <spring:message code="admin.nav.link" var="adminLabel"/>
+                <a class="btn btn-medium" href="<c:url value='/admin/reportes'/>"><paw:icon name="shield"/> <c:out value="${adminLabel}"/></a>
+            </sec:authorize>
         </sec:authorize>
     </div>
 </header>

@@ -212,4 +212,68 @@ public class UserJdbcDaoTest {
         assertEquals("en", userDao.findById(created.getId()).get().getLocale());
         assertEquals("en", userDao.findByEmail(EMAIL).get().getLocale());
     }
+
+    // ---- suspended (moderacion) ----
+
+    @Test
+    public void testNewUserIsNotSuspendedByDefault() {
+        final User created = userDao.create(new User(EMAIL, NAME));
+
+        assertFalse(userDao.findById(created.getId()).get().isSuspended());
+    }
+
+    @Test
+    public void testSetSuspendedTrueThenFalse() {
+        final User created = userDao.create(new User(EMAIL, NAME));
+
+        userDao.setSuspended(created.getId(), true);
+        assertTrue(userDao.findById(created.getId()).get().isSuspended());
+
+        userDao.setSuspended(created.getId(), false);
+        assertFalse(userDao.findById(created.getId()).get().isSuspended());
+    }
+
+    // ---- removeRole() ----
+
+    @Test
+    public void testRemoveRoleTakesJustThatRoleAway() {
+        final User created = userDao.create(new User(EMAIL, NAME));
+        userDao.addRole(created.getId(), "ROLE_USER");
+        userDao.addRole(created.getId(), "ROLE_ADMIN");
+
+        userDao.removeRole(created.getId(), "ROLE_ADMIN");
+
+        final Set<String> roles = userDao.findRoles(created.getId());
+        assertEquals(1, roles.size());
+        assertTrue(roles.contains("ROLE_USER"));
+    }
+
+    @Test
+    public void testRemoveRoleOnAUserWithoutThatRoleIsANoop() {
+        final User created = userDao.create(new User(EMAIL, NAME));
+        userDao.addRole(created.getId(), "ROLE_USER");
+
+        userDao.removeRole(created.getId(), "ROLE_ADMIN");
+
+        assertEquals(1, userDao.findRoles(created.getId()).size());
+    }
+
+    // ---- findAll() ----
+
+    @Test
+    public void testFindAllReturnsEveryUserWithTheirOwnRoles() {
+        final User first = userDao.create(new User(EMAIL, NAME));
+        userDao.addRole(first.getId(), "ROLE_USER");
+        final User second = userDao.create(new User("otro@mail.com", "Beto"));
+        userDao.addRole(second.getId(), "ROLE_USER");
+        userDao.addRole(second.getId(), "ROLE_ADMIN");
+
+        final java.util.List<User> all = userDao.findAll();
+
+        assertEquals(2, all.size());
+        final User foundFirst = all.stream().filter(u -> u.getId() == first.getId()).findFirst().orElseThrow(AssertionError::new);
+        final User foundSecond = all.stream().filter(u -> u.getId() == second.getId()).findFirst().orElseThrow(AssertionError::new);
+        assertEquals(1, foundFirst.getRoles().size());
+        assertEquals(2, foundSecond.getRoles().size());
+    }
 }

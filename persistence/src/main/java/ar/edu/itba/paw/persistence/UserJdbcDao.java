@@ -10,8 +10,11 @@ import org.springframework.jdbc.core.simple.SimpleJdbcInsert;
 import org.springframework.stereotype.Repository;
 
 import javax.sql.DataSource;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -22,7 +25,7 @@ public class UserJdbcDao implements UserDao {
     // LEFT JOIN: un usuario sin roles todavia (los tres que ya existian antes de
     // login) tiene que seguir apareciendo, con "role" en NULL para esa fila.
     private static final String SELECT_WITH_ROLES =
-            "SELECT u.id, u.email, u.name, u.password, u.verified, u.preferred_locale, ur.role "
+            "SELECT u.id, u.email, u.name, u.password, u.verified, u.preferred_locale, u.suspended, ur.role "
                     + "FROM users u LEFT JOIN user_role ur ON ur.user_id = u.id";
 
     // Una query, N filas posibles (una por rol, o una sola con role=NULL si no
@@ -40,6 +43,7 @@ public class UserJdbcDao implements UserDao {
                 user.setPassword(rs.getString("password"));
                 user.setVerified(rs.getBoolean("verified"));
                 user.setLocale(rs.getString("preferred_locale"));
+                user.setSuspended(rs.getBoolean("suspended"));
             }
             final String role = rs.getString("role");
             if (role != null) {
@@ -87,6 +91,35 @@ public class UserJdbcDao implements UserDao {
     }
 
     @Override
+    public List<User> findAll() {
+        // Mismo pivoteo fila-a-fila que USER_WITH_ROLES_EXTRACTOR, pero
+        // acumulando varios usuarios a la vez (esa version asume una sola
+        // persona). LinkedHashMap: conserva el orden del ORDER BY.
+        final Map<Long, User> byId = new LinkedHashMap<>();
+        jdbcTemplate.query(SELECT_WITH_ROLES + " ORDER BY u.id", rs -> {
+            final long id = rs.getLong("id");
+            User user = byId.get(id);
+            if (user == null) {
+                user = new User();
+                user.setId(id);
+                user.setEmail(rs.getString("email"));
+                user.setName(rs.getString("name"));
+                user.setPassword(rs.getString("password"));
+                user.setVerified(rs.getBoolean("verified"));
+                user.setLocale(rs.getString("preferred_locale"));
+                user.setSuspended(rs.getBoolean("suspended"));
+                user.setRoles(new HashSet<>());
+                byId.put(id, user);
+            }
+            final String role = rs.getString("role");
+            if (role != null) {
+                user.getRoles().add(role);
+            }
+        });
+        return new ArrayList<>(byId.values());
+    }
+
+    @Override
     public Set<String> findRoles(final long userId) {
         return new HashSet<>(jdbcTemplate.query(
                 "SELECT role FROM user_role WHERE user_id = ?",
@@ -108,6 +141,11 @@ public class UserJdbcDao implements UserDao {
     }
 
     @Override
+    public void removeRole(final long userId, final String role) {
+        jdbcTemplate.update("DELETE FROM user_role WHERE user_id = ? AND role = ?", userId, role);
+    }
+
+    @Override
     public void setPassword(final long userId, final String passwordHash) {
         jdbcTemplate.update("UPDATE users SET password = ? WHERE id = ?", passwordHash, userId);
     }
@@ -125,5 +163,10 @@ public class UserJdbcDao implements UserDao {
     @Override
     public void setLocale(final long userId, final String locale) {
         jdbcTemplate.update("UPDATE users SET preferred_locale = ? WHERE id = ?", locale, userId);
+    }
+
+    @Override
+    public void setSuspended(final long userId, final boolean suspended) {
+        jdbcTemplate.update("UPDATE users SET suspended = ? WHERE id = ?", suspended, userId);
     }
 }

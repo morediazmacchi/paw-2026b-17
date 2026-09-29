@@ -103,4 +103,13 @@ public interface NotificationService {
 
     /** El organizador respondio -> mail a quien pregunto. */
     void notifyQuestionAnswered(Event event, EventQuestion question);
+
+    /** Un admin dio de baja el evento (tras revisar un reporte) -> le avisa al creador. */
+    void notifyEventRemovedByAdmin(Event event, String reason);
+
+    /** Un admin suspendio la cuenta -> le avisa a esa persona. */
+    void notifyUserSuspended(User user);
+
+    /** Un admin reactivo la cuenta -> le avisa a esa persona. */
+    void notifyUserReactivated(User user);
 }

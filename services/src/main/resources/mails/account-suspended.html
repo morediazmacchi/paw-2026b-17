@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<!--/*
+  Un admin suspendio la cuenta -> le llega a esa persona.
+  Variables: personName
+*/-->
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::content})}">
+<body>
+<th:block th:fragment="content">
+
+  <h1 style="margin:0 0 8px; font-size:22px; line-height:1.3; color:#111827;"
+      th:text="#{mail.accountSuspended.title}">Titulo</h1>
+
+  <p style="margin:0 0 4px; color:#6b7280;"
+     th:text="#{mail.accountSuspended.greeting(${personName})}">Hola</p>
+
+  <p style="margin:0 0 20px;"
+     th:text="#{mail.accountSuspended.body}">Cuerpo</p>
+
+</th:block>
+</body>
+</html>

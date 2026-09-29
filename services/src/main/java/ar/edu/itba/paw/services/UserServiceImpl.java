@@ -1,6 +1,8 @@
 // Implementa el contrato UserService (modulo services-contracts).
 package ar.edu.itba.paw.services;
 
+import ar.edu.itba.paw.model.InboxMessage;
+import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.TokenPurpose;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.VerificationToken;
@@ -16,6 +18,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -23,6 +26,7 @@ import java.util.UUID;
 public class UserServiceImpl implements UserService {
 
     private static final String ROLE_USER = "ROLE_USER";
+    private static final String ROLE_ADMIN = "ROLE_ADMIN";
 
     // Cuanto dura cada tipo de link antes de que haya que pedir uno nuevo.
     private static final long VERIFY_TOKEN_TTL_MILLIS = 24 * 60 * 60 * 1000L; // 24hs
@@ -55,6 +59,12 @@ public class UserServiceImpl implements UserService {
     @Transactional(readOnly = true)
     public Optional<User> findById(final long id) {
         return userDao.findById(id);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<User> findAll() {
+        return userDao.findAll();
     }
 
     @Override
@@ -220,5 +230,47 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public void updateLocale(final long userId, final String locale) {
         userDao.setLocale(userId, locale);
+    }
+
+    @Override
+    @Transactional
+    public void suspend(final long userId) {
+        userDao.setSuspended(userId, true);
+        userDao.findById(userId).ifPresent(user -> {
+            notificationService.notifyUserSuspended(user);
+            addInboxMessage(user, InboxMessageType.ACCOUNT_SUSPENDED, null);
+        });
+    }
+
+    @Override
+    @Transactional
+    public void reactivate(final long userId) {
+        userDao.setSuspended(userId, false);
+        userDao.findById(userId).ifPresent(user -> {
+            notificationService.notifyUserReactivated(user);
+            addInboxMessage(user, InboxMessageType.ACCOUNT_REACTIVATED, null);
+        });
+    }
+
+    @Override
+    @Transactional
+    public void grantAdmin(final long userId) {
+        userDao.addRole(userId, ROLE_ADMIN);
+    }
+
+    @Override
+    @Transactional
+    public void revokeAdmin(final long userId) {
+        userDao.removeRole(userId, ROLE_ADMIN);
+    }
+
+    // Igual que InboxServiceImpl.add(), pero sin pasar por ese service (evitaria
+    // una dependencia circular: InboxServiceImpl ya depende de UserService para
+    // resolver el userId por email, algo que aca ni hace falta -- ya tenemos el
+    // User entero). eventId siempre null: son avisos de cuenta, no de un evento.
+    private void addInboxMessage(final User user, final InboxMessageType type, final String body) {
+        final InboxMessage message = new InboxMessage(user.getEmail(), type, null, null, body);
+        message.setUserId(user.getId());
+        inboxMessageDao.create(message);
     }
 }

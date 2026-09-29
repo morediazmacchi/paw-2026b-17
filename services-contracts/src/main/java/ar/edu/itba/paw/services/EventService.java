@@ -33,4 +33,12 @@ public interface EventService {
      * inscripto confirmado.
      */
     EventCancelResult cancel(long eventId, long callerId);
+
+    /**
+     * Baja por moderacion (ver ModerationService): mismo efecto que cancel()
+     * para quien esta anotado (mismos avisos a los inscriptos), pero sin
+     * chequeo de ownership (lo pide un admin, no el creador) y ademas le
+     * avisa al creador con el motivo del reporte.
+     */
+    EventCancelResult removeByAdmin(long eventId, String reason);
 }

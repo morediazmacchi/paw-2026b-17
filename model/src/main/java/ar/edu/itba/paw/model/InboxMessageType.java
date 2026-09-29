@@ -34,5 +34,13 @@ public enum InboxMessageType {
     // Al organizador: alguien pregunto en su evento.
     NEW_QUESTION,
     // A quien pregunto: el organizador le respondio.
-    QUESTION_ANSWERED
+    QUESTION_ANSWERED,
+
+    // ---- Moderacion (ver ModerationService/UserService) ----
+    // Un admin dio de baja el evento tras revisar un reporte: le llega al creador.
+    EVENT_REMOVED_BY_ADMIN,
+    // Un admin suspendio la cuenta.
+    ACCOUNT_SUSPENDED,
+    // Un admin reactivo la cuenta.
+    ACCOUNT_REACTIVATED
 }

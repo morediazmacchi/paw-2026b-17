@@ -306,6 +306,42 @@ ALTER TABLE event_invitation ADD COLUMN IF NOT EXISTS invited_by_user_id INTEGER
 ALTER TABLE event_invitation ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id);
 ALTER TABLE inbox_message ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id);
 
+-- Suspension de cuenta por un admin (ver UserService.suspend()/ModerationService).
+-- UserDetailsServiceImpl la trata igual que "verified=false": no puede loguearse
+-- hasta que un admin la reactive (ver UserService.reactivate()). false por
+-- default: ninguna cuenta vieja queda suspendida por accidente al agregar la columna.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS suspended BOOLEAN NOT NULL DEFAULT false;
+
+-- Baja de un evento por moderacion (ver ModerationService.removeEvent()). Reusa
+-- cancelled_at (arriba) como el unico flag de "este evento ya no esta activo":
+-- asi todo lo que ya lo respeta (busquedas, "editar", inscribirse, preguntas)
+-- automaticamente tambien excluye a un evento removido por un admin, sin
+-- duplicar esa logica en cada lugar. Estas dos columnas solo agregan el motivo,
+-- para poder avisarle al creador y mostrarle un texto distinto al de "vos lo
+-- cancelaste" (ver EventJdbcDao.removeByAdmin()).
+ALTER TABLE event ADD COLUMN IF NOT EXISTS removed_by_admin BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE event ADD COLUMN IF NOT EXISTS removed_reason VARCHAR(500);
+
+-- Reporte de un evento (ver ModerationService): lo puede hacer cualquier
+-- usuario logueado (admins incluidos), y lo revisa despues un admin, que lo
+-- descarta o da de baja el evento (ver AdminController). No se borra nunca:
+-- status distinto de PENDING una vez resuelto es el historial.
+CREATE TABLE IF NOT EXISTS event_report (
+    id                 SERIAL PRIMARY KEY,
+    event_id           INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
+    reporter_user_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    reason             VARCHAR(500) NOT NULL,
+    created_at         TIMESTAMP NOT NULL DEFAULT now(),
+    status             VARCHAR(20) DEFAULT 'PENDING' NOT NULL
+                           CHECK (status IN ('PENDING', 'DISMISSED', 'ACTIONED')),
+    resolved_by        INTEGER REFERENCES users(id),
+    resolved_at        TIMESTAMP
+);
+
+-- La cola de moderacion siempre se lee "los PENDING, mas viejo primero" (FIFO).
+CREATE INDEX IF NOT EXISTS idx_event_report_pending
+    ON event_report (status, created_at);
+
 -- Cambio de intencion de diseño: ya no se usa mas token como credencial de la
 -- invitacion (esa idea era de antes de tener event_invitation.user_id mas
 -- arriba). Quien abre el link tiene que estar logueado con la cuenta invitada

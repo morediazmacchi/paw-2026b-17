@@ -1,0 +1,186 @@
+package ar.edu.itba.paw.services;
+
+import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.EventReport;
+import ar.edu.itba.paw.model.ReportStatus;
+import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.persistence.EventReportDao;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.MockitoJUnitRunner;
+
+import java.util.Optional;
+
+import static org.junit.Assert.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+@RunWith(MockitoJUnitRunner.class)
+public class ModerationServiceImplTest {
+
+    private static final long EVENT_ID = 1;
+    private static final long REPORT_ID = 2;
+    private static final long REPORTER_ID = 3;
+    private static final long CREATOR_ID = 4;
+    private static final long ADMIN_ID = 5;
+    private static final String REASON = "Contenido inapropiado";
+
+    @Mock
+    private EventReportDao mockEventReportDao;
+    @Mock
+    private EventService mockEventService;
+    @Mock
+    private UserService mockUserService;
+
+    @InjectMocks
+    private ModerationServiceImpl moderationService;
+
+    private static User someUser(final long id) {
+        final User user = new User("user" + id + "@mail.com", "Usuario " + id);
+        user.setId(id);
+        return user;
+    }
+
+    private static Event someEvent() {
+        final Event event = new Event();
+        event.setId(EVENT_ID);
+        event.setCreatorId(CREATOR_ID);
+        return event;
+    }
+
+    private static EventReport somePendingReport() {
+        final EventReport report = new EventReport(EVENT_ID, REPORTER_ID, REASON);
+        report.setId(REPORT_ID);
+        return report;
+    }
+
+    // ---- report() ----
+
+    @Test
+    public void testReportCreatesAPendingReport() {
+        when(mockEventService.findById(EVENT_ID)).thenReturn(Optional.of(someEvent()));
+
+        final ReportResult result = moderationService.report(EVENT_ID, someUser(REPORTER_ID), REASON);
+
+        assertEquals(ReportResult.CREATED, result);
+        verify(mockEventReportDao).create(any(EventReport.class));
+    }
+
+    @Test
+    public void testReportByTheEventsOwnCreatorReturnsOwnEvent() {
+        when(mockEventService.findById(EVENT_ID)).thenReturn(Optional.of(someEvent()));
+
+        final ReportResult result = moderationService.report(EVENT_ID, someUser(CREATOR_ID), REASON);
+
+        assertEquals(ReportResult.OWN_EVENT, result);
+        verify(mockEventReportDao, never()).create(any());
+    }
+
+    @Test
+    public void testReportTwiceBySameReporterWhileTheFirstIsStillPendingReturnsAlreadyReported() {
+        when(mockEventService.findById(EVENT_ID)).thenReturn(Optional.of(someEvent()));
+        when(mockEventReportDao.existsPendingByEventAndReporter(EVENT_ID, REPORTER_ID)).thenReturn(true);
+
+        final ReportResult result = moderationService.report(EVENT_ID, someUser(REPORTER_ID), REASON);
+
+        assertEquals(ReportResult.ALREADY_REPORTED, result);
+        verify(mockEventReportDao, never()).create(any());
+    }
+
+    // ---- dismiss() ----
+
+    @Test
+    public void testDismissResolvesAPendingReportAsDismissed() {
+        when(mockEventReportDao.findById(REPORT_ID)).thenReturn(Optional.of(somePendingReport()));
+
+        final ReportResolutionResult result = moderationService.dismiss(REPORT_ID, ADMIN_ID);
+
+        assertEquals(ReportResolutionResult.RESOLVED, result);
+        verify(mockEventReportDao).resolve(REPORT_ID, ReportStatus.DISMISSED, ADMIN_ID);
+    }
+
+    @Test
+    public void testDismissWhenTheReportDoesNotExistReturnsNotFound() {
+        when(mockEventReportDao.findById(REPORT_ID)).thenReturn(Optional.empty());
+
+        final ReportResolutionResult result = moderationService.dismiss(REPORT_ID, ADMIN_ID);
+
+        assertEquals(ReportResolutionResult.NOT_FOUND, result);
+    }
+
+    @Test
+    public void testDismissWhenAlreadyResolvedReturnsNotFound() {
+        final EventReport resolved = somePendingReport();
+        resolved.setStatus(ReportStatus.ACTIONED);
+        when(mockEventReportDao.findById(REPORT_ID)).thenReturn(Optional.of(resolved));
+
+        final ReportResolutionResult result = moderationService.dismiss(REPORT_ID, ADMIN_ID);
+
+        assertEquals(ReportResolutionResult.NOT_FOUND, result);
+        verify(mockEventReportDao, never()).resolve(eq(REPORT_ID), any(), eq(ADMIN_ID));
+    }
+
+    // ---- removeEvent() ----
+
+    @Test
+    public void testRemoveEventRemovesTheEventAndResolvesTheReport() {
+        when(mockEventReportDao.findById(REPORT_ID)).thenReturn(Optional.of(somePendingReport()));
+        when(mockEventService.findById(EVENT_ID)).thenReturn(Optional.of(someEvent()));
+
+        final ReportResolutionResult result = moderationService.removeEvent(REPORT_ID, ADMIN_ID, false);
+
+        assertEquals(ReportResolutionResult.RESOLVED, result);
+        verify(mockEventService).removeByAdmin(EVENT_ID, REASON);
+        verify(mockEventReportDao).resolve(REPORT_ID, ReportStatus.ACTIONED, ADMIN_ID);
+        verify(mockEventReportDao).resolveAllPendingForEvent(EVENT_ID, ReportStatus.ACTIONED, ADMIN_ID);
+        verify(mockUserService, never()).suspend(CREATOR_ID);
+    }
+
+    @Test
+    public void testRemoveEventWithSuspendOrganizerAlsoSuspendsTheCreator() {
+        when(mockEventReportDao.findById(REPORT_ID)).thenReturn(Optional.of(somePendingReport()));
+        when(mockEventService.findById(EVENT_ID)).thenReturn(Optional.of(someEvent()));
+
+        moderationService.removeEvent(REPORT_ID, ADMIN_ID, true);
+
+        verify(mockUserService).suspend(CREATOR_ID);
+    }
+
+    @Test
+    public void testRemoveEventWhenTheReportDoesNotExistReturnsNotFound() {
+        when(mockEventReportDao.findById(REPORT_ID)).thenReturn(Optional.empty());
+
+        final ReportResolutionResult result = moderationService.removeEvent(REPORT_ID, ADMIN_ID, false);
+
+        assertEquals(ReportResolutionResult.NOT_FOUND, result);
+        verify(mockEventService, never()).removeByAdmin(org.mockito.ArgumentMatchers.anyLong(), any());
+    }
+
+    @Test
+    public void testRemoveEventWhenTheEventWasAlreadyCancelledStillResolvesTheReportButDoesNotCancelAgain() {
+        when(mockEventReportDao.findById(REPORT_ID)).thenReturn(Optional.of(somePendingReport()));
+        final Event alreadyCancelled = someEvent();
+        alreadyCancelled.setCancelledAt(new java.util.Date());
+        when(mockEventService.findById(EVENT_ID)).thenReturn(Optional.of(alreadyCancelled));
+
+        final ReportResolutionResult result = moderationService.removeEvent(REPORT_ID, ADMIN_ID, false);
+
+        assertEquals(ReportResolutionResult.RESOLVED, result);
+        verify(mockEventService, never()).removeByAdmin(EVENT_ID, REASON);
+        verify(mockEventReportDao).resolve(REPORT_ID, ReportStatus.ACTIONED, ADMIN_ID);
+    }
+
+    // ---- listPending() ----
+
+    @Test
+    public void testListPendingDelegatesToTheDao() {
+        when(mockEventReportDao.findPending()).thenReturn(java.util.Collections.singletonList(somePendingReport()));
+
+        assertEquals(1, moderationService.listPending().size());
+    }
+}

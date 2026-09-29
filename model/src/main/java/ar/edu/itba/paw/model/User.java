@@ -17,6 +17,11 @@ public class User {
     // en ese caso la pagina usa el idioma de la cookie/navegador y los mails el
     // default de NotificationServiceImpl, no este campo.
     private String locale;
+    // Un admin suspendio la cuenta (ver UserService.suspend()/ModerationService):
+    // UserDetailsServiceImpl la marca disabled=true igual que una cuenta sin
+    // verificar, asi que no puede loguearse hasta que un admin la reactive.
+    // false por default, igual que la columna.
+    private boolean suspended;
 
     public User() {
     }
@@ -40,4 +45,6 @@ public class User {
     public void setVerified(final boolean verified) { this.verified = verified; }
     public String getLocale() { return locale; }
     public void setLocale(final String locale) { this.locale = locale; }
+    public boolean isSuspended() { return suspended; }
+    public void setSuspended(final boolean suspended) { this.suspended = suspended; }
 }

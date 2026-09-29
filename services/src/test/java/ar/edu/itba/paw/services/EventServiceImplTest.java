@@ -26,6 +26,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -344,5 +345,66 @@ public class EventServiceImplTest {
         assertEquals(EventCancelResult.ALREADY_CANCELLED, result);
         verify(mockEventDao, never()).cancel(EVENT_ID);
         verify(mockRegistrationService, never()).findByEventId(EVENT_ID);
+    }
+
+    // ---- removeByAdmin() (moderacion) ----
+
+    @Test
+    public void testRemoveByAdminSucceedsRegardlessOfWhoCreatedTheEvent() {
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(someEvent()));
+        when(mockRegistrationService.findByEventId(EVENT_ID)).thenReturn(Collections.emptyList());
+
+        final EventCancelResult result = eventService.removeByAdmin(EVENT_ID, "Contenido inapropiado");
+
+        assertEquals(EventCancelResult.CANCELLED, result);
+        verify(mockEventDao).removeByAdmin(EVENT_ID, "Contenido inapropiado");
+        verify(mockEventDao, never()).cancel(EVENT_ID);
+    }
+
+    @Test
+    public void testRemoveByAdminNotifiesTheCreatorWithTheReason() {
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(someEvent()));
+        when(mockRegistrationService.findByEventId(EVENT_ID)).thenReturn(Collections.emptyList());
+
+        eventService.removeByAdmin(EVENT_ID, "Contenido inapropiado");
+
+        verify(mockNotificationService).notifyEventRemovedByAdmin(any(Event.class), eq("Contenido inapropiado"));
+        verify(mockInboxService).add(eq(CREATOR_EMAIL), eq(InboxMessageType.EVENT_REMOVED_BY_ADMIN),
+                eq(EVENT_ID), any(), eq("Contenido inapropiado"));
+    }
+
+    @Test
+    public void testRemoveByAdminAlsoNotifiesConfirmedRegistrantsLikeAnyCancellation() {
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(someEvent()));
+        final Registration confirmed = new Registration(EVENT_ID, "confirmado@mail.com", "Confirmado",
+                RegistrationStatus.CONFIRMED);
+        when(mockRegistrationService.findByEventId(EVENT_ID)).thenReturn(Collections.singletonList(confirmed));
+
+        eventService.removeByAdmin(EVENT_ID, "Contenido inapropiado");
+
+        verify(mockNotificationService).notifyEventCancelled(any(Event.class), eq(confirmed));
+        verify(mockInboxService).add("confirmado@mail.com", InboxMessageType.EVENT_CANCELLED, EVENT_ID, null, null);
+    }
+
+    @Test
+    public void testRemoveByAdminWhenTheEventDoesNotExistReturnsNotFound() {
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.empty());
+
+        final EventCancelResult result = eventService.removeByAdmin(EVENT_ID, "motivo");
+
+        assertEquals(EventCancelResult.NOT_FOUND, result);
+        verify(mockEventDao, never()).removeByAdmin(anyLong(), any());
+    }
+
+    @Test
+    public void testRemoveByAdminWhenAlreadyCancelledDoesNothing() {
+        final Event alreadyCancelled = someEvent();
+        alreadyCancelled.setCancelledAt(new java.util.Date());
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(alreadyCancelled));
+
+        final EventCancelResult result = eventService.removeByAdmin(EVENT_ID, "motivo");
+
+        assertEquals(EventCancelResult.ALREADY_CANCELLED, result);
+        verify(mockEventDao, never()).removeByAdmin(anyLong(), any());
     }
 }

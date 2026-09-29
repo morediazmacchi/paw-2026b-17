@@ -22,16 +22,19 @@ import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.EventUpdateResult;
 import ar.edu.itba.paw.services.FavoriteService;
 import ar.edu.itba.paw.services.ImageService;
+import ar.edu.itba.paw.services.ModerationService;
 import ar.edu.itba.paw.services.PageResult;
 import ar.edu.itba.paw.services.QuestionResult;
 import ar.edu.itba.paw.services.RegistrationResult;
 import ar.edu.itba.paw.services.RegistrationService;
+import ar.edu.itba.paw.services.ReportResult;
 import ar.edu.itba.paw.services.ReviewService;
 import ar.edu.itba.paw.services.UserService;
 import ar.edu.itba.paw.webapp.exception.EventNotFoundException;
 import ar.edu.itba.paw.webapp.form.CategoriaSeleccionForm;
 import ar.edu.itba.paw.webapp.form.EventForm;
 import ar.edu.itba.paw.webapp.form.QuestionForm;
+import ar.edu.itba.paw.webapp.form.ReportForm;
 import ar.edu.itba.paw.webapp.util.SafeRedirect;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
@@ -85,6 +88,7 @@ public class EventController {
     private final ReviewService reviewService;
     private final EventInvitationService eventInvitationService;
     private final EventQuestionService eventQuestionService;
+    private final ModerationService moderationService;
     private final MessageSource messageSource;
 
     @Autowired
@@ -92,7 +96,8 @@ public class EventController {
                             final RegistrationService registrationService, final ImageService imageService,
                             final UserService userService, final FavoriteService favoriteService,
                             final ReviewService reviewService, final EventInvitationService eventInvitationService,
-                            final EventQuestionService eventQuestionService, final MessageSource messageSource) {
+                            final EventQuestionService eventQuestionService, final ModerationService moderationService,
+                            final MessageSource messageSource) {
         this.eventService = eventService;
         this.categoryService = categoryService;
         this.registrationService = registrationService;
@@ -102,6 +107,7 @@ public class EventController {
         this.reviewService = reviewService;
         this.eventInvitationService = eventInvitationService;
         this.eventQuestionService = eventQuestionService;
+        this.moderationService = moderationService;
         this.messageSource = messageSource;
     }
 
@@ -870,6 +876,28 @@ public class EventController {
             redirectAttributes.addFlashAttribute("questionMessage", result.name());
         }
         return new ModelAndView("redirect:/eventos/" + id + "#preguntas");
+    }
+
+    // Reportar. No hace falta antMatcher propio (mismo motivo que preguntar):
+    // ya cae bajo anyRequest().authenticated(). El resultado vuelve como flash
+    // attribute "reportMessage" y detail.jsp elige el cartel con eso.
+    @RequestMapping(value = "/eventos/{id}/reportar", method = RequestMethod.POST)
+    public ModelAndView reportar(@PathVariable final long id, @Valid final ReportForm form,
+                                  final BindingResult errors, final Principal principal,
+                                  final RedirectAttributes redirectAttributes) {
+        // Mismo chequeo que preguntar/rsvp: si no existe, 404 (aca no hace falta
+        // canView() -- reportar un evento privado al que no tenes acceso no
+        // revela nada que el 404 no revele igual).
+        if (!eventService.findById(id).isPresent()) {
+            throw new EventNotFoundException(id);
+        }
+        if (errors.hasErrors()) {
+            redirectAttributes.addFlashAttribute("reportMessage", "INVALID");
+        } else {
+            final ReportResult result = moderationService.report(id, currentUser(principal), form.getMotivo());
+            redirectAttributes.addFlashAttribute("reportMessage", result.name());
+        }
+        return new ModelAndView("redirect:/eventos/" + id);
     }
 
     // Busca el evento y confirma que quien esta pidiendolo es su creador. Si no

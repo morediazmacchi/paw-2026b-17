@@ -19,3 +19,11 @@ ON CONFLICT (user_id, role) DO NOTHING;
 INSERT INTO user_role (user_id, role)
 SELECT id, 'ROLE_ADMIN' FROM users WHERE email = 'admin@plancito.com'
 ON CONFLICT (user_id, role) DO NOTHING;
+
+-- Superadmin: ademas de ROLE_ADMIN (arriba, que le da todas las capacidades de
+-- un admin comun), este rol lo deja otorgar o revocar ROLE_ADMIN a otros
+-- usuarios (ver WebAuthConfig/AdminController). No hay UI para crear otro
+-- superadmin: es intencional, solo esta cuenta semilla lo tiene.
+INSERT INTO user_role (user_id, role)
+SELECT id, 'ROLE_SUPERADMIN' FROM users WHERE email = 'admin@plancito.com'
+ON CONFLICT (user_id, role) DO NOTHING;

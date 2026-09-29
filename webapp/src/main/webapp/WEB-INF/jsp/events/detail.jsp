@@ -55,7 +55,14 @@
             <span class="detail-hero-badge"><spring:message code="event.publish.privateLabel"/></span>
         </c:if>
         <c:if test="${event.cancelled}">
-            <span class="detail-hero-badge detail-hero-badge-cancelled"><spring:message code="auth.events.cancelledTag"/></span>
+            <span class="detail-hero-badge detail-hero-badge-cancelled">
+                <c:choose>
+                    <%-- Mismo mecanismo que una cancelacion comun (ver Event.removedByAdmin),
+                         pero el texto tiene que decir que fue un admin, no el organizador. --%>
+                    <c:when test="${event.removedByAdmin}"><spring:message code="auth.events.removedByAdminTag"/></c:when>
+                    <c:otherwise><spring:message code="auth.events.cancelledTag"/></c:otherwise>
+                </c:choose>
+            </span>
         </c:if>
         <sec:authorize access="isAuthenticated()">
             <c:url value="/eventos/${event.id}" var="detailUrl"/>
@@ -164,6 +171,12 @@
                 <p class="alert detail-alert"><spring:message code="event.detail.eventCancelled"/></p>
             </c:when>
         </c:choose>
+    </c:if>
+
+    <%-- Resultado de reportar el evento (ver EventController.reportar()): mismo
+         mecanismo POST-Redirect-GET que "rsvp"/"questionMessage" de aca arriba. --%>
+    <c:if test="${not empty reportMessage}">
+        <p class="alert detail-alert"><spring:message code="event.detail.reportFlash.${reportMessage}"/></p>
     </c:if>
 
     <div class="detail-meta-strip">
@@ -435,7 +448,12 @@
                          accion valida que ofrecer (mismo lugar donde se esconde el
                          form de "Quiero ir" cuando el evento esta lleno). --%>
                     <c:when test="${event.cancelled}">
-                        <p class="alert"><spring:message code="event.detail.eventCancelled"/></p>
+                        <p class="alert">
+                            <c:choose>
+                                <c:when test="${event.removedByAdmin}"><spring:message code="event.detail.eventRemovedByAdmin"/></c:when>
+                                <c:otherwise><spring:message code="event.detail.eventCancelled"/></c:otherwise>
+                            </c:choose>
+                        </p>
                     </c:when>
                     <%-- Finalizado gana incluso si estabas anotado: ya paso, no tiene
                          sentido "darse de baja" de algo que ya sucedio. Que este lleno,
@@ -526,9 +544,47 @@
                     </c:otherwise>
                 </c:choose>
             </div>
+
+            <%-- Reportar: cualquiera logueado que no sea el organizador (reportar tu
+                 propio evento no tiene sentido, ademas el service lo rechaza igual).
+                 No hace falta esconderlo si ya esta cancelado/removido: reportar
+                 igual puede servir para avisar de algo del organizador. --%>
+            <c:if test="${not isOwner}">
+                <sec:authorize access="isAuthenticated()">
+                    <button type="button" class="btn-link detail-report-link" data-open-modal="reportModal">
+                        <spring:message code="event.detail.reportButton"/>
+                    </button>
+                </sec:authorize>
+            </c:if>
         </aside>
     </div>
 </main>
+
+<c:if test="${not isOwner}">
+    <sec:authorize access="isAuthenticated()">
+        <spring:message code="event.detail.closeButton" var="reportCloseLabel"/>
+        <div class="modal-overlay" id="reportModal" hidden>
+            <div class="modal-box">
+                <div class="modal-header">
+                    <h2><spring:message code="event.detail.reportModalTitle"/></h2>
+                    <button type="button" class="modal-close" data-close-modal aria-label="${reportCloseLabel}">
+                        <paw:icon name="close"/>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form action="<c:url value='/eventos/${event.id}/reportar'/>" method="post" novalidate="novalidate">
+                        <div class="form-group">
+                            <label for="report-reason"><spring:message code="event.detail.reportReasonLabel"/></label>
+                            <textarea id="report-reason" name="motivo" maxlength="500" required="required"></textarea>
+                        </div>
+                        <spring:message code="event.detail.reportSubmitButton" var="reportSubmitLabel"/>
+                        <paw:button text="${reportSubmitLabel}" cssClass="btn-danger"/>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </sec:authorize>
+</c:if>
 
 <c:if test="${creatorReviewCount > 0}">
     <div class="modal-overlay" id="creatorReviewsModal" hidden>

@@ -89,6 +89,9 @@
                         <paw:button text="${resendButtonLabel}"/>
                     </form>
                 </c:if>
+                <c:if test="${suspended}">
+                    <p class="alert"><spring:message code="auth.login.suspendedMessage"/></p>
+                </c:if>
 
                 <spring:message code="auth.login.emailLabel" var="emailLabel"/>
                 <spring:message code="auth.login.passwordLabel" var="passwordLabel"/>

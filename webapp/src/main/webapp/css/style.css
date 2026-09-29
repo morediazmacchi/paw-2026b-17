@@ -2272,6 +2272,15 @@ button.btn-accent {
     border-top: 1px solid var(--border);
 }
 
+/* Varias acciones (forms) en una misma celda de "Reportes"/"Usuarios" del
+   panel de admin: en fila, no una debajo de la otra como el nowrap del td haria. */
+.admin-report-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    white-space: normal;
+}
+
 /* Selector de fotos (image-picker.js): miniaturas con X debajo del recuadro. */
 .wizard-dropzone-active {
     border-color: var(--accent);
