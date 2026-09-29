@@ -1622,7 +1622,7 @@ button.btn-accent {
     display: flex;
     align-items: flex-start;
     max-width: 1400px;
-    margin: 0 auto;
+    padding-left: 32px;
 }
 
 .account-sidebar {
