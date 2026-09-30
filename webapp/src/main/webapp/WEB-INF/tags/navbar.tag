@@ -1,5 +1,6 @@
 <%@ tag language="java" pageEncoding="UTF-8" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
+<%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions" %>
 <%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
 <%@ taglib prefix="sec" uri="http://www.springframework.org/security/tags" %>
 <%@ taglib prefix="paw" tagdir="/WEB-INF/tags" %>
@@ -13,7 +14,13 @@
      forward en vez de una vista propia; la URL de verdad, si la hubo, esta en
      este atributo que el forward deja seteado (spec de Servlet, mismo criterio
      que list.jsp usa para el returnTo del corazon de favoritos). --%>
-<c:set var="navRequestUri" value="${empty requestScope['javax.servlet.forward.request_uri'] ? pageContext.request.requestURI : requestScope['javax.servlet.forward.request_uri']}"/>
+<c:set var="navRawRequestUri" value="${empty requestScope['javax.servlet.forward.request_uri'] ? pageContext.request.requestURI : requestScope['javax.servlet.forward.request_uri']}"/>
+<%-- getRequestURI() (y su equivalente de forward) vienen CON el context path.
+     Este valor se usa como "redirect" para LocaleController/LoginController,
+     que arman "redirect:" + redirect -- Spring ya antepone el context path
+     solo, asi que si lo dejamos puesto queda duplicado en deploys no-root
+     (ej /paw-2026b-17/paw-2026b-17/...). Se saca aca antes de usarlo. --%>
+<c:set var="navRequestUri" value="${fn:substring(navRawRequestUri, fn:length(pageContext.request.contextPath), fn:length(navRawRequestUri))}"/>
 <c:set var="navQueryString" value="${empty requestScope['javax.servlet.forward.query_string'] ? pageContext.request.queryString : requestScope['javax.servlet.forward.query_string']}"/>
 <c:set var="navCurrentUrl" value="${navRequestUri}${empty navQueryString ? '' : '?'}${navQueryString}"/>
 <c:url value="/idioma" var="navLangEsUrl">

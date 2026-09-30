@@ -25,7 +25,14 @@
      interno (/WEB-INF/jsp/...), no la URL real: Spring llega a este JSP
      con un forward, y forward pisa requestURI. La URL de verdad esta en
      este atributo que el forward deja seteado (spec de Servlet). --%>
-<c:set var="currentUrl" value="${requestScope['javax.servlet.forward.request_uri']}${not empty requestScope['javax.servlet.forward.query_string'] ? '?' : ''}${requestScope['javax.servlet.forward.query_string']}"/>
+<c:set var="rawCurrentUri" value="${requestScope['javax.servlet.forward.request_uri']}"/>
+<%-- request_uri viene CON el context path (spec de Servlet: getRequestURI()
+     siempre lo incluye). El controller arma "redirect:" + returnTo, y Spring
+     ya antepone el context path solo -- si returnTo lo trae puesto de antes,
+     queda duplicado (deploy no-root, ej /paw-2026b-17/paw-2026b-17/...). En
+     local nunca se nota: ahi el context path es vacio, duplicar "nada" no
+     se ve. Por eso se saca aca, antes de usarlo como returnTo. --%>
+<c:set var="currentUrl" value="${fn:substring(rawCurrentUri, fn:length(pageContext.request.contextPath), fn:length(rawCurrentUri))}${not empty requestScope['javax.servlet.forward.query_string'] ? '?' : ''}${requestScope['javax.servlet.forward.query_string']}"/>
 
 <paw:navbar>
     <spring:message code="event.list.addButton" var="addButtonLabel"/>

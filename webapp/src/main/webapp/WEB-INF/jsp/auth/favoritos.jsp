@@ -30,7 +30,10 @@
             </c:when>
             <c:otherwise>
                 <spring:message code="auth.favorites.removeButton" var="removeButtonLabel"/>
-                <c:url value="/perfil/favoritos" var="favoritosUrl"/>
+                <%-- Sin <c:url>: returnTo es para el controller, no para un href, y
+                     el controller ya antepone el context path solo al armar el
+                     redirect (usar <c:url> aca lo duplicaria en deploys no-root). --%>
+                <c:set var="favoritosUrl" value="/perfil/favoritos"/>
                 <div class="event-row-list">
                     <c:forEach var="event" items="${favoriteEvents}">
                         <paw:eventRow id="${event.id}" nombre="${event.title}" fecha="${event.eventDate}"

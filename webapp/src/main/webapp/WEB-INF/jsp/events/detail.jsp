@@ -65,7 +65,9 @@
             </span>
         </c:if>
         <sec:authorize access="isAuthenticated()">
-            <c:url value="/eventos/${event.id}" var="detailUrl"/>
+            <%-- Sin <c:url>: returnTo es para el controller, no un href -- ver
+                 mismo comentario en auth/favoritos.jsp. --%>
+            <c:set var="detailUrl" value="/eventos/${event.id}"/>
             <c:url value="/eventos/${event.id}/favorito" var="favAddUrl"/>
             <c:url value="/eventos/${event.id}/favorito/quitar" var="favRemoveUrl"/>
             <spring:message code="event.favorite.add" var="favAddLabel"/>
