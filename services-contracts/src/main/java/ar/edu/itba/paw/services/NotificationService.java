@@ -107,6 +107,9 @@ public interface NotificationService {
     /** Un admin dio de baja el evento (tras revisar un reporte) -> le avisa al creador. */
     void notifyEventRemovedByAdmin(Event event, String reason);
 
+    /** Un admin le pidio al creador que corrija algo del evento -> le avisa con el mensaje. */
+    void notifyEventChangesRequested(Event event, String message);
+
     /** Un admin suspendio la cuenta -> le avisa a esa persona. */
     void notifyUserSuspended(User user);
 

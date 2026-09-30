@@ -108,6 +108,70 @@ public class EventReportJdbcDaoTest {
     }
 
     @Test
+    public void testExistsPendingByEventAndReporterIsAlsoTrueWhileChangesAreRequested() {
+        final EventReport created = eventReportDao.create(new EventReport(eventId, reporterId, REASON));
+        final long adminId = insertUser("admin-exists@mail.com");
+        eventReportDao.requestChanges(created.getId(), "corregi la direccion", adminId);
+
+        assertTrue(eventReportDao.existsPendingByEventAndReporter(eventId, reporterId));
+    }
+
+    // ---- requestChanges() ----
+
+    @Test
+    public void testRequestChangesMovesAPendingReportToChangesRequested() {
+        final EventReport created = eventReportDao.create(new EventReport(eventId, reporterId, REASON));
+        final long adminId = insertUser("admin-request@mail.com");
+
+        eventReportDao.requestChanges(created.getId(), "corregi la direccion", adminId);
+
+        final EventReport found = eventReportDao.findById(created.getId()).orElseThrow(AssertionError::new);
+        assertEquals(ReportStatus.CHANGES_REQUESTED, found.getStatus());
+        assertEquals("corregi la direccion", found.getChangesRequestedMessage());
+        assertEquals(Long.valueOf(adminId), found.getChangesRequestedByUserId());
+        assertTrue(found.getChangesRequestedAt() != null);
+        assertTrue(found.isOpen());
+    }
+
+    @Test
+    public void testRequestChangesDoesNotTouchAReportThatAlreadyHasChangesRequested() {
+        final EventReport created = eventReportDao.create(new EventReport(eventId, reporterId, REASON));
+        final long admin = insertUser("admin-request2@mail.com");
+        eventReportDao.requestChanges(created.getId(), "primer mensaje", admin);
+
+        // Otro admin llega tarde: no pisa el pedido ya hecho.
+        eventReportDao.requestChanges(created.getId(), "segundo mensaje", admin);
+
+        assertEquals("primer mensaje",
+                eventReportDao.findById(created.getId()).get().getChangesRequestedMessage());
+    }
+
+    // ---- findChangesRequested() ----
+
+    @Test
+    public void testFindChangesRequestedReturnsOnlyThoseOldestFirst() {
+        final EventReport first = eventReportDao.create(new EventReport(eventId, reporterId, "primero"));
+        final long otherReporter = insertUser("otro-cr@mail.com");
+        final EventReport second = eventReportDao.create(new EventReport(eventId, otherReporter, "segundo"));
+        final long admin = insertUser("admin-find@mail.com");
+        eventReportDao.requestChanges(first.getId(), "mensaje 1", admin);
+        eventReportDao.requestChanges(second.getId(), "mensaje 2", admin);
+
+        final List<EventReport> found = eventReportDao.findChangesRequested();
+
+        assertEquals(2, found.size());
+        assertEquals(first.getId(), found.get(0).getId());
+        assertEquals(second.getId(), found.get(1).getId());
+    }
+
+    @Test
+    public void testFindChangesRequestedDoesNotIncludePlainPendingReports() {
+        eventReportDao.create(new EventReport(eventId, reporterId, REASON));
+
+        assertTrue(eventReportDao.findChangesRequested().isEmpty());
+    }
+
+    @Test
     public void testResolveSetsStatusAndResolvedBy() {
         final EventReport created = eventReportDao.create(new EventReport(eventId, reporterId, REASON));
         final long adminId = insertUser("admin2@mail.com");
@@ -133,6 +197,17 @@ public class EventReportJdbcDaoTest {
     }
 
     @Test
+    public void testResolveAlsoWorksOnAReportWithChangesRequested() {
+        final EventReport created = eventReportDao.create(new EventReport(eventId, reporterId, REASON));
+        final long admin = insertUser("admin-resolve-cr@mail.com");
+        eventReportDao.requestChanges(created.getId(), "corregi algo", admin);
+
+        eventReportDao.resolve(created.getId(), ReportStatus.DISMISSED, admin);
+
+        assertEquals(ReportStatus.DISMISSED, eventReportDao.findById(created.getId()).get().getStatus());
+    }
+
+    @Test
     public void testResolveAllPendingForEventResolvesEveryOneOfThem() {
         final long otherReporter = insertUser("otro2@mail.com");
         eventReportDao.create(new EventReport(eventId, reporterId, "uno"));
@@ -142,5 +217,19 @@ public class EventReportJdbcDaoTest {
         eventReportDao.resolveAllPendingForEvent(eventId, ReportStatus.ACTIONED, admin);
 
         assertTrue(eventReportDao.findPending().isEmpty());
+    }
+
+    @Test
+    public void testResolveAllPendingForEventAlsoResolvesOnesWithChangesRequested() {
+        final long otherReporter = insertUser("otro3@mail.com");
+        final EventReport first = eventReportDao.create(new EventReport(eventId, reporterId, "uno"));
+        eventReportDao.create(new EventReport(eventId, otherReporter, "dos"));
+        final long admin = insertUser("admin5@mail.com");
+        eventReportDao.requestChanges(first.getId(), "corregi algo", admin);
+
+        eventReportDao.resolveAllPendingForEvent(eventId, ReportStatus.ACTIONED, admin);
+
+        assertTrue(eventReportDao.findPending().isEmpty());
+        assertTrue(eventReportDao.findChangesRequested().isEmpty());
     }
 }

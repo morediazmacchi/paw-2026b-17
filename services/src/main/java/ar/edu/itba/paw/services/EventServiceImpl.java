@@ -156,6 +156,18 @@ public class EventServiceImpl implements EventService {
         return EventCancelResult.CANCELLED;
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<Event> findFeatured(final int limit) {
+        return eventDao.findFeatured(limit);
+    }
+
+    @Override
+    @Transactional
+    public void setFeatured(final long eventId, final boolean featured) {
+        eventDao.setFeatured(eventId, featured);
+    }
+
     // Mail: solo a los confirmados (son los que tenian un lugar que pierden).
     // Bandeja: tambien a quien estaba en lista de espera o esperando que lo
     // acepten, que si no se enteraria recien al ver el evento. Al rechazado no:

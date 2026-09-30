@@ -91,6 +91,12 @@ public class Event {
     // Motivo que cargo el admin al dar de baja (ver AdminController). Null si
     // el evento nunca fue removido por moderacion.
     private String removedReason;
+    // Un admin lo eligio para el banner de /eventos (ver EventController.eventos()
+    // y AdminController.destacar()). featuredAt ordena el banner (mas reciente
+    // primero) y se limpia al desmarcar: si se vuelve a destacar despues, entra
+    // "de nuevo" al tope, no donde habia quedado la primera vez.
+    private boolean featured;
+    private Date featuredAt;
 
     public Event() {
     }
@@ -170,6 +176,10 @@ public class Event {
     public void setRemovedByAdmin(final boolean removedByAdmin) { this.removedByAdmin = removedByAdmin; }
     public String getRemovedReason() { return removedReason; }
     public void setRemovedReason(final String removedReason) { this.removedReason = removedReason; }
+    public boolean isFeatured() { return featured; }
+    public void setFeatured(final boolean featured) { this.featured = featured; }
+    public Date getFeaturedAt() { return featuredAt; }
+    public void setFeaturedAt(final Date featuredAt) { this.featuredAt = featuredAt; }
 
     // Los dos vienen juntos o ninguno (ver EventController): si falta uno el
     // otro no sirve para nada, mejor no mostrar un pin a medias. "is..." (no

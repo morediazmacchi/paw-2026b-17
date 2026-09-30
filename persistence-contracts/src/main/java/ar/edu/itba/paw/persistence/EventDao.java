@@ -55,4 +55,15 @@ public interface EventDao {
     // Marca el recordatorio como mandado. true solo si ESTA llamada lo marco (si
     // ya estaba marcado devuelve false): asi nunca se manda dos veces.
     boolean markReminderSent(long id, java.util.Date when);
+
+    // Banner de /eventos (ver EventController.eventos()): los que un admin
+    // destaco, mas reciente primero (por featured_at). Mismos filtros de base
+    // que search() (publicos, no cancelados, futuros): un evento destacado que
+    // se cancela o vence deja de aparecer solo, sin que un admin tenga que
+    // acordarse de desmarcarlo.
+    List<Event> findFeatured(int limit);
+
+    // Marca o desmarca un evento para el banner (ver AdminController.destacar()/
+    // quitarDestacado()). Al desmarcar limpia featured_at.
+    void setFeatured(long eventId, boolean featured);
 }

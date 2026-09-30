@@ -1036,6 +1036,85 @@ public class EventJdbcDaoTest {
         assertEquals(1, eventDao.search(criteria).size());
     }
 
+    // ---- findFeatured() / setFeatured() ----
+
+    @Test
+    public void testFindFeaturedReturnsOnlyEventsMarkedAsFeatured() {
+        final long notFeaturedId = eventDao.create(someFutureEvent(categoryId)).getId();
+        final long featuredId = eventDao.create(someFutureEvent(categoryId)).getId();
+        eventDao.setFeatured(featuredId, true);
+
+        final List<Event> featured = eventDao.findFeatured(10);
+
+        assertEquals(1, featured.size());
+        assertEquals(featuredId, featured.get(0).getId());
+        assertTrue(featured.get(0).isFeatured());
+        assertFalse(eventDao.findById(notFeaturedId).get().isFeatured());
+    }
+
+    @Test
+    public void testFindFeaturedOrdersByMostRecentlyFeaturedFirst() throws InterruptedException {
+        final long firstFeaturedId = eventDao.create(someFutureEvent(categoryId)).getId();
+        eventDao.setFeatured(firstFeaturedId, true);
+        // HSQLDB/Postgres truncan now() a milisegundos: sin esto los dos featured_at
+        // podrian empatar y el orden quedaria indefinido.
+        Thread.sleep(5);
+        final long secondFeaturedId = eventDao.create(someFutureEvent(categoryId)).getId();
+        eventDao.setFeatured(secondFeaturedId, true);
+
+        final List<Event> featured = eventDao.findFeatured(10);
+
+        assertEquals(2, featured.size());
+        assertEquals(secondFeaturedId, featured.get(0).getId());
+        assertEquals(firstFeaturedId, featured.get(1).getId());
+    }
+
+    @Test
+    public void testFindFeaturedRespectsTheLimit() {
+        for (int i = 0; i < 3; i++) {
+            final long id = eventDao.create(someFutureEvent(categoryId)).getId();
+            eventDao.setFeatured(id, true);
+        }
+
+        assertEquals(2, eventDao.findFeatured(2).size());
+    }
+
+    @Test
+    public void testFindFeaturedExcludesPrivateCancelledAndPastEvents() {
+        final Event privateEvent = someFutureEvent(categoryId);
+        privateEvent.setVisibility(EventVisibility.PRIVATE);
+        final long privateId = eventDao.create(privateEvent).getId();
+        eventDao.setFeatured(privateId, true);
+
+        final long cancelledId = eventDao.create(someFutureEvent(categoryId)).getId();
+        eventDao.setFeatured(cancelledId, true);
+        eventDao.cancel(cancelledId);
+
+        final Event pastEvent = someEvent(categoryId);
+        pastEvent.setEventDate(new Date(System.currentTimeMillis() - 86_400_000L));
+        final long pastId = eventDao.create(pastEvent).getId();
+        eventDao.setFeatured(pastId, true);
+
+        assertTrue(eventDao.findFeatured(10).isEmpty());
+    }
+
+    @Test
+    public void testSetFeaturedFalseClearsFeaturedAt() {
+        final long id = eventDao.create(someFutureEvent(categoryId)).getId();
+        eventDao.setFeatured(id, true);
+
+        eventDao.setFeatured(id, false);
+
+        final Event found = eventDao.findById(id).orElseThrow(AssertionError::new);
+        assertFalse(found.isFeatured());
+        assertNull(found.getFeaturedAt());
+    }
+
+    private static Event someFutureEvent(final long categoryId) {
+        return new Event(TITLE, "desc", new Date(System.currentTimeMillis() + 86_400_000L), "Av. Corrientes 1234",
+                Barrio.PALERMO, null, new BigDecimal("1500"), 50, CREATOR_EMAIL, Collections.singletonList(categoryId));
+    }
+
     // findAll/findByCreatorId SI tienen que devolver privados: "Mis eventos"
     // (findByCreatorId) es justamente donde el creador los ve y los gestiona.
     @Test

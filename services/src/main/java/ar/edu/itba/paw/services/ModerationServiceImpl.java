@@ -3,6 +3,7 @@ package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventReport;
+import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.ReportStatus;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.persistence.EventReportDao;
@@ -19,13 +20,18 @@ public class ModerationServiceImpl implements ModerationService {
     private final EventReportDao eventReportDao;
     private final EventService eventService;
     private final UserService userService;
+    private final NotificationService notificationService;
+    private final InboxService inboxService;
 
     @Autowired
     public ModerationServiceImpl(final EventReportDao eventReportDao, final EventService eventService,
-                                  final UserService userService) {
+                                  final UserService userService, final NotificationService notificationService,
+                                  final InboxService inboxService) {
         this.eventReportDao = eventReportDao;
         this.eventService = eventService;
         this.userService = userService;
+        this.notificationService = notificationService;
+        this.inboxService = inboxService;
     }
 
     @Override
@@ -53,9 +59,40 @@ public class ModerationServiceImpl implements ModerationService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<EventReport> listChangesRequested() {
+        return eventReportDao.findChangesRequested();
+    }
+
+    @Override
+    @Transactional
+    public ReportResolutionResult requestChanges(final long reportId, final long adminUserId, final String message) {
+        // Solo desde PENDING (no isOpen): no tiene sentido "pedir cambios" de
+        // nuevo sobre un reporte que ya esta esperando una revision, primero
+        // hay que resolver ese pedido (dismiss/removeEvent).
+        final Optional<EventReport> report = eventReportDao.findById(reportId).filter(EventReport::isPending);
+        if (!report.isPresent()) {
+            return ReportResolutionResult.NOT_FOUND;
+        }
+        final Optional<Event> event = eventService.findById(report.get().getEventId());
+        if (!event.isPresent()) {
+            // El evento se borro de otra forma entre medio (no deberia pasar,
+            // son soft-delete): no hay a quien avisarle ni que corregir, se
+            // resuelve directo como si se hubiera actuado.
+            eventReportDao.resolve(reportId, ReportStatus.ACTIONED, adminUserId);
+            return ReportResolutionResult.RESOLVED;
+        }
+        eventReportDao.requestChanges(reportId, message, adminUserId);
+        notificationService.notifyEventChangesRequested(event.get(), message);
+        inboxService.add(event.get().getCreatorEmail(), InboxMessageType.EVENT_CHANGES_REQUESTED,
+                event.get().getId(), null, message);
+        return ReportResolutionResult.RESOLVED;
+    }
+
+    @Override
     @Transactional
     public ReportResolutionResult dismiss(final long reportId, final long adminUserId) {
-        final Optional<EventReport> report = eventReportDao.findById(reportId).filter(EventReport::isPending);
+        final Optional<EventReport> report = eventReportDao.findById(reportId).filter(EventReport::isOpen);
         if (!report.isPresent()) {
             return ReportResolutionResult.NOT_FOUND;
         }
@@ -67,7 +104,7 @@ public class ModerationServiceImpl implements ModerationService {
     @Transactional
     public ReportResolutionResult removeEvent(final long reportId, final long adminUserId,
                                                final boolean suspendOrganizer) {
-        final Optional<EventReport> report = eventReportDao.findById(reportId).filter(EventReport::isPending);
+        final Optional<EventReport> report = eventReportDao.findById(reportId).filter(EventReport::isOpen);
         if (!report.isPresent()) {
             return ReportResolutionResult.NOT_FOUND;
         }

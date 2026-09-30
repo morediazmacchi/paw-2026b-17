@@ -322,20 +322,33 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS suspended BOOLEAN NOT NULL DEFAULT fa
 ALTER TABLE event ADD COLUMN IF NOT EXISTS removed_by_admin BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE event ADD COLUMN IF NOT EXISTS removed_reason VARCHAR(500);
 
+-- Banner destacado de /eventos, curado por un admin (ver EventDao.findFeatured()/
+-- setFeatured(), AdminController.destacar()/quitarDestacado()). featured_at
+-- ordena el banner (mas reciente primero) y se limpia al desmarcar.
+ALTER TABLE event ADD COLUMN IF NOT EXISTS featured BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE event ADD COLUMN IF NOT EXISTS featured_at TIMESTAMP;
+
 -- Reporte de un evento (ver ModerationService): lo puede hacer cualquier
 -- usuario logueado (admins incluidos), y lo revisa despues un admin, que lo
 -- descarta o da de baja el evento (ver AdminController). No se borra nunca:
 -- status distinto de PENDING una vez resuelto es el historial.
 CREATE TABLE IF NOT EXISTS event_report (
-    id                 SERIAL PRIMARY KEY,
-    event_id           INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
-    reporter_user_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    reason             VARCHAR(500) NOT NULL,
-    created_at         TIMESTAMP NOT NULL DEFAULT now(),
-    status             VARCHAR(20) DEFAULT 'PENDING' NOT NULL
-                           CHECK (status IN ('PENDING', 'DISMISSED', 'ACTIONED')),
-    resolved_by        INTEGER REFERENCES users(id),
-    resolved_at        TIMESTAMP
+    id                        SERIAL PRIMARY KEY,
+    event_id                  INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
+    reporter_user_id          INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    reason                    VARCHAR(500) NOT NULL,
+    created_at                TIMESTAMP NOT NULL DEFAULT now(),
+    status                    VARCHAR(20) DEFAULT 'PENDING' NOT NULL
+                                  CHECK (status IN ('PENDING', 'CHANGES_REQUESTED', 'DISMISSED', 'ACTIONED')),
+    resolved_by               INTEGER REFERENCES users(id),
+    resolved_at               TIMESTAMP,
+    -- Pedido de cambios (ver ModerationService.requestChanges()): distinto de
+    -- resolved_by/resolved_at, que son la resolucion FINAL. No es un estado
+    -- final, el reporte sigue abierto (panel de seguimiento) hasta que un
+    -- admin lo revise de nuevo y lo descarte o lo accione.
+    changes_requested_message VARCHAR(1000),
+    changes_requested_at      TIMESTAMP,
+    changes_requested_by      INTEGER REFERENCES users(id)
 );
 
 -- La cola de moderacion siempre se lee "los PENDING, mas viejo primero" (FIFO).

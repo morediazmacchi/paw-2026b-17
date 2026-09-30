@@ -89,4 +89,9 @@ public class EventQuestionJdbcDao implements EventQuestionDao {
                 "UPDATE event_question SET answer_text = ?, answered_at = ? WHERE id = ? AND answer_text IS NULL",
                 answer, new Timestamp(when.getTime()), id) == 1;
     }
+
+    @Override
+    public void delete(final long id) {
+        jdbcTemplate.update("DELETE FROM event_question WHERE id = ?", id);
+    }
 }

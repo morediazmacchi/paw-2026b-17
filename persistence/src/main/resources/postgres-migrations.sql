@@ -141,3 +141,19 @@ WHERE LOWER(u.email) = LOWER(im.recipient_email) AND im.user_id IS NULL;
 -- esta columna (el CREATE TABLE de schema.sql ya no la declara), asi que no
 -- hay nada que migrar en ese lado.
 ALTER TABLE event_invitation DROP COLUMN IF EXISTS token;
+
+-- Panel de seguimiento de reportes (ver ModerationService.requestChanges()):
+-- el admin puede pedirle cambios al creador en vez de descartar el reporte o
+-- dar de baja el evento directo. Mismo motivo que el resto de este archivo
+-- para el CHECK: el Postgres que ya esta corriendo tiene un CHECK sin nombre
+-- ("event_report_status_check", confirmado con \d event_report) que solo
+-- permite 'PENDING'/'DISMISSED'/'ACTIONED'. HSQLDB no tiene este problema: la
+-- tabla nace de cero en cada corrida de tests con el CHECK ya actualizado
+-- (ver schema.sql).
+ALTER TABLE event_report DROP CONSTRAINT IF EXISTS event_report_status_check;
+ALTER TABLE event_report ADD CONSTRAINT event_report_status_check
+    CHECK (status IN ('PENDING', 'CHANGES_REQUESTED', 'DISMISSED', 'ACTIONED'));
+
+ALTER TABLE event_report ADD COLUMN IF NOT EXISTS changes_requested_message VARCHAR(1000);
+ALTER TABLE event_report ADD COLUMN IF NOT EXISTS changes_requested_at TIMESTAMP;
+ALTER TABLE event_report ADD COLUMN IF NOT EXISTS changes_requested_by INTEGER REFERENCES users(id);

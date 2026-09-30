@@ -548,6 +548,28 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Async
     @Override
+    public void notifyEventChangesRequested(final Event event, final String message) {
+        try {
+            final Locale locale = localeForUserId(event.getCreatorId());
+            final Map<String, Object> variables = eventVariables(event, locale);
+            variables.put("personName", displayName(null, event.getCreatorEmail()));
+            variables.put("message", message);
+            // Al editar directo, no al detalle: es lo que la persona tiene que hacer.
+            variables.put("editEventUrl", baseUrl + "/eventos/" + event.getId() + "/editar");
+
+            mailService.send(event.getCreatorEmail(),
+                    "event-changes-requested",
+                    "mail.eventChangesRequested.subject",
+                    new Object[]{ event.getTitle() },
+                    variables,
+                    locale);
+        } catch (final RuntimeException e) {
+            LOGGER.error("Fallo el aviso de cambios pedidos por un admin, evento {}", event.getId(), e);
+        }
+    }
+
+    @Async
+    @Override
     public void notifyUserSuspended(final User user) {
         try {
             final Locale locale = localeFor(user);

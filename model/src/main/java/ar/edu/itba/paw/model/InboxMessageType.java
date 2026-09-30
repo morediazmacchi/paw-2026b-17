@@ -39,6 +39,9 @@ public enum InboxMessageType {
     // ---- Moderacion (ver ModerationService/UserService) ----
     // Un admin dio de baja el evento tras revisar un reporte: le llega al creador.
     EVENT_REMOVED_BY_ADMIN,
+    // Un admin le pidio al creador que corrija algo en el evento (en vez de
+    // darlo de baja directo): le llega al creador con el mensaje del admin.
+    EVENT_CHANGES_REQUESTED,
     // Un admin suspendio la cuenta.
     ACCOUNT_SUSPENDED,
     // Un admin reactivo la cuenta.

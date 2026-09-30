@@ -407,4 +407,20 @@ public class EventServiceImplTest {
         assertEquals(EventCancelResult.ALREADY_CANCELLED, result);
         verify(mockEventDao, never()).removeByAdmin(anyLong(), any());
     }
+
+    // ---- findFeatured() / setFeatured() (banner de /eventos) ----
+
+    @Test
+    public void testFindFeaturedDelegatesToTheDao() {
+        when(mockEventDao.findFeatured(5)).thenReturn(java.util.Collections.singletonList(someEvent()));
+
+        assertEquals(1, eventService.findFeatured(5).size());
+    }
+
+    @Test
+    public void testSetFeaturedDelegatesToTheDao() {
+        eventService.setFeatured(EVENT_ID, true);
+
+        verify(mockEventDao).setFeatured(EVENT_ID, true);
+    }
 }

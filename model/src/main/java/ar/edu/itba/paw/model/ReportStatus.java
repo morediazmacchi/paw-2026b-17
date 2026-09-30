@@ -4,6 +4,10 @@ package ar.edu.itba.paw.model;
 
 public enum ReportStatus {
     PENDING,
+    // El admin le pidio al creador que corrija algo en vez de descartar o dar
+    // de baja directo (ver ModerationService.requestChanges()): no es un
+    // estado final, sigue "abierto" hasta que un admin lo revise de nuevo.
+    CHANGES_REQUESTED,
     DISMISSED,
     ACTIONED
 }

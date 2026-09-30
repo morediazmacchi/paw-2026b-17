@@ -41,4 +41,14 @@ public interface EventService {
      * avisa al creador con el motivo del reporte.
      */
     EventCancelResult removeByAdmin(long eventId, String reason);
+
+    /**
+     * Banner de /eventos (ver EventController.eventos()): los eventos que un
+     * admin destaco, mas reciente primero. Ya vienen filtrados a
+     * publicos/activos/futuros, igual que search().
+     */
+    List<Event> findFeatured(int limit);
+
+    /** Un admin marca o desmarca este evento para el banner (ver AdminController). */
+    void setFeatured(long eventId, boolean featured);
 }

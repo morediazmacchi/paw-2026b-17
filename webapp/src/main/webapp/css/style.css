@@ -313,6 +313,27 @@ a {
     color: #ff8080;
 }
 
+.detail-hero-badge-accent {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-text);
+}
+
+/* Destacar/quitar del banner (ver EventController.eventos()): mismo look que
+   las badges de al lado (categoria, privado), no el boton "grande" de
+   paw:button -- es un <button> de verdad (hace un POST), pero tiene que
+   pertenecer visualmente a esta fila de chips, no verse como una accion aparte.
+   Solo family (no el shorthand "font"): ese resetea tambien size/weight, y
+   pisaria los que ya pone .detail-hero-badge -- por eso se veia gigante. */
+.detail-hero-feature-btn {
+    font-family: inherit;
+    cursor: pointer;
+}
+
+.detail-hero-feature-btn:hover {
+    border-color: var(--accent);
+}
+
 .detail-hero-favorite-btn {
     width: 38px;
     height: 38px;
@@ -732,6 +753,7 @@ input:disabled, select:disabled, textarea:disabled {
     cursor: pointer;
     font-size: 0.9rem;
     font-weight: 600;
+    white-space: nowrap;
 }
 
 .btn-medium {
@@ -2277,8 +2299,138 @@ button.btn-accent {
 .admin-report-actions {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: 8px;
     white-space: normal;
+}
+
+/* Uno de los botones va envuelto en un <form> (submit directo, sin modal) y
+   los demas son <button> sueltos: display:contents saca al <form> del arbol
+   de layout (no genera caja propia), asi su boton de adentro es un flex item
+   directo de .admin-report-actions, identico a los otros dos en todo. */
+.admin-report-actions form {
+    display: contents;
+}
+
+/* ==========================================================================
+   Tablas de admin sin scroll horizontal (usuarios, seguimiento): a diferencia
+   de .attendees-table (reportes, inscriptos), estas NO usan overflow-x --
+   con varias columnas de texto largo, en una pantalla angosta terminaba
+   siendo un scroll horizontal incomodo. table-layout:fixed + wrap reparte
+   las columnas dentro del ancho disponible en vez de desbordarlo, y en
+   telefono (mismo breakpoint que el resto del sitio) se convierte en una
+   lista de tarjetas, una fila por elemento. Estructura generica en
+   .responsive-table(-wrap); cada tabla solo agrega sus anchos de columna
+   (.users-table / .tracking-table mas abajo).
+   ========================================================================== */
+.responsive-table-wrap {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.responsive-table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.responsive-table th, .responsive-table td {
+    text-align: left;
+    padding: 12px 16px;
+    white-space: normal;
+    overflow-wrap: break-word;
+}
+
+.responsive-table thead {
+    background: var(--bg-elevated);
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.responsive-table tbody tr {
+    border-top: 1px solid var(--border);
+}
+
+/* Anchos de columna: uno por tabla, misma cantidad de reglas que de <th>. */
+.users-table th:nth-child(1), .users-table td:nth-child(1) { width: 26%; }
+.users-table th:nth-child(2), .users-table td:nth-child(2) { width: 16%; }
+.users-table th:nth-child(3), .users-table td:nth-child(3) { width: 20%; }
+.users-table th:nth-child(4), .users-table td:nth-child(4) { width: 12%; }
+.users-table th:nth-child(5), .users-table td:nth-child(5) { width: 26%; }
+
+/* .tracking-table: modo tarjeta SIEMPRE, ni siquiera en desktop (a diferencia
+   de .users-table, que solo pasa a tarjeta bajo los 620px). Tiene 7 columnas
+   y dos de texto libre largo (motivo, cambios pedidos): con table-layout:fixed
+   y columnas angostas, el contenido corto (un email) queda con tan poco
+   margen que se pega visualmente al de la columna siguiente -- ilegible. Una
+   tarjeta por reporte, campo debajo de campo, se lee bien a cualquier ancho. */
+.tracking-table-wrap {
+    border: none;
+}
+
+.tracking-table thead {
+    display: none;
+}
+
+.tracking-table, .tracking-table tbody, .tracking-table tr, .tracking-table td {
+    display: block;
+    width: 100% !important;
+}
+
+.tracking-table tbody tr {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    margin-bottom: 12px;
+    padding: 12px 0;
+}
+
+.tracking-table td {
+    border-top: none;
+    padding: 8px 16px;
+}
+
+.tracking-table td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: 2px;
+}
+
+@media (max-width: 620px) {
+    .responsive-table-wrap {
+        border: none;
+    }
+    .responsive-table thead {
+        display: none;
+    }
+    .responsive-table, .responsive-table tbody, .responsive-table tr, .responsive-table td {
+        display: block;
+        width: 100% !important;
+    }
+    .responsive-table tbody tr {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        margin-bottom: 12px;
+        padding: 8px 0;
+    }
+    .responsive-table td {
+        border-top: none;
+        padding: 6px 16px;
+    }
+    /* El nombre de la columna, como en un renglon "clave: valor" (la tabla
+       de verdad, con encabezado arriba, solo tiene sentido en desktop). */
+    .responsive-table td[data-label]::before {
+        content: attr(data-label);
+        display: block;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--text-muted);
+        margin-bottom: 2px;
+    }
 }
 
 /* Selector de fotos (image-picker.js): miniaturas con X debajo del recuadro. */

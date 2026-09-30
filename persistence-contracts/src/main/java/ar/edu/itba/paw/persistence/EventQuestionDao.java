@@ -20,4 +20,9 @@ public interface EventQuestionDao {
     // true solo si ESTA llamada la respondio: si ya tenia respuesta devuelve
     // false y no la pisa (mismo truco que markReminderSent).
     boolean answer(long id, String answer, Date when);
+
+    // Moderacion (ver EventQuestionService.deleteByAdmin()): borrado duro, con
+    // su respuesta si tenia (no hay soft-delete para preguntas, a diferencia
+    // de event/registration). No se puede deshacer.
+    void delete(long id);
 }

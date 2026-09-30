@@ -102,4 +102,34 @@ public class EventQuestionJdbcDaoTest {
         assertTrue(found.isAnswered());
         assertEquals("Si", found.getAnswer());
     }
+
+    @Test
+    public void testDeleteRemovesTheQuestion() {
+        final long id = questionDao.create(new EventQuestion(eventId, userId, "Se puede ir con perros?")).getId();
+
+        questionDao.delete(id);
+
+        assertFalse(questionDao.findById(id).isPresent());
+    }
+
+    @Test
+    public void testDeleteAlsoRemovesAnAnsweredQuestion() {
+        final long id = questionDao.create(new EventQuestion(eventId, userId, "Se puede ir con perros?")).getId();
+        questionDao.answer(id, "Si", new Date());
+
+        questionDao.delete(id);
+
+        assertFalse(questionDao.findById(id).isPresent());
+    }
+
+    @Test
+    public void testDeleteOnlyAffectsThatQuestion() {
+        final long toDelete = questionDao.create(new EventQuestion(eventId, userId, "Primera")).getId();
+        final long toKeep = questionDao.create(new EventQuestion(eventId, userId, "Segunda")).getId();
+
+        questionDao.delete(toDelete);
+
+        assertFalse(questionDao.findById(toDelete).isPresent());
+        assertTrue(questionDao.findById(toKeep).isPresent());
+    }
 }

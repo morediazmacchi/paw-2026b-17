@@ -87,6 +87,12 @@ public class EventQuestionServiceImpl implements EventQuestionService {
                 questionDao.countByEvent(eventId), safePage, PAGE_SIZE);
     }
 
+    @Override
+    @Transactional
+    public void deleteByAdmin(final long questionId) {
+        questionDao.delete(questionId);
+    }
+
     // Para la bandeja del organizador: el nombre, o el mail si no cargo nombre.
     private static String displayName(final String name, final String email) {
         return name == null || name.trim().isEmpty() ? email : name.trim();

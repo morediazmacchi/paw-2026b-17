@@ -21,9 +21,11 @@
 <main class="page">
     <h1><spring:message code="admin.users.heading"/></h1>
     <spring:message code="admin.reports.tabLabel" var="reportsTabLabel"/>
+    <spring:message code="admin.reports.trackingTabLabel" var="trackingTabLabel"/>
     <spring:message code="admin.users.tabLabel" var="usersTabLabel"/>
     <div class="auth-tabs">
         <a class="pill auth-tab" href="<c:url value='/admin/reportes'/>"><c:out value="${reportsTabLabel}"/></a>
+        <a class="pill auth-tab" href="<c:url value='/admin/reportes/seguimiento'/>"><c:out value="${trackingTabLabel}"/></a>
         <span class="pill pill-active auth-tab"><c:out value="${usersTabLabel}"/></span>
     </div>
 
@@ -35,28 +37,34 @@
     <spring:message code="admin.users.reactivateButton" var="reactivateButtonLabel"/>
     <spring:message code="admin.users.promoteButton" var="promoteButtonLabel"/>
     <spring:message code="admin.users.revokeButton" var="revokeButtonLabel"/>
-    <div class="attendees-table-wrap">
-        <table class="attendees-table">
+    <spring:message code="admin.users.emailColumn" var="emailColumnLabel"/>
+    <spring:message code="admin.users.nameColumn" var="nameColumnLabel"/>
+    <spring:message code="admin.users.rolesColumn" var="rolesColumnLabel"/>
+    <spring:message code="admin.users.statusColumn" var="statusColumnLabel"/>
+    <div class="responsive-table-wrap">
+        <table class="responsive-table users-table">
             <thead>
             <tr>
-                <th><spring:message code="admin.users.emailColumn"/></th>
-                <th><spring:message code="admin.users.nameColumn"/></th>
-                <th><spring:message code="admin.users.rolesColumn"/></th>
-                <th><spring:message code="admin.users.statusColumn"/></th>
+                <th><c:out value="${emailColumnLabel}"/></th>
+                <th><c:out value="${nameColumnLabel}"/></th>
+                <th><c:out value="${rolesColumnLabel}"/></th>
+                <th><c:out value="${statusColumnLabel}"/></th>
                 <th></th>
             </tr>
             </thead>
             <tbody>
             <c:forEach var="targetUser" items="${users}">
                 <tr>
-                    <td><c:out value="${targetUser.email}"/></td>
-                    <td><c:out value="${targetUser.name}"/></td>
-                    <td>
-                        <c:forEach var="role" items="${targetUser.roles}">
-                            <span class="pill"><c:out value="${role}"/></span>
-                        </c:forEach>
+                    <td data-label="${emailColumnLabel}"><c:out value="${targetUser.email}"/></td>
+                    <td data-label="${nameColumnLabel}"><c:out value="${targetUser.name}"/></td>
+                    <td data-label="${rolesColumnLabel}">
+                        <div class="pills">
+                            <c:forEach var="role" items="${targetUser.roles}">
+                                <span class="pill"><c:out value="${role}"/></span>
+                            </c:forEach>
+                        </div>
                     </td>
-                    <td>
+                    <td data-label="${statusColumnLabel}">
                         <c:choose>
                             <c:when test="${targetUser.suspended}">
                                 <span class="pill"><spring:message code="admin.users.statusSuspended"/></span>

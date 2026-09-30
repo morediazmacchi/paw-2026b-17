@@ -30,6 +30,10 @@ public class EventReportJdbcDao implements EventReportDao {
         final Integer resolvedBy = rs.getObject("resolved_by", Integer.class);
         report.setResolvedByUserId(resolvedBy == null ? null : resolvedBy.longValue());
         report.setResolvedAt(rs.getTimestamp("resolved_at"));
+        report.setChangesRequestedMessage(rs.getString("changes_requested_message"));
+        report.setChangesRequestedAt(rs.getTimestamp("changes_requested_at"));
+        final Integer changesRequestedBy = rs.getObject("changes_requested_by", Integer.class);
+        report.setChangesRequestedByUserId(changesRequestedBy == null ? null : changesRequestedBy.longValue());
         return report;
     };
 
@@ -71,28 +75,45 @@ public class EventReportJdbcDao implements EventReportDao {
     }
 
     @Override
+    public List<EventReport> findChangesRequested() {
+        return jdbcTemplate.query(
+                "SELECT * FROM event_report WHERE status = ? ORDER BY changes_requested_at ASC",
+                ROW_MAPPER, ReportStatus.CHANGES_REQUESTED.name());
+    }
+
+    @Override
     public boolean existsPendingByEventAndReporter(final long eventId, final long reporterUserId) {
         final Long count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM event_report WHERE event_id = ? AND reporter_user_id = ? AND status = ?",
-                Long.class, eventId, reporterUserId, ReportStatus.PENDING.name());
+                "SELECT COUNT(*) FROM event_report WHERE event_id = ? AND reporter_user_id = ? "
+                        + "AND status IN (?, ?)",
+                Long.class, eventId, reporterUserId, ReportStatus.PENDING.name(), ReportStatus.CHANGES_REQUESTED.name());
         return count != null && count > 0;
+    }
+
+    @Override
+    public void requestChanges(final long reportId, final String message, final long adminUserId) {
+        jdbcTemplate.update(
+                "UPDATE event_report SET status = ?, changes_requested_message = ?, changes_requested_by = ?, "
+                        + "changes_requested_at = ? WHERE id = ? AND status = ?",
+                ReportStatus.CHANGES_REQUESTED.name(), message, adminUserId,
+                new Timestamp(System.currentTimeMillis()), reportId, ReportStatus.PENDING.name());
     }
 
     @Override
     public void resolve(final long reportId, final ReportStatus status, final long resolvedByUserId) {
         jdbcTemplate.update(
                 "UPDATE event_report SET status = ?, resolved_by = ?, resolved_at = ? "
-                        + "WHERE id = ? AND status = ?",
+                        + "WHERE id = ? AND status IN (?, ?)",
                 status.name(), resolvedByUserId, new Timestamp(System.currentTimeMillis()),
-                reportId, ReportStatus.PENDING.name());
+                reportId, ReportStatus.PENDING.name(), ReportStatus.CHANGES_REQUESTED.name());
     }
 
     @Override
     public void resolveAllPendingForEvent(final long eventId, final ReportStatus status, final long resolvedByUserId) {
         jdbcTemplate.update(
                 "UPDATE event_report SET status = ?, resolved_by = ?, resolved_at = ? "
-                        + "WHERE event_id = ? AND status = ?",
+                        + "WHERE event_id = ? AND status IN (?, ?)",
                 status.name(), resolvedByUserId, new Timestamp(System.currentTimeMillis()),
-                eventId, ReportStatus.PENDING.name());
+                eventId, ReportStatus.PENDING.name(), ReportStatus.CHANGES_REQUESTED.name());
     }
 }

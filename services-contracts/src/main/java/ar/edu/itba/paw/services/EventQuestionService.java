@@ -14,4 +14,11 @@ public interface EventQuestionService {
 
     /** Las preguntas del evento, mas nuevas primero. */
     PageResult<EventQuestion> findPage(long eventId, int page);
+
+    /**
+     * Moderacion (ver AdminController): un admin elimina la pregunta (con su
+     * respuesta si tenia). No hay validacion de ownership -- es una accion de
+     * admin, no del organizador -- y no se puede deshacer.
+     */
+    void deleteByAdmin(long questionId);
 }

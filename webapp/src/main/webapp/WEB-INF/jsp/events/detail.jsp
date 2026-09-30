@@ -83,6 +83,29 @@
                 </button>
             </form>
         </sec:authorize>
+        <%-- Banner de /eventos (ver EventController.eventos()): un admin elige
+             que eventos van ahi. La accion vive bajo /admin/** (ver
+             AdminController), que ya exige ROLE_ADMIN. --%>
+        <sec:authorize access="hasRole('ADMIN')">
+            <c:choose>
+                <c:when test="${event.featured}">
+                    <spring:message code="admin.events.unfeatureButton" var="unfeatureLabel"/>
+                    <form action="<c:url value='/admin/eventos/${event.id}/destacar/quitar'/>" method="post">
+                        <button type="submit" class="detail-hero-badge detail-hero-badge-accent detail-hero-feature-btn">
+                            <c:out value="${unfeatureLabel}"/>
+                        </button>
+                    </form>
+                </c:when>
+                <c:otherwise>
+                    <spring:message code="admin.events.featureButton" var="featureLabel"/>
+                    <form action="<c:url value='/admin/eventos/${event.id}/destacar'/>" method="post">
+                        <button type="submit" class="detail-hero-badge detail-hero-feature-btn">
+                            <c:out value="${featureLabel}"/>
+                        </button>
+                    </form>
+                </c:otherwise>
+            </c:choose>
+        </sec:authorize>
     </div>
     <h1 class="detail-hero-title"><c:out value="${event.title}"/></h1>
 </section>
@@ -377,8 +400,48 @@
                                     <p class="creator-rating-empty"><spring:message code="event.questions.unanswered"/></p>
                                 </c:otherwise>
                             </c:choose>
+                            <%-- Moderacion: borra la pregunta (y su respuesta, si tenia).
+                                 La accion vive bajo /admin/** (ver AdminController), que
+                                 ya exige ROLE_ADMIN. --%>
+                            <sec:authorize access="hasRole('ADMIN')">
+                                <spring:message code="admin.questions.deleteButton" var="deleteQuestionLabel"/>
+                                <button type="button" class="btn-link" data-open-modal="deleteQuestionModal-${question.id}">
+                                    <c:out value="${deleteQuestionLabel}"/>
+                                </button>
+                            </sec:authorize>
                         </div>
                     </c:forEach>
+
+                    <sec:authorize access="hasRole('ADMIN')">
+                        <spring:message code="event.detail.closeButton" var="deleteQuestionCloseLabel"/>
+                        <spring:message code="admin.questions.deleteCancelButton" var="deleteQuestionCancelLabel"/>
+                        <spring:message code="admin.questions.deleteConfirmButton" var="deleteQuestionConfirmLabel"/>
+                        <c:forEach var="question" items="${questions}">
+                            <div class="modal-overlay" id="deleteQuestionModal-${question.id}" hidden>
+                                <div class="modal-box">
+                                    <div class="modal-header">
+                                        <h2><spring:message code="admin.questions.deleteModalTitle"/></h2>
+                                        <button type="button" class="modal-close" data-close-modal aria-label="${deleteQuestionCloseLabel}">
+                                            <paw:icon name="close"/>
+                                        </button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <p><c:out value="${question.text}"/></p>
+                                        <p><spring:message code="admin.questions.deleteModalBody"/></p>
+                                        <form action="<c:url value='/admin/preguntas/${question.id}/eliminar'/>" method="post">
+                                            <input type="hidden" name="eventId" value="${event.id}"/>
+                                            <div class="modal-confirm-actions">
+                                                <button type="button" class="btn btn-medium" data-close-modal>
+                                                    <c:out value="${deleteQuestionCancelLabel}"/>
+                                                </button>
+                                                <paw:button text="${deleteQuestionConfirmLabel}" cssClass="btn-danger"/>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </c:forEach>
+                    </sec:authorize>
 
                     <c:if test="${questionsTotalPages > 1}">
                         <nav class="pager">

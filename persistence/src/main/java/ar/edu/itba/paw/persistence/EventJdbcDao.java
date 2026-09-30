@@ -117,6 +117,8 @@ public class EventJdbcDao implements EventDao {
         event.setLocationManual(rs.getBoolean("location_manual"));
         event.setRemovedByAdmin(rs.getBoolean("removed_by_admin"));
         event.setRemovedReason(rs.getString("removed_reason"));
+        event.setFeatured(rs.getBoolean("featured"));
+        event.setFeaturedAt(rs.getTimestamp("featured_at"));
         return event;
     };
 
@@ -274,6 +276,26 @@ public class EventJdbcDao implements EventDao {
         jdbcTemplate.update(
                 "UPDATE event SET cancelled_at = now(), removed_by_admin = true, removed_reason = ? WHERE id = ?",
                 reason, id);
+    }
+
+    @Override
+    public List<Event> findFeatured(final int limit) {
+        // Mismas tres reglas que buildWhereClause() para search(): publico, no
+        // cancelado, no pasado. Un destacado que se cancela o vence deja de
+        // aparecer solo en el banner, sin que haga falta desmarcarlo a mano.
+        final List<Event> events = jdbcTemplate.query(
+                SELECT_BASE + " WHERE e.featured = true AND e.event_date >= ? AND e.visibility = ? "
+                        + "AND e.cancelled_at IS NULL ORDER BY e.featured_at DESC LIMIT ?",
+                ROW_MAPPER, new Timestamp(System.currentTimeMillis()), EventVisibility.PUBLIC.name(), limit);
+        attachRelated(events);
+        return events;
+    }
+
+    @Override
+    public void setFeatured(final long eventId, final boolean featured) {
+        jdbcTemplate.update(
+                "UPDATE event SET featured = ?, featured_at = ? WHERE id = ?",
+                featured, featured ? new Timestamp(System.currentTimeMillis()) : null, eventId);
     }
 
     @Override

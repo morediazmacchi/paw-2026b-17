@@ -199,10 +199,10 @@ public class EventController {
                 || (pocosCupos != null && !pocosCupos.isEmpty())
                 || (agotados != null && !agotados.isEmpty());
 
-        // Banner destacado: los proximos eventos por fecha, sin los filtros de arriba.
-        final EventSearchCriteria featuredCriteria = new EventSearchCriteria();
-        featuredCriteria.setPageSize(FEATURED_COUNT);
-        final List<Event> featured = eventService.search(featuredCriteria).getContent();
+        // Banner destacado: los que un admin eligio (ver AdminController.destacar()),
+        // mas reciente primero. Antes eran "los proximos eventos por fecha" fijo;
+        // ahora es curado a mano, sin los filtros de arriba.
+        final List<Event> featured = eventService.findFeatured(FEATURED_COUNT);
 
         final ModelAndView mav = new ModelAndView("events/list");
         mav.addObject("events", result.getContent());

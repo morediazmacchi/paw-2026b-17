@@ -2,6 +2,7 @@ package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventReport;
+import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.ReportStatus;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.persistence.EventReportDao;
@@ -30,12 +31,19 @@ public class ModerationServiceImplTest {
     private static final long ADMIN_ID = 5;
     private static final String REASON = "Contenido inapropiado";
 
+    private static final String CREATOR_EMAIL = "creador@mail.com";
+    private static final String CHANGES_MESSAGE = "La direccion no coincide con el barrio elegido";
+
     @Mock
     private EventReportDao mockEventReportDao;
     @Mock
     private EventService mockEventService;
     @Mock
     private UserService mockUserService;
+    @Mock
+    private NotificationService mockNotificationService;
+    @Mock
+    private InboxService mockInboxService;
 
     @InjectMocks
     private ModerationServiceImpl moderationService;
@@ -50,7 +58,14 @@ public class ModerationServiceImplTest {
         final Event event = new Event();
         event.setId(EVENT_ID);
         event.setCreatorId(CREATOR_ID);
+        event.setCreatorEmail(CREATOR_EMAIL);
         return event;
+    }
+
+    private static EventReport someChangesRequestedReport() {
+        final EventReport report = somePendingReport();
+        report.setStatus(ReportStatus.CHANGES_REQUESTED);
+        return report;
     }
 
     private static EventReport somePendingReport() {
@@ -92,11 +107,79 @@ public class ModerationServiceImplTest {
         verify(mockEventReportDao, never()).create(any());
     }
 
+    // ---- requestChanges() ----
+
+    @Test
+    public void testRequestChangesMovesThePendingReportToChangesRequested() {
+        when(mockEventReportDao.findById(REPORT_ID)).thenReturn(Optional.of(somePendingReport()));
+        when(mockEventService.findById(EVENT_ID)).thenReturn(Optional.of(someEvent()));
+
+        final ReportResolutionResult result = moderationService.requestChanges(REPORT_ID, ADMIN_ID, CHANGES_MESSAGE);
+
+        assertEquals(ReportResolutionResult.RESOLVED, result);
+        verify(mockEventReportDao).requestChanges(REPORT_ID, CHANGES_MESSAGE, ADMIN_ID);
+    }
+
+    @Test
+    public void testRequestChangesNotifiesTheCreatorByMailAndInbox() {
+        when(mockEventReportDao.findById(REPORT_ID)).thenReturn(Optional.of(somePendingReport()));
+        final Event event = someEvent();
+        when(mockEventService.findById(EVENT_ID)).thenReturn(Optional.of(event));
+
+        moderationService.requestChanges(REPORT_ID, ADMIN_ID, CHANGES_MESSAGE);
+
+        verify(mockNotificationService).notifyEventChangesRequested(event, CHANGES_MESSAGE);
+        verify(mockInboxService).add(CREATOR_EMAIL, InboxMessageType.EVENT_CHANGES_REQUESTED, EVENT_ID, null,
+                CHANGES_MESSAGE);
+    }
+
+    @Test
+    public void testRequestChangesWhenTheReportDoesNotExistReturnsNotFound() {
+        when(mockEventReportDao.findById(REPORT_ID)).thenReturn(Optional.empty());
+
+        final ReportResolutionResult result = moderationService.requestChanges(REPORT_ID, ADMIN_ID, CHANGES_MESSAGE);
+
+        assertEquals(ReportResolutionResult.NOT_FOUND, result);
+        verify(mockEventReportDao, never()).requestChanges(eq(REPORT_ID), any(), eq(ADMIN_ID));
+    }
+
+    @Test
+    public void testRequestChangesWhenAlreadyHasChangesRequestedReturnsNotFound() {
+        // No se puede "pedir cambios" dos veces sin resolver el primer pedido.
+        when(mockEventReportDao.findById(REPORT_ID)).thenReturn(Optional.of(someChangesRequestedReport()));
+
+        final ReportResolutionResult result = moderationService.requestChanges(REPORT_ID, ADMIN_ID, CHANGES_MESSAGE);
+
+        assertEquals(ReportResolutionResult.NOT_FOUND, result);
+        verify(mockEventReportDao, never()).requestChanges(eq(REPORT_ID), any(), eq(ADMIN_ID));
+    }
+
+    // ---- listChangesRequested() ----
+
+    @Test
+    public void testListChangesRequestedDelegatesToTheDao() {
+        when(mockEventReportDao.findChangesRequested())
+                .thenReturn(java.util.Collections.singletonList(someChangesRequestedReport()));
+
+        assertEquals(1, moderationService.listChangesRequested().size());
+    }
+
     // ---- dismiss() ----
 
     @Test
     public void testDismissResolvesAPendingReportAsDismissed() {
         when(mockEventReportDao.findById(REPORT_ID)).thenReturn(Optional.of(somePendingReport()));
+
+        final ReportResolutionResult result = moderationService.dismiss(REPORT_ID, ADMIN_ID);
+
+        assertEquals(ReportResolutionResult.RESOLVED, result);
+        verify(mockEventReportDao).resolve(REPORT_ID, ReportStatus.DISMISSED, ADMIN_ID);
+    }
+
+    @Test
+    public void testDismissAlsoResolvesAReportWithChangesRequested() {
+        // El creador ya corrigio: el admin descarta el pedido de cambios.
+        when(mockEventReportDao.findById(REPORT_ID)).thenReturn(Optional.of(someChangesRequestedReport()));
 
         final ReportResolutionResult result = moderationService.dismiss(REPORT_ID, ADMIN_ID);
 
@@ -139,6 +222,19 @@ public class ModerationServiceImplTest {
         verify(mockEventReportDao).resolve(REPORT_ID, ReportStatus.ACTIONED, ADMIN_ID);
         verify(mockEventReportDao).resolveAllPendingForEvent(EVENT_ID, ReportStatus.ACTIONED, ADMIN_ID);
         verify(mockUserService, never()).suspend(CREATOR_ID);
+    }
+
+    @Test
+    public void testRemoveEventAlsoRemovesAReportWithChangesRequested() {
+        // El creador NO corrigio: el admin da de baja aunque ya le habian pedido cambios.
+        when(mockEventReportDao.findById(REPORT_ID)).thenReturn(Optional.of(someChangesRequestedReport()));
+        when(mockEventService.findById(EVENT_ID)).thenReturn(Optional.of(someEvent()));
+
+        final ReportResolutionResult result = moderationService.removeEvent(REPORT_ID, ADMIN_ID, false);
+
+        assertEquals(ReportResolutionResult.RESOLVED, result);
+        verify(mockEventService).removeByAdmin(EVENT_ID, REASON);
+        verify(mockEventReportDao).resolve(REPORT_ID, ReportStatus.ACTIONED, ADMIN_ID);
     }
 
     @Test

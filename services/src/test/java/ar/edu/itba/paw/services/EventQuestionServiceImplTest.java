@@ -163,4 +163,13 @@ public class EventQuestionServiceImplTest {
 
         verify(mockQuestionDao, never()).answer(anyLong(), anyString(), any());
     }
+
+    // ---- deleteByAdmin() (moderacion) ----
+
+    @Test
+    public void testDeleteByAdminDelegatesToTheDao() {
+        questionService.deleteByAdmin(QUESTION_ID);
+
+        verify(mockQuestionDao).delete(QUESTION_ID);
+    }
 }

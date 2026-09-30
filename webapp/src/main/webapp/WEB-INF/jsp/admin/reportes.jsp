@@ -22,21 +22,30 @@
 <main class="page">
     <h1><spring:message code="admin.reports.heading"/></h1>
     <spring:message code="admin.reports.tabLabel" var="reportsTabLabel"/>
+    <spring:message code="admin.reports.trackingTabLabel" var="trackingTabLabel"/>
     <spring:message code="admin.users.tabLabel" var="usersTabLabel"/>
     <div class="auth-tabs">
         <span class="pill pill-active auth-tab"><c:out value="${reportsTabLabel}"/></span>
+        <a class="pill auth-tab" href="<c:url value='/admin/reportes/seguimiento'/>"><c:out value="${trackingTabLabel}"/></a>
         <a class="pill auth-tab" href="<c:url value='/admin/usuarios'/>"><c:out value="${usersTabLabel}"/></a>
     </div>
+
+        <c:if test="${not empty adminReportError}">
+            <p class="alert"><spring:message code="admin.reports.requestChangesInvalid"/></p>
+        </c:if>
 
         <c:choose>
             <c:when test="${empty reports}">
                 <p class="empty-state"><spring:message code="admin.reports.empty"/></p>
             </c:when>
             <c:otherwise>
+                <spring:message code="admin.reports.viewEventButton" var="viewEventButtonLabel"/>
                 <spring:message code="admin.reports.dismissButton" var="dismissButtonLabel"/>
                 <spring:message code="admin.reports.removeButton" var="removeButtonLabel"/>
                 <spring:message code="admin.reports.removeConfirmBackButton" var="removeConfirmBackButtonLabel"/>
                 <spring:message code="admin.reports.removeConfirmSubmitButton" var="removeConfirmSubmitButtonLabel"/>
+                <spring:message code="admin.reports.requestChangesButton" var="requestChangesButtonLabel"/>
+                <spring:message code="admin.reports.requestChangesSubmitButton" var="requestChangesSubmitButtonLabel"/>
                 <spring:message code="event.detail.closeButton" var="closeButtonLabel"/>
                 <div class="attendees-table-wrap">
                     <table class="attendees-table">
@@ -66,9 +75,15 @@
                                 <td><c:out value="${report.reason}"/></td>
                                 <td><fmt:formatDate value="${report.createdAt}" pattern="dd/MM/yyyy HH:mm"/></td>
                                 <td class="admin-report-actions">
+                                    <c:if test="${not empty reportedEvent}">
+                                        <a class="btn btn-medium" href="<c:url value='/eventos/${reportedEvent.id}'/>"><c:out value="${viewEventButtonLabel}"/></a>
+                                    </c:if>
                                     <form action="<c:url value='/admin/reportes/${report.id}/descartar'/>" method="post">
                                         <paw:button text="${dismissButtonLabel}"/>
                                     </form>
+                                    <button type="button" class="btn btn-medium" data-open-modal="changesModal-${report.id}">
+                                        <c:out value="${requestChangesButtonLabel}"/>
+                                    </button>
                                     <button type="button" class="btn btn-medium btn-danger" data-open-modal="removeModal-${report.id}">
                                         <c:out value="${removeButtonLabel}"/>
                                     </button>
@@ -80,6 +95,32 @@
                 </div>
 
                 <c:forEach var="report" items="${reports}">
+                    <div class="modal-overlay" id="changesModal-${report.id}" hidden>
+                        <div class="modal-box">
+                            <div class="modal-header">
+                                <h2><spring:message code="admin.reports.requestChangesTitle"/></h2>
+                                <button type="button" class="modal-close" data-close-modal aria-label="${closeButtonLabel}">
+                                    <paw:icon name="close"/>
+                                </button>
+                            </div>
+                            <div class="modal-body">
+                                <p><c:out value="${eventsById[report.eventId].title}"/></p>
+                                <p><spring:message code="admin.reports.requestChangesBody"/></p>
+                                <form action="<c:url value='/admin/reportes/${report.id}/pedir-cambios'/>" method="post" novalidate="novalidate">
+                                    <div class="form-group">
+                                        <label for="changes-message-${report.id}"><spring:message code="admin.reports.requestChangesLabel"/></label>
+                                        <textarea id="changes-message-${report.id}" name="mensaje" maxlength="1000" required="required"></textarea>
+                                    </div>
+                                    <div class="modal-confirm-actions">
+                                        <button type="button" class="btn btn-medium" data-close-modal>
+                                            <c:out value="${removeConfirmBackButtonLabel}"/>
+                                        </button>
+                                        <paw:button text="${requestChangesSubmitButtonLabel}"/>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
                     <div class="modal-overlay" id="removeModal-${report.id}" hidden>
                         <div class="modal-box">
                             <div class="modal-header">
