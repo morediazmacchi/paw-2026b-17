@@ -1,5 +1,6 @@
 package ar.edu.itba.paw.services;
 
+import ar.edu.itba.paw.dto.EventDTO;
 import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventCategoryInfo;
@@ -66,6 +67,14 @@ public class EventServiceImplTest {
         return event;
     }
 
+    private static EventDTO someDto() {
+        final EventDTO dto = new EventDTO();
+        dto.setCategories(Collections.singletonList(new EventCategoryInfo(CATEGORY_ID)));
+        dto.setCreatorEmail(CREATOR_EMAIL);
+        dto.setCreatorId(CREATOR_ID);
+        return dto;
+    }
+
     // notifyEventUpdated()/notifyEventCancelled() son void: se captura cada
     // registration con la que se los llamo (con doAnswer() sobre el stub,
     // nunca con Mockito.verify()) para comprobar despues a quienes se avisa.
@@ -102,7 +111,7 @@ public class EventServiceImplTest {
         when(mockEventDao.create(any(Event.class))).thenReturn(someEvent());
 
         // Act
-        final Event result = eventService.create(new Event());
+        final Event result = eventService.create(new EventDTO());
 
         // Assert
         assertEquals(EVENT_ID, result.getId());
@@ -115,7 +124,7 @@ public class EventServiceImplTest {
                 .thenThrow(new DataIntegrityViolationException("fk violation on category_id"));
 
         // Act
-        eventService.create(someEvent());
+        eventService.create(someDto());
 
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
@@ -130,7 +139,7 @@ public class EventServiceImplTest {
         when(mockUserService.findById(CREATOR_ID)).thenReturn(Optional.empty());
 
         // Act
-        final Event result = eventService.create(someEvent());
+        final Event result = eventService.create(someDto());
 
         // Assert
         assertNotNull(result);

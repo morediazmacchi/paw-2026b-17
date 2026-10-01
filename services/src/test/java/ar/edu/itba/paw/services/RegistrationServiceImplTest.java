@@ -807,16 +807,16 @@ public class RegistrationServiceImplTest {
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(10)));
 
         // Act
-        final boolean result = registrationService.cancel(5, USER_ID);
+        final UnregisterResult result = registrationService.cancel(5, USER_ID);
 
         // Assert
-        assertTrue(result);
+        assertEquals(UnregisterResult.CANCELLED, result);
     }
 
     // Un rechazado / revocado no puede "darse de baja": si borrara su fila se saltearia
     // el rechazo (y podria volver a anotarse).
     @Test
-    public void testCancelReturnsFalseAndKeepsTheRowWhenTheRegistrationWasRejected() {
+    public void testCancelReturnsRejectedAndKeepsTheRowWhenTheRegistrationWasRejected() {
         // Arrange
         final Registration registration = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, RegistrationStatus.REJECTED);
         registration.setId(5);
@@ -825,10 +825,10 @@ public class RegistrationServiceImplTest {
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(10)));
 
         // Act
-        final boolean result = registrationService.cancel(5, USER_ID);
+        final UnregisterResult result = registrationService.cancel(5, USER_ID);
 
         // Assert
-        assertFalse(result);
+        assertEquals(UnregisterResult.REJECTED, result);
     }
 
     // Orden de locks: el evento se bloquea ANTES de tocar (borrar) la inscripcion.
@@ -863,19 +863,19 @@ public class RegistrationServiceImplTest {
     }
 
     @Test
-    public void testCancelReturnsFalseWhenTheRegistrationDoesNotExist() {
+    public void testCancelReturnsNotFoundWhenTheRegistrationDoesNotExist() {
         // Arrange
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.empty());
 
         // Act
-        final boolean result = registrationService.cancel(5, USER_ID);
+        final UnregisterResult result = registrationService.cancel(5, USER_ID);
 
         // Assert
-        assertFalse(result);
+        assertEquals(UnregisterResult.NOT_FOUND, result);
     }
 
     @Test
-    public void testCancelReturnsFalseWhenTheRegistrationBelongsToSomeoneElse() {
+    public void testCancelReturnsNotFoundWhenTheRegistrationBelongsToSomeoneElse() {
         // Arrange
         final Registration registration = new Registration(EVENT_ID, "otro@mail.com", NAME, RegistrationStatus.CONFIRMED);
         registration.setId(5);
@@ -883,10 +883,10 @@ public class RegistrationServiceImplTest {
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
 
         // Act
-        final boolean result = registrationService.cancel(5, USER_ID);
+        final UnregisterResult result = registrationService.cancel(5, USER_ID);
 
         // Assert
-        assertFalse(result);
+        assertEquals(UnregisterResult.NOT_FOUND, result);
     }
 
     // ---- findByEventAndUserId() ----
