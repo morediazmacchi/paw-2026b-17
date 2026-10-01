@@ -2,9 +2,14 @@
 // contraseña"), validados con JSR-303.
 package ar.edu.itba.paw.webapp.form;
 
+import ar.edu.itba.paw.webapp.validation.PasswordsMatch;
+
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.Size;
 
+// @PasswordsMatch con los nombres default (password/confirmarPassword): no
+// hace falta pasarle los campos, ya se llaman asi.
+@PasswordsMatch
 public class ResetPasswordForm {
 
     // Viaja oculto en el form: identifica el link, no se re-tipea a mano.

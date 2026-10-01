@@ -1,5 +1,6 @@
 package ar.edu.itba.paw.webapp.controller;
 
+import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.UserRegistrationResult;
 import ar.edu.itba.paw.services.UserService;
 import ar.edu.itba.paw.webapp.form.UserForm;
@@ -10,6 +11,7 @@ import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -41,7 +43,11 @@ public class RegisterController {
     // redirect: a donde volver cuando termine (viene del login, por ejemplo desde
     // un evento privado al que la invitaron). Viaja como hidden en el form y
     // despues dentro del link del mail de confirmacion, hasta el login final.
-    public ModelAndView registerForm(@RequestParam(value = "redirect", required = false) final String redirect) {
+    public ModelAndView registerForm(@RequestParam(value = "redirect", required = false) final String redirect,
+                                      @ModelAttribute("currentUser") final User currentUser) {
+        if (currentUser != null) {
+            return new ModelAndView("redirect:" + (SafeRedirect.isSafe(redirect) ? redirect : "/eventos"));
+        }
         final ModelAndView mav = new ModelAndView("auth/register");
         mav.addObject("userForm", new UserForm());
         if (SafeRedirect.isSafe(redirect)) {
@@ -52,8 +58,12 @@ public class RegisterController {
 
     @RequestMapping(value = "/registro", method = RequestMethod.POST)
     public ModelAndView register(@Valid final UserForm form, final BindingResult errors,
-                                 @RequestParam(value = "redirect", required = false) final String redirect) {
+                                 @RequestParam(value = "redirect", required = false) final String redirect,
+                                 @ModelAttribute("currentUser") final User currentUser) {
         final String safeRedirect = SafeRedirect.isSafe(redirect) ? redirect : null;
+        if (currentUser != null) {
+            return new ModelAndView("redirect:" + (safeRedirect == null ? "/eventos" : safeRedirect));
+        }
         if (errors.hasErrors()) {
             return registerFormWithErrors(form, errors, safeRedirect);
         }

@@ -81,9 +81,6 @@ public class PasswordResetController {
 
     @RequestMapping(value = "/login/restablecer", method = RequestMethod.POST)
     public ModelAndView resetPassword(@Valid final ResetPasswordForm form, final BindingResult errors) {
-        if (!errors.hasErrors() && !form.getPassword().equals(form.getConfirmarPassword())) {
-            errors.rejectValue("confirmarPassword", "PasswordMismatch", "Las contraseñas no coinciden");
-        }
         if (errors.hasErrors()) {
             return resetPasswordFormWithErrors(form, errors);
         }
