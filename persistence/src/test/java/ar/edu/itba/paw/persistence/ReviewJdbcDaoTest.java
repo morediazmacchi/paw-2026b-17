@@ -1,7 +1,6 @@
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.Review;
-import ar.edu.itba.paw.model.User;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -36,9 +35,6 @@ public class ReviewJdbcDaoTest {
     @Autowired
     private ReviewDao reviewDao;
 
-    @Autowired
-    private UserDao userDao;
-
     private JdbcTemplate jdbcTemplate;
     private long userId;
     private long creatorId;
@@ -47,9 +43,14 @@ public class ReviewJdbcDaoTest {
     @Before
     public void setUp() {
         jdbcTemplate = new JdbcTemplate(ds);
-        userId = userDao.create(new User("asistente@mail.com", "Ana")).getId();
-        creatorId = userDao.create(new User(CREATOR_EMAIL, "Creador")).getId();
+        userId = insertUser("asistente@mail.com", "Ana");
+        creatorId = insertUser(CREATOR_EMAIL, "Creador");
         eventId = insertEvent("Recital", CREATOR_EMAIL, creatorId);
+    }
+
+    private long insertUser(final String email, final String name) {
+        jdbcTemplate.update("INSERT INTO users (email, name) VALUES (?, ?)", email, name);
+        return jdbcTemplate.queryForObject("SELECT id FROM users WHERE email = ?", Long.class, email);
     }
 
     // El evento no necesita categoria para estos tests (son de reseñas, no de
@@ -64,21 +65,81 @@ public class ReviewJdbcDaoTest {
                 "SELECT id FROM event WHERE title = ? AND creator_email = ?", Long.class, title, creatorEmail);
     }
 
-    // ---- create() + findByEventAndUser() ----
+    private long insertReview(final long eventId, final long userId, final int rating, final String comment) {
+        jdbcTemplate.update(
+                "INSERT INTO review (event_id, user_id, rating, comment) VALUES (?, ?, ?, ?)",
+                eventId, userId, rating, comment);
+        return jdbcTemplate.queryForObject("SELECT id FROM review ORDER BY id DESC LIMIT 1", Long.class);
+    }
+
+    // ---- create() ----
 
     @Test
     public void testCreateAssignsAGeneratedId() {
-        final Review created = reviewDao.create(new Review(eventId, userId, 5, "Buenisimo"));
+        // Arrange
+        final Review toCreate = new Review(eventId, userId, 5, "Buenisimo");
 
+        // Act
+        final Review created = reviewDao.create(toCreate);
+
+        // Assert
         assertTrue(created.getId() > 0);
     }
 
     @Test
-    public void testCreateAndFindByEventAndUserReturnTheSameReview() {
-        reviewDao.create(new Review(eventId, userId, 4, "Muy bueno"));
+    public void testCreateInsertsTheReviewRow() {
+        // Arrange
+        final Review toCreate = new Review(eventId, userId, 4, "Muy bueno");
 
+        // Act
+        final Review created = reviewDao.create(toCreate);
+
+        // Assert
+        final java.util.Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT rating, comment FROM review WHERE id = ?", created.getId());
+        assertEquals(4, row.get("rating"));
+        assertEquals("Muy bueno", row.get("comment"));
+    }
+
+    @Test
+    public void testCreateAllowsZeroRating() {
+        // Arrange
+        // "de 0 a 5 estrellas": 0 es un valor valido, no "sin calificar".
+        final Review toCreate = new Review(eventId, userId, 0, "Malisimo");
+
+        // Act
+        final Review created = reviewDao.create(toCreate);
+
+        // Assert
+        assertTrue(created.getId() > 0);
+        final Integer rating = jdbcTemplate.queryForObject(
+                "SELECT rating FROM review WHERE id = ?", Integer.class, created.getId());
+        assertEquals(Integer.valueOf(0), rating);
+    }
+
+    @Test(expected = DataAccessException.class)
+    public void testCreateTwiceForTheSameEventAndUserThrowsDataAccessException() {
+        // Arrange
+        // UNIQUE(event_id, user_id): una sola reseña por persona y evento.
+        insertReview(eventId, userId, 5, "Genial");
+
+        // Act
+        reviewDao.create(new Review(eventId, userId, 1, "Cambie de opinion"));
+
+        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
+    }
+
+    // ---- findByEventAndUser() ----
+
+    @Test
+    public void testFindByEventAndUserReturnsTheStoredReview() {
+        // Arrange
+        insertReview(eventId, userId, 4, "Muy bueno");
+
+        // Act
         final Optional<Review> found = reviewDao.findByEventAndUser(eventId, userId);
 
+        // Assert
         assertTrue(found.isPresent());
         assertEquals(4, found.get().getRating());
         assertEquals("Muy bueno", found.get().getComment());
@@ -86,39 +147,30 @@ public class ReviewJdbcDaoTest {
 
     @Test
     public void testFindByEventAndUserReturnsEmptyWhenNeverReviewed() {
+        // Arrange: no se inserta ninguna reseña.
+
+        // Act
         final Optional<Review> found = reviewDao.findByEventAndUser(eventId, userId);
 
+        // Assert
         assertFalse(found.isPresent());
-    }
-
-    @Test(expected = DataAccessException.class)
-    public void testCreateTwiceForTheSameEventAndUserThrowsDataAccessException() {
-        // UNIQUE(event_id, user_id): una sola reseña por persona y evento.
-        reviewDao.create(new Review(eventId, userId, 5, "Genial"));
-        reviewDao.create(new Review(eventId, userId, 1, "Cambie de opinion"));
-    }
-
-    @Test
-    public void testCreateAllowsZeroRating() {
-        // "de 0 a 5 estrellas": 0 es un valor valido, no "sin calificar".
-        final Review created = reviewDao.create(new Review(eventId, userId, 0, "Malisimo"));
-
-        assertEquals(0, reviewDao.findByEventAndUser(eventId, userId).get().getRating());
-        assertTrue(created.getId() > 0);
     }
 
     // ---- findByCreatorId() ----
 
     @Test
     public void testFindByCreatorIdReturnsReviewsAcrossAllTheirEvents() {
+        // Arrange
         final long otherEventId = insertEvent("Torneo", CREATOR_EMAIL, creatorId);
         final long unrelatedEventId = insertEvent("Muestra", "otro@mail.com", null);
-        reviewDao.create(new Review(eventId, userId, 5, "Buenisimo"));
-        reviewDao.create(new Review(otherEventId, userId, 3, "Regular"));
-        reviewDao.create(new Review(unrelatedEventId, userId, 1, "No cuenta"));
+        insertReview(eventId, userId, 5, "Buenisimo");
+        insertReview(otherEventId, userId, 3, "Regular");
+        insertReview(unrelatedEventId, userId, 1, "No cuenta");
 
+        // Act
         final List<Review> found = reviewDao.findByCreatorId(creatorId);
 
+        // Assert
         assertEquals(2, found.size());
         assertTrue(found.stream().anyMatch(r -> r.getEventId() == eventId));
         assertTrue(found.stream().anyMatch(r -> r.getEventId() == otherEventId));
@@ -126,24 +178,41 @@ public class ReviewJdbcDaoTest {
 
     @Test
     public void testFindByCreatorIdReturnsEmptyWhenNoReviews() {
-        assertTrue(reviewDao.findByCreatorId(creatorId).isEmpty());
+        // Arrange: no se inserta ninguna reseña.
+
+        // Act
+        final List<Review> found = reviewDao.findByCreatorId(creatorId);
+
+        // Assert
+        assertTrue(found.isEmpty());
     }
 
     // ---- findAverageRatingByCreatorId() ----
 
     @Test
     public void testAverageRatingJoinsAllTheCreatorsEventsAndIgnoresOthers() {
+        // Arrange
         final long otherEventId = insertEvent("Torneo", CREATOR_EMAIL, creatorId);
         final long unrelatedEventId = insertEvent("Muestra", "otro@mail.com", null);
-        reviewDao.create(new Review(eventId, userId, 5, "Buenisimo"));
-        reviewDao.create(new Review(otherEventId, userId, 4, "Bien"));
-        reviewDao.create(new Review(unrelatedEventId, userId, 1, "No cuenta"));
+        insertReview(eventId, userId, 5, "Buenisimo");
+        insertReview(otherEventId, userId, 4, "Bien");
+        insertReview(unrelatedEventId, userId, 1, "No cuenta");
 
-        assertEquals(4.5, reviewDao.findAverageRatingByCreatorId(creatorId), 0.0001);
+        // Act
+        final double average = reviewDao.findAverageRatingByCreatorId(creatorId);
+
+        // Assert
+        assertEquals(4.5, average, 0.0001);
     }
 
     @Test
     public void testAverageRatingIsZeroWhenNoReviews() {
-        assertEquals(0, reviewDao.findAverageRatingByCreatorId(creatorId), 0.0001);
+        // Arrange: no se inserta ninguna reseña.
+
+        // Act
+        final double average = reviewDao.findAverageRatingByCreatorId(creatorId);
+
+        // Assert
+        assertEquals(0, average, 0.0001);
     }
 }

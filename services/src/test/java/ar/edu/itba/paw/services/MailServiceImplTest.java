@@ -13,10 +13,10 @@ import javax.mail.Session;
 import javax.mail.internet.MimeMessage;
 import java.lang.reflect.Field;
 
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @RunWith(MockitoJUnitRunner.class)
@@ -45,26 +45,36 @@ public class MailServiceImplTest {
 
     @Test
     public void testSendAsksTheMailSenderToSendTheMessage() {
+        // Arrange
+        // send() es void: el unico comportamiento observable es que el colaborador
+        // haya sido invocado. Se captura con doAnswer() sobre el stub (no con
+        // Mockito.verify()) y se comprueba con un assert comun.
         when(mockMailSender.createMimeMessage()).thenReturn(new MimeMessage((Session) null));
+        final boolean[] sent = {false};
+        doAnswer(invocation -> {
+            sent[0] = true;
+            return null;
+        }).when(mockMailSender).send(any(MimeMessage.class));
 
+        // Act
         mailService.send(TO, SUBJECT, HTML_BODY);
 
-        // send() es void: la unica forma de comprobar que efectivamente se intento
-        // mandar el mail es verificar la interaccion con el colaborador. No hay
-        // ningun valor de retorno ni estado observable de otra forma (a diferencia
-        // de los tests de EventService/RegistrationService, que evitan verify()
-        // porque ahi si hay un resultado que revisar).
-        verify(mockMailSender, times(1)).send(any(MimeMessage.class));
+        // Assert
+        assertTrue(sent[0]);
     }
 
     @Test
     public void testSendDoesNotPropagateTheExceptionWhenTheMailSenderFails() {
+        // Arrange
         when(mockMailSender.createMimeMessage()).thenReturn(new MimeMessage((Session) null));
         doThrow(new MailSendException("SMTP caido")).when(mockMailSender).send(any(MimeMessage.class));
 
+        // Act
         // Si send() propagara la excepcion, este test fallaria solo: JUnit reporta
         // como error cualquier excepcion no capturada durante un @Test. Que el test
         // termine "en verde" ya prueba que MailServiceImpl.send() se la trago.
         mailService.send(TO, SUBJECT, HTML_BODY);
+
+        // Assert: que no se haya propagado la excepcion ES el assert (ver comentario arriba).
     }
 }

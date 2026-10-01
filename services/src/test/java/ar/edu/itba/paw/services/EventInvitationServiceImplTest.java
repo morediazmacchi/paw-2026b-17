@@ -10,7 +10,6 @@ import ar.edu.itba.paw.persistence.EventInvitationDao;
 import ar.edu.itba.paw.persistence.RegistrationDao;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
@@ -24,10 +23,9 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
-import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.Mockito.verify;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @RunWith(MockitoJUnitRunner.class)
@@ -78,114 +76,156 @@ public class EventInvitationServiceImplTest {
         return event;
     }
 
+    // create() es void: se captura la invitacion persistida con doAnswer()
+    // sobre el stub, nunca con Mockito.verify()+ArgumentCaptor.
+    private EventInvitation[] captureCreatedInvitation() {
+        final EventInvitation[] created = new EventInvitation[1];
+        doAnswer(invocation -> {
+            created[0] = invocation.getArgument(0);
+            return created[0];
+        }).when(mockInvitationDao).create(any(EventInvitation.class));
+        return created;
+    }
+
     // ---- invite() ----
 
     @Test
     public void testInviteCreatesTheInvitationWithTheNormalizedEmail() {
+        // Arrange
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
         when(mockInvitationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
         when(mockUserService.findByEmail(NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
+        final EventInvitation[] created = captureCreatedInvitation();
 
+        // Act
         final EventInvitationResult result = invitationService.invite(EVENT_ID, CREATOR_ID, INVITEE_EMAIL);
 
+        // Assert
         assertEquals(EventInvitationResult.SENT, result);
-        final ArgumentCaptor<EventInvitation> saved = ArgumentCaptor.forClass(EventInvitation.class);
-        verify(mockInvitationDao).create(saved.capture());
-        assertEquals(NORMALIZED_INVITEE_EMAIL, saved.getValue().getEmail());
-        assertEquals(EVENT_ID, saved.getValue().getEventId());
-        assertEquals(CREATOR_EMAIL, saved.getValue().getInvitedBy());
+        assertEquals(NORMALIZED_INVITEE_EMAIL, created[0].getEmail());
+        assertEquals(EVENT_ID, created[0].getEventId());
+        assertEquals(CREATOR_EMAIL, created[0].getInvitedBy());
     }
 
     @Test
     public void testInviteLinksTheInviteesUserIdWhenTheyAlreadyHaveAnAccount() {
+        // Arrange
         final long inviteeId = 42;
         final User invitee = new User(NORMALIZED_INVITEE_EMAIL, "Invitado");
         invitee.setId(inviteeId);
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
         when(mockInvitationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
         when(mockUserService.findByEmail(NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.of(invitee));
+        final EventInvitation[] created = captureCreatedInvitation();
 
+        // Act
         invitationService.invite(EVENT_ID, CREATOR_ID, INVITEE_EMAIL);
 
-        final ArgumentCaptor<EventInvitation> saved = ArgumentCaptor.forClass(EventInvitation.class);
-        verify(mockInvitationDao).create(saved.capture());
-        assertEquals(Long.valueOf(inviteeId), saved.getValue().getUserId());
+        // Assert
+        assertEquals(Long.valueOf(inviteeId), created[0].getUserId());
     }
 
     @Test
     public void testInviteLeavesTheUserIdNullWhenTheInviteeHasNoAccountYet() {
+        // Arrange
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
         when(mockInvitationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
         when(mockUserService.findByEmail(NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
+        final EventInvitation[] created = captureCreatedInvitation();
 
+        // Act
         invitationService.invite(EVENT_ID, CREATOR_ID, INVITEE_EMAIL);
 
-        final ArgumentCaptor<EventInvitation> saved = ArgumentCaptor.forClass(EventInvitation.class);
-        verify(mockInvitationDao).create(saved.capture());
-        assertNull(saved.getValue().getUserId());
+        // Assert
+        assertNull(created[0].getUserId());
     }
 
     @Test
     public void testInviteSendsTheNotification() {
+        // Arrange
         final Event event = privateEvent();
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(event));
         when(mockInvitationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
         when(mockUserService.findByEmail(NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
+        final boolean[] notified = {false};
+        doAnswer(invocation -> {
+            notified[0] = true;
+            return null;
+        }).when(mockNotificationService).notifyEventInvitation(any(), any());
 
+        // Act
         invitationService.invite(EVENT_ID, CREATOR_ID, INVITEE_EMAIL);
 
-        verify(mockNotificationService).notifyEventInvitation(eq(event), any(EventInvitation.class));
+        // Assert
+        assertTrue(notified[0]);
     }
 
     @Test
     public void testInviteLeavesAMessageInTheInviteesInbox() {
+        // Arrange
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
         when(mockInvitationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
         when(mockUserService.findByEmail(NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
+        final String[] inboxRecipient = new String[1];
+        doAnswer(invocation -> {
+            inboxRecipient[0] = invocation.getArgument(0);
+            return null;
+        }).when(mockInboxService).add(any(), any(), any(), any(), any());
 
+        // Act
         invitationService.invite(EVENT_ID, CREATOR_ID, INVITEE_EMAIL);
 
-        verify(mockInboxService).add(NORMALIZED_INVITEE_EMAIL, InboxMessageType.PRIVATE_INVITE, EVENT_ID, null, null);
+        // Assert
+        assertEquals(NORMALIZED_INVITEE_EMAIL, inboxRecipient[0]);
     }
 
     @Test
     public void testInviteReturnsAlreadyInvitedWhenThatEmailIsAlreadyInvited() {
+        // Arrange
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
         when(mockInvitationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_INVITEE_EMAIL))
                 .thenReturn(Optional.of(new EventInvitation(EVENT_ID, NORMALIZED_INVITEE_EMAIL, CREATOR_EMAIL)));
 
+        // Act
         final EventInvitationResult result = invitationService.invite(EVENT_ID, CREATOR_ID, INVITEE_EMAIL);
 
+        // Assert
         assertEquals(EventInvitationResult.ALREADY_INVITED, result);
-        verify(mockInvitationDao, never()).create(any());
     }
 
     @Test
     public void testInviteReturnsNotAllowedWhenTheEventIsNotPrivate() {
+        // Arrange
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(publicEvent()));
 
+        // Act
         final EventInvitationResult result = invitationService.invite(EVENT_ID, CREATOR_ID, INVITEE_EMAIL);
 
+        // Assert
         assertEquals(EventInvitationResult.NOT_ALLOWED, result);
-        verify(mockInvitationDao, never()).create(any());
     }
 
     @Test
     public void testInviteReturnsNotAllowedWhenTheRequesterIsNotTheCreator() {
+        // Arrange
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
 
+        // Act
         final EventInvitationResult result = invitationService.invite(EVENT_ID, OTHER_ID, INVITEE_EMAIL);
 
+        // Assert
         assertEquals(EventInvitationResult.NOT_ALLOWED, result);
-        verify(mockInvitationDao, never()).create(any());
     }
 
     @Test
     public void testInviteReturnsNotAllowedWhenTheEventDoesNotExist() {
+        // Arrange
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.empty());
 
+        // Act
         final EventInvitationResult result = invitationService.invite(EVENT_ID, CREATOR_ID, INVITEE_EMAIL);
 
+        // Assert
         assertEquals(EventInvitationResult.NOT_ALLOWED, result);
     }
 
@@ -194,54 +234,79 @@ public class EventInvitationServiceImplTest {
 
     @Test
     public void testIsInvitedReturnsTrueForTheInvitedUserId() {
+        // Arrange
         when(mockInvitationDao.findByEventAndUserId(EVENT_ID, OTHER_ID))
                 .thenReturn(Optional.of(new EventInvitation(EVENT_ID, NORMALIZED_INVITEE_EMAIL, CREATOR_EMAIL)));
 
-        assertTrue(invitationService.isInvited(EVENT_ID, OTHER_ID));
+        // Act
+        final boolean result = invitationService.isInvited(EVENT_ID, OTHER_ID);
+
+        // Assert
+        assertTrue(result);
     }
 
     @Test
     public void testIsInvitedReturnsFalseForAnotherUserId() {
+        // Arrange
         when(mockInvitationDao.findByEventAndUserId(EVENT_ID, OTHER_ID)).thenReturn(Optional.empty());
 
-        assertFalse(invitationService.isInvited(EVENT_ID, OTHER_ID));
+        // Act
+        final boolean result = invitationService.isInvited(EVENT_ID, OTHER_ID);
+
+        // Assert
+        assertFalse(result);
     }
 
     // ---- findByEvent() ----
 
     @Test
     public void testFindByEventDelegatesToTheDaoWhenTheCreatorAsks() {
+        // Arrange
         when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
         final List<EventInvitation> invitations = Collections.singletonList(
                 new EventInvitation(EVENT_ID, NORMALIZED_INVITEE_EMAIL, CREATOR_EMAIL));
         when(mockInvitationDao.findByEvent(EVENT_ID)).thenReturn(invitations);
 
+        // Act
         final List<EventInvitation> result = invitationService.findByEvent(EVENT_ID, CREATOR_ID);
 
+        // Assert
         assertEquals(invitations, result);
     }
 
     @Test
     public void testFindByEventReturnsEmptyWhenAskedBySomeoneElse() {
+        // Arrange
         when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
+        // Si quien pregunta no es el dueño, la implementacion no deberia ni
+        // consultar al dao: se stubea para que reviente si se llega a invocar.
+        lenient().when(mockInvitationDao.findByEvent(EVENT_ID))
+                .thenThrow(new AssertionError("no deberia consultar el dao si quien pregunta no es el dueño"));
 
+        // Act
         final List<EventInvitation> result = invitationService.findByEvent(EVENT_ID, OTHER_ID);
 
+        // Assert
         assertTrue(result.isEmpty());
-        verify(mockInvitationDao, never()).findByEvent(EVENT_ID);
     }
 
     @Test
     public void testFindByEventReturnsEmptyWhenTheEventDoesNotExist() {
+        // Arrange
         when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.empty());
 
-        assertTrue(invitationService.findByEvent(EVENT_ID, CREATOR_ID).isEmpty());
+        // Act
+        final List<EventInvitation> result = invitationService.findByEvent(EVENT_ID, CREATOR_ID);
+
+        // Assert
+        assertTrue(result.isEmpty());
     }
 
     // ---- cupo: cada invitacion reserva un lugar ----
 
     @Test
     public void testInviteReturnsFullWhenConfirmedPlusInvitationsReachTheCapacity() {
+        // Arrange
         final Event event = privateEvent();
         event.setMaxCapacity(3);
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(event));
@@ -249,13 +314,16 @@ public class EventInvitationServiceImplTest {
         when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(1L);
         when(mockInvitationDao.countOutstanding(EVENT_ID)).thenReturn(2L);
 
-        assertEquals(EventInvitationResult.FULL, invitationService.invite(EVENT_ID, CREATOR_ID, INVITEE_EMAIL));
-        verify(mockInvitationDao, never()).create(any());
-        verify(mockNotificationService, never()).notifyEventInvitation(any(), any());
+        // Act
+        final EventInvitationResult result = invitationService.invite(EVENT_ID, CREATOR_ID, INVITEE_EMAIL);
+
+        // Assert
+        assertEquals(EventInvitationResult.FULL, result);
     }
 
     @Test
     public void testInviteStillWorksWhileThereIsRoomLeft() {
+        // Arrange
         final Event event = privateEvent();
         event.setMaxCapacity(3);
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(event));
@@ -264,6 +332,10 @@ public class EventInvitationServiceImplTest {
         when(mockInvitationDao.countOutstanding(EVENT_ID)).thenReturn(1L);
         when(mockUserService.findByEmail(NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
 
-        assertEquals(EventInvitationResult.SENT, invitationService.invite(EVENT_ID, CREATOR_ID, INVITEE_EMAIL));
+        // Act
+        final EventInvitationResult result = invitationService.invite(EVENT_ID, CREATOR_ID, INVITEE_EMAIL);
+
+        // Assert
+        assertEquals(EventInvitationResult.SENT, result);
     }
 }

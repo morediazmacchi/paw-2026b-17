@@ -45,12 +45,15 @@ public class CategoryJdbcDaoTest {
 
     @Test
     public void testFindAllReturnsTheCategoriesOrderedByName() {
+        // Arrange
         // A proposito insertadas al reves del orden alfabetico esperado.
         insertCategory("Musica");
         insertCategory("Deportes");
 
+        // Act
         final List<Category> result = categoryDao.findAll();
 
+        // Assert
         assertEquals(2, result.size());
         assertEquals("Deportes", result.get(0).getName());
         assertEquals("Musica", result.get(1).getName());
@@ -58,25 +61,36 @@ public class CategoryJdbcDaoTest {
 
     @Test
     public void testFindAllReturnsAnEmptyListWhenThereAreNoCategories() {
+        // Arrange: no se inserta ninguna categoria.
+
+        // Act
         final List<Category> result = categoryDao.findAll();
 
+        // Assert
         assertTrue(result.isEmpty());
     }
 
     @Test
     public void testFindByIdReturnsThePresentCategory() {
+        // Arrange
         final long id = insertCategory("Musica");
 
+        // Act
         final Optional<Category> result = categoryDao.findById(id);
 
+        // Assert
         assertTrue(result.isPresent());
         assertEquals("Musica", result.get().getName());
     }
 
     @Test
     public void testFindByIdReturnsEmptyWhenTheCategoryDoesNotExist() {
+        // Arrange: no se inserta ninguna categoria con ese id.
+
+        // Act
         final Optional<Category> result = categoryDao.findById(-1);
 
+        // Assert
         assertFalse(result.isPresent());
     }
 }

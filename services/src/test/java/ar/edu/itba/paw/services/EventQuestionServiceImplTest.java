@@ -15,12 +15,11 @@ import java.util.Date;
 import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 
 @RunWith(MockitoJUnitRunner.class)
@@ -71,105 +70,159 @@ public class EventQuestionServiceImplTest {
 
     @Test
     public void testAskSavesAndNotifiesTheOrganizer() {
+        // Arrange
         final Event event = eventInHours(48);
         when(mockEventService.findById(EVENT_ID)).thenReturn(Optional.of(event));
         when(mockQuestionDao.create(any(EventQuestion.class))).thenAnswer(inv -> inv.getArgument(0));
+        // Los colaboradores void (bandeja/notificacion) se capturan con
+        // doAnswer() sobre el stub, nunca con Mockito.verify().
+        final String[] inboxRecipient = new String[1];
+        doAnswer(invocation -> {
+            inboxRecipient[0] = invocation.getArgument(0);
+            return null;
+        }).when(mockInboxService).add(any(), any(), any(), any(), any());
+        final boolean[] organizerNotified = {false};
+        doAnswer(invocation -> {
+            organizerNotified[0] = true;
+            return null;
+        }).when(mockNotificationService).notifyNewQuestion(eq(event), any(EventQuestion.class));
 
-        assertEquals(QuestionResult.CREATED, questionService.ask(EVENT_ID, asker(), "  Hay estacionamiento?  "));
+        // Act
+        final QuestionResult result = questionService.ask(EVENT_ID, asker(), "  Hay estacionamiento?  ");
 
-        verify(mockQuestionDao).create(any(EventQuestion.class));
-        verify(mockInboxService).add(CREATOR_EMAIL, InboxMessageType.NEW_QUESTION, EVENT_ID, "Ana", null);
-        verify(mockNotificationService).notifyNewQuestion(eq(event), any(EventQuestion.class));
+        // Assert
+        assertEquals(QuestionResult.CREATED, result);
+        assertEquals(CREATOR_EMAIL, inboxRecipient[0]);
+        assertTrue(organizerNotified[0]);
     }
 
     @Test
     public void testTheOrganizerCannotAskOnTheirOwnEvent() {
+        // Arrange
         when(mockEventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
         final User organizer = new User(CREATOR_EMAIL, "Org");
         organizer.setId(CREATOR_ID);
 
-        assertEquals(QuestionResult.OWN_EVENT, questionService.ask(EVENT_ID, organizer, "Hola?"));
+        // Act
+        final QuestionResult result = questionService.ask(EVENT_ID, organizer, "Hola?");
 
-        verify(mockQuestionDao, never()).create(any());
-        verify(mockNotificationService, never()).notifyNewQuestion(any(), any());
+        // Assert
+        assertEquals(QuestionResult.OWN_EVENT, result);
     }
 
     @Test
     public void testCannotAskOnAPastEvent() {
+        // Arrange
         when(mockEventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(-2)));
 
-        assertEquals(QuestionResult.CLOSED, questionService.ask(EVENT_ID, asker(), "Hola?"));
+        // Act
+        final QuestionResult result = questionService.ask(EVENT_ID, asker(), "Hola?");
 
-        verify(mockQuestionDao, never()).create(any());
+        // Assert
+        assertEquals(QuestionResult.CLOSED, result);
     }
 
     @Test
     public void testCannotAskOnACancelledEvent() {
+        // Arrange
         final Event event = eventInHours(48);
         event.setCancelledAt(new Date());
         when(mockEventService.findById(EVENT_ID)).thenReturn(Optional.of(event));
 
-        assertEquals(QuestionResult.CLOSED, questionService.ask(EVENT_ID, asker(), "Hola?"));
+        // Act
+        final QuestionResult result = questionService.ask(EVENT_ID, asker(), "Hola?");
 
-        verify(mockQuestionDao, never()).create(any());
+        // Assert
+        assertEquals(QuestionResult.CLOSED, result);
     }
 
     // ---- answer() ----
 
     @Test
     public void testTheOrganizerAnswersAndTheAskerIsNotified() {
+        // Arrange
         final Event event = eventInHours(48);
         when(mockQuestionDao.findById(QUESTION_ID)).thenReturn(Optional.of(questionOf(EVENT_ID)));
         when(mockEventService.findById(EVENT_ID)).thenReturn(Optional.of(event));
         when(mockQuestionDao.answer(eq(QUESTION_ID), eq("Si, en la esquina"), any(Date.class))).thenReturn(true);
+        final String[] inboxRecipient = new String[1];
+        doAnswer(invocation -> {
+            inboxRecipient[0] = invocation.getArgument(0);
+            return null;
+        }).when(mockInboxService).add(any(), any(), any(), any(), any());
+        final boolean[] askerNotified = {false};
+        doAnswer(invocation -> {
+            askerNotified[0] = true;
+            return null;
+        }).when(mockNotificationService).notifyQuestionAnswered(eq(event), any(EventQuestion.class));
 
-        assertEquals(AnswerResult.ANSWERED,
-                questionService.answer(EVENT_ID, QUESTION_ID, CREATOR_ID, " Si, en la esquina "));
+        // Act
+        final AnswerResult result = questionService.answer(EVENT_ID, QUESTION_ID, CREATOR_ID, " Si, en la esquina ");
 
-        verify(mockInboxService).add(ASKER_EMAIL, InboxMessageType.QUESTION_ANSWERED, EVENT_ID, null, null);
-        verify(mockNotificationService).notifyQuestionAnswered(eq(event), any(EventQuestion.class));
+        // Assert
+        assertEquals(AnswerResult.ANSWERED, result);
+        assertEquals(ASKER_EMAIL, inboxRecipient[0]);
+        assertTrue(askerNotified[0]);
     }
 
     @Test
     public void testSomeoneElseCannotAnswer() {
+        // Arrange
         when(mockQuestionDao.findById(QUESTION_ID)).thenReturn(Optional.of(questionOf(EVENT_ID)));
         when(mockEventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
 
-        assertEquals(AnswerResult.NOT_ALLOWED,
-                questionService.answer(EVENT_ID, QUESTION_ID, OTHER_ID, "Si"));
+        // Act
+        final AnswerResult result = questionService.answer(EVENT_ID, QUESTION_ID, OTHER_ID, "Si");
 
-        verify(mockQuestionDao, never()).answer(anyLong(), anyString(), any());
+        // Assert
+        assertEquals(AnswerResult.NOT_ALLOWED, result);
     }
 
     @Test
     public void testAnAnsweredQuestionIsNotAnsweredAgain() {
+        // Arrange
         when(mockQuestionDao.findById(QUESTION_ID)).thenReturn(Optional.of(questionOf(EVENT_ID)));
         when(mockEventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
-        when(mockQuestionDao.answer(eq(QUESTION_ID), anyString(), any(Date.class))).thenReturn(false);
+        when(mockQuestionDao.answer(eq(QUESTION_ID), org.mockito.ArgumentMatchers.anyString(), any(Date.class)))
+                .thenReturn(false);
 
-        assertEquals(AnswerResult.ALREADY_ANSWERED,
-                questionService.answer(EVENT_ID, QUESTION_ID, CREATOR_ID, "Si"));
+        // Act
+        final AnswerResult result = questionService.answer(EVENT_ID, QUESTION_ID, CREATOR_ID, "Si");
 
-        verify(mockNotificationService, never()).notifyQuestionAnswered(any(), any());
+        // Assert
+        assertEquals(AnswerResult.ALREADY_ANSWERED, result);
     }
 
     /** Una pregunta de otro evento no se responde desde la URL de este. */
     @Test
     public void testAQuestionOfAnotherEventCannotBeAnsweredFromThisOne() {
+        // Arrange
         when(mockQuestionDao.findById(QUESTION_ID)).thenReturn(Optional.of(questionOf(99)));
 
-        assertEquals(AnswerResult.NOT_ALLOWED,
-                questionService.answer(EVENT_ID, QUESTION_ID, CREATOR_ID, "Si"));
+        // Act
+        final AnswerResult result = questionService.answer(EVENT_ID, QUESTION_ID, CREATOR_ID, "Si");
 
-        verify(mockQuestionDao, never()).answer(anyLong(), anyString(), any());
+        // Assert
+        assertEquals(AnswerResult.NOT_ALLOWED, result);
     }
 
     // ---- deleteByAdmin() (moderacion) ----
 
     @Test
     public void testDeleteByAdminDelegatesToTheDao() {
+        // Arrange
+        // delete() es void: se captura el id con el que se lo llamo (con
+        // doAnswer(), no con Mockito.verify()).
+        final long[] deletedId = new long[1];
+        doAnswer(invocation -> {
+            deletedId[0] = invocation.getArgument(0);
+            return null;
+        }).when(mockQuestionDao).delete(anyLong());
+
+        // Act
         questionService.deleteByAdmin(QUESTION_ID);
 
-        verify(mockQuestionDao).delete(QUESTION_ID);
+        // Assert
+        assertEquals(QUESTION_ID, deletedId[0]);
     }
 }

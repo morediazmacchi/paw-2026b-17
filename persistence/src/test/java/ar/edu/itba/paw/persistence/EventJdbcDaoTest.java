@@ -15,6 +15,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.Rollback;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.springframework.test.jdbc.JdbcTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.sql.DataSource;
@@ -23,7 +24,9 @@ import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -33,6 +36,10 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+// Unidad 5 - Unit Testing: eventDao (el objeto bajo test) solo se toca en el
+// Act. Arrange/Assert son siempre SQL directo (jdbcTemplate/JdbcTestUtils),
+// nunca otro metodo de eventDao -- ni siquiera findById() para comprobar un
+// create(): eso probaria DOS metodos en un solo test.
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes = TestConfig.class)
 @Transactional
@@ -43,6 +50,7 @@ public class EventJdbcDaoTest {
     private static final String OTHER_CATEGORY_NAME = "Deportes";
     private static final String TITLE = "Recital en el bajo";
     private static final String CREATOR_EMAIL = "creador@mail.com";
+    private static final long HORA = 60L * 60 * 1000;
 
     @Autowired
     private DataSource ds;
@@ -61,6 +69,8 @@ public class EventJdbcDaoTest {
         creatorId = insertUser(CREATOR_EMAIL);
     }
 
+    // ---- helpers de arrange/assert (SQL directo, nunca eventDao) ----
+
     private long insertCategory(final String name) {
         jdbcTemplate.update("INSERT INTO category (name) VALUES (?)", name);
         return jdbcTemplate.queryForObject("SELECT id FROM category WHERE name = ?", Long.class, name);
@@ -71,554 +81,52 @@ public class EventJdbcDaoTest {
         return jdbcTemplate.queryForObject("SELECT id FROM users WHERE email = ?", Long.class, email);
     }
 
-    private void insertReview(final long eventId, final long userId, final int rating) {
-        jdbcTemplate.update("INSERT INTO review (event_id, user_id, rating) VALUES (?, ?, ?)",
-                eventId, userId, rating);
-    }
-
     private long insertImage() {
-        jdbcTemplate.update(
-                "INSERT INTO image (data, content_type) VALUES (?, ?)",
-                new byte[] {1, 2, 3}, "image/png");
+        jdbcTemplate.update("INSERT INTO image (data, content_type) VALUES (?, ?)", new byte[] {1, 2, 3}, "image/png");
         return jdbcTemplate.queryForObject("SELECT id FROM image ORDER BY id DESC LIMIT 1", Long.class);
     }
 
-    private static Event someEvent(final long categoryId) {
-        return new Event(TITLE, "Una noche a pura guitarra", new Date(), "Av. Corrientes 1234",
-                Barrio.PALERMO, null, new BigDecimal("1500"), 50, CREATOR_EMAIL, Collections.singletonList(categoryId));
+    private static Map<String, Object> cols(final Object... kv) {
+        final Map<String, Object> map = new LinkedHashMap<>();
+        for (int i = 0; i < kv.length; i += 2) {
+            map.put((String) kv[i], kv[i + 1]);
+        }
+        return map;
     }
 
-    // ---- create() + findById() ----
-
-    @Test
-    public void testCreateAssignsAGeneratedId() {
-        final Event created = eventDao.create(someEvent(categoryId));
-
-        assertTrue(created.getId() > 0);
+    // Insert de evento por SQL directo, con defaults razonables (futuro,
+    // publico) pisables por "overrides". Asi cada Arrange solo escribe las
+    // columnas que le importan a ESE test.
+    private long insertEvent(final Map<String, Object> overrides) {
+        final Map<String, Object> row = cols(
+                "title", TITLE,
+                "event_date", new Timestamp(System.currentTimeMillis() + 86_400_000L),
+                "address", "Av. Corrientes 1234",
+                "creator_email", CREATOR_EMAIL,
+                "visibility", EventVisibility.PUBLIC.name());
+        row.putAll(overrides);
+        final String columnList = String.join(", ", row.keySet());
+        final String placeholders = row.keySet().stream().map(k -> "?").collect(Collectors.joining(", "));
+        jdbcTemplate.update("INSERT INTO event (" + columnList + ") VALUES (" + placeholders + ")", row.values().toArray());
+        return jdbcTemplate.queryForObject("SELECT id FROM event ORDER BY id DESC LIMIT 1", Long.class);
     }
 
-    @Test
-    public void testCreateAndFindByIdReturnTheSameEvent() {
-        final Event created = eventDao.create(someEvent(categoryId));
-
-        final Optional<Event> found = eventDao.findById(created.getId());
-
-        assertTrue(found.isPresent());
-        assertEquals(TITLE, found.get().getTitle());
-        assertEquals(Barrio.PALERMO, found.get().getNeighborhood());
-        assertEquals(0, new BigDecimal("1500").compareTo(found.get().getPrice()));
-        assertEquals(1, found.get().getCategories().size());
-        assertEquals(CATEGORY_NAME, found.get().getCategories().get(0).getCategoryName());
+    private long insertEvent() {
+        return insertEvent(cols());
     }
 
-    @Test
-    public void testFindByIdReturnsEmptyWhenTheEventDoesNotExist() {
-        final Optional<Event> found = eventDao.findById(-1);
-
-        assertFalse(found.isPresent());
+    private void insertEventCategory(final long eventId, final long categoryId, final String extraInfo) {
+        jdbcTemplate.update("INSERT INTO event_category (event_id, category_id, extra_info) VALUES (?, ?, ?)",
+                eventId, categoryId, extraInfo);
     }
 
-    @Test
-    public void testCreateDefaultsRequiresApprovalToFalse() {
-        final Event created = eventDao.create(someEvent(categoryId));
-
-        assertFalse(eventDao.findById(created.getId()).get().isRequiresApproval());
+    private void insertEventImage(final long eventId, final long imageId) {
+        jdbcTemplate.update("INSERT INTO event_image (event_id, image_id) VALUES (?, ?)", eventId, imageId);
     }
-
-    @Test
-    public void testCreateAndFindByIdPersistRequiresApprovalWhenSetToTrue() {
-        final Event event = someEvent(categoryId);
-        event.setRequiresApproval(true);
-
-        final Event created = eventDao.create(event);
-
-        assertTrue(eventDao.findById(created.getId()).get().isRequiresApproval());
-    }
-
-    @Test(expected = DataAccessException.class)
-    public void testCreateWithNonexistentCategoryThrowsDataAccessException() {
-        eventDao.create(someEvent(categoryId + 1000));
-    }
-
-    // ---- create()/update(): varias categorias ----
-
-    @Test
-    public void testCreateAndFindByIdPersistsSeveralCategories() {
-        final long otherCategoryId = insertCategory(OTHER_CATEGORY_NAME);
-        final Event event = someEvent(categoryId);
-        event.setCategories(Arrays.asList(new EventCategoryInfo(categoryId), new EventCategoryInfo(otherCategoryId)));
-
-        final Event created = eventDao.create(event);
-
-        final List<String> categoryNames = eventDao.findById(created.getId()).get().getCategories().stream()
-                .map(EventCategoryInfo::getCategoryName).collect(Collectors.toList());
-        assertEquals(2, categoryNames.size());
-        assertTrue(categoryNames.contains(CATEGORY_NAME));
-        assertTrue(categoryNames.contains(OTHER_CATEGORY_NAME));
-    }
-
-    @Test
-    public void testCreateAndFindByIdPersistsExtraInfoPerCategory() {
-        final Event event = someEvent(categoryId);
-        event.setCategories(Collections.singletonList(new EventCategoryInfo(categoryId, "Toca una banda tributo")));
-
-        final Event created = eventDao.create(event);
-
-        final List<EventCategoryInfo> found = eventDao.findById(created.getId()).get().getCategories();
-        assertEquals(1, found.size());
-        assertEquals("Toca una banda tributo", found.get(0).getExtraInfo());
-    }
-
-    @Test
-    public void testUpdateReplacesTheCategorySet() {
-        final long otherCategoryId = insertCategory(OTHER_CATEGORY_NAME);
-        final Event created = eventDao.create(someEvent(categoryId));
-
-        final Event changes = someEvent(categoryId);
-        changes.setId(created.getId());
-        changes.setCategories(Collections.singletonList(new EventCategoryInfo(otherCategoryId, "Torneo 5 contra 5")));
-        eventDao.update(changes);
-
-        final List<EventCategoryInfo> found = eventDao.findById(created.getId()).get().getCategories();
-        assertEquals(1, found.size());
-        assertEquals(OTHER_CATEGORY_NAME, found.get(0).getCategoryName());
-        assertEquals("Torneo 5 contra 5", found.get(0).getExtraInfo());
-    }
-
-    // ---- create()/update(): varias fotos ----
-
-    @Test
-    public void testCreateWithoutImagesLeavesTheGalleryEmpty() {
-        final Event created = eventDao.create(someEvent(categoryId));
-
-        final Event found = eventDao.findById(created.getId()).get();
-        assertTrue(found.getImageIds().isEmpty());
-        assertNull(found.getImageId());
-    }
-
-    @Test
-    public void testCreateAndFindByIdPersistsSeveralImagesInUploadOrder() {
-        final long firstImageId = insertImage();
-        final long secondImageId = insertImage();
-        final Event event = someEvent(categoryId);
-        event.setImageIds(Arrays.asList(firstImageId, secondImageId));
-
-        final Event created = eventDao.create(event);
-
-        final Event found = eventDao.findById(created.getId()).get();
-        assertEquals(Arrays.asList(firstImageId, secondImageId), found.getImageIds());
-    }
-
-    @Test
-    public void testGetImageIdReturnsTheFirstUploadedImage() {
-        final long firstImageId = insertImage();
-        final long secondImageId = insertImage();
-        final Event event = someEvent(categoryId);
-        event.setImageIds(Arrays.asList(firstImageId, secondImageId));
-
-        final Event created = eventDao.create(event);
-
-        assertEquals(Long.valueOf(firstImageId), eventDao.findById(created.getId()).get().getImageId());
-    }
-
-    @Test
-    public void testUpdateReplacesTheWholeImageGallery() {
-        final long originalImageId = insertImage();
-        final Event event = someEvent(categoryId);
-        event.setImageIds(Collections.singletonList(originalImageId));
-        final Event created = eventDao.create(event);
-
-        final long newImageId = insertImage();
-        final Event changes = someEvent(categoryId);
-        changes.setId(created.getId());
-        changes.setImageIds(Collections.singletonList(newImageId));
-        eventDao.update(changes);
-
-        final List<Long> found = eventDao.findById(created.getId()).get().getImageIds();
-        assertEquals(Collections.singletonList(newImageId), found);
-    }
-
-    // ---- create()/update(): pin en el mapa ----
-
-    @Test
-    public void testCreateWithoutLocationPinLeavesLatitudeAndLongitudeNull() {
-        final Event created = eventDao.create(someEvent(categoryId));
-
-        final Event found = eventDao.findById(created.getId()).get();
-        assertFalse(found.isLocationPinned());
-        assertNull(found.getLatitude());
-        assertNull(found.getLongitude());
-    }
-
-    @Test
-    public void testCreateAndFindByIdPersistsTheLocationPin() {
-        final Event event = someEvent(categoryId);
-        event.setLatitude(-34.603722);
-        event.setLongitude(-58.381592);
-
-        final Event created = eventDao.create(event);
-
-        final Event found = eventDao.findById(created.getId()).get();
-        assertTrue(found.isLocationPinned());
-        assertEquals(-34.603722, found.getLatitude(), 0.000001);
-        assertEquals(-58.381592, found.getLongitude(), 0.000001);
-    }
-
-    @Test
-    public void testUpdateChangesTheLocationPin() {
-        final Event event = someEvent(categoryId);
-        event.setLatitude(-34.603722);
-        event.setLongitude(-58.381592);
-        final Event created = eventDao.create(event);
-
-        final Event changes = someEvent(categoryId);
-        changes.setId(created.getId());
-        changes.setLatitude(-34.580000);
-        changes.setLongitude(-58.420000);
-        eventDao.update(changes);
-
-        final Event found = eventDao.findById(created.getId()).get();
-        assertEquals(-34.580000, found.getLatitude(), 0.000001);
-        assertEquals(-58.420000, found.getLongitude(), 0.000001);
-    }
-
-    // ---- create()/update(): detalle de direccion (piso/depto/referencias) ----
-
-    @Test
-    public void testCreateWithoutAddressDetailsLeavesItNull() {
-        final Event created = eventDao.create(someEvent(categoryId));
-
-        final Event found = eventDao.findById(created.getId()).get();
-        assertNull(found.getAddressDetails());
-    }
-
-    @Test
-    public void testCreateAndFindByIdPersistsTheAddressDetails() {
-        final Event event = someEvent(categoryId);
-        event.setAddressDetails("Piso 3, depto B, tocar timbre 3B");
-
-        final Event created = eventDao.create(event);
-
-        final Event found = eventDao.findById(created.getId()).get();
-        assertEquals("Piso 3, depto B, tocar timbre 3B", found.getAddressDetails());
-    }
-
-    @Test
-    public void testUpdateChangesTheAddressDetails() {
-        final Event event = someEvent(categoryId);
-        event.setAddressDetails("Piso 3, depto B");
-        final Event created = eventDao.create(event);
-
-        final Event changes = someEvent(categoryId);
-        changes.setId(created.getId());
-        changes.setAddressDetails("Entrada por el fondo");
-        eventDao.update(changes);
-
-        final Event found = eventDao.findById(created.getId()).get();
-        assertEquals("Entrada por el fondo", found.getAddressDetails());
-    }
-
-    // ---- create()/update(): locationManual (pin a mano vs geocodificado) ----
-
-    @Test
-    public void testCreateDefaultsLocationManualToTrue() {
-        // El modelo ya nace en true (Event.locationManual); esto confirma que
-        // create() no lo pisa a false por accidente.
-        final Event created = eventDao.create(someEvent(categoryId));
-
-        final Event found = eventDao.findById(created.getId()).get();
-        assertTrue(found.isLocationManual());
-    }
-
-    @Test
-    public void testCreateAndFindByIdPersistsLocationManualFalse() {
-        final Event event = someEvent(categoryId);
-        event.setLocationManual(false);
-
-        final Event created = eventDao.create(event);
-
-        final Event found = eventDao.findById(created.getId()).get();
-        assertFalse(found.isLocationManual());
-    }
-
-    @Test
-    public void testUpdateChangesLocationManual() {
-        final Event event = someEvent(categoryId);
-        event.setLocationManual(false);
-        final Event created = eventDao.create(event);
-
-        final Event changes = someEvent(categoryId);
-        changes.setId(created.getId());
-        changes.setLocationManual(true);
-        eventDao.update(changes);
-
-        final Event found = eventDao.findById(created.getId()).get();
-        assertTrue(found.isLocationManual());
-    }
-
-    // ---- update() ----
-
-    @Test
-    public void testUpdateChangesTheStoredFields() {
-        final Event created = eventDao.create(someEvent(categoryId));
-        final long otherCategoryId = insertCategory(OTHER_CATEGORY_NAME);
-
-        final Event changes = someEvent(otherCategoryId);
-        changes.setId(created.getId());
-        changes.setTitle("Titulo nuevo");
-        changes.setAddress("Direccion nueva 123");
-        changes.setPrice(new BigDecimal("2500"));
-        changes.setMaxCapacity(30);
-        changes.setRequiresApproval(true);
-        changes.setVisibility(EventVisibility.PRIVATE);
-        eventDao.update(changes);
-
-        final Event found = eventDao.findById(created.getId()).orElseThrow(AssertionError::new);
-        assertEquals("Titulo nuevo", found.getTitle());
-        assertEquals("Direccion nueva 123", found.getAddress());
-        assertEquals(0, new BigDecimal("2500").compareTo(found.getPrice()));
-        assertEquals(Integer.valueOf(30), found.getMaxCapacity());
-        assertEquals(1, found.getCategories().size());
-        assertEquals(OTHER_CATEGORY_NAME, found.getCategories().get(0).getCategoryName());
-        assertTrue(found.isRequiresApproval());
-        assertEquals(EventVisibility.PRIVATE, found.getVisibility());
-    }
-
-    @Test
-    public void testUpdateDoesNotChangeTheCreatorEmail() {
-        final Event created = eventDao.create(someEvent(categoryId));
-
-        // A proposito le paso un creatorEmail distinto: update() no deberia
-        // tocar esa columna aunque el objeto Event lo traiga seteado (el DAO
-        // ni siquiera lo lee -- ver la query en EventJdbcDao.update()).
-        final Event changes = someEvent(categoryId);
-        changes.setId(created.getId());
-        changes.setCreatorEmail("otro@mail.com");
-        eventDao.update(changes);
-
-        final Event found = eventDao.findById(created.getId()).orElseThrow(AssertionError::new);
-        assertEquals(CREATOR_EMAIL, found.getCreatorEmail());
-    }
-
-    @Test(expected = DataAccessException.class)
-    public void testUpdateWithNonexistentCategoryThrowsDataAccessException() {
-        final Event created = eventDao.create(someEvent(categoryId));
-
-        final Event changes = someEvent(categoryId + 1000);
-        changes.setId(created.getId());
-        eventDao.update(changes);
-    }
-
-    // ---- cancel() ----
-
-    @Test
-    public void testCreateDefaultsCancelledAtToNull() {
-        final Event created = eventDao.create(someEvent(categoryId));
-
-        assertFalse(eventDao.findById(created.getId()).get().isCancelled());
-    }
-
-    @Test
-    public void testCancelSetsCancelledAt() {
-        final Event created = eventDao.create(someEvent(categoryId));
-
-        eventDao.cancel(created.getId());
-
-        final Event found = eventDao.findById(created.getId()).orElseThrow(AssertionError::new);
-        assertTrue(found.isCancelled());
-        assertTrue(found.getCancelledAt().getTime() <= System.currentTimeMillis());
-    }
-
-    @Test
-    public void testCancelDoesNotChangeOtherFields() {
-        final Event created = eventDao.create(someEvent(categoryId));
-
-        eventDao.cancel(created.getId());
-
-        final Event found = eventDao.findById(created.getId()).orElseThrow(AssertionError::new);
-        assertEquals(TITLE, found.getTitle());
-        assertEquals(CREATOR_EMAIL, found.getCreatorEmail());
-    }
-
-    @Test
-    public void testRemoveByAdminSetsCancelledAtAndTheAdminFields() {
-        final Event created = eventDao.create(someEvent(categoryId));
-
-        eventDao.removeByAdmin(created.getId(), "Contenido inapropiado");
-
-        final Event found = eventDao.findById(created.getId()).orElseThrow(AssertionError::new);
-        assertTrue(found.isCancelled());
-        assertTrue(found.isRemovedByAdmin());
-        assertEquals("Contenido inapropiado", found.getRemovedReason());
-    }
-
-    @Test
-    public void testCancelDoesNotSetRemovedByAdmin() {
-        final Event created = eventDao.create(someEvent(categoryId));
-
-        eventDao.cancel(created.getId());
-
-        final Event found = eventDao.findById(created.getId()).orElseThrow(AssertionError::new);
-        assertFalse(found.isRemovedByAdmin());
-        assertNull(found.getRemovedReason());
-    }
-
-    @Test
-    public void testCreateDefaultsVisibilityToPublic() {
-        final Event created = eventDao.create(someEvent(categoryId));
-
-        assertEquals(EventVisibility.PUBLIC, eventDao.findById(created.getId()).get().getVisibility());
-    }
-
-    @Test
-    public void testCreateAndFindByIdPersistVisibilityWhenSetToPrivate() {
-        final Event event = someEvent(categoryId);
-        event.setVisibility(EventVisibility.PRIVATE);
-
-        final Event created = eventDao.create(event);
-
-        assertEquals(EventVisibility.PRIVATE, eventDao.findById(created.getId()).get().getVisibility());
-    }
-
-    // ---- findByIdForUpdate(): el SELECT ... FOR UPDATE que usa el lock de cupo ----
-
-    @Test
-    public void testFindByIdForUpdateReturnsThePresentEvent() {
-        final Event created = eventDao.create(someEvent(categoryId));
-
-        final Optional<Event> found = eventDao.findByIdForUpdate(created.getId());
-
-        assertTrue(found.isPresent());
-        assertEquals(created.getId(), found.get().getId());
-    }
-
-    @Test
-    public void testFindByIdForUpdateReturnsEmptyWhenTheEventDoesNotExist() {
-        final Optional<Event> found = eventDao.findByIdForUpdate(-1);
-
-        assertFalse(found.isPresent());
-    }
-
-    // ---- findAll() / findByCategory() ----
-
-    @Test
-    public void testFindAllExcludesCancelledEvents() {
-        final Event cancelled = eventDao.create(someEvent(categoryId));
-        eventDao.cancel(cancelled.getId());
-        eventDao.create(someEvent(categoryId));
-
-        assertEquals(1, eventDao.findAll().size());
-    }
-
-    @Test
-    public void testFindByCategoryExcludesCancelledEvents() {
-        final Event cancelled = eventDao.create(someEvent(categoryId));
-        eventDao.cancel(cancelled.getId());
-        eventDao.create(someEvent(categoryId));
-
-        assertEquals(1, eventDao.findByCategory(categoryId).size());
-    }
-
-    @Test
-    public void testFindAllReturnsEventsOrderedByDate() {
-        final Date earlierDate = new Date(1_000_000_000_000L); // 2001-09-09
-        final Date laterDate = new Date(2_000_000_000_000L);   // 2033-05-18
-        final Event later = new Event(TITLE, null, laterDate, "Direccion A",
-                Barrio.PALERMO, null, BigDecimal.ZERO, null, CREATOR_EMAIL, Collections.singletonList(categoryId));
-        final Event earlier = new Event(TITLE, null, earlierDate, "Direccion B",
-                Barrio.PALERMO, null, BigDecimal.ZERO, null, CREATOR_EMAIL, Collections.singletonList(categoryId));
-        // A proposito insertados en el orden "incorrecto": el que es mas tarde primero.
-        eventDao.create(later);
-        eventDao.create(earlier);
-
-        final List<Event> all = eventDao.findAll();
-
-        assertEquals(2, all.size());
-        assertEquals("Direccion B", all.get(0).getAddress());
-        assertEquals("Direccion A", all.get(1).getAddress());
-    }
-
-    @Test
-    public void testFindByCategoryReturnsOnlyEventsOfThatCategory() {
-        final long otherCategoryId = insertCategory(OTHER_CATEGORY_NAME);
-        eventDao.create(someEvent(categoryId));
-        eventDao.create(someEvent(otherCategoryId));
-
-        final List<Event> result = eventDao.findByCategory(categoryId);
-
-        assertEquals(1, result.size());
-        assertEquals(categoryId, result.get(0).getCategories().get(0).getCategoryId());
-    }
-
-    @Test
-    public void testFindByCategoryReturnsAnEventThatHasThatCategoryAmongSeveral() {
-        final long otherCategoryId = insertCategory(OTHER_CATEGORY_NAME);
-        final Event event = someEvent(categoryId);
-        event.setCategories(Arrays.asList(new EventCategoryInfo(categoryId), new EventCategoryInfo(otherCategoryId)));
-        eventDao.create(event);
-
-        assertEquals(1, eventDao.findByCategory(categoryId).size());
-        assertEquals(1, eventDao.findByCategory(otherCategoryId).size());
-    }
-
-    // ---- findByCreatorId(): "Mis eventos" ----
-
-    @Test
-    public void testFindByCreatorIdReturnsOnlyEventsOfThatCreator() {
-        final long otherCreatorId = insertUser("otro@mail.com");
-        final Event own = new Event(TITLE, null, new Date(), "Direccion A",
-                Barrio.PALERMO, null, BigDecimal.ZERO, null, CREATOR_EMAIL, Collections.singletonList(categoryId));
-        own.setCreatorId(creatorId);
-        final Event other = new Event(TITLE, null, new Date(), "Direccion B",
-                Barrio.PALERMO, null, BigDecimal.ZERO, null, "otro@mail.com", Collections.singletonList(categoryId));
-        other.setCreatorId(otherCreatorId);
-        eventDao.create(own);
-        eventDao.create(other);
-
-        final List<Event> result = eventDao.findByCreatorId(creatorId);
-
-        assertEquals(1, result.size());
-        assertEquals(CREATOR_EMAIL, result.get(0).getCreatorEmail());
-    }
-
-    @Test
-    public void testFindByCreatorIdOrdersMostRecentEventDateFirst() {
-        final Date earlierDate = new Date(1_000_000_000_000L); // 2001-09-09
-        final Date laterDate = new Date(2_000_000_000_000L);   // 2033-05-18
-        final Event earlier = new Event(TITLE, null, earlierDate, "Direccion A",
-                Barrio.PALERMO, null, BigDecimal.ZERO, null, CREATOR_EMAIL, Collections.singletonList(categoryId));
-        earlier.setCreatorId(creatorId);
-        final Event later = new Event(TITLE, null, laterDate, "Direccion B",
-                Barrio.PALERMO, null, BigDecimal.ZERO, null, CREATOR_EMAIL, Collections.singletonList(categoryId));
-        later.setCreatorId(creatorId);
-        // A proposito insertados en orden "incorrecto".
-        eventDao.create(earlier);
-        eventDao.create(later);
-
-        final List<Event> result = eventDao.findByCreatorId(creatorId);
-
-        assertEquals(2, result.size());
-        assertEquals("Direccion B", result.get(0).getAddress());
-        assertEquals("Direccion A", result.get(1).getAddress());
-    }
-
-    @Test
-    public void testFindByCreatorIdReturnsEmptyWhenNoEvents() {
-        final List<Event> result = eventDao.findByCreatorId(creatorId);
-
-        assertTrue(result.isEmpty());
-    }
-
-    // ---- search(): filtro "quedan pocos cupos" ----
 
     private void insertRegistration(final long eventId, final String email, final String status) {
         jdbcTemplate.update("INSERT INTO registration (event_id, email, status) VALUES (?, ?, ?)",
                 eventId, email, status);
-    }
-
-    private long registrationId(final long eventId, final String email) {
-        return jdbcTemplate.queryForObject(
-                "SELECT id FROM registration WHERE event_id = ? AND email = ?", Long.class, eventId, email);
     }
 
     // Invitacion por mail a un evento privado. Reserva un lugar hasta que esa
@@ -629,15 +137,29 @@ public class EventJdbcDaoTest {
                 eventId, email, CREATOR_EMAIL);
     }
 
-    /** Un evento futuro con ese cupo y esa cantidad de inscriptos confirmados. */
+    private void insertReview(final long eventId, final long userId, final int rating) {
+        jdbcTemplate.update("INSERT INTO review (event_id, user_id, rating) VALUES (?, ?, ?)", eventId, userId, rating);
+    }
+
+    /** Un evento futuro con ese cupo y esa cantidad de inscriptos confirmados, insertado por SQL directo. */
     private long eventWith(final Integer capacity, final int confirmed, final String address) {
-        final Date future = new Date(System.currentTimeMillis() + 86_400_000L);
-        final long id = eventDao.create(new Event(TITLE, null, future, address,
-                Barrio.PALERMO, null, BigDecimal.ZERO, capacity, CREATOR_EMAIL, Collections.singletonList(categoryId))).getId();
+        final long id = insertEvent(cols("address", address, "max_capacity", capacity));
         for (int i = 0; i < confirmed; i++) {
             insertRegistration(id, "conf" + i + "-" + id + "@mail.com", "CONFIRMED");
         }
         return id;
+    }
+
+    // ---- objetos de entrada para create()/update() (el Act en si) ----
+
+    private static Event someEvent(final long categoryId) {
+        return new Event(TITLE, "Una noche a pura guitarra", new Date(), "Av. Corrientes 1234",
+                Barrio.PALERMO, null, new BigDecimal("1500"), 50, CREATOR_EMAIL, Collections.singletonList(categoryId));
+    }
+
+    private static Event someFutureEvent(final long categoryId) {
+        return new Event(TITLE, "desc", new Date(System.currentTimeMillis() + 86_400_000L), "Av. Corrientes 1234",
+                Barrio.PALERMO, null, new BigDecimal("1500"), 50, CREATOR_EMAIL, Collections.singletonList(categoryId));
     }
 
     private static EventSearchCriteria fewSpotsCriteria() {
@@ -647,111 +169,12 @@ public class EventJdbcDaoTest {
         return criteria;
     }
 
-    private static List<Long> idsOf(final List<Event> events) {
-        return events.stream().map(Event::getId).collect(Collectors.toList());
+    private static EventSearchCriteria soldOutCriteria() {
+        final EventSearchCriteria criteria = new EventSearchCriteria();
+        criteria.setOnlySoldOut(true);
+        criteria.setPageSize(20);
+        return criteria;
     }
-
-    @Test
-    public void testSearchWithFewSpotsLeftKeepsOnlyEventsAboutToFillUp() {
-        final long cuatroLibres = eventWith(10, 6, "Cuatro libres");
-        eventWith(10, 2, "Ocho libres");
-
-        final List<Event> result = eventDao.search(fewSpotsCriteria());
-
-        assertEquals(1, result.size());
-        assertEquals(cuatroLibres, result.get(0).getId());
-    }
-
-    @Test
-    public void testSearchWithFewSpotsLeftIncludesBothEndsOfTheRange() {
-        final long cincoLibres = eventWith(10, 5, "Cinco libres");
-        final long unLibre = eventWith(10, 9, "Un libre");
-        eventWith(10, 4, "Seis libres");
-        eventWith(10, 10, "Lleno");
-
-        final List<Long> ids = idsOf(eventDao.search(fewSpotsCriteria()));
-
-        // 5 y 1 entran (los extremos); 6 queda afuera por arriba y 0 por abajo.
-        assertEquals(2, ids.size());
-        assertTrue(ids.contains(cincoLibres));
-        assertTrue(ids.contains(unLibre));
-    }
-
-    @Test
-    public void testSearchWithFewSpotsLeftIgnoresEventsWithoutCapacityLimit() {
-        eventWith(null, 8, "Sin limite");
-
-        // Sin cupo maximo nunca "quedan pocos": no se le pueden acabar los lugares.
-        assertTrue(eventDao.search(fewSpotsCriteria()).isEmpty());
-    }
-
-    @Test
-    public void testSearchWithFewSpotsLeftDoesNotCountPeopleOnTheWaitlist() {
-        final long eventId = eventWith(10, 3, "Con lista de espera");
-        for (int i = 0; i < 4; i++) {
-            insertRegistration(eventId, "wl" + i + "@mail.com", "WAITLISTED");
-        }
-
-        // 7 libres: los de la lista de espera no ocupan cupo, asi que NO entra.
-        assertTrue(eventDao.search(fewSpotsCriteria()).isEmpty());
-    }
-
-    @Test
-    public void testSearchWithFewSpotsLeftCountsSpotsHeldByUnusedInvitations() {
-        final long eventId = eventWith(10, 3, "Con invitaciones");
-        for (int i = 0; i < 4; i++) {
-            insertEventInvitation(eventId, "inv" + i + "@mail.com");
-        }
-
-        // 10 - 3 confirmados - 4 invitaciones sin usar = 3 libres -> ahora SI entra.
-        // Es el mismo numero que muestra availableSpots() en la pantalla: si el
-        // filtro contara distinto, el evento apareceria aca y al entrar diria otra cosa.
-        final List<Long> ids = idsOf(eventDao.search(fewSpotsCriteria()));
-
-        assertEquals(1, ids.size());
-        assertTrue(ids.contains(eventId));
-    }
-
-    @Test
-    public void testCountSearchMatchesSearchWhenFilteringByFewSpotsLeft() {
-        eventWith(10, 6, "Cuatro libres");
-        eventWith(10, 9, "Un libre");
-        eventWith(10, 1, "Nueve libres");
-
-        // Las dos queries comparten buildWhereClause: si se desincronizaran, el
-        // "N eventos encontrados" no coincidiria con lo que se ve en la pagina.
-        assertEquals(eventDao.search(fewSpotsCriteria()).size(), (int) eventDao.countSearch(fewSpotsCriteria()));
-        assertEquals(2, eventDao.countSearch(fewSpotsCriteria()));
-    }
-
-    @Test
-    public void testSearchWithFewSpotsLeftDoesNotCountPendingApprovalRequests() {
-        // 10 - 3 confirmados = 7 libres: un pedido pendiente NO ocupa lugar (el
-        // organizador los mira a todos y acepta hasta que se llene el cupo), asi
-        // que no entra en "pocos cupos". Mismo numero que availableSpots().
-        final long eventId = eventWith(10, 3, "Con pendientes");
-        for (int i = 0; i < 4; i++) {
-            insertRegistration(eventId, "pend" + i + "@mail.com", "PENDING");
-        }
-
-        assertTrue(eventDao.search(fewSpotsCriteria()).isEmpty());
-    }
-
-    // Una invitacion que ya se uso (la persona se anoto) no se cuenta dos veces:
-    // ahora es una inscripcion, y si esta confirmada ya se cuenta como tal.
-    @Test
-    public void testSearchWithFewSpotsLeftDoesNotCountAnInvitationTwiceOnceThePersonRegistered() {
-        final long eventId = eventWith(10, 8, "Invitacion usada");
-        insertRegistration(eventId, "usada@mail.com", "CONFIRMED");
-        insertEventInvitation(eventId, "usada@mail.com");
-
-        // 10 - 9 confirmados = 1 libre (la invitacion usada no suma otro).
-        final List<Long> ids = idsOf(eventDao.search(fewSpotsCriteria()));
-        assertTrue(ids.contains(eventId));
-        assertEquals(1, (int) eventDao.countSearch(fewSpotsCriteria()));
-    }
-
-    // ---- search(): ordenar ----
 
     private static EventSearchCriteria sortedBy(final EventSort sort) {
         final EventSearchCriteria criteria = new EventSearchCriteria();
@@ -760,45 +183,994 @@ public class EventJdbcDaoTest {
         return criteria;
     }
 
+    private static List<Long> idsOf(final List<Event> events) {
+        return events.stream().map(Event::getId).collect(Collectors.toList());
+    }
+
+    // ==================================================================
+    // create()
+    // ==================================================================
+
+    @Test
+    public void testCreateAssignsAGeneratedId() {
+        // Arrange
+        final Event toCreate = someEvent(categoryId);
+
+        // Act
+        final Event created = eventDao.create(toCreate);
+
+        // Assert
+        assertTrue(created.getId() > 0);
+    }
+
+    @Test
+    public void testCreateInsertsTheBasicFields() {
+        // Arrange
+        final Event toCreate = someEvent(categoryId);
+
+        // Act
+        final Event created = eventDao.create(toCreate);
+
+        // Assert
+        final Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT title, neighborhood, price FROM event WHERE id = ?", created.getId());
+        assertEquals(TITLE, row.get("title"));
+        assertEquals("PALERMO", row.get("neighborhood"));
+        assertEquals(0, new BigDecimal("1500").compareTo((BigDecimal) row.get("price")));
+    }
+
+    @Test
+    public void testCreateInsertsTheGivenCategory() {
+        // Arrange
+        final Event toCreate = someEvent(categoryId);
+
+        // Act
+        final Event created = eventDao.create(toCreate);
+
+        // Assert
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
+                jdbcTemplate, "event_category", "event_id = " + created.getId() + " AND category_id = " + categoryId));
+    }
+
+    @Test
+    public void testCreateDefaultsRequiresApprovalToFalse() {
+        // Arrange
+        final Event toCreate = someEvent(categoryId);
+
+        // Act
+        final Event created = eventDao.create(toCreate);
+
+        // Assert
+        final Boolean requiresApproval = jdbcTemplate.queryForObject(
+                "SELECT requires_approval FROM event WHERE id = ?", Boolean.class, created.getId());
+        assertFalse(requiresApproval);
+    }
+
+    @Test
+    public void testCreatePersistsRequiresApprovalWhenSetToTrue() {
+        // Arrange
+        final Event toCreate = someEvent(categoryId);
+        toCreate.setRequiresApproval(true);
+
+        // Act
+        final Event created = eventDao.create(toCreate);
+
+        // Assert
+        final Boolean requiresApproval = jdbcTemplate.queryForObject(
+                "SELECT requires_approval FROM event WHERE id = ?", Boolean.class, created.getId());
+        assertTrue(requiresApproval);
+    }
+
+    @Test(expected = DataAccessException.class)
+    public void testCreateWithNonexistentCategoryThrowsDataAccessException() {
+        // Arrange
+        final Event toCreate = someEvent(categoryId + 1000);
+
+        // Act
+        eventDao.create(toCreate);
+
+        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
+    }
+
+    // ==================================================================
+    // create(): varias categorias
+    // ==================================================================
+
+    @Test
+    public void testCreatePersistsSeveralCategories() {
+        // Arrange
+        final long otherCategoryId = insertCategory(OTHER_CATEGORY_NAME);
+        final Event toCreate = someEvent(categoryId);
+        toCreate.setCategories(Arrays.asList(new EventCategoryInfo(categoryId), new EventCategoryInfo(otherCategoryId)));
+
+        // Act
+        final Event created = eventDao.create(toCreate);
+
+        // Assert
+        final List<Long> categoryIds = jdbcTemplate.queryForList(
+                "SELECT category_id FROM event_category WHERE event_id = ?", Long.class, created.getId());
+        assertEquals(2, categoryIds.size());
+        assertTrue(categoryIds.contains(categoryId));
+        assertTrue(categoryIds.contains(otherCategoryId));
+    }
+
+    @Test
+    public void testCreatePersistsExtraInfoPerCategory() {
+        // Arrange
+        final Event toCreate = someEvent(categoryId);
+        toCreate.setCategories(Collections.singletonList(new EventCategoryInfo(categoryId, "Toca una banda tributo")));
+
+        // Act
+        final Event created = eventDao.create(toCreate);
+
+        // Assert
+        final String extraInfo = jdbcTemplate.queryForObject(
+                "SELECT extra_info FROM event_category WHERE event_id = ? AND category_id = ?",
+                String.class, created.getId(), categoryId);
+        assertEquals("Toca una banda tributo", extraInfo);
+    }
+
+    // ==================================================================
+    // update(): categorias
+    // ==================================================================
+
+    @Test
+    public void testUpdateReplacesTheCategorySet() {
+        // Arrange
+        final long otherCategoryId = insertCategory(OTHER_CATEGORY_NAME);
+        final long id = insertEvent();
+        insertEventCategory(id, categoryId, null);
+        final Event changes = someEvent(categoryId);
+        changes.setId(id);
+        changes.setCategories(Collections.singletonList(new EventCategoryInfo(otherCategoryId, "Torneo 5 contra 5")));
+
+        // Act
+        eventDao.update(changes);
+
+        // Assert
+        final List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                "SELECT category_id, extra_info FROM event_category WHERE event_id = ?", id);
+        assertEquals(1, rows.size());
+        assertEquals(otherCategoryId, ((Number) rows.get(0).get("category_id")).longValue());
+        assertEquals("Torneo 5 contra 5", rows.get(0).get("extra_info"));
+    }
+
+    // ==================================================================
+    // create()/update(): fotos
+    // ==================================================================
+
+    @Test
+    public void testCreateWithoutImagesLeavesTheGalleryEmpty() {
+        // Arrange
+        final Event toCreate = someEvent(categoryId);
+
+        // Act
+        final Event created = eventDao.create(toCreate);
+
+        // Assert
+        assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "event_image", "event_id = " + created.getId()));
+    }
+
+    @Test
+    public void testCreatePersistsSeveralImagesInUploadOrder() {
+        // Arrange
+        final long firstImageId = insertImage();
+        final long secondImageId = insertImage();
+        final Event toCreate = someEvent(categoryId);
+        toCreate.setImageIds(Arrays.asList(firstImageId, secondImageId));
+
+        // Act
+        final Event created = eventDao.create(toCreate);
+
+        // Assert
+        final List<Long> imageIds = jdbcTemplate.queryForList(
+                "SELECT image_id FROM event_image WHERE event_id = ? ORDER BY id ASC", Long.class, created.getId());
+        assertEquals(Arrays.asList(firstImageId, secondImageId), imageIds);
+    }
+
+    @Test
+    public void testUpdateReplacesTheWholeImageGallery() {
+        // Arrange
+        final long originalImageId = insertImage();
+        final long id = insertEvent();
+        insertEventImage(id, originalImageId);
+        final long newImageId = insertImage();
+        final Event changes = someEvent(categoryId);
+        changes.setId(id);
+        changes.setImageIds(Collections.singletonList(newImageId));
+
+        // Act
+        eventDao.update(changes);
+
+        // Assert
+        final List<Long> imageIds = jdbcTemplate.queryForList(
+                "SELECT image_id FROM event_image WHERE event_id = ? ORDER BY id ASC", Long.class, id);
+        assertEquals(Collections.singletonList(newImageId), imageIds);
+    }
+
+    // ==================================================================
+    // create()/update(): pin en el mapa
+    // ==================================================================
+
+    @Test
+    public void testCreateWithoutLocationPinLeavesLatitudeAndLongitudeNull() {
+        // Arrange
+        final Event toCreate = someEvent(categoryId);
+
+        // Act
+        final Event created = eventDao.create(toCreate);
+
+        // Assert
+        final Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT latitude, longitude FROM event WHERE id = ?", created.getId());
+        assertNull(row.get("latitude"));
+        assertNull(row.get("longitude"));
+    }
+
+    @Test
+    public void testCreatePersistsTheLocationPin() {
+        // Arrange
+        final Event toCreate = someEvent(categoryId);
+        toCreate.setLatitude(-34.603722);
+        toCreate.setLongitude(-58.381592);
+
+        // Act
+        final Event created = eventDao.create(toCreate);
+
+        // Assert
+        final Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT latitude, longitude FROM event WHERE id = ?", created.getId());
+        assertEquals(-34.603722, ((BigDecimal) row.get("latitude")).doubleValue(), 0.000001);
+        assertEquals(-58.381592, ((BigDecimal) row.get("longitude")).doubleValue(), 0.000001);
+    }
+
+    @Test
+    public void testUpdateChangesTheLocationPin() {
+        // Arrange
+        final long id = insertEvent(cols("latitude", new BigDecimal("-34.603722"), "longitude", new BigDecimal("-58.381592")));
+        final Event changes = someEvent(categoryId);
+        changes.setId(id);
+        changes.setLatitude(-34.580000);
+        changes.setLongitude(-58.420000);
+
+        // Act
+        eventDao.update(changes);
+
+        // Assert
+        final Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT latitude, longitude FROM event WHERE id = ?", id);
+        assertEquals(-34.580000, ((BigDecimal) row.get("latitude")).doubleValue(), 0.000001);
+        assertEquals(-58.420000, ((BigDecimal) row.get("longitude")).doubleValue(), 0.000001);
+    }
+
+    // ==================================================================
+    // create()/update(): detalle de direccion (piso/depto/referencias)
+    // ==================================================================
+
+    @Test
+    public void testCreateWithoutAddressDetailsLeavesItNull() {
+        // Arrange
+        final Event toCreate = someEvent(categoryId);
+
+        // Act
+        final Event created = eventDao.create(toCreate);
+
+        // Assert
+        final String addressDetails = jdbcTemplate.queryForObject(
+                "SELECT address_details FROM event WHERE id = ?", String.class, created.getId());
+        assertNull(addressDetails);
+    }
+
+    @Test
+    public void testCreatePersistsTheAddressDetails() {
+        // Arrange
+        final Event toCreate = someEvent(categoryId);
+        toCreate.setAddressDetails("Piso 3, depto B, tocar timbre 3B");
+
+        // Act
+        final Event created = eventDao.create(toCreate);
+
+        // Assert
+        final String addressDetails = jdbcTemplate.queryForObject(
+                "SELECT address_details FROM event WHERE id = ?", String.class, created.getId());
+        assertEquals("Piso 3, depto B, tocar timbre 3B", addressDetails);
+    }
+
+    @Test
+    public void testUpdateChangesTheAddressDetails() {
+        // Arrange
+        final long id = insertEvent(cols("address_details", "Piso 3, depto B"));
+        final Event changes = someEvent(categoryId);
+        changes.setId(id);
+        changes.setAddressDetails("Entrada por el fondo");
+
+        // Act
+        eventDao.update(changes);
+
+        // Assert
+        final String addressDetails = jdbcTemplate.queryForObject(
+                "SELECT address_details FROM event WHERE id = ?", String.class, id);
+        assertEquals("Entrada por el fondo", addressDetails);
+    }
+
+    // ==================================================================
+    // create()/update(): locationManual (pin a mano vs geocodificado)
+    // ==================================================================
+
+    @Test
+    public void testCreateDefaultsLocationManualToTrue() {
+        // Arrange
+        // El modelo ya nace en true (Event.locationManual); esto confirma que
+        // create() no lo pisa a false por accidente.
+        final Event toCreate = someEvent(categoryId);
+
+        // Act
+        final Event created = eventDao.create(toCreate);
+
+        // Assert
+        final Boolean locationManual = jdbcTemplate.queryForObject(
+                "SELECT location_manual FROM event WHERE id = ?", Boolean.class, created.getId());
+        assertTrue(locationManual);
+    }
+
+    @Test
+    public void testCreatePersistsLocationManualFalse() {
+        // Arrange
+        final Event toCreate = someEvent(categoryId);
+        toCreate.setLocationManual(false);
+
+        // Act
+        final Event created = eventDao.create(toCreate);
+
+        // Assert
+        final Boolean locationManual = jdbcTemplate.queryForObject(
+                "SELECT location_manual FROM event WHERE id = ?", Boolean.class, created.getId());
+        assertFalse(locationManual);
+    }
+
+    @Test
+    public void testUpdateChangesLocationManual() {
+        // Arrange
+        final long id = insertEvent(cols("location_manual", false));
+        final Event changes = someEvent(categoryId);
+        changes.setId(id);
+        changes.setLocationManual(true);
+
+        // Act
+        eventDao.update(changes);
+
+        // Assert
+        final Boolean locationManual = jdbcTemplate.queryForObject(
+                "SELECT location_manual FROM event WHERE id = ?", Boolean.class, id);
+        assertTrue(locationManual);
+    }
+
+    // ==================================================================
+    // update(): campos generales
+    // ==================================================================
+
+    @Test
+    public void testUpdateChangesTheStoredFields() {
+        // Arrange
+        final long otherCategoryId = insertCategory(OTHER_CATEGORY_NAME);
+        final long id = insertEvent();
+        insertEventCategory(id, categoryId, null);
+        final Event changes = someEvent(otherCategoryId);
+        changes.setId(id);
+        changes.setTitle("Titulo nuevo");
+        changes.setAddress("Direccion nueva 123");
+        changes.setPrice(new BigDecimal("2500"));
+        changes.setMaxCapacity(30);
+        changes.setRequiresApproval(true);
+        changes.setVisibility(EventVisibility.PRIVATE);
+
+        // Act
+        eventDao.update(changes);
+
+        // Assert
+        final Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT title, address, price, max_capacity, requires_approval, visibility FROM event WHERE id = ?", id);
+        assertEquals("Titulo nuevo", row.get("title"));
+        assertEquals("Direccion nueva 123", row.get("address"));
+        assertEquals(0, new BigDecimal("2500").compareTo((BigDecimal) row.get("price")));
+        assertEquals(30, row.get("max_capacity"));
+        assertTrue((Boolean) row.get("requires_approval"));
+        assertEquals("PRIVATE", row.get("visibility"));
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
+                jdbcTemplate, "event_category", "event_id = " + id + " AND category_id = " + otherCategoryId));
+    }
+
+    @Test
+    public void testUpdateDoesNotChangeTheCreatorEmail() {
+        // Arrange
+        final long id = insertEvent(cols("creator_email", CREATOR_EMAIL));
+        // A proposito le paso un creatorEmail distinto: update() no deberia
+        // tocar esa columna aunque el objeto Event lo traiga seteado (el DAO
+        // ni siquiera lo lee -- ver la query en EventJdbcDao.update()).
+        final Event changes = someEvent(categoryId);
+        changes.setId(id);
+        changes.setCreatorEmail("otro@mail.com");
+
+        // Act
+        eventDao.update(changes);
+
+        // Assert
+        final String creatorEmail = jdbcTemplate.queryForObject(
+                "SELECT creator_email FROM event WHERE id = ?", String.class, id);
+        assertEquals(CREATOR_EMAIL, creatorEmail);
+    }
+
+    @Test(expected = DataAccessException.class)
+    public void testUpdateWithNonexistentCategoryThrowsDataAccessException() {
+        // Arrange
+        final long id = insertEvent();
+        final Event changes = someEvent(categoryId + 1000);
+        changes.setId(id);
+
+        // Act
+        eventDao.update(changes);
+
+        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
+    }
+
+    // ==================================================================
+    // cancel() / removeByAdmin()
+    // ==================================================================
+
+    @Test
+    public void testCreateDefaultsCancelledAtToNull() {
+        // Arrange
+        final Event toCreate = someEvent(categoryId);
+
+        // Act
+        final Event created = eventDao.create(toCreate);
+
+        // Assert
+        final Timestamp cancelledAt = jdbcTemplate.queryForObject(
+                "SELECT cancelled_at FROM event WHERE id = ?", Timestamp.class, created.getId());
+        assertNull(cancelledAt);
+    }
+
+    @Test
+    public void testCancelSetsCancelledAt() {
+        // Arrange
+        final long id = insertEvent();
+
+        // Act
+        eventDao.cancel(id);
+
+        // Assert
+        final Timestamp cancelledAt = jdbcTemplate.queryForObject(
+                "SELECT cancelled_at FROM event WHERE id = ?", Timestamp.class, id);
+        assertNotNull(cancelledAt);
+        assertTrue(cancelledAt.getTime() <= System.currentTimeMillis());
+    }
+
+    @Test
+    public void testCancelDoesNotChangeOtherFields() {
+        // Arrange
+        final long id = insertEvent(cols("title", TITLE, "creator_email", CREATOR_EMAIL));
+
+        // Act
+        eventDao.cancel(id);
+
+        // Assert
+        final Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT title, creator_email FROM event WHERE id = ?", id);
+        assertEquals(TITLE, row.get("title"));
+        assertEquals(CREATOR_EMAIL, row.get("creator_email"));
+    }
+
+    @Test
+    public void testCancelDoesNotSetRemovedByAdmin() {
+        // Arrange
+        final long id = insertEvent();
+
+        // Act
+        eventDao.cancel(id);
+
+        // Assert
+        final Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT removed_by_admin, removed_reason FROM event WHERE id = ?", id);
+        assertFalse((Boolean) row.get("removed_by_admin"));
+        assertNull(row.get("removed_reason"));
+    }
+
+    @Test
+    public void testRemoveByAdminSetsCancelledAtAndTheAdminFields() {
+        // Arrange
+        final long id = insertEvent();
+
+        // Act
+        eventDao.removeByAdmin(id, "Contenido inapropiado");
+
+        // Assert
+        final Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT cancelled_at, removed_by_admin, removed_reason FROM event WHERE id = ?", id);
+        assertNotNull(row.get("cancelled_at"));
+        assertTrue((Boolean) row.get("removed_by_admin"));
+        assertEquals("Contenido inapropiado", row.get("removed_reason"));
+    }
+
+    // ==================================================================
+    // visibility
+    // ==================================================================
+
+    @Test
+    public void testCreateDefaultsVisibilityToPublic() {
+        // Arrange
+        final Event toCreate = someEvent(categoryId);
+
+        // Act
+        final Event created = eventDao.create(toCreate);
+
+        // Assert
+        final String visibility = jdbcTemplate.queryForObject(
+                "SELECT visibility FROM event WHERE id = ?", String.class, created.getId());
+        assertEquals("PUBLIC", visibility);
+    }
+
+    @Test
+    public void testCreatePersistsVisibilityWhenSetToPrivate() {
+        // Arrange
+        final Event toCreate = someEvent(categoryId);
+        toCreate.setVisibility(EventVisibility.PRIVATE);
+
+        // Act
+        final Event created = eventDao.create(toCreate);
+
+        // Assert
+        final String visibility = jdbcTemplate.queryForObject(
+                "SELECT visibility FROM event WHERE id = ?", String.class, created.getId());
+        assertEquals("PRIVATE", visibility);
+    }
+
+    // ==================================================================
+    // findById()
+    // ==================================================================
+
+    @Test
+    public void testFindByIdReturnsTheStoredEventWithItsCategory() {
+        // Arrange
+        final long id = insertEvent();
+        insertEventCategory(id, categoryId, null);
+
+        // Act
+        final Optional<Event> found = eventDao.findById(id);
+
+        // Assert
+        assertTrue(found.isPresent());
+        assertEquals(TITLE, found.get().getTitle());
+        assertEquals(1, found.get().getCategories().size());
+        assertEquals(CATEGORY_NAME, found.get().getCategories().get(0).getCategoryName());
+    }
+
+    @Test
+    public void testFindByIdReturnsEmptyWhenTheEventDoesNotExist() {
+        // Arrange: no se inserta ningun evento.
+
+        // Act
+        final Optional<Event> found = eventDao.findById(-1);
+
+        // Assert
+        assertFalse(found.isPresent());
+    }
+
+    @Test
+    public void testFindByIdReturnsCancelledEvents() {
+        // Arrange
+        // findById SI tiene que devolver un evento cancelado: quien ya estaba
+        // anotado tiene que poder seguir viendolo.
+        final long id = insertEvent(cols("cancelled_at", new Timestamp(System.currentTimeMillis())));
+
+        // Act
+        final Optional<Event> found = eventDao.findById(id);
+
+        // Assert
+        assertTrue(found.isPresent());
+    }
+
+    // ==================================================================
+    // findByIdForUpdate(): el SELECT ... FOR UPDATE que usa el lock de cupo
+    // ==================================================================
+
+    @Test
+    public void testFindByIdForUpdateReturnsThePresentEvent() {
+        // Arrange
+        final long id = insertEvent();
+
+        // Act
+        final Optional<Event> found = eventDao.findByIdForUpdate(id);
+
+        // Assert
+        assertTrue(found.isPresent());
+        assertEquals(id, found.get().getId());
+    }
+
+    @Test
+    public void testFindByIdForUpdateReturnsEmptyWhenTheEventDoesNotExist() {
+        // Arrange: no se inserta ningun evento.
+
+        // Act
+        final Optional<Event> found = eventDao.findByIdForUpdate(-1);
+
+        // Assert
+        assertFalse(found.isPresent());
+    }
+
+    // ==================================================================
+    // findAll() / findByCategory()
+    // ==================================================================
+
+    @Test
+    public void testFindAllExcludesCancelledEvents() {
+        // Arrange
+        insertEvent(cols("cancelled_at", new Timestamp(System.currentTimeMillis())));
+        insertEvent();
+
+        // Act
+        final List<Event> all = eventDao.findAll();
+
+        // Assert
+        assertEquals(1, all.size());
+    }
+
+    @Test
+    public void testFindByCategoryExcludesCancelledEvents() {
+        // Arrange
+        final long cancelledId = insertEvent(cols("cancelled_at", new Timestamp(System.currentTimeMillis())));
+        insertEventCategory(cancelledId, categoryId, null);
+        final long activeId = insertEvent();
+        insertEventCategory(activeId, categoryId, null);
+
+        // Act
+        final List<Event> found = eventDao.findByCategory(categoryId);
+
+        // Assert
+        assertEquals(1, found.size());
+        assertEquals(activeId, found.get(0).getId());
+    }
+
+    @Test
+    public void testFindAllReturnsEventsOrderedByDate() {
+        // Arrange
+        final Timestamp earlierDate = new Timestamp(1_000_000_000_000L); // 2001-09-09
+        final Timestamp laterDate = new Timestamp(2_000_000_000_000L);   // 2033-05-18
+        // A proposito insertados en el orden "incorrecto": el que es mas tarde primero.
+        insertEvent(cols("address", "Direccion A", "event_date", laterDate));
+        insertEvent(cols("address", "Direccion B", "event_date", earlierDate));
+
+        // Act
+        final List<Event> all = eventDao.findAll();
+
+        // Assert
+        assertEquals(2, all.size());
+        assertEquals("Direccion B", all.get(0).getAddress());
+        assertEquals("Direccion A", all.get(1).getAddress());
+    }
+
+    @Test
+    public void testFindByCategoryReturnsOnlyEventsOfThatCategory() {
+        // Arrange
+        final long otherCategoryId = insertCategory(OTHER_CATEGORY_NAME);
+        final long withCategory = insertEvent();
+        insertEventCategory(withCategory, categoryId, null);
+        final long withOtherCategory = insertEvent();
+        insertEventCategory(withOtherCategory, otherCategoryId, null);
+
+        // Act
+        final List<Event> result = eventDao.findByCategory(categoryId);
+
+        // Assert
+        assertEquals(1, result.size());
+        assertEquals(categoryId, result.get(0).getCategories().get(0).getCategoryId());
+    }
+
+    @Test
+    public void testFindByCategoryReturnsAnEventThatHasThatCategoryAmongSeveral() {
+        // Arrange
+        final long otherCategoryId = insertCategory(OTHER_CATEGORY_NAME);
+        final long id = insertEvent();
+        insertEventCategory(id, categoryId, null);
+        insertEventCategory(id, otherCategoryId, null);
+
+        // Act
+        final List<Event> byFirstCategory = eventDao.findByCategory(categoryId);
+        final List<Event> byOtherCategory = eventDao.findByCategory(otherCategoryId);
+
+        // Assert
+        assertEquals(1, byFirstCategory.size());
+        assertEquals(1, byOtherCategory.size());
+    }
+
+    // ==================================================================
+    // findByCreatorId(): "Mis eventos"
+    // ==================================================================
+
+    @Test
+    public void testFindByCreatorIdReturnsOnlyEventsOfThatCreator() {
+        // Arrange
+        final long otherCreatorId = insertUser("otro@mail.com");
+        insertEvent(cols("address", "Direccion A", "creator_email", CREATOR_EMAIL, "creator_id", creatorId));
+        insertEvent(cols("address", "Direccion B", "creator_email", "otro@mail.com", "creator_id", otherCreatorId));
+
+        // Act
+        final List<Event> result = eventDao.findByCreatorId(creatorId);
+
+        // Assert
+        assertEquals(1, result.size());
+        assertEquals(CREATOR_EMAIL, result.get(0).getCreatorEmail());
+    }
+
+    @Test
+    public void testFindByCreatorIdOrdersMostRecentEventDateFirst() {
+        // Arrange
+        final Timestamp earlierDate = new Timestamp(1_000_000_000_000L);
+        final Timestamp laterDate = new Timestamp(2_000_000_000_000L);
+        // A proposito insertados en orden "incorrecto".
+        insertEvent(cols("address", "Direccion A", "event_date", earlierDate, "creator_id", creatorId));
+        insertEvent(cols("address", "Direccion B", "event_date", laterDate, "creator_id", creatorId));
+
+        // Act
+        final List<Event> result = eventDao.findByCreatorId(creatorId);
+
+        // Assert
+        assertEquals(2, result.size());
+        assertEquals("Direccion B", result.get(0).getAddress());
+        assertEquals("Direccion A", result.get(1).getAddress());
+    }
+
+    @Test
+    public void testFindByCreatorIdReturnsEmptyWhenNoEvents() {
+        // Arrange: no se inserta ningun evento de este creador.
+
+        // Act
+        final List<Event> result = eventDao.findByCreatorId(creatorId);
+
+        // Assert
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    public void testFindByCreatorIdIncludesPrivateEvents() {
+        // Arrange
+        // findByCreatorId SI tiene que devolver privados: "Mis eventos" es
+        // justamente donde el creador los ve y los gestiona.
+        insertEvent(cols("creator_id", creatorId, "visibility", EventVisibility.PRIVATE.name()));
+
+        // Act
+        final List<Event> result = eventDao.findByCreatorId(creatorId);
+
+        // Assert
+        assertEquals(1, result.size());
+    }
+
+    @Test
+    public void testFindByCreatorIdIncludesCancelledEvents() {
+        // Arrange
+        insertEvent(cols("creator_id", creatorId, "cancelled_at", new Timestamp(System.currentTimeMillis())));
+
+        // Act
+        final List<Event> result = eventDao.findByCreatorId(creatorId);
+
+        // Assert
+        assertEquals(1, result.size());
+    }
+
+    // ==================================================================
+    // search(): filtro "quedan pocos cupos"
+    // ==================================================================
+
+    @Test
+    public void testSearchWithFewSpotsLeftKeepsOnlyEventsAboutToFillUp() {
+        // Arrange
+        final long cuatroLibres = eventWith(10, 6, "Cuatro libres");
+        eventWith(10, 2, "Ocho libres");
+
+        // Act
+        final List<Event> result = eventDao.search(fewSpotsCriteria());
+
+        // Assert
+        assertEquals(1, result.size());
+        assertEquals(cuatroLibres, result.get(0).getId());
+    }
+
+    @Test
+    public void testSearchWithFewSpotsLeftIncludesBothEndsOfTheRange() {
+        // Arrange
+        final long cincoLibres = eventWith(10, 5, "Cinco libres");
+        final long unLibre = eventWith(10, 9, "Un libre");
+        eventWith(10, 4, "Seis libres");
+        eventWith(10, 10, "Lleno");
+
+        // Act
+        final List<Long> ids = idsOf(eventDao.search(fewSpotsCriteria()));
+
+        // Assert
+        // 5 y 1 entran (los extremos); 6 queda afuera por arriba y 0 por abajo.
+        assertEquals(2, ids.size());
+        assertTrue(ids.contains(cincoLibres));
+        assertTrue(ids.contains(unLibre));
+    }
+
+    @Test
+    public void testSearchWithFewSpotsLeftIgnoresEventsWithoutCapacityLimit() {
+        // Arrange
+        eventWith(null, 8, "Sin limite");
+
+        // Act
+        final List<Event> result = eventDao.search(fewSpotsCriteria());
+
+        // Assert
+        // Sin cupo maximo nunca "quedan pocos": no se le pueden acabar los lugares.
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    public void testSearchWithFewSpotsLeftDoesNotCountPeopleOnTheWaitlist() {
+        // Arrange
+        final long eventId = eventWith(10, 3, "Con lista de espera");
+        for (int i = 0; i < 4; i++) {
+            insertRegistration(eventId, "wl" + i + "@mail.com", "WAITLISTED");
+        }
+
+        // Act
+        final List<Event> result = eventDao.search(fewSpotsCriteria());
+
+        // Assert
+        // 7 libres: los de la lista de espera no ocupan cupo, asi que NO entra.
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    public void testSearchWithFewSpotsLeftCountsSpotsHeldByUnusedInvitations() {
+        // Arrange
+        final long eventId = eventWith(10, 3, "Con invitaciones");
+        for (int i = 0; i < 4; i++) {
+            insertEventInvitation(eventId, "inv" + i + "@mail.com");
+        }
+
+        // Act
+        // 10 - 3 confirmados - 4 invitaciones sin usar = 3 libres -> ahora SI entra.
+        // Es el mismo numero que muestra availableSpots() en la pantalla: si el
+        // filtro contara distinto, el evento apareceria aca y al entrar diria otra cosa.
+        final List<Long> ids = idsOf(eventDao.search(fewSpotsCriteria()));
+
+        // Assert
+        assertEquals(1, ids.size());
+        assertTrue(ids.contains(eventId));
+    }
+
+    @Test
+    public void testSearchWithFewSpotsLeftDoesNotCountPendingApprovalRequests() {
+        // Arrange
+        // 10 - 3 confirmados = 7 libres: un pedido pendiente NO ocupa lugar (el
+        // organizador los mira a todos y acepta hasta que se llene el cupo), asi
+        // que no entra en "pocos cupos". Mismo numero que availableSpots().
+        final long eventId = eventWith(10, 3, "Con pendientes");
+        for (int i = 0; i < 4; i++) {
+            insertRegistration(eventId, "pend" + i + "@mail.com", "PENDING");
+        }
+
+        // Act
+        final List<Event> result = eventDao.search(fewSpotsCriteria());
+
+        // Assert
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    public void testSearchWithFewSpotsLeftDoesNotCountAnInvitationTwiceOnceThePersonRegistered() {
+        // Arrange
+        // Una invitacion que ya se uso (la persona se anoto) no se cuenta dos
+        // veces: ahora es una inscripcion, y si esta confirmada ya se cuenta como tal.
+        final long eventId = eventWith(10, 8, "Invitacion usada");
+        insertRegistration(eventId, "usada@mail.com", "CONFIRMED");
+        insertEventInvitation(eventId, "usada@mail.com");
+
+        // Act
+        // 10 - 9 confirmados = 1 libre (la invitacion usada no suma otro).
+        final List<Long> ids = idsOf(eventDao.search(fewSpotsCriteria()));
+
+        // Assert
+        assertTrue(ids.contains(eventId));
+    }
+
+    @Test
+    public void testCountSearchWithFewSpotsLeftDoesNotCountAnInvitationTwiceOnceThePersonRegistered() {
+        // Arrange
+        final long eventId = eventWith(10, 8, "Invitacion usada");
+        insertRegistration(eventId, "usada@mail.com", "CONFIRMED");
+        insertEventInvitation(eventId, "usada@mail.com");
+
+        // Act
+        final long count = eventDao.countSearch(fewSpotsCriteria());
+
+        // Assert
+        assertEquals(1, count);
+    }
+
+    @Test
+    public void testCountSearchMatchesSearchWhenFilteringByFewSpotsLeft() {
+        // Arrange
+        eventWith(10, 6, "Cuatro libres");
+        eventWith(10, 9, "Un libre");
+        eventWith(10, 1, "Nueve libres");
+
+        // Act
+        // Las dos queries comparten buildWhereClause: si se desincronizaran, el
+        // "N eventos encontrados" no coincidiria con lo que se ve en la pagina.
+        // Por eso, y solo aca, el Act ejercita LAS DOS: es la consistencia entre
+        // ambas lo que este test prueba, no el resultado de una sola.
+        final int searchSize = eventDao.search(fewSpotsCriteria()).size();
+        final long countSearchResult = eventDao.countSearch(fewSpotsCriteria());
+
+        // Assert
+        assertEquals(searchSize, countSearchResult);
+        assertEquals(2, countSearchResult);
+    }
+
+    // ==================================================================
+    // search(): ordenar
+    // ==================================================================
+
     private long eventOn(final long daysFromNow, final BigDecimal price, final String address) {
-        final Date date = new Date(System.currentTimeMillis() + daysFromNow * 86_400_000L);
-        return eventDao.create(new Event(TITLE, null, date, address, Barrio.PALERMO, null, price, null,
-                CREATOR_EMAIL, Collections.singletonList(categoryId))).getId();
+        final Timestamp date = new Timestamp(System.currentTimeMillis() + daysFromNow * 86_400_000L);
+        return insertEvent(cols("address", address, "event_date", date, "price", price));
     }
 
     @Test
     public void testSearchSortsByDateBothWays() {
+        // Arrange
         final long enTres = eventOn(3, BigDecimal.ZERO, "En tres dias");
         final long enUno = eventOn(1, BigDecimal.ZERO, "Manana");
         final long enDos = eventOn(2, BigDecimal.ZERO, "En dos dias");
 
-        assertEquals(Arrays.asList(enUno, enDos, enTres), idsOf(eventDao.search(sortedBy(EventSort.FECHA_ASC))));
-        assertEquals(Arrays.asList(enTres, enDos, enUno), idsOf(eventDao.search(sortedBy(EventSort.FECHA_DESC))));
+        // Act
+        final List<Long> ascending = idsOf(eventDao.search(sortedBy(EventSort.FECHA_ASC)));
+        final List<Long> descending = idsOf(eventDao.search(sortedBy(EventSort.FECHA_DESC)));
+
+        // Assert
+        assertEquals(Arrays.asList(enUno, enDos, enTres), ascending);
+        assertEquals(Arrays.asList(enTres, enDos, enUno), descending);
     }
 
     @Test
     public void testSearchSortsByPriceBothWays() {
+        // Arrange
         final long caro = eventOn(1, new BigDecimal("5000"), "Caro");
         final long gratis = eventOn(2, BigDecimal.ZERO, "Gratis");
         final long medio = eventOn(3, new BigDecimal("1500.50"), "Medio");
 
-        assertEquals(Arrays.asList(gratis, medio, caro), idsOf(eventDao.search(sortedBy(EventSort.PRECIO_ASC))));
-        assertEquals(Arrays.asList(caro, medio, gratis), idsOf(eventDao.search(sortedBy(EventSort.PRECIO_DESC))));
+        // Act
+        final List<Long> ascending = idsOf(eventDao.search(sortedBy(EventSort.PRECIO_ASC)));
+        final List<Long> descending = idsOf(eventDao.search(sortedBy(EventSort.PRECIO_DESC)));
+
+        // Assert
+        assertEquals(Arrays.asList(gratis, medio, caro), ascending);
+        assertEquals(Arrays.asList(caro, medio, gratis), descending);
     }
 
     @Test
     public void testSearchSortsBySpotsLeftWithUnlimitedEventsAsInfinite() {
+        // Arrange
         final long unLibre = eventWith(10, 9, "Un libre");
         final long sinLimite = eventWith(null, 3, "Sin limite");
         final long ochoLibres = eventWith(10, 2, "Ocho libres");
 
+        // Act
         // Sin limite = lugares "infinitos": ultimo de menos a mas, primero de mas a menos.
-        assertEquals(Arrays.asList(unLibre, ochoLibres, sinLimite), idsOf(eventDao.search(sortedBy(EventSort.CUPOS_ASC))));
-        assertEquals(Arrays.asList(sinLimite, ochoLibres, unLibre), idsOf(eventDao.search(sortedBy(EventSort.CUPOS_DESC))));
+        final List<Long> ascending = idsOf(eventDao.search(sortedBy(EventSort.CUPOS_ASC)));
+        final List<Long> descending = idsOf(eventDao.search(sortedBy(EventSort.CUPOS_DESC)));
+
+        // Assert
+        assertEquals(Arrays.asList(unLibre, ochoLibres, sinLimite), ascending);
+        assertEquals(Arrays.asList(sinLimite, ochoLibres, unLibre), descending);
     }
 
     @Test
     public void testSearchSortsBySpotsLeftCountingOnlyConfirmedAndUnusedInvitations() {
+        // Arrange
         // Los dos tienen 5 confirmados, pero en "reservado" quedan 3 libres:
         // 2 invitaciones sin usar. Los pendientes de aprobacion y la lista de
         // espera NO ocupan lugar.
@@ -811,11 +1183,16 @@ public class EventJdbcDaoTest {
         insertRegistration(reservado, "wl2@mail.com", "WAITLISTED");
         final long cincoLibres = eventWith(10, 5, "Cinco libres");
 
-        assertEquals(Arrays.asList(reservado, cincoLibres), idsOf(eventDao.search(sortedBy(EventSort.CUPOS_ASC))));
+        // Act
+        final List<Long> ids = idsOf(eventDao.search(sortedBy(EventSort.CUPOS_ASC)));
+
+        // Assert
+        assertEquals(Arrays.asList(reservado, cincoLibres), ids);
     }
 
     @Test
     public void testSortBySpotsCombinesWithFiltersWithoutMixingParameters() {
+        // Arrange
         // Filtro (con sus "?") + orden por cupos (con los suyos): si los parametros
         // se mezclaran de orden, la query fallaria o traeria cualquier cosa.
         final long unLibre = eventWith(10, 9, "Un libre");
@@ -824,40 +1201,77 @@ public class EventJdbcDaoTest {
         final EventSearchCriteria criteria = fewSpotsCriteria();
         criteria.setSort(EventSort.CUPOS_DESC);
 
-        assertEquals(Arrays.asList(tresLibres, unLibre), idsOf(eventDao.search(criteria)));
-        assertEquals(2, eventDao.countSearch(criteria));
+        // Act
+        final List<Long> ids = idsOf(eventDao.search(criteria));
+
+        // Assert
+        assertEquals(Arrays.asList(tresLibres, unLibre), ids);
+    }
+
+    @Test
+    public void testCountSortBySpotsCombinesWithFiltersWithoutMixingParameters() {
+        // Arrange
+        eventWith(10, 9, "Un libre");
+        eventWith(10, 7, "Tres libres");
+        eventWith(10, 1, "Nueve libres");
+        final EventSearchCriteria criteria = fewSpotsCriteria();
+        criteria.setSort(EventSort.CUPOS_DESC);
+
+        // Act
+        final long count = eventDao.countSearch(criteria);
+
+        // Assert
+        assertEquals(2, count);
     }
 
     @Test
     public void testSearchSortedBySpotsLeavesOutSoldOutEvents() {
+        // Arrange
         final long unLibre = eventWith(10, 9, "Un libre");
         eventWith(10, 10, "Lleno");
         final long sinLimite = eventWith(null, 3, "Sin limite");
 
-        // Los agotados no aparecen en ninguno de los dos sentidos, y el total coincide.
-        assertEquals(Arrays.asList(unLibre, sinLimite), idsOf(eventDao.search(sortedBy(EventSort.CUPOS_ASC))));
-        assertEquals(Arrays.asList(sinLimite, unLibre), idsOf(eventDao.search(sortedBy(EventSort.CUPOS_DESC))));
-        assertEquals(2, eventDao.countSearch(sortedBy(EventSort.CUPOS_ASC)));
+        // Act
+        // Los agotados no aparecen en ninguno de los dos sentidos.
+        final List<Long> ascending = idsOf(eventDao.search(sortedBy(EventSort.CUPOS_ASC)));
+        final List<Long> descending = idsOf(eventDao.search(sortedBy(EventSort.CUPOS_DESC)));
+
+        // Assert
+        assertEquals(Arrays.asList(unLibre, sinLimite), ascending);
+        assertEquals(Arrays.asList(sinLimite, unLibre), descending);
+    }
+
+    @Test
+    public void testCountSearchSortedBySpotsLeavesOutSoldOutEvents() {
+        // Arrange
+        eventWith(10, 9, "Un libre");
+        eventWith(10, 10, "Lleno");
+        eventWith(null, 3, "Sin limite");
+
+        // Act
+        final long count = eventDao.countSearch(sortedBy(EventSort.CUPOS_ASC));
+
+        // Assert
+        assertEquals(2, count);
     }
 
     @Test
     public void testSearchSortedByDateStillShowsSoldOutEvents() {
+        // Arrange
+        // Solo el orden por cupos los saca: ordenando por fecha siguen apareciendo.
         eventWith(10, 9, "Un libre");
         eventWith(10, 10, "Lleno");
 
-        // Solo el orden por cupos los saca: ordenando por fecha siguen apareciendo.
-        assertEquals(2, eventDao.search(sortedBy(EventSort.FECHA_ASC)).size());
-    }
+        // Act
+        final List<Event> result = eventDao.search(sortedBy(EventSort.FECHA_ASC));
 
-    private static EventSearchCriteria soldOutCriteria() {
-        final EventSearchCriteria criteria = new EventSearchCriteria();
-        criteria.setOnlySoldOut(true);
-        criteria.setPageSize(20);
-        return criteria;
+        // Assert
+        assertEquals(2, result.size());
     }
 
     @Test
     public void testSearchWithSoldOutKeepsOnlyEventsWithoutSpotsLeft() {
+        // Arrange
         final long lleno = eventWith(10, 10, "Lleno");
         final long llenoConReservas = eventWith(10, 8, "Lleno con reservas");
         insertEventInvitation(llenoConReservas, "inv1@mail.com");
@@ -865,24 +1279,45 @@ public class EventJdbcDaoTest {
         eventWith(10, 9, "Un libre");
         eventWith(null, 50, "Sin limite");
 
+        // Act
         final List<Long> ids = idsOf(eventDao.search(soldOutCriteria()));
 
+        // Assert
         assertEquals(2, ids.size());
         assertTrue(ids.contains(lleno));
         assertTrue(ids.contains(llenoConReservas));
-        assertEquals(2, eventDao.countSearch(soldOutCriteria()));
+    }
+
+    @Test
+    public void testCountSearchWithSoldOutKeepsOnlyEventsWithoutSpotsLeft() {
+        // Arrange
+        eventWith(10, 10, "Lleno");
+        final long llenoConReservas = eventWith(10, 8, "Lleno con reservas");
+        insertEventInvitation(llenoConReservas, "inv1@mail.com");
+        insertEventInvitation(llenoConReservas, "inv2@mail.com");
+        eventWith(10, 9, "Un libre");
+        eventWith(null, 50, "Sin limite");
+
+        // Act
+        final long count = eventDao.countSearch(soldOutCriteria());
+
+        // Assert
+        assertEquals(2, count);
     }
 
     @Test
     public void testSearchWithFewSpotsAndSoldOutBringsBoth() {
+        // Arrange
         final long lleno = eventWith(10, 10, "Lleno");
         final long unLibre = eventWith(10, 9, "Un libre");
         eventWith(10, 1, "Nueve libres");
         final EventSearchCriteria criteria = soldOutCriteria();
         criteria.setOnlyFewSpotsLeft(true);
 
+        // Act
         final List<Long> ids = idsOf(eventDao.search(criteria));
 
+        // Assert
         assertEquals(2, ids.size());
         assertTrue(ids.contains(lleno));
         assertTrue(ids.contains(unLibre));
@@ -890,114 +1325,144 @@ public class EventJdbcDaoTest {
 
     @Test
     public void testSortBySpotsKeepsSoldOutEventsWhenTheSoldOutFilterIsOn() {
+        // Arrange
         final long lleno = eventWith(10, 10, "Lleno");
         final EventSearchCriteria criteria = soldOutCriteria();
         criteria.setSort(EventSort.CUPOS_ASC);
 
+        // Act
         // Pidio ver los agotados: el orden por cupos no se los tiene que sacar.
-        assertEquals(Collections.singletonList(lleno), idsOf(eventDao.search(criteria)));
+        final List<Long> ids = idsOf(eventDao.search(criteria));
+
+        // Assert
+        assertEquals(Collections.singletonList(lleno), ids);
     }
 
-    // ---- search(): filtro por categoria ----
+    // ==================================================================
+    // search(): filtro por categoria
+    // ==================================================================
 
     @Test
     public void testSearchByCategoryReturnsEventThatHasOneOfSeveralCategories() {
+        // Arrange
         final long otherCategoryId = insertCategory(OTHER_CATEGORY_NAME);
-        final Event event = new Event(TITLE, null, new Date(System.currentTimeMillis() + 86_400_000L), "Direccion A",
-                Barrio.PALERMO, null, BigDecimal.ZERO, null, CREATOR_EMAIL, null);
-        event.setCategories(Arrays.asList(new EventCategoryInfo(categoryId), new EventCategoryInfo(otherCategoryId)));
-        eventDao.create(event);
-
+        final long id = insertEvent(cols("address", "Direccion A"));
+        insertEventCategory(id, categoryId, null);
+        insertEventCategory(id, otherCategoryId, null);
         final EventSearchCriteria criteria = new EventSearchCriteria();
         criteria.setCategoryIds(Collections.singletonList(otherCategoryId));
         criteria.setPageSize(10);
 
+        // Act
         // Aparece una sola vez, no una por cada categoria que matchea.
-        assertEquals(1, eventDao.search(criteria).size());
-        assertEquals(1, eventDao.countSearch(criteria));
+        final List<Event> result = eventDao.search(criteria);
+
+        // Assert
+        assertEquals(1, result.size());
     }
 
-    // ---- search(): filtro por puntaje del organizador ----
+    @Test
+    public void testCountSearchByCategoryReturnsEventThatHasOneOfSeveralCategories() {
+        // Arrange
+        final long otherCategoryId = insertCategory(OTHER_CATEGORY_NAME);
+        final long id = insertEvent(cols("address", "Direccion A"));
+        insertEventCategory(id, categoryId, null);
+        insertEventCategory(id, otherCategoryId, null);
+        final EventSearchCriteria criteria = new EventSearchCriteria();
+        criteria.setCategoryIds(Collections.singletonList(otherCategoryId));
+        criteria.setPageSize(10);
+
+        // Act
+        final long count = eventDao.countSearch(criteria);
+
+        // Assert
+        assertEquals(1, count);
+    }
+
+    // ==================================================================
+    // search(): filtro por puntaje del organizador
+    // ==================================================================
 
     @Test
     public void testSearchFiltersByMinimumOrganizerRating() {
+        // Arrange
         final String highRatedCreator = "alto@mail.com";
         final String lowRatedCreator = "bajo@mail.com";
         final long highRatedCreatorId = insertUser(highRatedCreator);
         final long lowRatedCreatorId = insertUser(lowRatedCreator);
         final long reviewerId = insertUser("reviewer@mail.com");
-        final Date future = new Date(System.currentTimeMillis() + 86_400_000L);
-
-        final Event highRatedEvent = new Event(TITLE, null, future, "Direccion A",
-                Barrio.PALERMO, null, BigDecimal.ZERO, null, highRatedCreator, Collections.singletonList(categoryId));
-        highRatedEvent.setCreatorId(highRatedCreatorId);
-        final Event lowRatedEvent = new Event(TITLE, null, future, "Direccion B",
-                Barrio.PALERMO, null, BigDecimal.ZERO, null, lowRatedCreator, Collections.singletonList(categoryId));
-        lowRatedEvent.setCreatorId(lowRatedCreatorId);
-        final long highRatedEventId = eventDao.create(highRatedEvent).getId();
-        final long lowRatedEventId = eventDao.create(lowRatedEvent).getId();
+        final long highRatedEventId = insertEvent(
+                cols("address", "Direccion A", "creator_email", highRatedCreator, "creator_id", highRatedCreatorId));
+        final long lowRatedEventId = insertEvent(
+                cols("address", "Direccion B", "creator_email", lowRatedCreator, "creator_id", lowRatedCreatorId));
         insertReview(highRatedEventId, reviewerId, 5);
         insertReview(lowRatedEventId, reviewerId, 2);
-
         final EventSearchCriteria criteria = new EventSearchCriteria();
         criteria.setMinOrganizerRating(4);
         criteria.setPageSize(10);
 
+        // Act
         final List<Event> result = eventDao.search(criteria);
 
+        // Assert
         assertEquals(1, result.size());
         assertEquals(highRatedCreator, result.get(0).getCreatorEmail());
     }
 
     @Test
     public void testCountSearchMatchesSearchWhenFilteringByOrganizerRating() {
+        // Arrange
         final String highRatedCreator = "alto@mail.com";
         final long highRatedCreatorId = insertUser(highRatedCreator);
         final long reviewerId = insertUser("reviewer@mail.com");
-        final Date future = new Date(System.currentTimeMillis() + 86_400_000L);
-
-        final Event event = new Event(TITLE, null, future, "Direccion A",
-                Barrio.PALERMO, null, BigDecimal.ZERO, null, highRatedCreator, Collections.singletonList(categoryId));
-        event.setCreatorId(highRatedCreatorId);
-        final long eventId = eventDao.create(event).getId();
+        final long eventId = insertEvent(
+                cols("address", "Direccion A", "creator_email", highRatedCreator, "creator_id", highRatedCreatorId));
         insertReview(eventId, reviewerId, 5);
-
         final EventSearchCriteria criteria = new EventSearchCriteria();
         criteria.setMinOrganizerRating(4);
         criteria.setPageSize(10);
 
-        assertEquals(1, eventDao.countSearch(criteria));
+        // Act
+        final long count = eventDao.countSearch(criteria);
+
+        // Assert
+        assertEquals(1, count);
     }
 
     @Test
     public void testSearchWithMinimumOrganizerRatingExcludesCreatorsBelowIt() {
+        // Arrange
         final long reviewerId = insertUser("reviewer@mail.com");
-        final Date future = new Date(System.currentTimeMillis() + 86_400_000L);
-        final Event event = new Event(TITLE, null, future, "Direccion A",
-                Barrio.PALERMO, null, BigDecimal.ZERO, null, CREATOR_EMAIL, Collections.singletonList(categoryId));
-        event.setCreatorId(creatorId);
-        final long eventId = eventDao.create(event).getId();
+        final long eventId = insertEvent(cols("creator_id", creatorId));
         insertReview(eventId, reviewerId, 3);
-
         final EventSearchCriteria criteria = new EventSearchCriteria();
         criteria.setMinOrganizerRating(4);
         criteria.setPageSize(10);
 
-        assertTrue(eventDao.search(criteria).isEmpty());
+        // Act
+        final List<Event> result = eventDao.search(criteria);
+
+        // Assert
+        assertTrue(result.isEmpty());
     }
 
     @Test
     public void testSearchWithoutMinimumOrganizerRatingIgnoresTheFilter() {
-        eventDao.create(new Event(TITLE, null, new Date(System.currentTimeMillis() + 86_400_000L), "Direccion A",
-                Barrio.PALERMO, null, BigDecimal.ZERO, null, CREATOR_EMAIL, Collections.singletonList(categoryId)));
-
+        // Arrange
+        insertEvent();
         final EventSearchCriteria criteria = new EventSearchCriteria();
         criteria.setPageSize(10);
 
-        assertEquals(1, eventDao.search(criteria).size());
+        // Act
+        final List<Event> result = eventDao.search(criteria);
+
+        // Assert
+        assertEquals(1, result.size());
     }
 
-    // ---- search(): eventos privados ----
+    // ==================================================================
+    // search(): eventos privados
+    // ==================================================================
 
     /**
      * EL TEST QUE IMPIDE QUE UN EVENTO PRIVADO SE FILTRE POR EL LISTADO. Un
@@ -1007,127 +1472,50 @@ public class EventJdbcDaoTest {
      */
     @Test
     public void testSearchExcludesPrivateEvents() {
-        final Event privateEvent = someEvent(categoryId);
-        privateEvent.setEventDate(new Date(System.currentTimeMillis() + 86_400_000L));
-        privateEvent.setVisibility(EventVisibility.PRIVATE);
-        eventDao.create(privateEvent);
-
+        // Arrange
+        insertEvent(cols("visibility", EventVisibility.PRIVATE.name()));
         final EventSearchCriteria criteria = new EventSearchCriteria();
         criteria.setPageSize(10);
 
-        assertTrue(eventDao.search(criteria).isEmpty());
-        assertEquals(0, eventDao.countSearch(criteria));
+        // Act
+        final List<Event> result = eventDao.search(criteria);
+
+        // Assert
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    public void testCountSearchExcludesPrivateEvents() {
+        // Arrange
+        insertEvent(cols("visibility", EventVisibility.PRIVATE.name()));
+        final EventSearchCriteria criteria = new EventSearchCriteria();
+        criteria.setPageSize(10);
+
+        // Act
+        final long count = eventDao.countSearch(criteria);
+
+        // Assert
+        assertEquals(0, count);
     }
 
     @Test
     public void testSearchIncludesPublicEventsAlongsidePrivateOnes() {
-        final Event privateEvent = someEvent(categoryId);
-        privateEvent.setEventDate(new Date(System.currentTimeMillis() + 86_400_000L));
-        privateEvent.setVisibility(EventVisibility.PRIVATE);
-        eventDao.create(privateEvent);
-
-        final Event publicEvent = someEvent(categoryId);
-        publicEvent.setEventDate(new Date(System.currentTimeMillis() + 86_400_000L));
-        eventDao.create(publicEvent);
-
+        // Arrange
+        insertEvent(cols("address", "Privado", "visibility", EventVisibility.PRIVATE.name()));
+        insertEvent(cols("address", "Publico"));
         final EventSearchCriteria criteria = new EventSearchCriteria();
         criteria.setPageSize(10);
 
-        assertEquals(1, eventDao.search(criteria).size());
+        // Act
+        final List<Event> result = eventDao.search(criteria);
+
+        // Assert
+        assertEquals(1, result.size());
     }
 
-    // ---- findFeatured() / setFeatured() ----
-
-    @Test
-    public void testFindFeaturedReturnsOnlyEventsMarkedAsFeatured() {
-        final long notFeaturedId = eventDao.create(someFutureEvent(categoryId)).getId();
-        final long featuredId = eventDao.create(someFutureEvent(categoryId)).getId();
-        eventDao.setFeatured(featuredId, true);
-
-        final List<Event> featured = eventDao.findFeatured(10);
-
-        assertEquals(1, featured.size());
-        assertEquals(featuredId, featured.get(0).getId());
-        assertTrue(featured.get(0).isFeatured());
-        assertFalse(eventDao.findById(notFeaturedId).get().isFeatured());
-    }
-
-    @Test
-    public void testFindFeaturedOrdersByMostRecentlyFeaturedFirst() throws InterruptedException {
-        final long firstFeaturedId = eventDao.create(someFutureEvent(categoryId)).getId();
-        eventDao.setFeatured(firstFeaturedId, true);
-        // HSQLDB/Postgres truncan now() a milisegundos: sin esto los dos featured_at
-        // podrian empatar y el orden quedaria indefinido.
-        Thread.sleep(5);
-        final long secondFeaturedId = eventDao.create(someFutureEvent(categoryId)).getId();
-        eventDao.setFeatured(secondFeaturedId, true);
-
-        final List<Event> featured = eventDao.findFeatured(10);
-
-        assertEquals(2, featured.size());
-        assertEquals(secondFeaturedId, featured.get(0).getId());
-        assertEquals(firstFeaturedId, featured.get(1).getId());
-    }
-
-    @Test
-    public void testFindFeaturedRespectsTheLimit() {
-        for (int i = 0; i < 3; i++) {
-            final long id = eventDao.create(someFutureEvent(categoryId)).getId();
-            eventDao.setFeatured(id, true);
-        }
-
-        assertEquals(2, eventDao.findFeatured(2).size());
-    }
-
-    @Test
-    public void testFindFeaturedExcludesPrivateCancelledAndPastEvents() {
-        final Event privateEvent = someFutureEvent(categoryId);
-        privateEvent.setVisibility(EventVisibility.PRIVATE);
-        final long privateId = eventDao.create(privateEvent).getId();
-        eventDao.setFeatured(privateId, true);
-
-        final long cancelledId = eventDao.create(someFutureEvent(categoryId)).getId();
-        eventDao.setFeatured(cancelledId, true);
-        eventDao.cancel(cancelledId);
-
-        final Event pastEvent = someEvent(categoryId);
-        pastEvent.setEventDate(new Date(System.currentTimeMillis() - 86_400_000L));
-        final long pastId = eventDao.create(pastEvent).getId();
-        eventDao.setFeatured(pastId, true);
-
-        assertTrue(eventDao.findFeatured(10).isEmpty());
-    }
-
-    @Test
-    public void testSetFeaturedFalseClearsFeaturedAt() {
-        final long id = eventDao.create(someFutureEvent(categoryId)).getId();
-        eventDao.setFeatured(id, true);
-
-        eventDao.setFeatured(id, false);
-
-        final Event found = eventDao.findById(id).orElseThrow(AssertionError::new);
-        assertFalse(found.isFeatured());
-        assertNull(found.getFeaturedAt());
-    }
-
-    private static Event someFutureEvent(final long categoryId) {
-        return new Event(TITLE, "desc", new Date(System.currentTimeMillis() + 86_400_000L), "Av. Corrientes 1234",
-                Barrio.PALERMO, null, new BigDecimal("1500"), 50, CREATOR_EMAIL, Collections.singletonList(categoryId));
-    }
-
-    // findAll/findByCreatorId SI tienen que devolver privados: "Mis eventos"
-    // (findByCreatorId) es justamente donde el creador los ve y los gestiona.
-    @Test
-    public void testFindByCreatorIdIncludesPrivateEvents() {
-        final Event privateEvent = someEvent(categoryId);
-        privateEvent.setCreatorId(creatorId);
-        privateEvent.setVisibility(EventVisibility.PRIVATE);
-        eventDao.create(privateEvent);
-
-        assertEquals(1, eventDao.findByCreatorId(creatorId).size());
-    }
-
-    // ---- search()/findById()/findByCreatorId(): eventos cancelados ----
+    // ==================================================================
+    // search(): eventos cancelados
+    // ==================================================================
 
     /**
      * EL TEST QUE IMPIDE QUE UN EVENTO CANCELADO SE FILTRE POR EL LISTADO.
@@ -1136,102 +1524,212 @@ public class EventJdbcDaoTest {
      */
     @Test
     public void testSearchExcludesCancelledEvents() {
-        final Event event = someEvent(categoryId);
-        event.setEventDate(new Date(System.currentTimeMillis() + 86_400_000L));
-        final Event created = eventDao.create(event);
-        eventDao.cancel(created.getId());
-
+        // Arrange
+        insertEvent(cols("cancelled_at", new Timestamp(System.currentTimeMillis())));
         final EventSearchCriteria criteria = new EventSearchCriteria();
         criteria.setPageSize(10);
 
-        assertTrue(eventDao.search(criteria).isEmpty());
-        assertEquals(0, eventDao.countSearch(criteria));
-    }
+        // Act
+        final List<Event> result = eventDao.search(criteria);
 
-    // findById/findByCreatorId SI tienen que devolver un evento cancelado:
-    // quien ya estaba anotado tiene que poder seguir viendolo (detalle, "Mis
-    // inscripciones"), y el creador tiene que seguir viendolo en "Mis eventos".
-    @Test
-    public void testFindByIdReturnsCancelledEvents() {
-        final Event created = eventDao.create(someEvent(categoryId));
-        eventDao.cancel(created.getId());
-
-        assertTrue(eventDao.findById(created.getId()).isPresent());
+        // Assert
+        assertTrue(result.isEmpty());
     }
 
     @Test
-    public void testFindByCreatorIdIncludesCancelledEvents() {
-        final Event event = someEvent(categoryId);
-        event.setCreatorId(creatorId);
-        final Event created = eventDao.create(event);
-        eventDao.cancel(created.getId());
+    public void testCountSearchExcludesCancelledEvents() {
+        // Arrange
+        insertEvent(cols("cancelled_at", new Timestamp(System.currentTimeMillis())));
+        final EventSearchCriteria criteria = new EventSearchCriteria();
+        criteria.setPageSize(10);
 
-        assertEquals(1, eventDao.findByCreatorId(creatorId).size());
+        // Act
+        final long count = eventDao.countSearch(criteria);
+
+        // Assert
+        assertEquals(0, count);
     }
 
-    // ---- recordatorio de 24 hs ----
+    // ==================================================================
+    // findFeatured() / setFeatured()
+    // ==================================================================
 
-    private static final long HORA = 60L * 60 * 1000;
+    @Test
+    public void testFindFeaturedReturnsOnlyEventsMarkedAsFeatured() {
+        // Arrange
+        insertEvent(cols("address", "No destacado"));
+        final long featuredId = insertEvent(cols("address", "Destacado", "featured", true,
+                "featured_at", new Timestamp(System.currentTimeMillis())));
 
-    private long eventInHours(final long hours, final String title) {
-        jdbcTemplate.update(
-                "INSERT INTO event (title, event_date, address, creator_email) VALUES (?, ?, ?, ?)",
-                title, new Timestamp(System.currentTimeMillis() + hours * HORA), "Corrientes 1234", CREATOR_EMAIL);
-        return jdbcTemplate.queryForObject("SELECT id FROM event WHERE title = ?", Long.class, title);
+        // Act
+        final List<Event> featured = eventDao.findFeatured(10);
+
+        // Assert
+        assertEquals(1, featured.size());
+        assertEquals(featuredId, featured.get(0).getId());
+        assertTrue(featured.get(0).isFeatured());
+    }
+
+    @Test
+    public void testFindFeaturedOrdersByMostRecentlyFeaturedFirst() {
+        // Arrange
+        final Timestamp antes = new Timestamp(System.currentTimeMillis() - 2000);
+        final Timestamp despues = new Timestamp(System.currentTimeMillis() - 1000);
+        final long firstFeaturedId = insertEvent(cols("address", "Primero", "featured", true, "featured_at", antes));
+        final long secondFeaturedId = insertEvent(cols("address", "Segundo", "featured", true, "featured_at", despues));
+
+        // Act
+        final List<Event> featured = eventDao.findFeatured(10);
+
+        // Assert
+        assertEquals(2, featured.size());
+        assertEquals(secondFeaturedId, featured.get(0).getId());
+        assertEquals(firstFeaturedId, featured.get(1).getId());
+    }
+
+    @Test
+    public void testFindFeaturedRespectsTheLimit() {
+        // Arrange
+        for (int i = 0; i < 3; i++) {
+            insertEvent(cols("address", "Destacado " + i, "featured", true,
+                    "featured_at", new Timestamp(System.currentTimeMillis())));
+        }
+
+        // Act
+        final List<Event> featured = eventDao.findFeatured(2);
+
+        // Assert
+        assertEquals(2, featured.size());
+    }
+
+    @Test
+    public void testFindFeaturedExcludesPrivateCancelledAndPastEvents() {
+        // Arrange
+        insertEvent(cols("address", "Privado", "featured", true,
+                "featured_at", new Timestamp(System.currentTimeMillis()), "visibility", EventVisibility.PRIVATE.name()));
+        insertEvent(cols("address", "Cancelado", "featured", true,
+                "featured_at", new Timestamp(System.currentTimeMillis()), "cancelled_at", new Timestamp(System.currentTimeMillis())));
+        insertEvent(cols("address", "Pasado", "featured", true,
+                "featured_at", new Timestamp(System.currentTimeMillis()),
+                "event_date", new Timestamp(System.currentTimeMillis() - 86_400_000L)));
+
+        // Act
+        final List<Event> featured = eventDao.findFeatured(10);
+
+        // Assert
+        assertTrue(featured.isEmpty());
+    }
+
+    @Test
+    public void testSetFeaturedTrueMarksTheEventFeaturedAndSetsFeaturedAt() {
+        // Arrange
+        final long id = insertEvent();
+
+        // Act
+        eventDao.setFeatured(id, true);
+
+        // Assert
+        final Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT featured, featured_at FROM event WHERE id = ?", id);
+        assertTrue((Boolean) row.get("featured"));
+        assertNotNull(row.get("featured_at"));
+    }
+
+    @Test
+    public void testSetFeaturedFalseClearsFeaturedAt() {
+        // Arrange
+        final long id = insertEvent(cols("featured", true, "featured_at", new Timestamp(System.currentTimeMillis())));
+
+        // Act
+        eventDao.setFeatured(id, false);
+
+        // Assert
+        final Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT featured, featured_at FROM event WHERE id = ?", id);
+        assertFalse((Boolean) row.get("featured"));
+        assertNull(row.get("featured_at"));
+    }
+
+    // ==================================================================
+    // recordatorio de 24 hs
+    // ==================================================================
+
+    private long eventInHours(final long hours, final String address) {
+        return insertEvent(cols("address", address,
+                "event_date", new Timestamp(System.currentTimeMillis() + hours * HORA)));
     }
 
     @Test
     public void testFindIdsNeedingReminderOnlyReturnsEventsInTheWindowNotCancelledNorReminded() {
+        // Arrange
         final long enDiezHoras = eventInHours(10, "En diez horas");
         eventInHours(30, "En treinta horas");
         eventInHours(-2, "Ya paso");
-        final long cancelado = eventInHours(5, "Cancelado");
-        eventDao.cancel(cancelado);
-        final long yaAvisado = eventInHours(8, "Ya avisado");
-        eventDao.markReminderSent(yaAvisado, new Date());
-
+        insertEvent(cols("address", "Cancelado",
+                "event_date", new Timestamp(System.currentTimeMillis() + 5 * HORA),
+                "cancelled_at", new Timestamp(System.currentTimeMillis())));
+        insertEvent(cols("address", "Ya avisado",
+                "event_date", new Timestamp(System.currentTimeMillis() + 8 * HORA),
+                "reminder_sent_at", new Timestamp(System.currentTimeMillis())));
         final Date now = new Date();
+
+        // Act
         final List<Long> ids = eventDao.findIdsNeedingReminder(now, new Date(now.getTime() + 24 * HORA));
 
+        // Assert
         assertEquals(Collections.singletonList(enDiezHoras), ids);
     }
 
     @Test
     public void testMarkReminderSentOnlyWorksTheFirstTime() {
+        // Arrange
         final long id = eventInHours(10, "Una vez");
 
-        assertTrue(eventDao.markReminderSent(id, new Date()));
-        assertFalse(eventDao.markReminderSent(id, new Date()));
-    }
+        // Act
+        final boolean firstResult = eventDao.markReminderSent(id, new Date());
+        final boolean secondResult = eventDao.markReminderSent(id, new Date());
 
-    private Timestamp reminderSentAt(final long id) {
-        return jdbcTemplate.queryForObject("SELECT reminder_sent_at FROM event WHERE id = ?", Timestamp.class, id);
+        // Assert
+        assertTrue(firstResult);
+        assertFalse(secondResult);
     }
 
     @Test
     public void testUpdateKeepsTheReminderIfTheDateDidNotChange() {
-        final Event created = eventDao.create(someEvent(categoryId));
-        eventDao.markReminderSent(created.getId(), new Date());
-
+        // Arrange
+        final Timestamp eventDate = new Timestamp(System.currentTimeMillis() + 86_400_000L);
+        final long id = insertEvent(cols("event_date", eventDate,
+                "reminder_sent_at", new Timestamp(System.currentTimeMillis())));
         final Event changes = someEvent(categoryId);
-        changes.setId(created.getId());
-        changes.setEventDate(created.getEventDate());
+        changes.setId(id);
+        changes.setEventDate(eventDate);
         changes.setTitle("Solo cambia el titulo");
+
+        // Act
         eventDao.update(changes);
 
-        assertNotNull(reminderSentAt(created.getId()));
+        // Assert
+        final Timestamp reminderSentAt = jdbcTemplate.queryForObject(
+                "SELECT reminder_sent_at FROM event WHERE id = ?", Timestamp.class, id);
+        assertNotNull(reminderSentAt);
     }
 
     @Test
     public void testUpdateResetsTheReminderIfTheDateChanged() {
-        final Event created = eventDao.create(someEvent(categoryId));
-        eventDao.markReminderSent(created.getId(), new Date());
-
+        // Arrange
+        final Timestamp originalDate = new Timestamp(System.currentTimeMillis() + 86_400_000L);
+        final long id = insertEvent(cols("event_date", originalDate,
+                "reminder_sent_at", new Timestamp(System.currentTimeMillis())));
         final Event changes = someEvent(categoryId);
-        changes.setId(created.getId());
-        changes.setEventDate(new Date(created.getEventDate().getTime() + 7 * 24 * HORA));
+        changes.setId(id);
+        changes.setEventDate(new Date(originalDate.getTime() + 7 * 24 * HORA));
+
+        // Act
         eventDao.update(changes);
 
-        assertNull(reminderSentAt(created.getId()));
+        // Assert
+        final Timestamp reminderSentAt = jdbcTemplate.queryForObject(
+                "SELECT reminder_sent_at FROM event WHERE id = ?", Timestamp.class, id);
+        assertNull(reminderSentAt);
     }
 }

@@ -1,7 +1,6 @@
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.EventInvitation;
-import ar.edu.itba.paw.model.User;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -16,10 +15,12 @@ import org.springframework.transaction.annotation.Transactional;
 import javax.sql.DataSource;
 import java.sql.Timestamp;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(SpringJUnit4ClassRunner.class)
@@ -36,9 +37,6 @@ public class EventInvitationJdbcDaoTest {
 
     @Autowired
     private EventInvitationDao invitationDao;
-
-    @Autowired
-    private UserDao userDao;
 
     private JdbcTemplate jdbcTemplate;
     private long eventId;
@@ -60,6 +58,18 @@ public class EventInvitationJdbcDaoTest {
         return jdbcTemplate.queryForObject("SELECT id FROM event ORDER BY id DESC LIMIT 1", Long.class);
     }
 
+    private long insertUser(final String email) {
+        jdbcTemplate.update("INSERT INTO users (email, name) VALUES (?, ?)", email, "Invitado");
+        return jdbcTemplate.queryForObject("SELECT id FROM users WHERE email = ?", Long.class, email);
+    }
+
+    private long insertInvitation(final long eventId, final String email, final Long userId) {
+        jdbcTemplate.update(
+                "INSERT INTO event_invitation (event_id, email, invited_by, user_id) VALUES (?, ?, ?, ?)",
+                eventId, email, CREATOR_EMAIL, userId);
+        return jdbcTemplate.queryForObject("SELECT id FROM event_invitation ORDER BY id DESC LIMIT 1", Long.class);
+    }
+
     private static EventInvitation someInvitation(final long eventId) {
         return new EventInvitation(eventId, INVITEE_EMAIL, CREATOR_EMAIL);
     }
@@ -68,17 +78,98 @@ public class EventInvitationJdbcDaoTest {
 
     @Test
     public void testCreateAssignsAGeneratedId() {
-        final EventInvitation created = invitationDao.create(someInvitation(eventId));
+        // Arrange
+        final EventInvitation toCreate = someInvitation(eventId);
 
+        // Act
+        final EventInvitation created = invitationDao.create(toCreate);
+
+        // Assert
         assertTrue(created.getId() > 0);
     }
 
     @Test
-    public void testCreateAndFindReturnTheSameInvitation() {
-        invitationDao.create(someInvitation(eventId));
+    public void testCreateInsertsTheInvitationRow() {
+        // Arrange
+        final EventInvitation toCreate = someInvitation(eventId);
 
+        // Act
+        final EventInvitation created = invitationDao.create(toCreate);
+
+        // Assert
+        final Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT event_id, email, invited_by FROM event_invitation WHERE id = ?", created.getId());
+        assertEquals(eventId, ((Number) row.get("event_id")).longValue());
+        assertEquals(INVITEE_EMAIL, row.get("email"));
+        assertEquals(CREATOR_EMAIL, row.get("invited_by"));
+    }
+
+    @Test
+    public void testCreateSetsCreatedAtAutomatically() {
+        // Arrange
+        final EventInvitation toCreate = someInvitation(eventId);
+
+        // Act
+        final EventInvitation created = invitationDao.create(toCreate);
+
+        // Assert
+        final Timestamp createdAt = jdbcTemplate.queryForObject(
+                "SELECT created_at FROM event_invitation WHERE id = ?", Timestamp.class, created.getId());
+        assertTrue(createdAt != null);
+    }
+
+    @Test
+    public void testCreatePersistsTheOptimisticallyLinkedUserId() {
+        // Arrange
+        final long inviteeId = insertUser(INVITEE_EMAIL);
+        final EventInvitation toCreate = someInvitation(eventId);
+        toCreate.setUserId(inviteeId);
+
+        // Act
+        final EventInvitation created = invitationDao.create(toCreate);
+
+        // Assert
+        final Long storedUserId = jdbcTemplate.queryForObject(
+                "SELECT user_id FROM event_invitation WHERE id = ?", Long.class, created.getId());
+        assertEquals(Long.valueOf(inviteeId), storedUserId);
+    }
+
+    @Test
+    public void testCreateLeavesUserIdNullWhenTheInviteeHasNoAccount() {
+        // Arrange
+        final EventInvitation toCreate = someInvitation(eventId);
+
+        // Act
+        final EventInvitation created = invitationDao.create(toCreate);
+
+        // Assert
+        final Long storedUserId = jdbcTemplate.queryForObject(
+                "SELECT user_id FROM event_invitation WHERE id = ?", Long.class, created.getId());
+        assertNull(storedUserId);
+    }
+
+    @Test(expected = DataAccessException.class)
+    public void testCreateWithDuplicateEventAndEmailThrowsDataAccessException() {
+        // Arrange
+        insertInvitation(eventId, INVITEE_EMAIL, null);
+
+        // Act
+        invitationDao.create(new EventInvitation(eventId, INVITEE_EMAIL, CREATOR_EMAIL));
+
+        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
+    }
+
+    // ---- findByEventAndEmail() ----
+
+    @Test
+    public void testFindByEventAndEmailReturnsTheStoredInvitation() {
+        // Arrange
+        insertInvitation(eventId, INVITEE_EMAIL, null);
+
+        // Act
         final Optional<EventInvitation> found = invitationDao.findByEventAndEmail(eventId, INVITEE_EMAIL);
 
+        // Assert
         assertTrue(found.isPresent());
         assertEquals(eventId, found.get().getEventId());
         assertEquals(INVITEE_EMAIL, found.get().getEmail());
@@ -86,111 +177,101 @@ public class EventInvitationJdbcDaoTest {
         assertTrue(found.get().getCreatedAt() != null);
     }
 
-    @Test(expected = DataAccessException.class)
-    public void testCreateWithDuplicateEventAndEmailThrowsDataAccessException() {
-        invitationDao.create(someInvitation(eventId));
-        invitationDao.create(new EventInvitation(eventId, INVITEE_EMAIL, CREATOR_EMAIL));
-    }
-
-    // ---- findByEventAndEmail() ----
-
-    @Test
-    public void testFindByEventAndEmailReturnsTheInvitation() {
-        invitationDao.create(someInvitation(eventId));
-
-        final Optional<EventInvitation> found = invitationDao.findByEventAndEmail(eventId, INVITEE_EMAIL);
-
-        assertTrue(found.isPresent());
-    }
-
     @Test
     public void testFindByEventAndEmailReturnsEmptyWhenNotInvited() {
-        assertFalse(invitationDao.findByEventAndEmail(eventId, INVITEE_EMAIL).isPresent());
+        // Arrange: no se inserta ninguna invitacion.
+
+        // Act
+        final Optional<EventInvitation> found = invitationDao.findByEventAndEmail(eventId, INVITEE_EMAIL);
+
+        // Assert
+        assertFalse(found.isPresent());
     }
 
     // ---- findByEventAndUserId() ----
 
     @Test
     public void testFindByEventAndUserIdReturnsTheInvitation() {
-        final long inviteeId = userDao.create(new User(INVITEE_EMAIL, "Invitado")).getId();
-        final EventInvitation invitation = someInvitation(eventId);
-        invitation.setUserId(inviteeId);
-        invitationDao.create(invitation);
+        // Arrange
+        final long inviteeId = insertUser(INVITEE_EMAIL);
+        insertInvitation(eventId, INVITEE_EMAIL, inviteeId);
 
+        // Act
         final Optional<EventInvitation> found = invitationDao.findByEventAndUserId(eventId, inviteeId);
 
+        // Assert
         assertTrue(found.isPresent());
     }
 
     @Test
     public void testFindByEventAndUserIdReturnsEmptyWhenNotLinked() {
-        invitationDao.create(someInvitation(eventId));
+        // Arrange
+        insertInvitation(eventId, INVITEE_EMAIL, null);
 
-        assertFalse(invitationDao.findByEventAndUserId(eventId, 999999L).isPresent());
+        // Act
+        final Optional<EventInvitation> found = invitationDao.findByEventAndUserId(eventId, 999999L);
+
+        // Assert
+        assertFalse(found.isPresent());
     }
 
     // ---- findByEvent() ----
 
     @Test
     public void testFindByEventReturnsOnlyThatEventsInvitations() {
-        invitationDao.create(someInvitation(eventId));
+        // Arrange
+        insertInvitation(eventId, INVITEE_EMAIL, null);
         final long otherEventId = insertEvent();
-        invitationDao.create(new EventInvitation(otherEventId, "otro@mail.com", CREATOR_EMAIL));
+        insertInvitation(otherEventId, "otro@mail.com", null);
 
+        // Act
         final List<EventInvitation> found = invitationDao.findByEvent(eventId);
 
+        // Assert
         assertEquals(1, found.size());
         assertEquals(INVITEE_EMAIL, found.get(0).getEmail());
     }
 
     @Test
     public void testFindByEventReturnsEmptyWhenNobodyWasInvited() {
-        assertTrue(invitationDao.findByEvent(eventId).isEmpty());
+        // Arrange: no se inserta ninguna invitacion.
+
+        // Act
+        final List<EventInvitation> found = invitationDao.findByEvent(eventId);
+
+        // Assert
+        assertTrue(found.isEmpty());
     }
 
-    // ---- user_id (Grupo B) ----
-
-    @Test
-    public void testCreateAndFindKeepTheOptimisticallyLinkedUserId() {
-        final long inviteeId = userDao.create(new User(INVITEE_EMAIL, "Invitado")).getId();
-        final EventInvitation invitation = someInvitation(eventId);
-        invitation.setUserId(inviteeId);
-
-        invitationDao.create(invitation);
-
-        final Optional<EventInvitation> found = invitationDao.findByEventAndEmail(eventId, INVITEE_EMAIL);
-        assertEquals(Long.valueOf(inviteeId), found.get().getUserId());
-    }
-
-    @Test
-    public void testCreateLeavesUserIdNullWhenTheInviteeHasNoAccount() {
-        invitationDao.create(someInvitation(eventId));
-
-        final Optional<EventInvitation> found = invitationDao.findByEventAndEmail(eventId, INVITEE_EMAIL);
-        assertEquals(null, found.get().getUserId());
-    }
+    // ---- linkUserId() ----
 
     @Test
     public void testLinkUserIdFillsInThePreviouslyUnresolvedInvitation() {
-        invitationDao.create(someInvitation(eventId));
-        final long inviteeId = userDao.create(new User(INVITEE_EMAIL, "Invitado")).getId();
+        // Arrange
+        final long id = insertInvitation(eventId, INVITEE_EMAIL, null);
+        final long inviteeId = insertUser(INVITEE_EMAIL);
 
+        // Act
         invitationDao.linkUserId(INVITEE_EMAIL, inviteeId);
 
-        final Optional<EventInvitation> found = invitationDao.findByEventAndEmail(eventId, INVITEE_EMAIL);
-        assertEquals(Long.valueOf(inviteeId), found.get().getUserId());
+        // Assert
+        final Long storedUserId = jdbcTemplate.queryForObject(
+                "SELECT user_id FROM event_invitation WHERE id = ?", Long.class, id);
+        assertEquals(Long.valueOf(inviteeId), storedUserId);
     }
 
     @Test
     public void testLinkUserIdNeverOverwritesAnAlreadyLinkedInvitation() {
-        final long firstAccountId = userDao.create(new User(INVITEE_EMAIL, "Invitado")).getId();
-        final EventInvitation invitation = someInvitation(eventId);
-        invitation.setUserId(firstAccountId);
-        invitationDao.create(invitation);
+        // Arrange
+        final long firstAccountId = insertUser(INVITEE_EMAIL);
+        final long id = insertInvitation(eventId, INVITEE_EMAIL, firstAccountId);
 
+        // Act
         invitationDao.linkUserId(INVITEE_EMAIL, firstAccountId + 999);
 
-        final Optional<EventInvitation> found = invitationDao.findByEventAndEmail(eventId, INVITEE_EMAIL);
-        assertEquals(Long.valueOf(firstAccountId), found.get().getUserId());
+        // Assert
+        final Long storedUserId = jdbcTemplate.queryForObject(
+                "SELECT user_id FROM event_invitation WHERE id = ?", Long.class, id);
+        assertEquals(Long.valueOf(firstAccountId), storedUserId);
     }
 }

@@ -27,21 +27,27 @@ public class CategoryServiceImplTest {
 
     @Test
     public void testFindAllReturnsWhatTheDaoReturns() {
+        // Arrange
         final List<Category> categories = Arrays.asList(new Category("Musica"), new Category("Deportes"));
         when(mockCategoryDao.findAll()).thenReturn(categories);
 
+        // Act
         final List<Category> result = categoryService.findAll();
 
+        // Assert
         assertEquals(2, result.size());
         assertEquals("Musica", result.get(0).getName());
     }
 
     @Test
     public void testFindAllReturnsAnEmptyListWhenThereAreNoCategories() {
+        // Arrange
         when(mockCategoryDao.findAll()).thenReturn(Collections.emptyList());
 
+        // Act
         final List<Category> result = categoryService.findAll();
 
+        // Assert
         assertTrue(result.isEmpty());
     }
 }

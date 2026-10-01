@@ -1,7 +1,6 @@
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.EventQuestion;
-import ar.edu.itba.paw.model.User;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -10,12 +9,14 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.Rollback;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.springframework.test.jdbc.JdbcTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.sql.DataSource;
 import java.sql.Timestamp;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
@@ -37,9 +38,6 @@ public class EventQuestionJdbcDaoTest {
     @Autowired
     private EventQuestionDao questionDao;
 
-    @Autowired
-    private UserDao userDao;
-
     private JdbcTemplate jdbcTemplate;
     private long userId;
     private long eventId;
@@ -47,8 +45,13 @@ public class EventQuestionJdbcDaoTest {
     @Before
     public void setUp() {
         jdbcTemplate = new JdbcTemplate(ds);
-        userId = userDao.create(new User("pregunta@mail.com", "Ana")).getId();
+        userId = insertUser("pregunta@mail.com", "Ana");
         eventId = insertEvent("Recital");
+    }
+
+    private long insertUser(final String email, final String name) {
+        jdbcTemplate.update("INSERT INTO users (email, name) VALUES (?, ?)", email, name);
+        return jdbcTemplate.queryForObject("SELECT id FROM users WHERE email = ?", Long.class, email);
     }
 
     private long insertEvent(final String title) {
@@ -58,12 +61,84 @@ public class EventQuestionJdbcDaoTest {
         return jdbcTemplate.queryForObject("SELECT id FROM event WHERE title = ?", Long.class, title);
     }
 
+    private long insertQuestion(final long eventId, final long userId, final String text) {
+        jdbcTemplate.update(
+                "INSERT INTO event_question (event_id, user_id, question_text) VALUES (?, ?, ?)",
+                eventId, userId, text);
+        return jdbcTemplate.queryForObject("SELECT id FROM event_question ORDER BY id DESC LIMIT 1", Long.class);
+    }
+
+    private long insertQuestionAt(final long eventId, final long userId, final String text, final Timestamp createdAt) {
+        jdbcTemplate.update(
+                "INSERT INTO event_question (event_id, user_id, question_text, created_at) VALUES (?, ?, ?, ?)",
+                eventId, userId, text, createdAt);
+        return jdbcTemplate.queryForObject("SELECT id FROM event_question ORDER BY id DESC LIMIT 1", Long.class);
+    }
+
+    private long insertAnsweredQuestion(final long eventId, final long userId, final String text, final String answer) {
+        jdbcTemplate.update(
+                "INSERT INTO event_question (event_id, user_id, question_text, answer_text, answered_at) "
+                        + "VALUES (?, ?, ?, ?, ?)",
+                eventId, userId, text, answer, new Timestamp(System.currentTimeMillis()));
+        return jdbcTemplate.queryForObject("SELECT id FROM event_question ORDER BY id DESC LIMIT 1", Long.class);
+    }
+
+    // ---- create() ----
+
     @Test
-    public void testCreateAndFindByIdBringTheAskerFromUsers() {
-        final EventQuestion created = questionDao.create(new EventQuestion(eventId, userId, "Hay estacionamiento?"));
+    public void testCreateInsertsTheQuestionRow() {
+        // Arrange
+        final EventQuestion toCreate = new EventQuestion(eventId, userId, "Hay estacionamiento?");
 
-        final Optional<EventQuestion> found = questionDao.findById(created.getId());
+        // Act
+        final EventQuestion created = questionDao.create(toCreate);
 
+        // Assert
+        final Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT event_id, user_id, question_text FROM event_question WHERE id = ?", created.getId());
+        assertEquals(eventId, ((Number) row.get("event_id")).longValue());
+        assertEquals(userId, ((Number) row.get("user_id")).longValue());
+        assertEquals("Hay estacionamiento?", row.get("question_text"));
+    }
+
+    @Test
+    public void testCreateLeavesTheQuestionUnanswered() {
+        // Arrange
+        final EventQuestion toCreate = new EventQuestion(eventId, userId, "Hay estacionamiento?");
+
+        // Act
+        final EventQuestion created = questionDao.create(toCreate);
+
+        // Assert
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
+                jdbcTemplate, "event_question", "id = " + created.getId() + " AND answer_text IS NULL AND answered_at IS NULL"));
+    }
+
+    @Test
+    public void testCreateSetsCreatedAtAutomatically() {
+        // Arrange
+        final EventQuestion toCreate = new EventQuestion(eventId, userId, "Hay estacionamiento?");
+
+        // Act
+        final EventQuestion created = questionDao.create(toCreate);
+
+        // Assert
+        final Timestamp createdAt = jdbcTemplate.queryForObject(
+                "SELECT created_at FROM event_question WHERE id = ?", Timestamp.class, created.getId());
+        assertTrue(createdAt != null);
+    }
+
+    // ---- findById() ----
+
+    @Test
+    public void testFindByIdReturnsTheQuestionWithTheAskerJoinedFromUsers() {
+        // Arrange
+        final long id = insertQuestion(eventId, userId, "Hay estacionamiento?");
+
+        // Act
+        final Optional<EventQuestion> found = questionDao.findById(id);
+
+        // Assert
         assertTrue(found.isPresent());
         assertEquals("Hay estacionamiento?", found.get().getText());
         assertEquals("Ana", found.get().getAskerName());
@@ -73,63 +148,143 @@ public class EventQuestionJdbcDaoTest {
     }
 
     @Test
-    public void testFindByEventPaginatesNewestFirstAndCountsOnlyThatEvent() {
-        final long otherEventId = insertEvent("Otro evento");
-        final long first = questionDao.create(new EventQuestion(eventId, userId, "Primera")).getId();
-        final long second = questionDao.create(new EventQuestion(eventId, userId, "Segunda")).getId();
-        final long third = questionDao.create(new EventQuestion(eventId, userId, "Tercera")).getId();
-        questionDao.create(new EventQuestion(otherEventId, userId, "De otro evento"));
+    public void testFindByIdReturnsEmptyWhenTheQuestionDoesNotExist() {
+        // Arrange: no se inserta ninguna pregunta.
 
+        // Act
+        final Optional<EventQuestion> found = questionDao.findById(-1);
+
+        // Assert
+        assertFalse(found.isPresent());
+    }
+
+    // ---- findByEvent() ----
+
+    @Test
+    public void testFindByEventOrdersNewestFirstAndPaginates() {
+        // Arrange
+        final Timestamp t1 = new Timestamp(System.currentTimeMillis() - 2000);
+        final Timestamp t2 = new Timestamp(System.currentTimeMillis() - 1000);
+        final Timestamp t3 = new Timestamp(System.currentTimeMillis());
+        final long first = insertQuestionAt(eventId, userId, "Primera", t1);
+        final long second = insertQuestionAt(eventId, userId, "Segunda", t2);
+        final long third = insertQuestionAt(eventId, userId, "Tercera", t3);
+
+        // Act
         final List<EventQuestion> page1 = questionDao.findByEvent(eventId, 1, 2);
         final List<EventQuestion> page2 = questionDao.findByEvent(eventId, 2, 2);
 
+        // Assert
         assertEquals(2, page1.size());
         assertEquals(third, page1.get(0).getId());
         assertEquals(second, page1.get(1).getId());
         assertEquals(1, page2.size());
         assertEquals(first, page2.get(0).getId());
-        assertEquals(3, questionDao.countByEvent(eventId));
     }
 
     @Test
-    public void testAnswerOnlyWorksTheFirstTime() {
-        final long id = questionDao.create(new EventQuestion(eventId, userId, "Se puede ir con perros?")).getId();
+    public void testFindByEventOnlyReturnsThatEventsQuestions() {
+        // Arrange
+        insertQuestion(eventId, userId, "De este evento");
+        final long otherEventId = insertEvent("Otro evento");
+        insertQuestion(otherEventId, userId, "De otro evento");
 
-        assertTrue(questionDao.answer(id, "Si", new Date()));
-        assertFalse(questionDao.answer(id, "No", new Date()));
+        // Act
+        final List<EventQuestion> found = questionDao.findByEvent(eventId, 1, 20);
 
-        final EventQuestion found = questionDao.findById(id).orElseThrow(AssertionError::new);
-        assertTrue(found.isAnswered());
-        assertEquals("Si", found.getAnswer());
+        // Assert
+        assertEquals(1, found.size());
+        assertEquals("De este evento", found.get(0).getText());
     }
+
+    // ---- countByEvent() ----
+
+    @Test
+    public void testCountByEventCountsOnlyThatEventsQuestions() {
+        // Arrange
+        insertQuestion(eventId, userId, "Primera");
+        insertQuestion(eventId, userId, "Segunda");
+        insertQuestion(eventId, userId, "Tercera");
+        final long otherEventId = insertEvent("Otro evento");
+        insertQuestion(otherEventId, userId, "De otro evento");
+
+        // Act
+        final long count = questionDao.countByEvent(eventId);
+
+        // Assert
+        assertEquals(3, count);
+    }
+
+    // ---- answer() ----
+
+    @Test
+    public void testAnswerSetsTheAnswerAndReturnsTrueTheFirstTime() {
+        // Arrange
+        final long id = insertQuestion(eventId, userId, "Se puede ir con perros?");
+
+        // Act
+        final boolean result = questionDao.answer(id, "Si", new Date());
+
+        // Assert
+        assertTrue(result);
+        final Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT answer_text, answered_at FROM event_question WHERE id = ?", id);
+        assertEquals("Si", row.get("answer_text"));
+        assertTrue(row.get("answered_at") != null);
+    }
+
+    @Test
+    public void testAnswerReturnsFalseAndLeavesItUnchangedWhenAlreadyAnswered() {
+        // Arrange
+        final long id = insertAnsweredQuestion(eventId, userId, "Se puede ir con perros?", "Si");
+
+        // Act
+        final boolean result = questionDao.answer(id, "No", new Date());
+
+        // Assert
+        assertFalse(result);
+        final String answer = jdbcTemplate.queryForObject(
+                "SELECT answer_text FROM event_question WHERE id = ?", String.class, id);
+        assertEquals("Si", answer);
+    }
+
+    // ---- delete() ----
 
     @Test
     public void testDeleteRemovesTheQuestion() {
-        final long id = questionDao.create(new EventQuestion(eventId, userId, "Se puede ir con perros?")).getId();
+        // Arrange
+        final long id = insertQuestion(eventId, userId, "Se puede ir con perros?");
 
+        // Act
         questionDao.delete(id);
 
-        assertFalse(questionDao.findById(id).isPresent());
+        // Assert
+        assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "event_question", "id = " + id));
     }
 
     @Test
     public void testDeleteAlsoRemovesAnAnsweredQuestion() {
-        final long id = questionDao.create(new EventQuestion(eventId, userId, "Se puede ir con perros?")).getId();
-        questionDao.answer(id, "Si", new Date());
+        // Arrange
+        final long id = insertAnsweredQuestion(eventId, userId, "Se puede ir con perros?", "Si");
 
+        // Act
         questionDao.delete(id);
 
-        assertFalse(questionDao.findById(id).isPresent());
+        // Assert
+        assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "event_question", "id = " + id));
     }
 
     @Test
     public void testDeleteOnlyAffectsThatQuestion() {
-        final long toDelete = questionDao.create(new EventQuestion(eventId, userId, "Primera")).getId();
-        final long toKeep = questionDao.create(new EventQuestion(eventId, userId, "Segunda")).getId();
+        // Arrange
+        final long toDelete = insertQuestion(eventId, userId, "Primera");
+        final long toKeep = insertQuestion(eventId, userId, "Segunda");
 
+        // Act
         questionDao.delete(toDelete);
 
-        assertFalse(questionDao.findById(toDelete).isPresent());
-        assertTrue(questionDao.findById(toKeep).isPresent());
+        // Assert
+        assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "event_question", "id = " + toDelete));
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "event_question", "id = " + toKeep));
     }
 }

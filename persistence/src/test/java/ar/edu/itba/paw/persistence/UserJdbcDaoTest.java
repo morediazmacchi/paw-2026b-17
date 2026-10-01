@@ -1,15 +1,21 @@
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.User;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.Rollback;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.jdbc.JdbcTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.sql.DataSource;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -18,6 +24,10 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+// Unidad 5 - Unit Testing: el objeto bajo test (userDao) NO se toca en el
+// Arrange ni en el Assert, solo en el Act (una unica llamada). Arrange/Assert
+// usan JDBC directo (jdbcTemplate/JdbcTestUtils), nunca otro metodo de
+// userDao -- si no, un test de find() estaria probando tambien create().
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes = TestConfig.class)
 @Transactional
@@ -28,23 +38,125 @@ public class UserJdbcDaoTest {
     private static final String NAME = "Ana";
 
     @Autowired
+    private DataSource ds;
+
+    @Autowired
     private UserDao userDao;
 
-    // ---- create() + findById() ----
+    private JdbcTemplate jdbcTemplate;
+
+    @Before
+    public void setUp() {
+        jdbcTemplate = new JdbcTemplate(ds);
+    }
+
+    private long insertUser(final String email, final String name) {
+        jdbcTemplate.update("INSERT INTO users (email, name) VALUES (?, ?)", email, name);
+        return jdbcTemplate.queryForObject("SELECT id FROM users WHERE email = ?", Long.class, email);
+    }
+
+    private void insertRole(final long userId, final String role) {
+        jdbcTemplate.update("INSERT INTO user_role (user_id, role) VALUES (?, ?)", userId, role);
+    }
+
+    // ---- create() ----
 
     @Test
-    public void testCreateAssignsAGeneratedId() {
-        final User created = userDao.create(new User(EMAIL, NAME));
+    public void testCreatePersistsTheGivenEmailAndNameAndAssignsAnId() {
+        // Arrange
+        final User toCreate = new User(EMAIL, NAME);
 
+        // Act
+        final User created = userDao.create(toCreate);
+
+        // Assert
         assertTrue(created.getId() > 0);
+        final Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT email, name FROM users WHERE id = ?", created.getId());
+        assertEquals(EMAIL, row.get("email"));
+        assertEquals(NAME, row.get("name"));
     }
 
     @Test
-    public void testCreateAndFindByIdReturnTheSameUser() {
-        final User created = userDao.create(new User(EMAIL, NAME));
+    public void testCreateWithNullNameSucceeds() {
+        // Arrange
+        final User toCreate = new User(EMAIL, null);
 
-        final Optional<User> found = userDao.findById(created.getId());
+        // Act
+        final User created = userDao.create(toCreate);
 
+        // Assert
+        final String name = jdbcTemplate.queryForObject(
+                "SELECT name FROM users WHERE id = ?", String.class, created.getId());
+        assertNull(name);
+    }
+
+    @Test
+    public void testCreateDefaultsVerifiedToTrue() {
+        // Arrange
+        final User toCreate = new User(EMAIL, NAME);
+
+        // Act
+        final User created = userDao.create(toCreate);
+
+        // Assert
+        // DEFAULT TRUE es del backfill de cuentas viejas (ver schema.sql);
+        // create() no lo toca, asi que cae en ese default tambien.
+        final Boolean verified = jdbcTemplate.queryForObject(
+                "SELECT verified FROM users WHERE id = ?", Boolean.class, created.getId());
+        assertTrue(verified);
+    }
+
+    @Test
+    public void testCreateDefaultsSuspendedToFalse() {
+        // Arrange
+        final User toCreate = new User(EMAIL, NAME);
+
+        // Act
+        final User created = userDao.create(toCreate);
+
+        // Assert
+        final Boolean suspended = jdbcTemplate.queryForObject(
+                "SELECT suspended FROM users WHERE id = ?", Boolean.class, created.getId());
+        assertFalse(suspended);
+    }
+
+    @Test
+    public void testCreateLeavesLocaleNull() {
+        // Arrange
+        final User toCreate = new User(EMAIL, NAME);
+
+        // Act
+        final User created = userDao.create(toCreate);
+
+        // Assert
+        final String locale = jdbcTemplate.queryForObject(
+                "SELECT preferred_locale FROM users WHERE id = ?", String.class, created.getId());
+        assertNull(locale);
+    }
+
+    @Test(expected = DataAccessException.class)
+    public void testCreateWithDuplicateEmailThrowsDataAccessException() {
+        // Arrange
+        insertUser(EMAIL, NAME);
+
+        // Act
+        userDao.create(new User(EMAIL, "Otro Nombre"));
+
+        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
+    }
+
+    // ---- findById() ----
+
+    @Test
+    public void testFindByIdReturnsTheStoredUser() {
+        // Arrange
+        final long id = insertUser(EMAIL, NAME);
+
+        // Act
+        final Optional<User> found = userDao.findById(id);
+
+        // Assert
         assertTrue(found.isPresent());
         assertEquals(EMAIL, found.get().getEmail());
         assertEquals(NAME, found.get().getName());
@@ -52,58 +164,54 @@ public class UserJdbcDaoTest {
 
     @Test
     public void testFindByIdReturnsEmptyWhenTheUserDoesNotExist() {
+        // Arrange: nada que insertar, el id -1 nunca existe.
+
+        // Act
         final Optional<User> found = userDao.findById(-1);
 
+        // Assert
         assertFalse(found.isPresent());
-    }
-
-    @Test
-    public void testCreateWithNullNameSucceeds() {
-        final User created = userDao.create(new User(EMAIL, null));
-
-        final Optional<User> found = userDao.findById(created.getId());
-
-        assertTrue(found.isPresent());
-        assertNull(found.get().getName());
     }
 
     // ---- findByEmail() ----
 
     @Test
-    public void testCreateAndFindByEmailReturnTheSameUser() {
-        final User created = userDao.create(new User(EMAIL, NAME));
+    public void testFindByEmailReturnsTheStoredUser() {
+        // Arrange
+        final long id = insertUser(EMAIL, NAME);
 
+        // Act
         final Optional<User> found = userDao.findByEmail(EMAIL);
 
+        // Assert
         assertTrue(found.isPresent());
-        assertEquals(created.getId(), found.get().getId());
+        assertEquals(id, found.get().getId());
     }
 
     @Test
     public void testFindByEmailReturnsEmptyWhenTheEmailIsNotRegistered() {
+        // Arrange: no se inserta ningun usuario con ese email.
+
+        // Act
         final Optional<User> found = userDao.findByEmail(EMAIL);
 
+        // Assert
         assertFalse(found.isPresent());
-    }
-
-    @Test(expected = DataAccessException.class)
-    public void testCreateWithDuplicateEmailThrowsDataAccessException() {
-        // UNIQUE(email) en el schema: es la garantia de base detras de
-        // "findOrCreate nunca pisa un user existente" (UserServiceImplTest, paso 5).
-        userDao.create(new User(EMAIL, NAME));
-        userDao.create(new User(EMAIL, "Otro Nombre"));
     }
 
     // ---- roles (LEFT JOIN en findById/findByEmail) ----
 
     @Test
     public void testFindByIdReturnsRolesWhenTheUserHasThem() {
-        final User created = userDao.create(new User(EMAIL, NAME));
-        userDao.addRole(created.getId(), "ROLE_USER");
-        userDao.addRole(created.getId(), "ROLE_ADMIN");
+        // Arrange
+        final long id = insertUser(EMAIL, NAME);
+        insertRole(id, "ROLE_USER");
+        insertRole(id, "ROLE_ADMIN");
 
-        final Optional<User> found = userDao.findById(created.getId());
+        // Act
+        final Optional<User> found = userDao.findById(id);
 
+        // Assert
         assertTrue(found.isPresent());
         final Set<String> roles = found.get().getRoles();
         assertEquals(2, roles.size());
@@ -112,168 +220,248 @@ public class UserJdbcDaoTest {
     }
 
     @Test
-    public void testAddRoleTwiceIsIdempotent() {
-        // No hay ON CONFLICT (no es portable a HSQLDB): addRole() depende de que
-        // el PRIMARY KEY compuesto absorba el duplicado sin explotar.
-        final User created = userDao.create(new User(EMAIL, NAME));
-
-        userDao.addRole(created.getId(), "ROLE_USER");
-        userDao.addRole(created.getId(), "ROLE_USER");
-
-        assertEquals(1, userDao.findRoles(created.getId()).size());
-    }
-
-    @Test
     public void testFindByEmailReturnsEmptySetWhenTheUserHasNoRoles() {
+        // Arrange
         // El LEFT JOIN es lo que hace que este usuario aparezca igual (con
         // set vacio) en vez de desaparecer del resultado por no tener fila
-        // en user_role: son los tres usuarios creados antes de que existiera login.
-        userDao.create(new User(EMAIL, NAME));
+        // en user_role.
+        insertUser(EMAIL, NAME);
 
+        // Act
         final Optional<User> found = userDao.findByEmail(EMAIL);
 
+        // Assert
         assertTrue(found.isPresent());
         assertTrue(found.get().getRoles().isEmpty());
     }
 
-    // ---- setPassword() ----
+    // ---- addRole() ----
 
     @Test
-    public void testSetPasswordOnAUserWithoutOneSetsIt() {
-        // Este es el caso "usuario fantasma" (creado por publicar/inscribirse sin
-        // login) que despues se registra de verdad: hasta aca password es null.
-        final User created = userDao.create(new User(EMAIL, NAME));
+    public void testAddRoleInsertsTheRoleRow() {
+        // Arrange
+        final long id = insertUser(EMAIL, NAME);
 
-        userDao.setPassword(created.getId(), "hashed-password");
+        // Act
+        userDao.addRole(id, "ROLE_USER");
 
-        final Optional<User> found = userDao.findById(created.getId());
-        assertTrue(found.isPresent());
-        assertEquals("hashed-password", found.get().getPassword());
-    }
-
-    // ---- updateProfile() ----
-
-    @Test
-    public void testUpdateProfileChangesNameAndEmail() {
-        final User created = userDao.create(new User(EMAIL, NAME));
-
-        userDao.updateProfile(created.getId(), "Nuevo Nombre", "nuevo@mail.com");
-
-        final Optional<User> found = userDao.findById(created.getId());
-        assertTrue(found.isPresent());
-        assertEquals("Nuevo Nombre", found.get().getName());
-        assertEquals("nuevo@mail.com", found.get().getEmail());
-    }
-
-    // ---- verified ----
-
-    @Test
-    public void testNewUserIsVerifiedByDefault() {
-        // El DEFAULT TRUE de la columna es para las cuentas viejas (backfill):
-        // create() no manda verified, asi que tambien cae en ese default. Es
-        // UserServiceImpl.register() quien lo pisa a false a mano en las cuentas
-        // nuevas de verdad.
-        final User created = userDao.create(new User(EMAIL, NAME));
-
-        final Optional<User> found = userDao.findById(created.getId());
-
-        assertTrue(found.isPresent());
-        assertTrue(found.get().isVerified());
+        // Assert
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
+                jdbcTemplate, "user_role", "user_id = " + id + " AND role = 'ROLE_USER'"));
     }
 
     @Test
-    public void testSetVerifiedFalseThenTrue() {
-        final User created = userDao.create(new User(EMAIL, NAME));
+    public void testAddRoleTwiceIsIdempotent() {
+        // Arrange
+        // No hay ON CONFLICT (no es portable a HSQLDB): addRole() depende de
+        // que el PRIMARY KEY compuesto absorba el duplicado sin explotar.
+        final long id = insertUser(EMAIL, NAME);
 
-        userDao.setVerified(created.getId(), false);
-        assertFalse(userDao.findById(created.getId()).get().isVerified());
+        // Act
+        // Las DOS llamadas son el Act en si (es lo que hace idempotente a
+        // "idempotente"), no una contaminando a la otra.
+        userDao.addRole(id, "ROLE_USER");
+        userDao.addRole(id, "ROLE_USER");
 
-        userDao.setVerified(created.getId(), true);
-        assertTrue(userDao.findById(created.getId()).get().isVerified());
-    }
-
-    // ---- locale ----
-
-    @Test
-    public void testNewUserHasNoLocaleByDefault() {
-        // Nadie eligio idioma todavia: la pagina usa la cookie/navegador y los
-        // mails el default (ver NotificationServiceImpl), no esta columna.
-        final User created = userDao.create(new User(EMAIL, NAME));
-
-        assertNull(userDao.findById(created.getId()).get().getLocale());
-    }
-
-    @Test
-    public void testSetLocaleIsVisibleByIdAndByEmail() {
-        final User created = userDao.create(new User(EMAIL, NAME));
-
-        userDao.setLocale(created.getId(), "en");
-
-        assertEquals("en", userDao.findById(created.getId()).get().getLocale());
-        assertEquals("en", userDao.findByEmail(EMAIL).get().getLocale());
-    }
-
-    // ---- suspended (moderacion) ----
-
-    @Test
-    public void testNewUserIsNotSuspendedByDefault() {
-        final User created = userDao.create(new User(EMAIL, NAME));
-
-        assertFalse(userDao.findById(created.getId()).get().isSuspended());
-    }
-
-    @Test
-    public void testSetSuspendedTrueThenFalse() {
-        final User created = userDao.create(new User(EMAIL, NAME));
-
-        userDao.setSuspended(created.getId(), true);
-        assertTrue(userDao.findById(created.getId()).get().isSuspended());
-
-        userDao.setSuspended(created.getId(), false);
-        assertFalse(userDao.findById(created.getId()).get().isSuspended());
+        // Assert
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
+                jdbcTemplate, "user_role", "user_id = " + id + " AND role = 'ROLE_USER'"));
     }
 
     // ---- removeRole() ----
 
     @Test
     public void testRemoveRoleTakesJustThatRoleAway() {
-        final User created = userDao.create(new User(EMAIL, NAME));
-        userDao.addRole(created.getId(), "ROLE_USER");
-        userDao.addRole(created.getId(), "ROLE_ADMIN");
+        // Arrange
+        final long id = insertUser(EMAIL, NAME);
+        insertRole(id, "ROLE_USER");
+        insertRole(id, "ROLE_ADMIN");
 
-        userDao.removeRole(created.getId(), "ROLE_ADMIN");
+        // Act
+        userDao.removeRole(id, "ROLE_ADMIN");
 
-        final Set<String> roles = userDao.findRoles(created.getId());
-        assertEquals(1, roles.size());
-        assertTrue(roles.contains("ROLE_USER"));
+        // Assert
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
+                jdbcTemplate, "user_role", "user_id = " + id + " AND role = 'ROLE_USER'"));
+        assertEquals(0, JdbcTestUtils.countRowsInTableWhere(
+                jdbcTemplate, "user_role", "user_id = " + id + " AND role = 'ROLE_ADMIN'"));
     }
 
     @Test
     public void testRemoveRoleOnAUserWithoutThatRoleIsANoop() {
-        final User created = userDao.create(new User(EMAIL, NAME));
-        userDao.addRole(created.getId(), "ROLE_USER");
+        // Arrange
+        final long id = insertUser(EMAIL, NAME);
+        insertRole(id, "ROLE_USER");
 
-        userDao.removeRole(created.getId(), "ROLE_ADMIN");
+        // Act
+        userDao.removeRole(id, "ROLE_ADMIN");
 
-        assertEquals(1, userDao.findRoles(created.getId()).size());
+        // Assert
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
+                jdbcTemplate, "user_role", "user_id = " + id + " AND role = 'ROLE_USER'"));
+    }
+
+    // ---- findRoles() ----
+
+    @Test
+    public void testFindRolesReturnsAllRolesOfThatUser() {
+        // Arrange
+        final long id = insertUser(EMAIL, NAME);
+        insertRole(id, "ROLE_USER");
+        insertRole(id, "ROLE_ADMIN");
+
+        // Act
+        final Set<String> roles = userDao.findRoles(id);
+
+        // Assert
+        assertEquals(2, roles.size());
+        assertTrue(roles.contains("ROLE_USER"));
+        assertTrue(roles.contains("ROLE_ADMIN"));
+    }
+
+    // ---- setPassword() ----
+
+    @Test
+    public void testSetPasswordOnAUserWithoutOneSetsIt() {
+        // Arrange
+        // Caso "usuario fantasma" (creado por publicar/inscribirse sin
+        // login): el insert de arriba ya lo deja con password NULL.
+        final long id = insertUser(EMAIL, NAME);
+
+        // Act
+        userDao.setPassword(id, "hashed-password");
+
+        // Assert
+        final String password = jdbcTemplate.queryForObject(
+                "SELECT password FROM users WHERE id = ?", String.class, id);
+        assertEquals("hashed-password", password);
+    }
+
+    // ---- updateProfile() ----
+
+    @Test
+    public void testUpdateProfileChangesNameAndEmail() {
+        // Arrange
+        final long id = insertUser(EMAIL, NAME);
+
+        // Act
+        userDao.updateProfile(id, "Nuevo Nombre", "nuevo@mail.com");
+
+        // Assert
+        final Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT name, email FROM users WHERE id = ?", id);
+        assertEquals("Nuevo Nombre", row.get("name"));
+        assertEquals("nuevo@mail.com", row.get("email"));
+    }
+
+    // ---- setVerified() ----
+
+    @Test
+    public void testSetVerifiedFalseMarksTheUserUnverified() {
+        // Arrange
+        final long id = insertUser(EMAIL, NAME);
+
+        // Act
+        userDao.setVerified(id, false);
+
+        // Assert
+        final Boolean verified = jdbcTemplate.queryForObject(
+                "SELECT verified FROM users WHERE id = ?", Boolean.class, id);
+        assertFalse(verified);
+    }
+
+    @Test
+    public void testSetVerifiedTrueMarksTheUserVerified() {
+        // Arrange
+        final long id = insertUser(EMAIL, NAME);
+        jdbcTemplate.update("UPDATE users SET verified = false WHERE id = ?", id);
+
+        // Act
+        userDao.setVerified(id, true);
+
+        // Assert
+        final Boolean verified = jdbcTemplate.queryForObject(
+                "SELECT verified FROM users WHERE id = ?", Boolean.class, id);
+        assertTrue(verified);
+    }
+
+    // ---- setLocale() ----
+
+    @Test
+    public void testSetLocaleUpdatesThePreferredLocaleColumn() {
+        // Arrange
+        final long id = insertUser(EMAIL, NAME);
+
+        // Act
+        userDao.setLocale(id, "en");
+
+        // Assert
+        final String locale = jdbcTemplate.queryForObject(
+                "SELECT preferred_locale FROM users WHERE id = ?", String.class, id);
+        assertEquals("en", locale);
+    }
+
+    // ---- setSuspended() ----
+
+    @Test
+    public void testSetSuspendedTrueMarksTheUserSuspended() {
+        // Arrange
+        final long id = insertUser(EMAIL, NAME);
+
+        // Act
+        userDao.setSuspended(id, true);
+
+        // Assert
+        final Boolean suspended = jdbcTemplate.queryForObject(
+                "SELECT suspended FROM users WHERE id = ?", Boolean.class, id);
+        assertTrue(suspended);
+    }
+
+    @Test
+    public void testSetSuspendedFalseMarksTheUserNotSuspended() {
+        // Arrange
+        final long id = insertUser(EMAIL, NAME);
+        jdbcTemplate.update("UPDATE users SET suspended = true WHERE id = ?", id);
+
+        // Act
+        userDao.setSuspended(id, false);
+
+        // Assert
+        final Boolean suspended = jdbcTemplate.queryForObject(
+                "SELECT suspended FROM users WHERE id = ?", Boolean.class, id);
+        assertFalse(suspended);
     }
 
     // ---- findAll() ----
 
     @Test
     public void testFindAllReturnsEveryUserWithTheirOwnRoles() {
-        final User first = userDao.create(new User(EMAIL, NAME));
-        userDao.addRole(first.getId(), "ROLE_USER");
-        final User second = userDao.create(new User("otro@mail.com", "Beto"));
-        userDao.addRole(second.getId(), "ROLE_USER");
-        userDao.addRole(second.getId(), "ROLE_ADMIN");
+        // Arrange
+        final long first = insertUser(EMAIL, NAME);
+        insertRole(first, "ROLE_USER");
+        final long second = insertUser("otro@mail.com", "Beto");
+        insertRole(second, "ROLE_USER");
+        insertRole(second, "ROLE_ADMIN");
 
-        final java.util.List<User> all = userDao.findAll();
+        // Act
+        final List<User> all = userDao.findAll();
 
+        // Assert
         assertEquals(2, all.size());
-        final User foundFirst = all.stream().filter(u -> u.getId() == first.getId()).findFirst().orElseThrow(AssertionError::new);
-        final User foundSecond = all.stream().filter(u -> u.getId() == second.getId()).findFirst().orElseThrow(AssertionError::new);
+        final User foundFirst = all.stream().filter(u -> u.getId() == first).findFirst().orElseThrow(AssertionError::new);
+        final User foundSecond = all.stream().filter(u -> u.getId() == second).findFirst().orElseThrow(AssertionError::new);
         assertEquals(1, foundFirst.getRoles().size());
         assertEquals(2, foundSecond.getRoles().size());
+    }
+
+    @Test
+    public void testFindAllReturnsEmptyListWhenThereAreNoUsers() {
+        // Arrange: no se inserta ningun usuario.
+
+        // Act
+        final List<User> all = userDao.findAll();
+
+        // Assert
+        assertTrue(all.isEmpty());
     }
 }
