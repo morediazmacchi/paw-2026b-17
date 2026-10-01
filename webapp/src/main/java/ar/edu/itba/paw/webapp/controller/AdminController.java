@@ -6,11 +6,13 @@ import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.EventQuestionService;
 import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.ModerationService;
+import ar.edu.itba.paw.services.ReportResolutionResult;
 import ar.edu.itba.paw.services.UserService;
 import ar.edu.itba.paw.webapp.form.RequestChangesForm;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
@@ -19,10 +21,10 @@ import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import javax.validation.Valid;
-import java.security.Principal;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 // Panel de administracion (PAW20-67): cola de reportes y gestion de usuarios.
 // Todo bajo /admin/**, ya protegido por WebAuthConfig: hasRole("ADMIN") para
@@ -47,12 +49,6 @@ public class AdminController {
         this.eventQuestionService = eventQuestionService;
     }
 
-    private User currentUser(final Principal principal) {
-        return userService.findByEmail(principal.getName())
-                .orElseThrow(() -> new IllegalStateException(
-                        "Usuario autenticado sin fila en la base: " + principal.getName()));
-    }
-
     @RequestMapping(value = "", method = RequestMethod.GET)
     public ModelAndView index() {
         return new ModelAndView("redirect:/admin/reportes");
@@ -71,32 +67,28 @@ public class AdminController {
     public ModelAndView seguimiento() {
         final List<EventReport> reports = moderationService.listChangesRequested();
         final ModelAndView mav = reportQueueView("admin/seguimiento", reports);
-        final Map<Long, User> requestedByUsersById = new HashMap<>();
-        for (final EventReport report : reports) {
-            final Long requestedBy = report.getChangesRequestedByUserId();
-            if (requestedBy != null && !requestedByUsersById.containsKey(requestedBy)) {
-                userService.findById(requestedBy).ifPresent(u -> requestedByUsersById.put(u.getId(), u));
-            }
-        }
+        final List<Long> requestedByIds = reports.stream()
+                .map(EventReport::getChangesRequestedByUserId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        final Map<Long, User> requestedByUsersById = userService.findByIds(requestedByIds).stream()
+                .collect(Collectors.toMap(User::getId, u -> u));
         mav.addObject("requestedByUsersById", requestedByUsersById);
         return mav;
     }
 
-    // Un select en lote por cada relacion (mismo criterio que
-    // EventJdbcDao.attachCategories/attachImages): evita un findById por cada
-    // reporte de la lista. Compartido por reportes() y seguimiento(): las dos
-    // pantallas muestran filas de EventReport con el mismo evento/reportero.
+    // Una sola consulta por relacion (findByIds(), ver EventService/UserService)
+    // en vez de un findById() por cada reporte de la lista. Compartido por
+    // reportes() y seguimiento(): las dos pantallas muestran filas de
+    // EventReport con el mismo evento/reportero.
     private ModelAndView reportQueueView(final String viewName, final List<EventReport> reports) {
-        final Map<Long, Event> eventsById = new HashMap<>();
-        final Map<Long, User> reportersById = new HashMap<>();
-        for (final EventReport report : reports) {
-            if (!eventsById.containsKey(report.getEventId())) {
-                eventService.findById(report.getEventId()).ifPresent(e -> eventsById.put(e.getId(), e));
-            }
-            if (!reportersById.containsKey(report.getReporterUserId())) {
-                userService.findById(report.getReporterUserId()).ifPresent(u -> reportersById.put(u.getId(), u));
-            }
-        }
+        final List<Long> eventIds = reports.stream().map(EventReport::getEventId).distinct().collect(Collectors.toList());
+        final List<Long> reporterIds = reports.stream().map(EventReport::getReporterUserId).distinct().collect(Collectors.toList());
+        final Map<Long, Event> eventsById = eventService.findByIds(eventIds).stream()
+                .collect(Collectors.toMap(Event::getId, e -> e));
+        final Map<Long, User> reportersById = userService.findByIds(reporterIds).stream()
+                .collect(Collectors.toMap(User::getId, u -> u));
         final ModelAndView mav = new ModelAndView(viewName);
         mav.addObject("reports", reports);
         mav.addObject("eventsById", eventsById);
@@ -115,8 +107,16 @@ public class AdminController {
     @RequestMapping(value = "/reportes/{id}/descartar", method = RequestMethod.POST)
     public ModelAndView descartar(@PathVariable final long id,
                                    @RequestParam(value = "origen", required = false) final String origen,
-                                   final Principal principal) {
-        moderationService.dismiss(id, currentUser(principal).getId());
+                                   @ModelAttribute("currentUser") final User currentUser,
+                                   final RedirectAttributes redirectAttributes) {
+        final ReportResolutionResult result = moderationService.dismiss(id, currentUser.getId());
+        // NOT_FOUND: otro admin ya lo resolvio mientras este lo tenia abierto.
+        // OWN_EVENT: el reporte es sobre un evento propio (conflicto de
+        // intereses). En los dos casos se avisa en vez de redirigir en
+        // silencio como si hubiera funcionado.
+        if (result != ReportResolutionResult.RESOLVED) {
+            redirectAttributes.addFlashAttribute("adminReportError", result.name());
+        }
         return redirectToOrigin(origen);
     }
 
@@ -125,39 +125,47 @@ public class AdminController {
                                    @RequestParam(value = "suspenderOrganizador", required = false)
                                    final String suspenderOrganizador,
                                    @RequestParam(value = "origen", required = false) final String origen,
-                                   final Principal principal) {
-        moderationService.removeEvent(id, currentUser(principal).getId(), suspenderOrganizador != null);
+                                   @ModelAttribute("currentUser") final User currentUser,
+                                   final RedirectAttributes redirectAttributes) {
+        final ReportResolutionResult result =
+                moderationService.removeEvent(id, currentUser.getId(), suspenderOrganizador != null);
+        if (result != ReportResolutionResult.RESOLVED) {
+            redirectAttributes.addFlashAttribute("adminReportError", result.name());
+        }
         return redirectToOrigin(origen);
     }
 
     @RequestMapping(value = "/reportes/{id}/pedir-cambios", method = RequestMethod.POST)
     public ModelAndView pedirCambios(@PathVariable final long id, @Valid final RequestChangesForm form,
-                                      final BindingResult errors, final Principal principal,
+                                      final BindingResult errors, @ModelAttribute("currentUser") final User currentUser,
                                       final RedirectAttributes redirectAttributes) {
         if (errors.hasErrors()) {
             redirectAttributes.addFlashAttribute("adminReportError", "INVALID");
             return new ModelAndView("redirect:/admin/reportes");
         }
-        moderationService.requestChanges(id, currentUser(principal).getId(), form.getMensaje());
+        final ReportResolutionResult result = moderationService.requestChanges(id, currentUser.getId(), form.getMensaje());
+        if (result != ReportResolutionResult.RESOLVED) {
+            redirectAttributes.addFlashAttribute("adminReportError", result.name());
+        }
         return new ModelAndView("redirect:/admin/reportes");
     }
 
     @RequestMapping(value = "/usuarios", method = RequestMethod.GET)
-    public ModelAndView usuarios(final Principal principal) {
+    public ModelAndView usuarios(@ModelAttribute("currentUser") final User currentUser) {
         final ModelAndView mav = new ModelAndView("admin/usuarios");
         mav.addObject("users", userService.findAll());
-        mav.addObject("currentUserId", currentUser(principal).getId());
-        mav.addObject("isSuperadmin", currentUser(principal).getRoles().contains("ROLE_SUPERADMIN"));
+        mav.addObject("currentUserId", currentUser.getId());
+        mav.addObject("isSuperadmin", currentUser.getRoles().contains("ROLE_SUPERADMIN"));
         return mav;
     }
 
     @RequestMapping(value = "/usuarios/{id}/suspender", method = RequestMethod.POST)
-    public ModelAndView suspender(@PathVariable final long id, final Principal principal,
+    public ModelAndView suspender(@PathVariable final long id, @ModelAttribute("currentUser") final User currentUser,
                                    final RedirectAttributes redirectAttributes) {
         // Nadie se suspende a si mismo: te dejaria sin poder loguearte de nuevo
         // para deshacerlo (la UI ya esconde el boton para tu propia fila, esto
         // es el mismo chequeo por si el POST se manda directo).
-        if (id == currentUser(principal).getId()) {
+        if (id == currentUser.getId()) {
             redirectAttributes.addFlashAttribute("adminError", "SELF");
             return new ModelAndView("redirect:/admin/usuarios");
         }
@@ -178,12 +186,12 @@ public class AdminController {
     }
 
     @RequestMapping(value = "/usuarios/{id}/revocar", method = RequestMethod.POST)
-    public ModelAndView revocar(@PathVariable final long id, final Principal principal,
+    public ModelAndView revocar(@PathVariable final long id, @ModelAttribute("currentUser") final User currentUser,
                                  final RedirectAttributes redirectAttributes) {
         // Un superadmin no puede sacarse ROLE_ADMIN a si mismo: /admin/** exige
         // ese rol especificamente (ver WebAuthConfig), asi que hacerlo lo dejaria
         // afuera del panel sin ninguna forma de deshacerlo el mismo.
-        if (id == currentUser(principal).getId()) {
+        if (id == currentUser.getId()) {
             redirectAttributes.addFlashAttribute("adminError", "SELF");
             return new ModelAndView("redirect:/admin/usuarios");
         }

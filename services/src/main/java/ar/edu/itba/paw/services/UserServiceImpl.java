@@ -63,6 +63,12 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<User> findByIds(final List<Long> ids) {
+        return userDao.findByIds(ids);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<User> findAll() {
         return userDao.findAll();
     }

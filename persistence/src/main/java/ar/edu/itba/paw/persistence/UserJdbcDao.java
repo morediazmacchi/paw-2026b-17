@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 
 import javax.sql.DataSource;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -116,6 +117,39 @@ public class UserJdbcDao implements UserDao {
                 user.getRoles().add(role);
             }
         });
+        return new ArrayList<>(byId.values());
+    }
+
+    @Override
+    public List<User> findByIds(final List<Long> ids) {
+        if (ids.isEmpty()) {
+            return Collections.emptyList();
+        }
+        // Mismo pivoteo fila-a-fila que findAll(), pero filtrado a estos ids.
+        final Map<Long, User> byId = new LinkedHashMap<>();
+        jdbcTemplate.query(
+                SELECT_WITH_ROLES + " WHERE u.id IN (" + SqlPlaceholders.of(ids.size()) + ") ORDER BY u.id",
+                rs -> {
+                    final long id = rs.getLong("id");
+                    User user = byId.get(id);
+                    if (user == null) {
+                        user = new User();
+                        user.setId(id);
+                        user.setEmail(rs.getString("email"));
+                        user.setName(rs.getString("name"));
+                        user.setPassword(rs.getString("password"));
+                        user.setVerified(rs.getBoolean("verified"));
+                        user.setLocale(rs.getString("preferred_locale"));
+                        user.setSuspended(rs.getBoolean("suspended"));
+                        user.setRoles(new HashSet<>());
+                        byId.put(id, user);
+                    }
+                    final String role = rs.getString("role");
+                    if (role != null) {
+                        user.getRoles().add(role);
+                    }
+                },
+                ids.toArray());
         return new ArrayList<>(byId.values());
     }
 

@@ -9,6 +9,10 @@ import java.util.Optional;
 public interface UserService {
     Optional<User> findById(long id);
 
+    // Una sola consulta para varios ids, para armar un mapa id->User sin un
+    // findById() por cada uno (ver AdminController.seguimiento()/reportQueueView()).
+    List<User> findByIds(List<Long> ids);
+
     /** Para "Usuarios" del panel de admin (ver AdminController): todos, ordenados por id. */
     List<User> findAll();
 

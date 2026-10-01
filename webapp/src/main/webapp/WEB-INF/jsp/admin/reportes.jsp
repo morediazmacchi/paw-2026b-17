@@ -31,7 +31,19 @@
     </div>
 
         <c:if test="${not empty adminReportError}">
-            <p class="alert"><spring:message code="admin.reports.requestChangesInvalid"/></p>
+            <p class="alert">
+                <c:choose>
+                    <c:when test="${adminReportError == 'NOT_FOUND'}">
+                        <spring:message code="admin.reports.alreadyResolved"/>
+                    </c:when>
+                    <c:when test="${adminReportError == 'OWN_EVENT'}">
+                        <spring:message code="admin.reports.ownEvent"/>
+                    </c:when>
+                    <c:otherwise>
+                        <spring:message code="admin.reports.requestChangesInvalid"/>
+                    </c:otherwise>
+                </c:choose>
+            </p>
         </c:if>
 
         <c:choose>

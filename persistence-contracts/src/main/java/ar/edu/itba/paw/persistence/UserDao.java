@@ -19,6 +19,12 @@ public interface UserDao {
     // roles ya cargados, ordenados por id.
     List<User> findAll();
 
+    // Una sola consulta para varios ids (WHERE id IN (...)), para armar un mapa
+    // id->User sin un findById() por cada uno (ver AdminController.seguimiento()/
+    // reportQueueView()). Mismos ids repetidos o inexistentes se ignoran en
+    // silencio; el orden del resultado no esta garantizado.
+    List<User> findByIds(List<Long> ids);
+
     Set<String> findRoles(long userId);
     void addRole(long userId, String role);
 

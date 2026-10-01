@@ -30,6 +30,19 @@
         <a class="pill auth-tab" href="<c:url value='/admin/usuarios'/>"><c:out value="${usersTabLabel}"/></a>
     </div>
 
+        <c:if test="${not empty adminReportError}">
+            <p class="alert">
+                <c:choose>
+                    <c:when test="${adminReportError == 'OWN_EVENT'}">
+                        <spring:message code="admin.reports.ownEvent"/>
+                    </c:when>
+                    <c:otherwise>
+                        <spring:message code="admin.reports.alreadyResolved"/>
+                    </c:otherwise>
+                </c:choose>
+            </p>
+        </c:if>
+
         <c:choose>
             <c:when test="${empty reports}">
                 <p class="empty-state"><spring:message code="admin.tracking.empty"/></p>

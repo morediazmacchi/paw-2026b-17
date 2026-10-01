@@ -33,6 +33,12 @@ public interface EventDao {
     // SELECT ... FOR UPDATE: usar solo dentro de un @Transactional que chequee cupo.
     Optional<Event> findByIdForUpdate(long id);
 
+    // Una sola consulta para varios ids (WHERE id IN (...)), para armar un mapa
+    // id->Event sin un findById() por cada uno (ver AdminController.reportQueueView(),
+    // EventController.addCreatorReputation()). Mismos ids repetidos o inexistentes
+    // se ignoran en silencio; el orden del resultado no esta garantizado.
+    List<Event> findByIds(List<Long> ids);
+
     // Excluyen eventos cancelados (ver cancel() mas arriba).
     List<Event> findAll();
     List<Event> findByCategory(long categoryId);

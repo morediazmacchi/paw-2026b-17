@@ -64,6 +64,9 @@ public class EventServiceImpl implements EventService {
     public Optional<Event> findById(final long id) { return eventDao.findById(id); }
     @Override
     @Transactional(readOnly = true)
+    public List<Event> findByIds(final List<Long> ids) { return eventDao.findByIds(ids); }
+    @Override
+    @Transactional(readOnly = true)
     public List<Event> findAll() { return eventDao.findAll(); }
     @Override
     @Transactional(readOnly = true)

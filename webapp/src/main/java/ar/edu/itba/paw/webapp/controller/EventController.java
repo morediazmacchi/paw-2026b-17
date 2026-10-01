@@ -231,10 +231,11 @@ public class EventController {
         if (!creatorReviews.isEmpty()) {
             mav.addObject("creatorAverageRating", reviewService.findCreatorAverageRating(creatorId));
             mav.addObject("creatorReviews", creatorReviews);
-            final Map<Long, Event> reviewEventsById = new HashMap<>();
-            for (final Review review : creatorReviews) {
-                eventService.findById(review.getEventId()).ifPresent(e -> reviewEventsById.put(e.getId(), e));
-            }
+            // Una sola consulta para todos los eventos reseñados (findByIds()),
+            // en vez de un findById() por cada reseña.
+            final List<Long> eventIds = creatorReviews.stream().map(Review::getEventId).distinct().collect(Collectors.toList());
+            final Map<Long, Event> reviewEventsById = eventService.findByIds(eventIds).stream()
+                    .collect(Collectors.toMap(Event::getId, e -> e));
             mav.addObject("reviewEventsById", reviewEventsById);
         }
     }

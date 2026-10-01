@@ -222,7 +222,7 @@ public class EventJdbcDao implements EventDao {
         jdbcTemplate.query(
                 "SELECT ec.event_id, ec.category_id, c.name AS category_name, ec.extra_info "
                         + "FROM event_category ec JOIN category c ON c.id = ec.category_id "
-                        + "WHERE ec.event_id IN (" + placeholders(eventIds.size()) + ") ORDER BY c.name",
+                        + "WHERE ec.event_id IN (" + SqlPlaceholders.of(eventIds.size()) + ") ORDER BY c.name",
                 rs -> {
                     final EventCategoryInfo info = new EventCategoryInfo(rs.getLong("category_id"));
                     info.setCategoryName(rs.getString("category_name"));
@@ -247,7 +247,7 @@ public class EventJdbcDao implements EventDao {
         final Map<Long, List<Long>> byEvent = new HashMap<>();
         jdbcTemplate.query(
                 "SELECT event_id, image_id FROM event_image "
-                        + "WHERE event_id IN (" + placeholders(eventIds.size()) + ") ORDER BY id ASC",
+                        + "WHERE event_id IN (" + SqlPlaceholders.of(eventIds.size()) + ") ORDER BY id ASC",
                 rs -> {
                     byEvent.computeIfAbsent(rs.getLong("event_id"), k -> new ArrayList<>())
                             .add(rs.getLong("image_id"));
@@ -333,6 +333,17 @@ public class EventJdbcDao implements EventDao {
     }
 
     @Override
+    public List<Event> findByIds(final List<Long> ids) {
+        if (ids.isEmpty()) {
+            return Collections.emptyList();
+        }
+        final List<Event> events = jdbcTemplate.query(
+                SELECT_BASE + " WHERE e.id IN (" + SqlPlaceholders.of(ids.size()) + ")", ROW_MAPPER, ids.toArray());
+        attachRelated(events);
+        return events;
+    }
+
+    @Override
     public List<Event> findAll() {
         final List<Event> events = jdbcTemplate.query(
                 SELECT_BASE + " WHERE e.cancelled_at IS NULL ORDER BY e.event_date", ROW_MAPPER);
@@ -405,7 +416,7 @@ public class EventJdbcDao implements EventDao {
             // pedidas tiene que aparecer una sola vez, no una fila por cada
             // categoria que matchea.
             sql.append(" AND EXISTS (SELECT 1 FROM event_category ec WHERE ec.event_id = e.id AND ec.category_id IN (")
-                    .append(placeholders(criteria.getCategoryIds().size())).append("))");
+                    .append(SqlPlaceholders.of(criteria.getCategoryIds().size())).append("))");
             params.addAll(criteria.getCategoryIds());
         }
         if (criteria.getMinPrice() != null) {
@@ -425,7 +436,7 @@ public class EventJdbcDao implements EventDao {
             params.add(new Timestamp(criteria.getToDate().getTime()));
         }
         if (criteria.getBarrios() != null && !criteria.getBarrios().isEmpty()) {
-            sql.append(" AND e.neighborhood IN (").append(placeholders(criteria.getBarrios().size())).append(")");
+            sql.append(" AND e.neighborhood IN (").append(SqlPlaceholders.of(criteria.getBarrios().size())).append(")");
             criteria.getBarrios().forEach(b -> params.add(b.name()));
         }
         if (criteria.getMinOrganizerRating() != null) {
@@ -484,17 +495,6 @@ public class EventJdbcDao implements EventDao {
         return new WhereClause(sql.toString(), params);
     }
 
-    // "?, ?, ?" para un IN (...) de n elementos.
-    private static String placeholders(final int count) {
-        final StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < count; i++) {
-            if (i > 0) {
-                sb.append(", ");
-            }
-            sb.append("?");
-        }
-        return sb.toString();
-    }
 
     private static final class WhereClause {
         private final String sql;

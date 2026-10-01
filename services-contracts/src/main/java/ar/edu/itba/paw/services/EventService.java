@@ -16,6 +16,11 @@ public interface EventService {
      */
     Event create(EventDTO dto);
     Optional<Event> findById(long id);
+
+    // Una sola consulta para varios ids, para armar un mapa id->Event sin un
+    // findById() por cada uno (ver AdminController.reportQueueView(),
+    // EventController.addCreatorReputation()).
+    List<Event> findByIds(List<Long> ids);
     List<Event> findAll();
     List<Event> findByCategory(long categoryId);
     // Pagina la respuesta: criteria.getPage() puede caer a la ultima pagina con
