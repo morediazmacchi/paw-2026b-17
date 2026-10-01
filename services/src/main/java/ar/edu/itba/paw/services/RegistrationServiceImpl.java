@@ -234,10 +234,10 @@ public class RegistrationServiceImpl implements RegistrationService {
 
     @Override
     @Transactional
-    public boolean cancel(final long registrationId, final long userId) {
+    public UnregisterResult cancel(final long registrationId, final long userId) {
         final Registration unlocked = registrationDao.findById(registrationId).orElse(null);
         if (unlocked == null || !Long.valueOf(userId).equals(unlocked.getUserId())) {
-            return false;
+            return UnregisterResult.NOT_FOUND;
         }
         final long eventId = unlocked.getEventId();
         // REGLA DE ORDEN DE LOCKS (igual en register/approve/reject/revoke/cancel/
@@ -249,20 +249,21 @@ public class RegistrationServiceImpl implements RegistrationService {
         // aceptarla, revocarla, etc.
         final Registration cancelled = registrationDao.findById(registrationId).orElse(null);
         if (event == null || cancelled == null) {
-            return false;
+            return UnregisterResult.NOT_FOUND;
         }
         // Una inscripcion rechazada o revocada es un estado terminal: la fila es
         // justamente lo que le impide volver a anotarse. Si pudiera "darse de baja"
         // la borraria y se saltearia el rechazo (ademas de reactivar la invitacion
         // que hubiera tenido a un evento privado).
         if (cancelled.getStatus() == RegistrationStatus.REJECTED) {
-            return false;
+            return UnregisterResult.REJECTED;
         }
         // Se mira ANTES de borrar: despues la fila ya no existe.
         final boolean wasConfirmed = cancelled.getStatus() == RegistrationStatus.CONFIRMED;
+        final boolean wasPending = cancelled.getStatus() == RegistrationStatus.PENDING;
         // Al organizador le importa tambien si se baja alguien pendiente: tenia
         // ese pedido para responder, y ya no esta.
-        final boolean organizerCares = wasConfirmed || cancelled.getStatus() == RegistrationStatus.PENDING;
+        final boolean organizerCares = wasConfirmed || wasPending;
 
         registrationDao.delete(registrationId);
         // Si se libero un lugar de verdad, el primero de la lista de espera lo
@@ -282,7 +283,10 @@ public class RegistrationServiceImpl implements RegistrationService {
             inboxService.add(event.getCreatorEmail(), InboxMessageType.REGISTRATION_CANCELLED, eventId,
                     cancelled.getDisplayName(), null);
         }
-        return true;
+        if (wasConfirmed) {
+            return UnregisterResult.CANCELLED;
+        }
+        return wasPending ? UnregisterResult.CANCELLED_PENDING : UnregisterResult.CANCELLED_WAITLISTED;
     }
 
     @Override

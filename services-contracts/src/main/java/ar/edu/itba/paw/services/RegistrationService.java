@@ -54,11 +54,11 @@ public interface RegistrationService {
     List<Registration> findByUserId(long userId);
 
     /**
-     * Cancela una inscripcion propia. Devuelve false (y no borra nada) si no
-     * existe o si es de otro usuario: cancelar la inscripcion de otra persona
-     * conociendo solo su id no tiene que ser posible.
+     * Cancela una inscripcion propia. Devuelve NOT_FOUND (y no borra nada) si
+     * no existe o si es de otro usuario: cancelar la inscripcion de otra
+     * persona conociendo solo su id no tiene que ser posible.
      */
-    boolean cancel(long registrationId, long userId);
+    UnregisterResult cancel(long registrationId, long userId);
 
     /**
      * Para el detalle de evento: si el usuario logueado ya esta anotado a

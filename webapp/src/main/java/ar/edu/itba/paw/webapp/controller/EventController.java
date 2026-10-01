@@ -27,6 +27,7 @@ import ar.edu.itba.paw.services.RegistrationResult;
 import ar.edu.itba.paw.services.RegistrationService;
 import ar.edu.itba.paw.services.ReportResult;
 import ar.edu.itba.paw.services.ReviewService;
+import ar.edu.itba.paw.services.UnregisterResult;
 import ar.edu.itba.paw.webapp.exception.EventNotFoundException;
 import ar.edu.itba.paw.webapp.form.EventForm;
 import ar.edu.itba.paw.webapp.form.EventSearchForm;
@@ -54,7 +55,6 @@ import javax.validation.Valid;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -392,7 +392,7 @@ public class EventController {
         }
         // La UI ya esconde el boton en este caso (ver detail.jsp), pero un POST
         // directo igual no tiene que poder anotarte a algo que ya paso.
-        if (event.getEventDate().before(new Date())) {
+        if (event.isFinished()) {
             redirectAttributes.addFlashAttribute("rsvp", "finalizado");
             return new ModelAndView("redirect:/eventos/" + id);
         }
@@ -439,6 +439,23 @@ public class EventController {
         }
     }
 
+    // Mismo patron que rsvpParam(): detail.jsp elige el cartel a partir de este
+    // flash attribute "rsvp".
+    private static String unregisterParam(final UnregisterResult result) {
+        switch (result) {
+            case REJECTED:
+                return "rechazado";
+            case CANCELLED_WAITLISTED:
+                return "baja-waitlist";
+            case CANCELLED_PENDING:
+                return "baja-pendiente";
+            case NOT_FOUND:
+            case CANCELLED:
+            default:
+                return "baja";
+        }
+    }
+
     // Mismo mecanismo que "Cancelar" en Mis inscripciones (ProfileController),
     // pero desde el detalle: busca la inscripcion propia de este evento y la
     // cancela, en vez de recibir el id de la inscripcion por parametro.
@@ -449,29 +466,18 @@ public class EventController {
         final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
         // La UI ya esconde el boton en este caso (ver detail.jsp): un evento que
         // ya paso no se puede "des-anotar", ya sucedio.
-        if (event.getEventDate().before(new Date())) {
+        if (event.isFinished()) {
             redirectAttributes.addFlashAttribute("rsvp", "finalizado");
             return new ModelAndView("redirect:/eventos/" + id);
         }
+        // El service ya sabe que estado tenia la inscripcion antes de borrarla
+        // (ver UnregisterResult): no hace falta leerlo antes aca para despues
+        // reconstruir que cartel corresponde.
         final Optional<Registration> registration = registrationService.findByEventAndUserId(id, currentUser.getId());
-        // Se mira ANTES de borrar: despues la fila ya no existe y no hay forma
-        // de saber que cartel corresponde ("te diste de baja del evento",
-        // "saliste de la lista de espera" o "cancelaste tu pedido pendiente").
-        final RegistrationStatus status = registration.map(Registration::getStatus).orElse(null);
-        final boolean cancelled = registration
-                .map(r -> registrationService.cancel(r.getId(), currentUser.getId())).orElse(false);
-        final String rsvpParam;
-        if (registration.isPresent() && !cancelled && status == RegistrationStatus.REJECTED) {
-            // Un rechazado no puede darse de baja: la fila es lo que le impide volver a anotarse.
-            rsvpParam = "rechazado";
-        } else if (status == RegistrationStatus.WAITLISTED) {
-            rsvpParam = "baja-waitlist";
-        } else if (status == RegistrationStatus.PENDING) {
-            rsvpParam = "baja-pendiente";
-        } else {
-            rsvpParam = "baja";
-        }
-        redirectAttributes.addFlashAttribute("rsvp", rsvpParam);
+        final UnregisterResult result = registration
+                .map(r -> registrationService.cancel(r.getId(), currentUser.getId()))
+                .orElse(UnregisterResult.NOT_FOUND);
+        redirectAttributes.addFlashAttribute("rsvp", unregisterParam(result));
         return new ModelAndView("redirect:/eventos/" + id);
     }
 
