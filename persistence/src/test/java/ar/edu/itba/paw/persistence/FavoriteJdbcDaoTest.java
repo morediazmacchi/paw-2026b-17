@@ -1,6 +1,5 @@
 package ar.edu.itba.paw.persistence;
 
-import ar.edu.itba.paw.model.User;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -9,6 +8,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.Rollback;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.springframework.test.jdbc.JdbcTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.sql.DataSource;
@@ -19,6 +19,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+// Unidad 5 - Unit Testing: favoriteDao (el objeto bajo test) solo se toca en
+// el Act. Arrange/Assert son siempre SQL directo, nunca otro metodo de
+// favoriteDao (por ejemplo, el Assert de add() NO usa isFavorite()).
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes = TestConfig.class)
 @Transactional
@@ -31,9 +34,6 @@ public class FavoriteJdbcDaoTest {
     @Autowired
     private FavoriteDao favoriteDao;
 
-    @Autowired
-    private UserDao userDao;
-
     private JdbcTemplate jdbcTemplate;
     private long userId;
     private long eventId;
@@ -42,9 +42,14 @@ public class FavoriteJdbcDaoTest {
     @Before
     public void setUp() {
         jdbcTemplate = new JdbcTemplate(ds);
-        userId = userDao.create(new User("fan@mail.com", "Ana")).getId();
+        userId = insertUser("fan@mail.com");
         eventId = insertEvent("Recital");
         otherEventId = insertEvent("Feria");
+    }
+
+    private long insertUser(final String email) {
+        jdbcTemplate.update("INSERT INTO users (email, name) VALUES (?, ?)", email, "Ana");
+        return jdbcTemplate.queryForObject("SELECT id FROM users WHERE email = ?", Long.class, email);
     }
 
     // El evento no necesita categoria para estos tests (son de favoritos, no
@@ -57,64 +62,132 @@ public class FavoriteJdbcDaoTest {
         return jdbcTemplate.queryForObject("SELECT id FROM event WHERE title = ?", Long.class, title);
     }
 
-    // ---- add() + isFavorite() ----
-
-    @Test
-    public void testAddMakesIsFavoriteReturnTrue() {
-        favoriteDao.add(userId, eventId);
-
-        assertTrue(favoriteDao.isFavorite(userId, eventId));
+    private void insertFavorite(final long userId, final long eventId) {
+        jdbcTemplate.update("INSERT INTO favorite (user_id, event_id) VALUES (?, ?)", userId, eventId);
     }
 
+    private String favoriteWhere(final long userId, final long eventId) {
+        return "user_id = " + userId + " AND event_id = " + eventId;
+    }
+
+    // ---- add() ----
+
     @Test
-    public void testIsFavoriteReturnsFalseWhenNeverAdded() {
-        assertFalse(favoriteDao.isFavorite(userId, eventId));
+    public void testAddInsertsTheFavoriteRow() {
+        // Arrange: userId/eventId ya vienen del setUp, sin favorito todavia.
+
+        // Act
+        favoriteDao.add(userId, eventId);
+
+        // Assert
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "favorite", favoriteWhere(userId, eventId)));
     }
 
     @Test
     public void testAddTwiceIsIdempotent() {
+        // Arrange: nada favorito todavia.
+
+        // Act
         // No hay ON CONFLICT (no es portable a HSQLDB): add() depende de que
-        // el PRIMARY KEY compuesto absorba el duplicado sin explotar.
+        // el PRIMARY KEY compuesto absorba el duplicado sin explotar. Las DOS
+        // llamadas son el Act en si.
         favoriteDao.add(userId, eventId);
         favoriteDao.add(userId, eventId);
 
-        assertEquals(1, favoriteDao.findEventIdsByUser(userId).size());
+        // Assert
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "favorite", favoriteWhere(userId, eventId)));
     }
 
     // ---- remove() ----
 
     @Test
-    public void testRemoveMakesIsFavoriteReturnFalse() {
-        favoriteDao.add(userId, eventId);
+    public void testRemoveDeletesTheFavoriteRow() {
+        // Arrange
+        insertFavorite(userId, eventId);
 
+        // Act
         favoriteDao.remove(userId, eventId);
 
-        assertFalse(favoriteDao.isFavorite(userId, eventId));
+        // Assert
+        assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "favorite", favoriteWhere(userId, eventId)));
     }
 
     @Test
     public void testRemoveWhenNeverAddedDoesNothing() {
+        // Arrange: no hay ningun favorito guardado.
+
+        // Act
         favoriteDao.remove(userId, eventId);
 
-        assertFalse(favoriteDao.isFavorite(userId, eventId));
+        // Assert
+        assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "favorite", favoriteWhere(userId, eventId)));
+    }
+
+    // ---- isFavorite() ----
+
+    @Test
+    public void testIsFavoriteReturnsTrueWhenFavorited() {
+        // Arrange
+        insertFavorite(userId, eventId);
+
+        // Act
+        final boolean result = favoriteDao.isFavorite(userId, eventId);
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    public void testIsFavoriteReturnsFalseWhenNeverAdded() {
+        // Arrange: no hay ningun favorito guardado.
+
+        // Act
+        final boolean result = favoriteDao.isFavorite(userId, eventId);
+
+        // Assert
+        assertFalse(result);
     }
 
     // ---- findEventIdsByUser() ----
 
     @Test
-    public void testFindEventIdsByUserReturnsOnlyThatUsersFavorites() {
-        favoriteDao.add(userId, eventId);
-        favoriteDao.add(userId, otherEventId);
+    public void testFindEventIdsByUserReturnsAllFavoritesOfThatUser() {
+        // Arrange
+        insertFavorite(userId, eventId);
+        insertFavorite(userId, otherEventId);
 
+        // Act
         final List<Long> found = favoriteDao.findEventIdsByUser(userId);
 
+        // Assert
         assertEquals(2, found.size());
         assertTrue(found.contains(eventId));
         assertTrue(found.contains(otherEventId));
     }
 
     @Test
+    public void testFindEventIdsByUserExcludesOtherUsersFavorites() {
+        // Arrange
+        final long otherUserId = insertUser("otro@mail.com");
+        insertFavorite(userId, eventId);
+        insertFavorite(otherUserId, otherEventId);
+
+        // Act
+        final List<Long> found = favoriteDao.findEventIdsByUser(userId);
+
+        // Assert
+        assertEquals(1, found.size());
+        assertTrue(found.contains(eventId));
+    }
+
+    @Test
     public void testFindEventIdsByUserReturnsEmptyWhenNoneFavorited() {
-        assertTrue(favoriteDao.findEventIdsByUser(userId).isEmpty());
+        // Arrange: no hay ningun favorito guardado.
+
+        // Act
+        final List<Long> found = favoriteDao.findEventIdsByUser(userId);
+
+        // Assert
+        assertTrue(found.isEmpty());
     }
 }
