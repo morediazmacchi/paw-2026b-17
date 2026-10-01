@@ -7,7 +7,6 @@ import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.persistence.UserDao;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 import org.springframework.context.MessageSource;
@@ -17,8 +16,10 @@ import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 /**
@@ -63,86 +64,125 @@ public class NotificationServiceImplTest {
         return registration;
     }
 
-    private ArgumentCaptor<Locale> captureLocale() {
-        final ArgumentCaptor<Locale> captor = ArgumentCaptor.forClass(Locale.class);
-        verify(mockMailService).send(anyString(), anyString(), anyString(), any(), any(), captor.capture());
-        return captor;
+    // send() es void: el locale que recibio es el unico dato que nos interesa
+    // de la llamada. Se captura con doAnswer() sobre el stub (no con
+    // Mockito.verify()+ArgumentCaptor) y se lee del holder despues del Act.
+    private Locale[] captureLocale() {
+        final Locale[] captured = new Locale[1];
+        doAnswer(invocation -> {
+            captured[0] = invocation.getArgument(5);
+            return null;
+        }).when(mockMailService).send(anyString(), anyString(), anyString(), any(), any(), any());
+        return captured;
     }
 
     @Test
     public void testNotifyEventCreatedUsesTheCreatorsSavedLocale() {
+        // Arrange
         setUp();
         when(mockUserDao.findById(CREATOR_ID)).thenReturn(Optional.of(userWithLocale(CREATOR_ID, "en")));
+        final Locale[] capturedLocale = captureLocale();
 
+        // Act
         notificationService.notifyEventCreated(eventOf(CREATOR_ID), "Ana");
 
-        assertEquals(new Locale("en"), captureLocale().getValue());
+        // Assert
+        assertEquals(new Locale("en"), capturedLocale[0]);
     }
 
     @Test
     public void testNotifyEventCreatedFallsBackToSpanishWhenTheCreatorNeverChoseALanguage() {
+        // Arrange
         setUp();
         when(mockUserDao.findById(CREATOR_ID)).thenReturn(Optional.of(userWithLocale(CREATOR_ID, null)));
+        final Locale[] capturedLocale = captureLocale();
 
+        // Act
         notificationService.notifyEventCreated(eventOf(CREATOR_ID), "Ana");
 
-        assertEquals(new Locale("es"), captureLocale().getValue());
+        // Assert
+        assertEquals(new Locale("es"), capturedLocale[0]);
     }
 
     @Test
     public void testNotifyEventCreatedFallsBackToSpanishWhenTheEventHasNoCreatorId() {
+        // Arrange
         // Evento viejo, de antes del backfill (ver Event.creatorId): no hay a
         // quien buscarle el idioma, no vale la pena reventar el mail por eso.
+        // mockUserDao.findById() se stubea para que reviente si se llega a
+        // llamar: si el test pasa sin ese error, es la prueba (sin verify())
+        // de que nunca se llamo. lenient(): a proposito se espera que este
+        // stub quede sin usar -- Mockito por default marca eso como error.
         setUp();
+        lenient().when(mockUserDao.findById(anyLong()))
+                .thenThrow(new AssertionError("no deberia buscar el idioma de un evento sin creatorId"));
+        final Locale[] capturedLocale = captureLocale();
 
+        // Act
         notificationService.notifyEventCreated(eventOf(null), "Ana");
 
-        assertEquals(new Locale("es"), captureLocale().getValue());
-        verify(mockUserDao, org.mockito.Mockito.never()).findById(org.mockito.ArgumentMatchers.anyLong());
+        // Assert
+        assertEquals(new Locale("es"), capturedLocale[0]);
     }
 
     @Test
     public void testNotifyRegistrationConfirmedUsesTheRegistrantsSavedLocale() {
+        // Arrange
         setUp();
         when(mockUserDao.findById(REGISTRANT_ID)).thenReturn(Optional.of(userWithLocale(REGISTRANT_ID, "en")));
+        final Locale[] capturedLocale = captureLocale();
 
+        // Act
         notificationService.notifyRegistrationConfirmed(eventOf(CREATOR_ID), registrationOf(REGISTRANT_ID));
 
-        assertEquals(new Locale("en"), captureLocale().getValue());
+        // Assert
+        assertEquals(new Locale("en"), capturedLocale[0]);
     }
 
     @Test
     public void testNotifyEventInvitationFallsBackToSpanishWhenTheInviteeHasNoAccountYet() {
+        // Arrange
         // Invitar a alguien sin cuenta es un caso normal y permanente (ver
         // EventInvitation.userId): no hay idioma guardado para esa persona.
         setUp();
         final EventInvitation invitation = new EventInvitation();
         invitation.setEmail("sinCuenta@mail.com");
         invitation.setUserId(null);
+        final Locale[] capturedLocale = captureLocale();
 
+        // Act
         notificationService.notifyEventInvitation(eventOf(CREATOR_ID), invitation);
 
-        assertEquals(new Locale("es"), captureLocale().getValue());
+        // Assert
+        assertEquals(new Locale("es"), capturedLocale[0]);
     }
 
     @Test
     public void testNotifyAccountVerificationUsesTheUsersSavedLocale() {
+        // Arrange
         setUp();
         final User user = userWithLocale(5, "en");
+        final Locale[] capturedLocale = captureLocale();
 
+        // Act
         notificationService.notifyAccountVerification(user, "some-token", null);
 
-        assertEquals(new Locale("en"), captureLocale().getValue());
+        // Assert
+        assertEquals(new Locale("en"), capturedLocale[0]);
     }
 
     @Test
     public void testNotifyPasswordResetFallsBackToSpanishWhenTheUserNeverChoseALanguage() {
+        // Arrange
         setUp();
         final User user = userWithLocale(5, null);
+        final Locale[] capturedLocale = captureLocale();
 
+        // Act
         notificationService.notifyPasswordReset(user, "some-token");
 
-        assertEquals(new Locale("es"), captureLocale().getValue());
+        // Assert
+        assertEquals(new Locale("es"), capturedLocale[0]);
     }
 
     private static User userWithLocale(final long id, final String locale) {

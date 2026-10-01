@@ -21,8 +21,7 @@ import java.util.Optional;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 
 @RunWith(MockitoJUnitRunner.class)
@@ -75,11 +74,14 @@ public class ReviewServiceImplTest {
 
     @Test
     public void testFindByEventAndUserReturnsWhatTheDaoReturns() {
+        // Arrange
         final Review review = new Review(EVENT_ID, USER_ID, RATING, COMMENT);
         when(mockReviewDao.findByEventAndUser(EVENT_ID, USER_ID)).thenReturn(Optional.of(review));
 
+        // Act
         final Optional<Review> result = reviewService.findByEventAndUser(EVENT_ID, USER_ID);
 
+        // Assert
         assertTrue(result.isPresent());
         assertEquals(RATING, result.get().getRating());
     }
@@ -88,117 +90,154 @@ public class ReviewServiceImplTest {
 
     @Test
     public void testCreateSucceedsWhenTheEventFinishedAndTheUserWasRegistered() {
+        // Arrange
         when(mockReviewDao.findByEventAndUser(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
         when(mockEventService.findById(EVENT_ID)).thenReturn(Optional.of(pastEvent()));
         when(mockRegistrationService.findByEventAndUserId(EVENT_ID, USER_ID))
                 .thenReturn(Optional.of(new Registration(EVENT_ID, USER_EMAIL, "Ana", RegistrationStatus.CONFIRMED)));
+        // create() es void: se captura la reseña persistida con doAnswer() en
+        // vez de con Mockito.verify(), para comprobar despues que los datos
+        // que le llegaron al dao son los correctos.
+        final Review[] created = new Review[1];
+        doAnswer(invocation -> {
+            created[0] = invocation.getArgument(0);
+            return null;
+        }).when(mockReviewDao).create(any(Review.class));
 
+        // Act
         final ReviewResult result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
 
+        // Assert
         assertEquals(ReviewResult.CREATED, result);
-        verify(mockReviewDao).create(any(Review.class));
+        assertEquals(EVENT_ID, created[0].getEventId());
+        assertEquals(USER_ID, created[0].getUserId());
+        assertEquals(RATING, created[0].getRating());
+        assertEquals(COMMENT, created[0].getComment());
     }
 
     @Test
     public void testCreateFailsWhenAlreadyReviewed() {
+        // Arrange
         when(mockReviewDao.findByEventAndUser(EVENT_ID, USER_ID))
                 .thenReturn(Optional.of(new Review(EVENT_ID, USER_ID, 5, "Ya la mande")));
 
+        // Act
         final ReviewResult result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
 
+        // Assert
         assertEquals(ReviewResult.ALREADY_REVIEWED, result);
-        verify(mockReviewDao, never()).create(any(Review.class));
     }
 
     @Test
     public void testCreateFailsWhenTheEventDoesNotExist() {
+        // Arrange
         when(mockReviewDao.findByEventAndUser(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
         when(mockEventService.findById(EVENT_ID)).thenReturn(Optional.empty());
 
+        // Act
         final ReviewResult result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
 
+        // Assert
         assertEquals(ReviewResult.NOT_ELIGIBLE, result);
-        verify(mockReviewDao, never()).create(any(Review.class));
     }
 
     @Test
     public void testCreateFailsWhenTheEventHasNotFinishedYet() {
+        // Arrange
         when(mockReviewDao.findByEventAndUser(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
         when(mockEventService.findById(EVENT_ID)).thenReturn(Optional.of(futureEvent()));
 
+        // Act
         final ReviewResult result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
 
+        // Assert
         assertEquals(ReviewResult.NOT_ELIGIBLE, result);
-        verify(mockReviewDao, never()).create(any(Review.class));
     }
 
     @Test
     public void testCreateFailsWhenTheUserWasNeverRegistered() {
+        // Arrange
         when(mockReviewDao.findByEventAndUser(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
         when(mockEventService.findById(EVENT_ID)).thenReturn(Optional.of(pastEvent()));
         when(mockRegistrationService.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
 
+        // Act
         final ReviewResult result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
 
+        // Assert
         assertEquals(ReviewResult.NOT_ELIGIBLE, result);
-        verify(mockReviewDao, never()).create(any(Review.class));
     }
 
     @Test
     public void testCreateFailsWhenTheEventWasCancelled() {
+        // Arrange
         final Event cancelled = pastEvent();
         cancelled.setCancelledAt(new Date());
         when(mockReviewDao.findByEventAndUser(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
         when(mockEventService.findById(EVENT_ID)).thenReturn(Optional.of(cancelled));
 
+        // Act
         final ReviewResult result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
 
+        // Assert
         assertEquals(ReviewResult.NOT_ELIGIBLE, result);
-        verify(mockReviewDao, never()).create(any(Review.class));
     }
 
     @Test
     public void testCreateFailsWhenTheUserOnlyReachedTheWaitlist() {
+        // Arrange
         when(mockReviewDao.findByEventAndUser(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
         when(mockEventService.findById(EVENT_ID)).thenReturn(Optional.of(pastEvent()));
         when(mockRegistrationService.findByEventAndUserId(EVENT_ID, USER_ID))
                 .thenReturn(Optional.of(new Registration(EVENT_ID, USER_EMAIL, "Ana", RegistrationStatus.WAITLISTED)));
 
+        // Act
         final ReviewResult result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
 
+        // Assert
         assertEquals(ReviewResult.NOT_ELIGIBLE, result);
-        verify(mockReviewDao, never()).create(any(Review.class));
     }
 
     // ---- findCreatorAverageRating() ----
 
     @Test
     public void testFindCreatorAverageRatingReturnsWhatTheDaoCalculates() {
+        // Arrange
         when(mockReviewDao.findAverageRatingByCreatorId(CREATOR_ID)).thenReturn(4.5);
 
-        assertEquals(4.5, reviewService.findCreatorAverageRating(CREATOR_ID), 0.0001);
+        // Act
+        final double result = reviewService.findCreatorAverageRating(CREATOR_ID);
+
+        // Assert
+        assertEquals(4.5, result, 0.0001);
     }
 
     // ---- findByCreatorId() ----
 
     @Test
     public void testFindByCreatorIdReturnsWhatTheDaoReturns() {
+        // Arrange
         final List<Review> reviews = Arrays.asList(
                 new Review(EVENT_ID, USER_ID, 5, "Genial"),
                 new Review(EVENT_ID + 1, USER_ID, 3, "Regular"));
         when(mockReviewDao.findByCreatorId(CREATOR_ID)).thenReturn(reviews);
 
+        // Act
         final List<Review> result = reviewService.findByCreatorId(CREATOR_ID);
 
+        // Assert
         assertEquals(2, result.size());
     }
 
     @Test
     public void testFindByCreatorIdReturnsEmptyWhenNoReviews() {
+        // Arrange
         when(mockReviewDao.findByCreatorId(CREATOR_ID)).thenReturn(Collections.emptyList());
 
+        // Act
         final List<Review> result = reviewService.findByCreatorId(CREATOR_ID);
 
+        // Assert
         assertTrue(result.isEmpty());
     }
 }
