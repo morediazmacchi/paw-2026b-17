@@ -2,10 +2,15 @@
 // loguearse), validados con JSR-303.
 package ar.edu.itba.paw.webapp.form;
 
+import ar.edu.itba.paw.webapp.validation.PasswordsMatch;
+
 import javax.validation.constraints.Email;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.Size;
 
+// @PasswordsMatch con los nombres default (password/confirmarPassword): no
+// hace falta pasarle los campos, ya se llaman asi.
+@PasswordsMatch
 public class SetPasswordForm {
 
     // Viaja oculto en el form (login.jsp ya lo sabe: vino del redirect de

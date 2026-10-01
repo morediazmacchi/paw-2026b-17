@@ -161,11 +161,6 @@ public class LoginController {
             return setPasswordFormWithErrors(form, errors, redirect);
         }
 
-        if (!form.getPassword().equals(form.getConfirmarPassword())) {
-            errors.rejectValue("confirmarPassword", "PasswordMismatch", "Las contraseñas no coinciden");
-            return setPasswordFormWithErrors(form, errors, redirect);
-        }
-
         // register() se banca este caso: el email ya existe sin password (fantasma),
         // le pone la que llego y listo. Si en el medio alguien ya la establecio
         // (carrera rarisima), EMAIL_TAKEN cae al error generico de login.
