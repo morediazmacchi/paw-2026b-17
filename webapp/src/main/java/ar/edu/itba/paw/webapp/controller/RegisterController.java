@@ -58,11 +58,6 @@ public class RegisterController {
             return registerFormWithErrors(form, errors, safeRedirect);
         }
 
-        if (!form.getPassword().equals(form.getConfirmarPassword())) {
-            errors.rejectValue("confirmarPassword", "PasswordMismatch", "Las contraseñas no coinciden");
-            return registerFormWithErrors(form, errors, safeRedirect);
-        }
-
         final UserRegistrationResult result = userService.register(form.getEmail(), form.getNombre(),
                 form.getPassword(), safeRedirect);
         if (result == UserRegistrationResult.EMAIL_TAKEN) {
