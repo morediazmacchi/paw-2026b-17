@@ -1,13 +1,11 @@
 package ar.edu.itba.paw.webapp.controller;
 
+import ar.edu.itba.paw.dto.EventDTO;
 import ar.edu.itba.paw.model.Barrio;
 import ar.edu.itba.paw.model.Category;
 import ar.edu.itba.paw.model.Event;
-import ar.edu.itba.paw.model.EventCategoryInfo;
 import ar.edu.itba.paw.model.EventQuestion;
-import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.EventSort;
-import ar.edu.itba.paw.model.EventVisibility;
 import ar.edu.itba.paw.model.Image;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationStatus;
@@ -29,12 +27,12 @@ import ar.edu.itba.paw.services.RegistrationResult;
 import ar.edu.itba.paw.services.RegistrationService;
 import ar.edu.itba.paw.services.ReportResult;
 import ar.edu.itba.paw.services.ReviewService;
-import ar.edu.itba.paw.services.UserService;
 import ar.edu.itba.paw.webapp.exception.EventNotFoundException;
-import ar.edu.itba.paw.webapp.form.CategoriaSeleccionForm;
 import ar.edu.itba.paw.webapp.form.EventForm;
+import ar.edu.itba.paw.webapp.form.EventSearchForm;
 import ar.edu.itba.paw.webapp.form.QuestionForm;
 import ar.edu.itba.paw.webapp.form.ReportForm;
+import ar.edu.itba.paw.webapp.util.Paging;
 import ar.edu.itba.paw.webapp.util.SafeRedirect;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
@@ -43,6 +41,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
@@ -53,19 +52,13 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import javax.validation.Valid;
 import java.io.IOException;
-import java.math.BigDecimal;
-import java.security.Principal;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -76,14 +69,14 @@ public class EventController {
     private static final int FEATURED_COUNT = 5;
     // Ver el comentario de multipart-config en web.xml: sus limites estan
     // calculados en base a este numero (5 fotos de 5 MB cada una, tope que
-    // impone ImageServiceImpl).
-    private static final int MAX_IMAGES = 5;
+    // impone ImageServiceImpl). Publico porque EventForm.images
+    // (@ValidImageCount) tambien lo referencia.
+    public static final int MAX_IMAGES = 5;
 
     private final EventService eventService;
     private final CategoryService categoryService;
     private final RegistrationService registrationService;
     private final ImageService imageService;
-    private final UserService userService;
     private final FavoriteService favoriteService;
     private final ReviewService reviewService;
     private final EventInvitationService eventInvitationService;
@@ -94,7 +87,7 @@ public class EventController {
     @Autowired
     public EventController(final EventService eventService, final CategoryService categoryService,
                             final RegistrationService registrationService, final ImageService imageService,
-                            final UserService userService, final FavoriteService favoriteService,
+                            final FavoriteService favoriteService,
                             final ReviewService reviewService, final EventInvitationService eventInvitationService,
                             final EventQuestionService eventQuestionService, final ModerationService moderationService,
                             final MessageSource messageSource) {
@@ -102,19 +95,12 @@ public class EventController {
         this.categoryService = categoryService;
         this.registrationService = registrationService;
         this.imageService = imageService;
-        this.userService = userService;
         this.favoriteService = favoriteService;
         this.reviewService = reviewService;
         this.eventInvitationService = eventInvitationService;
         this.eventQuestionService = eventQuestionService;
         this.moderationService = moderationService;
         this.messageSource = messageSource;
-    }
-
-    private User currentUser(final Principal principal) {
-        return userService.findByEmail(principal.getName())
-                .orElseThrow(() -> new IllegalStateException(
-                        "Usuario autenticado sin fila en la base: " + principal.getName()));
     }
 
     // Todos los mensajes que se muestran en pantalla (errores de validacion,
@@ -132,72 +118,23 @@ public class EventController {
         return new ModelAndView("redirect:/eventos");
     }
 
+    // Todo el parseo de filtros (listas de ids, rango de precio/fecha, orden,
+    // pagina) y las dos validaciones cruzadas (rango de precio/fecha invertido)
+    // viven en EventSearchForm: un filtro invalido no rechaza la busqueda, solo
+    // se ignora y se avisa, asi que no es un caso de @Valid + BindingResult.
     @RequestMapping(value = "/eventos", method = RequestMethod.GET)
-    public ModelAndView list(@RequestParam(value = "categoria", required = false) final List<String> categoria,
-                              @RequestParam(value = "precioMin", required = false) final String precioMin,
-                              @RequestParam(value = "precioMax", required = false) final String precioMax,
-                              @RequestParam(value = "fechaDesde", required = false) final String fechaDesde,
-                              @RequestParam(value = "fechaHasta", required = false) final String fechaHasta,
-                              @RequestParam(value = "barrio", required = false) final List<String> barrio,
-                              @RequestParam(value = "puntajeMin", required = false) final String puntajeMin,
-                              @RequestParam(value = "pocosCupos", required = false) final String pocosCupos,
-                              @RequestParam(value = "agotados", required = false) final String agotados,
-                              @RequestParam(value = "page", required = false) final String page,
-                              @RequestParam(value = "sort", required = false) final String sort,
+    public ModelAndView list(final EventSearchForm filters,
                               @RequestParam(value = "rsvp", required = false) final String rsvp,
-                              final Principal principal) {
-        final List<Long> categoryIds = parseLongList(categoria);
-        final List<Barrio> barrios = parseBarrioList(barrio);
+                              @ModelAttribute("currentUser") final User currentUser) {
         final Map<String, String> filterErrors = new HashMap<>();
-
-        BigDecimal minPrice = parseDecimal(precioMin);
-        BigDecimal maxPrice = parseDecimal(precioMax);
-        if (minPrice != null && maxPrice != null && minPrice.compareTo(maxPrice) > 0) {
+        if (filters.isPriceRangeInvalid()) {
             filterErrors.put("precioMax", message("event.list.priceRangeInvalid"));
-            minPrice = null;
-            maxPrice = null;
         }
-
-        Date fromDate = parseDate(fechaDesde);
-        Date toDate = parseDateEndOfDay(fechaHasta);
-        final Date toDateRaw = parseDate(fechaHasta);
-        if (fromDate != null && toDateRaw != null && toDateRaw.before(fromDate)) {
+        if (filters.isDateRangeInvalid()) {
             filterErrors.put("fechaHasta", message("event.list.dateRangeInvalid"));
-            fromDate = null;
-            toDate = null;
         }
 
-        final EventSearchCriteria criteria = new EventSearchCriteria();
-        criteria.setCategoryIds(categoryIds);
-        criteria.setMinPrice(minPrice);
-        criteria.setMaxPrice(maxPrice);
-        criteria.setFromDate(fromDate);
-        criteria.setToDate(toDate);
-        criteria.setBarrios(barrios);
-        criteria.setMinOrganizerRating(parseInteger(puntajeMin));
-        // Un si/no, no un rango: cuantos lugares son "pocos" lo define el modelo
-        // (EventSearchCriteria.FEW_SPOTS_MIN/MAX), no lo que venga en la URL.
-        criteria.setOnlyFewSpotsLeft(pocosCupos != null && !pocosCupos.isEmpty());
-        criteria.setOnlySoldOut(agotados != null && !agotados.isEmpty());
-        final EventSort parsedSort = parseSort(sort);
-        criteria.setSort(parsedSort);
-        criteria.setPage(parsePage(page));
-        criteria.setPageSize(PAGE_SIZE);
-
-        final PageResult<Event> result = eventService.search(criteria);
-
-        // "N eventos encontrados" / "Limpiar filtros" solo tienen sentido si el
-        // usuario realmente filtro algo. Se mira lo que vino crudo del request,
-        // no lo ya parseado: un rango invalido (que se resetea a null arriba)
-        // igual cuenta como "hay algo para limpiar".
-        final boolean hasActiveFilters = categoryIds != null || barrios != null
-                || (precioMin != null && !precioMin.isEmpty())
-                || (precioMax != null && !precioMax.isEmpty())
-                || (fechaDesde != null && !fechaDesde.isEmpty())
-                || (fechaHasta != null && !fechaHasta.isEmpty())
-                || (puntajeMin != null && !puntajeMin.isEmpty())
-                || (pocosCupos != null && !pocosCupos.isEmpty())
-                || (agotados != null && !agotados.isEmpty());
+        final PageResult<Event> result = eventService.search(filters.toCriteria(PAGE_SIZE));
 
         // Banner destacado: los que un admin eligio (ver AdminController.destacar()),
         // mas reciente primero. Antes eran "los proximos eventos por fecha" fijo;
@@ -209,209 +146,52 @@ public class EventController {
         mav.addObject("featuredEvents", featured);
         mav.addObject("currentPage", result.getPage());
         mav.addObject("totalPages", result.getTotalPages());
-        mav.addObject("pageNumbers", buildPageNumbers(result.getPage(), result.getTotalPages()));
+        mav.addObject("pageNumbers", Paging.buildPageNumbers(result.getPage(), result.getTotalPages()));
         mav.addObject("totalElements", result.getTotalElements());
         mav.addObject("categories", categoryService.findAll());
         mav.addObject("barrios", Barrio.values());
-        mav.addObject("selectedCategorias", categoryIds);
-        mav.addObject("precioMin", precioMin);
-        mav.addObject("precioMax", precioMax);
-        mav.addObject("fechaDesde", fechaDesde);
-        mav.addObject("fechaHasta", fechaHasta);
-        mav.addObject("selectedBarrios", barrios);
-        mav.addObject("puntajeMin", puntajeMin);
-        mav.addObject("pocosCupos", pocosCupos);
-        mav.addObject("agotados", agotados);
-        mav.addObject("hasActiveFilters", hasActiveFilters);
-        // El ya parseado (siempre un valor valido): el JSP lo usa para marcar la
-        // opcion elegida y los links de la paginacion lo repiten tal cual.
-        mav.addObject("sort", parsedSort.name());
+        mav.addObject("selectedCategorias", filters.getSelectedCategoryIds());
+        mav.addObject("precioMin", filters.getPrecioMin());
+        mav.addObject("precioMax", filters.getPrecioMax());
+        mav.addObject("fechaDesde", filters.getFechaDesde());
+        mav.addObject("fechaHasta", filters.getFechaHasta());
+        mav.addObject("selectedBarrios", filters.getSelectedBarrios());
+        mav.addObject("puntajeMin", filters.getPuntajeMin());
+        mav.addObject("pocosCupos", filters.getPocosCupos());
+        mav.addObject("agotados", filters.getAgotados());
+        mav.addObject("hasActiveFilters", filters.hasActiveFilters());
+        mav.addObject("sort", filters.getParsedSort().name());
         mav.addObject("sortOptions", EventSort.values());
         mav.addObject("filterErrors", filterErrors);
         mav.addObject("rsvp", rsvp);
         // Anonimo no ve el corazon de favorito (paw:card lo esconde con
         // sec:authorize), asi que ni consultamos: nadie va a leer este set.
-        if (principal != null) {
-            mav.addObject("favoriteEventIds", new HashSet<>(favoriteService.findEventIdsByUser(currentUser(principal).getId())));
+        if (currentUser != null) {
+            mav.addObject("favoriteEventIds", new HashSet<>(favoriteService.findEventIdsByUser(currentUser.getId())));
         }
         return mav;
     }
 
-    // Numeros de pagina a mostrar en el paginador. Con pocas paginas se muestran
-    // todas; con muchas, primera + ultima + una ventana alrededor de la actual,
-    // con null como marcador de "..." (el JSP lo detecta con <c:if test="${empty p}">).
-    private static List<Integer> buildPageNumbers(final int currentPage, final int totalPages) {
-        final List<Integer> pages = new ArrayList<>();
-        if (totalPages <= 7) {
-            for (int i = 1; i <= totalPages; i++) {
-                pages.add(i);
-            }
-            return pages;
-        }
-        pages.add(1);
-        if (currentPage > 3) {
-            pages.add(null);
-        }
-        final int start = Math.max(2, currentPage - 1);
-        final int end = Math.min(totalPages - 1, currentPage + 1);
-        for (int i = start; i <= end; i++) {
-            pages.add(i);
-        }
-        if (currentPage < totalPages - 2) {
-            pages.add(null);
-        }
-        pages.add(totalPages);
-        return pages;
-    }
-
-    // Los filtros son de la barra de busqueda: si vienen mal formados, se ignoran
-    // (como si no se hubieran cargado) en vez de romper la pagina con un 500.
-    private static Integer parseInteger(final String value) {
-        if (value == null || value.isEmpty()) {
-            return null;
-        }
-        try {
-            return Integer.valueOf(value);
-        } catch (final NumberFormatException e) {
-            return null;
-        }
-    }
-
-    private static Long parseLong(final String value) {
-        if (value == null || value.isEmpty()) {
-            return null;
-        }
-        try {
-            return Long.valueOf(value);
-        } catch (final NumberFormatException e) {
-            return null;
-        }
-    }
-
-    // Multi-seleccion: cada elemento se parsea por separado, el que este mal
-    // formado se descarta solo (no invalida los demas). Lista vacia = sin filtro.
-    private static List<Long> parseLongList(final List<String> values) {
-        if (values == null || values.isEmpty()) {
-            return null;
-        }
-        final List<Long> result = values.stream()
-                .map(EventController::parseLong)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
-        return result.isEmpty() ? null : result;
-    }
-
-    private static List<Barrio> parseBarrioList(final List<String> values) {
-        if (values == null || values.isEmpty()) {
-            return null;
-        }
-        final List<Barrio> result = values.stream()
-                .map(EventController::parseBarrioFilter)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
-        return result.isEmpty() ? null : result;
-    }
-
-    private static BigDecimal parseDecimal(final String value) {
-        if (value == null || value.isEmpty()) {
-            return null;
-        }
-        try {
-            return new BigDecimal(value);
-        } catch (final NumberFormatException e) {
-            return null;
-        }
-    }
-
-    private static Date parseDate(final String value) {
-        if (value == null || value.isEmpty()) {
-            return null;
-        }
-        try {
-            return new SimpleDateFormat("yyyy-MM-dd").parse(value);
-        } catch (final ParseException e) {
-            return null;
-        }
-    }
-
-    // Tope para publicar/editar un evento: no se puede armar (ni mover) uno para
+// Tope para publicar/editar un evento: no se puede armar (ni mover) uno para
     // dentro de mas de 2 anios a partir de hoy.
-    private static Date maxEventDate() {
-        final Calendar calendar = Calendar.getInstance();
-        calendar.add(Calendar.YEAR, 2);
-        return calendar.getTime();
-    }
-
-    // "Hasta" tiene que incluir todo ese dia: se corre al dia siguiente a las 00:00
-    // y en la query se compara con "<", no "<=".
-    private static Date parseDateEndOfDay(final String value) {
-        final Date date = parseDate(value);
-        if (date == null) {
-            return null;
-        }
-        final Calendar calendar = Calendar.getInstance();
-        calendar.setTime(date);
-        calendar.add(Calendar.DAY_OF_MONTH, 1);
-        return calendar.getTime();
-    }
-
-    private static Barrio parseBarrioFilter(final String value) {
-        if (value == null || value.isEmpty()) {
-            return null;
-        }
-        try {
-            return Barrio.valueOf(value);
-        } catch (final IllegalArgumentException e) {
-            return null;
-        }
-    }
-
-    // page=0, page=-1, page=abc caen a la primera pagina. Un page mas alla del
-    // total no se corrige aca (no se sabe el total todavia): lo ajusta el service.
-    private static int parsePage(final String value) {
-        if (value == null || value.isEmpty()) {
-            return 1;
-        }
-        try {
-            final int parsed = Integer.parseInt(value);
-            return parsed < 1 ? 1 : parsed;
-        } catch (final NumberFormatException e) {
-            return 1;
-        }
-    }
-
-    private static EventSort parseSort(final String value) {
-        if (value == null || value.isEmpty()) {
-            return EventSort.FECHA_ASC;
-        }
-        try {
-            return EventSort.valueOf(value);
-        } catch (final IllegalArgumentException e) {
-            // Un valor que no existe (link viejo con "FECHA", o la URL tocada a
-            // mano) no es un error: se ordena como siempre, por fecha.
-            return EventSort.FECHA_ASC;
-        }
-    }
-
     @RequestMapping(value = "/eventos/{id}", method = RequestMethod.GET)
     public ModelAndView detail(@PathVariable final long id,
                                 @RequestParam(value = "preguntasPage", required = false) final String preguntasPage,
-                                final Principal principal) {
+                                @ModelAttribute("currentUser") final User currentUser) {
         final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
         // Privado y sin sesion: todavia no sabemos quien sos. Al login, y de
         // vuelta aca (WebAuthConfig.loginSuccessHandler) para chequear si estas invitado.
-        if (event.isPrivate() && principal == null) {
+        if (event.isPrivate() && currentUser == null) {
             return new ModelAndView("redirect:/login?redirect=/eventos/" + id);
         }
-        final User user = principal == null ? null : currentUser(principal);
         // Para un evento privado, la inscripcion propia (si existe) no es solo
         // dato para la tarjeta de RSVP: es tambien la prueba de que quien pide
         // esto tiene algo que ver con el evento. Por eso se busca ANTES del
         // chequeo de acceso, en vez de mas abajo como antes.
-        final Optional<Registration> myRegistration = user == null
+        final Optional<Registration> myRegistration = currentUser == null
                 ? Optional.empty()
-                : registrationService.findByEventAndUserId(id, user.getId());
-        if (!canView(event, user, myRegistration)) {
+                : registrationService.findByEventAndUserId(id, currentUser.getId());
+        if (!canView(event, currentUser, myRegistration)) {
             // Mismo 404 que un id inexistente: no hay que revelar que el
             // evento existe pero que no es para vos.
             throw new EventNotFoundException(id);
@@ -421,13 +201,13 @@ public class EventController {
         mav.addObject("event", event);
         // Quien fue invitado a un evento privado tiene su lugar reservado: para esa
         // persona el evento no esta "lleno" aunque el cupo ya este contado entero.
-        mav.addObject("full", user != null
-                ? registrationService.isFullFor(id, user.getId())
+        mav.addObject("full", currentUser != null
+                ? registrationService.isFullFor(id, currentUser.getId())
                 : registrationService.isFull(id));
-        mav.addObject("finished", event.getEventDate().before(new Date()));
+        mav.addObject("finished", event.isFinished());
         mav.addObject("availableSpots", registrationService.availableSpots(id));
-        if (user != null) {
-            mav.addObject("favorite", favoriteService.isFavorite(user.getId(), id));
+        if (currentUser != null) {
+            mav.addObject("favorite", favoriteService.isFavorite(currentUser.getId(), id));
             // No alcanza con saber SI esta anotada: el boton dice "Darme de
             // baja", "Salir de la lista de espera" o "Cancelar mi pedido"
             // segun en que estado quedo. Un rechazo NO cuenta como "anotado":
@@ -441,17 +221,16 @@ public class EventController {
             // El creador no se anota a su propio evento (ver RegistrationServiceImpl.
             // register()): la tarjeta de RSVP se lo dice en vez de ofrecerle un
             // boton que el service le va a rechazar igual.
-            mav.addObject("isOwner", Long.valueOf(user.getId()).equals(event.getCreatorId()));
+            mav.addObject("isOwner", Long.valueOf(currentUser.getId()).equals(event.getCreatorId()));
         }
         if (event.getCreatorId() != null) {
             addCreatorReputation(mav, event.getCreatorId());
         }
-        final PageResult<EventQuestion> questions = eventQuestionService.findPage(id, parsePage(preguntasPage));
+        final PageResult<EventQuestion> questions = eventQuestionService.findPage(id, Paging.parsePage(preguntasPage));
         mav.addObject("questions", questions.getContent());
         mav.addObject("questionsPage", questions.getPage());
         mav.addObject("questionsTotalPages", questions.getTotalPages());
-        // Mismo criterio que el service: pasado o cancelado ya no recibe preguntas.
-        mav.addObject("questionsOpen", !event.isCancelled() && event.getEventDate().after(new Date()));
+        mav.addObject("questionsOpen", event.isOpenForQuestions());
         return mav;
     }
 
@@ -498,165 +277,51 @@ public class EventController {
         final ModelAndView mav = new ModelAndView("events/publish");
         mav.addObject("categories", categories);
         mav.addObject("barrios", Barrio.values());
-        mav.addObject("eventForm", emptyForm(categories));
+        mav.addObject("eventForm", EventForm.empty(categories));
         if (imageError != null) {
             mav.addObject("imageError", message("event.publish.imageTooLargeError"));
         }
         return mav;
     }
 
-    // Un CategoriaSeleccionForm por cada categoria existente, todas sin
-    // tildar: hace falta que la lista ya tenga una entrada por indice para
-    // que el binding indexado de Spring (categorias[0].seleccionada, etc.) y
-    // el JSP (que itera "categories" y lee eventForm.categorias[idx]) esten
-    // sincronizados incluso en el primer GET, antes de cualquier submit.
-    private static EventForm emptyForm(final List<Category> categories) {
-        final EventForm form = new EventForm();
-        form.setCategorias(categoriaFormsFor(Collections.emptyList(), categories));
-        return form;
-    }
-
+    // Toda la validacion de forma y de negocio (fecha valida/futura/no muy
+    // lejana, barrio valido, al menos una categoria y que exista de verdad,
+    // no mas de MAX_IMAGES fotos) ya corrio con @Valid, via los validators
+    // custom de EventForm (ver ar.edu.itba.paw.webapp.validation). Si eso
+    // paso, form.toDTO() no puede fallar: arma el DTO parseado y listo para
+    // el service, sin que este metodo tenga que parsear ni rechazar nada el
+    // mismo. Lo unico que queda aca es subir las imagenes: es una accion con
+    // efecto secundario (escribe en disco/base), no una validacion, asi que
+    // no puede vivir en un ConstraintValidator.
     @RequestMapping(value = "/eventos/publicar", method = RequestMethod.POST)
     public ModelAndView publish(@Valid final EventForm form, final BindingResult errors,
-                                 @RequestParam(value = "images", required = false) final List<MultipartFile> images,
-                                 final Principal principal) {
-        final Barrio parsedBarrio = parseBarrio(form.getBarrio(), errors);
-        final List<EventCategoryInfo> categorias = selectedCategories(form, errors);
-
+                                 @ModelAttribute("currentUser") final User currentUser) {
         if (errors.hasErrors()) {
             return publishFormWithErrors(form, errors, null);
         }
 
-        final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm");
-        // Sin setLenient(false), SimpleDateFormat "desborda" las fechas imposibles en
-        // silencio: 2026-13-45T99:99 pasa el @Pattern del form (que solo valida la forma)
-        // y se convierte en 2027-02-18 04:39.
-        dateFormat.setLenient(false);
-        final Date parsedDate;
-        try {
-            parsedDate = dateFormat.parse(form.getFechaEvento());
-        } catch (final ParseException e) {
-            // Codigo "Pattern": reusa la clave Pattern.eventForm.fechaEvento que ya existe.
-            errors.rejectValue("fechaEvento", "Pattern",
-                    "La fecha y horario no tienen un formato valido");
-            return publishFormWithErrors(form, errors, null);
-        }
-        // No se puede publicar un evento que ya paso. El formato lo valida el @Pattern
-        // del form, pero "que sea futura" no se puede expresar con una expresion regular:
-        // hay que comparar contra el momento actual, y eso se hace aca.
-        if (parsedDate.before(new Date())) {
-            // El codigo "Future" hace que Spring busque la clave
-            // Future.eventForm.fechaEvento en los messages.properties, igual que
-            // hace con NotBlank y Pattern. El tercer argumento es el texto por
-            // defecto, para que no explote si falta la clave.
-            errors.rejectValue("fechaEvento", "Future",
-                    "La fecha del evento tiene que ser futura");
-            return publishFormWithErrors(form, errors, null);
-        }
-        // El codigo "TooFarInFuture" sigue el mismo mecanismo que "Future": busca
-        // TooFarInFuture.eventForm.fechaEvento en los messages.properties.
-        if (parsedDate.after(maxEventDate())) {
-            errors.rejectValue("fechaEvento", "TooFarInFuture",
-                    "La fecha del evento no puede ser de mas de 2 anios a partir de hoy");
-            return publishFormWithErrors(form, errors, null);
-        }
-
-        final BigDecimal parsedPrice = new BigDecimal(form.getPrecio());
-        final Integer parsedCapacity = "0".equals(form.getCupoMaximo()) ? null : Integer.valueOf(form.getCupoMaximo());
-
-        final List<MultipartFile> nonEmptyImages = nonEmptyImages(images);
-        if (nonEmptyImages.size() > MAX_IMAGES) {
-            return publishFormWithErrors(form, errors, message("event.publish.tooManyImagesError"));
-        }
         final List<Long> imageIds;
         try {
-            imageIds = uploadImages(nonEmptyImages);
+            imageIds = uploadImages(nonEmptyImages(form.getImages()));
         } catch (final IOException e) {
             return publishFormWithErrors(form, errors, message("event.publish.imageReadError"));
         } catch (final IllegalArgumentException e) {
             return publishFormWithErrors(form, errors, message(e.getMessage()));
         }
 
+        final EventDTO dto = form.toDTO();
+        dto.setImageIds(imageIds);
         // El creador es quien esta logueado, nunca un campo del form: si viniera del
         // form, cualquiera podria publicar un evento a nombre de otro email.
-        final User creator = currentUser(principal);
-        final Event event = new Event(form.getTitulo(), form.getDescripcion(), parsedDate, form.getDireccion(),
-                parsedBarrio, imageIds, parsedPrice, parsedCapacity, creator.getEmail(), null);
-        event.setCreatorId(creator.getId());
-        event.setCategories(categorias);
-        event.setRequiresApproval(form.isRequiereAprobacion());
-        event.setVisibility(form.isPrivado() ? EventVisibility.PRIVATE : EventVisibility.PUBLIC);
-        event.setParking(form.isEstacionamiento());
-        event.setAddressDetails(form.getDetalleDireccion());
-        applyPin(event, form);
-        final Event created;
-        try {
-            created = eventService.create(event);
-        } catch (final IllegalArgumentException e) {
-            errors.rejectValue("categorias", "categoria.invalida", e.getMessage());
-            return publishFormWithErrors(form, errors, null);
-        }
+        dto.setCreatorId(currentUser.getId());
+        dto.setCreatorEmail(currentUser.getEmail());
+
+        final Event created = eventService.create(dto);
         // Privado: derecho a invitar, para no tener que ir hasta "Mis eventos" a buscarlo.
         if (created.isPrivate()) {
             return new ModelAndView("redirect:/perfil/eventos/" + created.getId() + "/invitar");
         }
         return new ModelAndView("redirect:/eventos");
-    }
-
-    // Al menos una categoria tildada. No es una regla JSR-303 (ver el
-    // comentario sobre @Valid en EventForm.categorias): se agrega a mano,
-    // mismo patron que parseBarrio() con "barrio.invalido".
-    private List<EventCategoryInfo> selectedCategories(final EventForm form, final BindingResult errors) {
-        final List<EventCategoryInfo> selected = form.getCategorias().stream()
-                .filter(CategoriaSeleccionForm::isSeleccionada)
-                .map(c -> new EventCategoryInfo(c.getCategoryId(), blankToNull(c.getExtraInfo())))
-                .collect(Collectors.toList());
-        if (selected.isEmpty()) {
-            errors.rejectValue("categorias", "categoria.vacia", message("categoria.vacia"));
-        }
-        return selected;
-    }
-
-    private static String blankToNull(final String value) {
-        if (value == null) {
-            return null;
-        }
-        final String trimmed = value.trim();
-        return trimmed.isEmpty() ? null : trimmed;
-    }
-
-
-    // Pin del mapa (opcional): solo se guarda si llegan las DOS coordenadas, son
-    // numeros y estan dentro de rango (latitud -90..90, longitud -180..180). Fuera de
-    // eso se ignora en silencio, como una coordenada no numerica: es un dato
-    // opcional, y un valor absurdo (o que no entra en NUMERIC(9,6)) no tiene que
-    // tumbar la publicacion ni guardarse a medias.
-    private static void applyPin(final Event event, final EventForm form) {
-        final Double latitude = parseCoordinate(form.getLatitud());
-        final Double longitude = parseCoordinate(form.getLongitud());
-        final boolean valid = latitude != null && longitude != null
-                && latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180;
-        event.setLatitude(valid ? latitude : null);
-        event.setLongitude(valid ? longitude : null);
-        // Default "a mano" (el mas cauto, ver Event.locationManual): solo queda
-        // en false si event-location-map.js lo marco explicitamente al elegir
-        // una sugerencia de Nominatim con exito (ver selectSuggestion()).
-        event.setLocationManual(!"false".equals(form.getPinManual()));
-    }
-
-    // El pin del mapa (latitud/longitud) es un campo oculto que solo el JS
-    // completa: si vino vacio (nadie toco el mapa) o con algo que no es un
-    // numero (request manipulado a mano), se ignora en silencio en vez de
-    // rechazar la publicacion entera por un dato que ni siquiera es obligatorio.
-    private static Double parseCoordinate(final String value) {
-        if (value == null || value.trim().isEmpty()) {
-            return null;
-        }
-        try {
-            return Double.valueOf(value.trim());
-        } catch (final NumberFormatException e) {
-            return null;
-        }
     }
 
     // El <input type="file" multiple> manda un MultipartFile por cada slot
@@ -682,23 +347,6 @@ public class EventController {
         return ids;
     }
 
-    // Un CategoriaSeleccionForm por cada categoria existente: "existing" trae
-    // las que el evento ya tiene (si las hay) para tildarlas y precargar su
-    // extraInfo; el resto queda sin tildar.
-    private static List<CategoriaSeleccionForm> categoriaFormsFor(
-            final List<EventCategoryInfo> existing, final List<Category> allCategories) {
-        final Map<Long, EventCategoryInfo> byId = existing.stream()
-                .collect(Collectors.toMap(EventCategoryInfo::getCategoryId, c -> c));
-        return allCategories.stream().map(cat -> {
-            final CategoriaSeleccionForm categoriaForm = new CategoriaSeleccionForm();
-            categoriaForm.setCategoryId(cat.getId());
-            final EventCategoryInfo info = byId.get(cat.getId());
-            categoriaForm.setSeleccionada(info != null);
-            categoriaForm.setExtraInfo(info == null ? null : info.getExtraInfo());
-            return categoriaForm;
-        }).collect(Collectors.toList());
-    }
-
     private ModelAndView publishFormWithErrors(final EventForm form, final BindingResult errors,
                                                 final String imageError) {
         final Map<String, String> fieldErrors = new HashMap<>();
@@ -711,7 +359,10 @@ public class EventController {
         mav.addObject("eventForm", form);
         mav.addObject("fieldErrors", fieldErrors);
         mav.addObject("categoriasError", firstCategoriasError(fieldErrors));
-        mav.addObject("imageError", imageError);
+        // "Demasiadas imagenes" ahora es un error de @Valid (ver EventForm.images),
+        // asi que cae en fieldErrors.images en vez de venir explicito por parametro,
+        // como los errores de la subida en si (que son una accion, no una validacion).
+        mav.addObject("imageError", imageError != null ? imageError : fieldErrors.get("images"));
         return mav;
     }
 
@@ -726,33 +377,17 @@ public class EventController {
                 .orElse(null);
     }
 
-    private Barrio parseBarrio(final String barrio, final BindingResult errors) {
-        if (barrio == null || barrio.isEmpty()) {
-            return null;
-        }
-        try {
-            return Barrio.valueOf(barrio);
-        } catch (final IllegalArgumentException e) {
-            errors.rejectValue("barrio", "barrio.invalido", message("barrio.invalido"));
-            return null;
-        }
-    }
 
-    // No hace falta antMatcher propio: esto no esta en el permitAll de
-    // WebAuthConfig, asi que ya cae bajo anyRequest().authenticated(). Un
-    // Principal siempre presente en este metodo implica un User existente.
     @RequestMapping(value = "/eventos/{id}/quiero-ir", method = RequestMethod.POST)
     public ModelAndView rsvp(@PathVariable final long id,
-                              final Principal principal, final RedirectAttributes redirectAttributes) {
+                              @ModelAttribute("currentUser") final User currentUser,
+                              final RedirectAttributes redirectAttributes) {
         final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
-        // Quien se inscribe es quien esta logueado, nunca un campo del form:
-        // mismo motivo que el creator_email de publish().
-        final User user = currentUser(principal);
         // Mismo chequeo que el detalle: el boton ya esta escondido en la UI si
         // no tenes acceso, pero un POST directo no se puede confiar solo en eso.
         final Optional<Registration> myRegistration =
-                registrationService.findByEventAndUserId(id, user.getId());
-        if (!canView(event, user, myRegistration)) {
+                registrationService.findByEventAndUserId(id, currentUser.getId());
+        if (!canView(event, currentUser, myRegistration)) {
             throw new EventNotFoundException(id);
         }
         // La UI ya esconde el boton en este caso (ver detail.jsp), pero un POST
@@ -763,7 +398,7 @@ public class EventController {
         }
         // Ya no hace falta atrapar IllegalStateException: el service dejo de
         // lanzarla cuando el evento esta lleno, ahora devuelve WAITLISTED.
-        final RegistrationResult result = registerRetryingOnConflict(id, user);
+        final RegistrationResult result = registerRetryingOnConflict(id, currentUser);
         redirectAttributes.addFlashAttribute("rsvp", rsvpParam(result));
         return new ModelAndView("redirect:/eventos/" + id);
     }
@@ -808,7 +443,8 @@ public class EventController {
     // pero desde el detalle: busca la inscripcion propia de este evento y la
     // cancela, en vez de recibir el id de la inscripcion por parametro.
     @RequestMapping(value = "/eventos/{id}/darme-de-baja", method = RequestMethod.POST)
-    public ModelAndView unregister(@PathVariable final long id, final Principal principal,
+    public ModelAndView unregister(@PathVariable final long id,
+                                   @ModelAttribute("currentUser") final User currentUser,
                                    final RedirectAttributes redirectAttributes) {
         final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
         // La UI ya esconde el boton en este caso (ver detail.jsp): un evento que
@@ -817,14 +453,13 @@ public class EventController {
             redirectAttributes.addFlashAttribute("rsvp", "finalizado");
             return new ModelAndView("redirect:/eventos/" + id);
         }
-        final User user = currentUser(principal);
-        final Optional<Registration> registration = registrationService.findByEventAndUserId(id, user.getId());
+        final Optional<Registration> registration = registrationService.findByEventAndUserId(id, currentUser.getId());
         // Se mira ANTES de borrar: despues la fila ya no existe y no hay forma
         // de saber que cartel corresponde ("te diste de baja del evento",
         // "saliste de la lista de espera" o "cancelaste tu pedido pendiente").
         final RegistrationStatus status = registration.map(Registration::getStatus).orElse(null);
         final boolean cancelled = registration
-                .map(r -> registrationService.cancel(r.getId(), user.getId())).orElse(false);
+                .map(r -> registrationService.cancel(r.getId(), currentUser.getId())).orElse(false);
         final String rsvpParam;
         if (registration.isPresent() && !cancelled && status == RegistrationStatus.REJECTED) {
             // Un rechazado no puede darse de baja: la fila es lo que le impide volver a anotarse.
@@ -845,20 +480,19 @@ public class EventController {
     // "questionMessage" y detail.jsp elige el cartel con eso.
     @RequestMapping(value = "/eventos/{id}/preguntas", method = RequestMethod.POST)
     public ModelAndView ask(@PathVariable final long id, @Valid final QuestionForm form,
-                            final BindingResult errors, final Principal principal,
+                            final BindingResult errors, @ModelAttribute("currentUser") final User currentUser,
                             final RedirectAttributes redirectAttributes) {
         final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
-        final User user = currentUser(principal);
         // Mismo chequeo que el detalle: en un privado, solo quien puede verlo pregunta.
         final Optional<Registration> myRegistration =
-                registrationService.findByEventAndUserId(id, user.getId());
-        if (!canView(event, user, myRegistration)) {
+                registrationService.findByEventAndUserId(id, currentUser.getId());
+        if (!canView(event, currentUser, myRegistration)) {
             throw new EventNotFoundException(id);
         }
         if (errors.hasErrors()) {
             redirectAttributes.addFlashAttribute("questionMessage", "INVALID");
         } else {
-            final QuestionResult result = eventQuestionService.ask(id, user, form.getText());
+            final QuestionResult result = eventQuestionService.ask(id, currentUser, form.getText());
             redirectAttributes.addFlashAttribute("questionMessage", result.name());
         }
         return new ModelAndView("redirect:/eventos/" + id + "#preguntas");
@@ -868,11 +502,12 @@ public class EventController {
     @RequestMapping(value = "/eventos/{id}/preguntas/{questionId}/responder", method = RequestMethod.POST)
     public ModelAndView answer(@PathVariable final long id, @PathVariable final long questionId,
                                @Valid final QuestionForm form, final BindingResult errors,
-                               final Principal principal, final RedirectAttributes redirectAttributes) {
+                               @ModelAttribute("currentUser") final User currentUser,
+                               final RedirectAttributes redirectAttributes) {
         if (errors.hasErrors()) {
             redirectAttributes.addFlashAttribute("questionMessage", "INVALID");
         } else {
-            final AnswerResult result = eventQuestionService.answer(id, questionId, currentUser(principal).getId(), form.getText());
+            final AnswerResult result = eventQuestionService.answer(id, questionId, currentUser.getId(), form.getText());
             redirectAttributes.addFlashAttribute("questionMessage", result.name());
         }
         return new ModelAndView("redirect:/eventos/" + id + "#preguntas");
@@ -883,7 +518,7 @@ public class EventController {
     // attribute "reportMessage" y detail.jsp elige el cartel con eso.
     @RequestMapping(value = "/eventos/{id}/reportar", method = RequestMethod.POST)
     public ModelAndView reportar(@PathVariable final long id, @Valid final ReportForm form,
-                                  final BindingResult errors, final Principal principal,
+                                  final BindingResult errors, @ModelAttribute("currentUser") final User currentUser,
                                   final RedirectAttributes redirectAttributes) {
         // Mismo chequeo que preguntar/rsvp: si no existe, 404 (aca no hace falta
         // canView() -- reportar un evento privado al que no tenes acceso no
@@ -894,7 +529,7 @@ public class EventController {
         if (errors.hasErrors()) {
             redirectAttributes.addFlashAttribute("reportMessage", "INVALID");
         } else {
-            final ReportResult result = moderationService.report(id, currentUser(principal), form.getMotivo());
+            final ReportResult result = moderationService.report(id, currentUser, form.getMotivo());
             redirectAttributes.addFlashAttribute("reportMessage", result.name());
         }
         return new ModelAndView("redirect:/eventos/" + id);
@@ -904,17 +539,17 @@ public class EventController {
     // existe, o existe pero no es el dueño, tira el mismo EventNotFoundException
     // en los dos casos -- no hay que confirmarle a nadie que un evento ajeno
     // existe. La usan "ver inscriptos" y "editar", que comparten este mismo chequeo.
-    private Event eventForOwner(final long id, final Principal principal) {
+    private Event eventForOwner(final long id, final User user) {
         final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
-        if (!Long.valueOf(currentUser(principal).getId()).equals(event.getCreatorId())) {
+        if (!Long.valueOf(user.getId()).equals(event.getCreatorId())) {
             throw new EventNotFoundException(id);
         }
         return event;
     }
 
     @RequestMapping(value = "/eventos/{id}/inscriptos", method = RequestMethod.GET)
-    public ModelAndView inscriptos(@PathVariable final long id, final Principal principal) {
-        final Event event = eventForOwner(id, principal);
+    public ModelAndView inscriptos(@PathVariable final long id, @ModelAttribute("currentUser") final User currentUser) {
+        final Event event = eventForOwner(id, currentUser);
         final ModelAndView mav = new ModelAndView("events/inscriptos");
         mav.addObject("event", event);
         mav.addObject("registrations", registrationService.findByEventId(id));
@@ -922,8 +557,8 @@ public class EventController {
     }
 
     @RequestMapping(value = "/eventos/{id}/editar", method = RequestMethod.GET)
-    public ModelAndView editarForm(@PathVariable final long id, final Principal principal) {
-        final Event event = eventForOwner(id, principal);
+    public ModelAndView editarForm(@PathVariable final long id, @ModelAttribute("currentUser") final User currentUser) {
+        final Event event = eventForOwner(id, currentUser);
         // Un evento cancelado ya no se edita: de vuelta a Mis eventos.
         if (event.isCancelled()) {
             return new ModelAndView("redirect:/perfil/eventos");
@@ -933,94 +568,34 @@ public class EventController {
         mav.addObject("eventId", id);
         mav.addObject("categories", categories);
         mav.addObject("barrios", Barrio.values());
-        mav.addObject("eventForm", formFrom(event, categories));
+        mav.addObject("eventForm", EventForm.from(event, categories));
         return mav;
     }
 
-    private static EventForm formFrom(final Event event, final List<Category> categories) {
-        final EventForm form = new EventForm();
-        form.setTitulo(event.getTitle());
-        form.setDescripcion(event.getDescription());
-        form.setCategorias(categoriaFormsFor(event.getCategories(), categories));
-        form.setFechaEvento(new SimpleDateFormat("yyyy-MM-dd'T'HH:mm").format(event.getEventDate()));
-        form.setDireccion(event.getAddress());
-        form.setDetalleDireccion(event.getAddressDetails());
-        form.setBarrio(event.getNeighborhood() == null ? null : event.getNeighborhood().name());
-        form.setPrecio(formatDecimal(event.getPrice()));
-        // "0" es el valor que usa el atajo "Sin limite" (quick-options.js lo
-        // detecta por igualdad exacta de string) -- mismo criterio que publish().
-        form.setCupoMaximo(event.getMaxCapacity() == null ? "0" : String.valueOf(event.getMaxCapacity()));
-        form.setRequiereAprobacion(event.isRequiresApproval());
-        form.setPrivado(event.isPrivate());
-        form.setEstacionamiento(event.isParking());
-        if (event.isLocationPinned()) {
-            form.setLatitud(String.valueOf(event.getLatitude()));
-            form.setLongitud(String.valueOf(event.getLongitude()));
-            // Arranca marcando el modo (geolocalizacion/texto plano, ver
-            // publish.jsp/editar.jsp) que corresponde a como quedo el pin la
-            // ultima vez, para no perder esa eleccion al reabrir "Editar".
-            form.setPinManual(String.valueOf(event.isLocationManual()));
-        }
-        return form;
-    }
-
-    // 2500.00 -> "2500" (sin decimales de sobra), 1500.50 -> "1500.5". Los dos
-    // formatos matchean el @Pattern de EventForm.precio. 0 es un caso aparte:
-    // BigDecimal.ZERO.stripTrailingZeros() no es confiable entre versiones de
-    // Java (bug historico que a veces devuelve "0E-...").
-    private static String formatDecimal(final BigDecimal value) {
-        if (value == null || value.signum() == 0) {
-            return "0";
-        }
-        return value.stripTrailingZeros().toPlainString();
-    }
-
+    // Toda la validacion (fecha, barrio, categorias, cantidad de imagenes) ya
+    // corrio con @Valid, via los mismos validators custom de EventForm que usa
+    // publish() -- es el mismo form. Lo unico que no se puede prevenir mirando
+    // el form es lo que depende del estado actual del evento en la base
+    // (cupo ya ocupado, cancelado o borrado justo entre medio): eso solo lo
+    // sabe el service en el momento de escribir, por eso EventUpdateResult +
+    // switch siguen siendo necesarios aca (a diferencia de publish()).
     @RequestMapping(value = "/eventos/{id}/editar", method = RequestMethod.POST)
     public ModelAndView editar(@PathVariable final long id, @Valid final EventForm form, final BindingResult errors,
-                                @RequestParam(value = "images", required = false) final List<MultipartFile> images,
-                                final Principal principal) {
+                                @ModelAttribute("currentUser") final User currentUser) {
         // Mismo chequeo que el GET: si no sos el dueño, ni siquiera llega a
         // mirar el resto del form.
-        final Event existing = eventForOwner(id, principal);
+        final Event existing = eventForOwner(id, currentUser);
         if (existing.isCancelled()) {
             return new ModelAndView("redirect:/perfil/eventos");
         }
-        final Barrio parsedBarrio = parseBarrio(form.getBarrio(), errors);
-        final List<EventCategoryInfo> categorias = selectedCategories(form, errors);
-
         if (errors.hasErrors()) {
             return editarFormWithErrors(id, form, errors, null);
         }
 
-        final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm");
-        dateFormat.setLenient(false);
-        final Date parsedDate;
-        try {
-            parsedDate = dateFormat.parse(form.getFechaEvento());
-        } catch (final ParseException e) {
-            errors.rejectValue("fechaEvento", "Pattern", "La fecha y horario no tienen un formato valido");
-            return editarFormWithErrors(id, form, errors, null);
-        }
-        if (parsedDate.before(new Date())) {
-            errors.rejectValue("fechaEvento", "Future", "La fecha del evento tiene que ser futura");
-            return editarFormWithErrors(id, form, errors, null);
-        }
-        if (parsedDate.after(maxEventDate())) {
-            errors.rejectValue("fechaEvento", "TooFarInFuture",
-                    "La fecha del evento no puede ser de mas de 2 anios a partir de hoy");
-            return editarFormWithErrors(id, form, errors, null);
-        }
-
-        final BigDecimal parsedPrice = new BigDecimal(form.getPrecio());
-        final Integer parsedCapacity = "0".equals(form.getCupoMaximo()) ? null : Integer.valueOf(form.getCupoMaximo());
-
         // Si no se subio ninguna foto nueva, la galeria que ya tenia el evento
         // se mantiene entera; si se subio al menos una, reemplaza toda la
         // galeria vieja (no hay forma de sacar o agregar una foto suelta).
-        final List<MultipartFile> nonEmptyImages = nonEmptyImages(images);
-        if (nonEmptyImages.size() > MAX_IMAGES) {
-            return editarFormWithErrors(id, form, errors, message("event.publish.tooManyImagesError"));
-        }
+        final List<MultipartFile> nonEmptyImages = nonEmptyImages(form.getImages());
         List<Long> imageIds = existing.getImageIds();
         if (!nonEmptyImages.isEmpty()) {
             try {
@@ -1032,15 +607,11 @@ public class EventController {
             }
         }
 
-        final Event changes = new Event(form.getTitulo(), form.getDescripcion(), parsedDate, form.getDireccion(),
-                parsedBarrio, imageIds, parsedPrice, parsedCapacity, existing.getCreatorEmail(), null);
-        changes.setCategories(categorias);
-        changes.setRequiresApproval(form.isRequiereAprobacion());
-        changes.setVisibility(form.isPrivado() ? EventVisibility.PRIVATE : EventVisibility.PUBLIC);
-        changes.setParking(form.isEstacionamiento());
-        changes.setAddressDetails(form.getDetalleDireccion());
-        applyPin(changes, form);
-        final EventUpdateResult result = eventService.update(id, changes, currentUser(principal).getId());
+        final EventDTO dto = form.toDTO();
+        dto.setImageIds(imageIds);
+        // Quien creo el evento no cambia al editarlo.
+        final Event changes = dto.toEvent(existing.getCreatorEmail());
+        final EventUpdateResult result = eventService.update(id, changes, currentUser.getId());
         switch (result) {
             case CAPACITY_TOO_LOW:
                 errors.rejectValue("cupoMaximo", "cupo.muyBajo",
@@ -1072,7 +643,10 @@ public class EventController {
         mav.addObject("eventForm", form);
         mav.addObject("fieldErrors", fieldErrors);
         mav.addObject("categoriasError", firstCategoriasError(fieldErrors));
-        mav.addObject("imageError", imageError);
+        // "Demasiadas imagenes" ahora es un error de @Valid (ver EventForm.images),
+        // asi que cae en fieldErrors.images en vez de venir explicito por parametro,
+        // como los errores de la subida en si (que son una accion, no una validacion).
+        mav.addObject("imageError", imageError != null ? imageError : fieldErrors.get("images"));
         return mav;
     }
 
@@ -1081,8 +655,8 @@ public class EventController {
     // EventService.cancel() ya distingue "no existe" de "no sos el dueño" con
     // el mismo NOT_FOUND de siempre.
     @RequestMapping(value = "/eventos/{id}/cancelar", method = RequestMethod.POST)
-    public ModelAndView cancelar(@PathVariable final long id, final Principal principal) {
-        final EventCancelResult result = eventService.cancel(id, currentUser(principal).getId());
+    public ModelAndView cancelar(@PathVariable final long id, @ModelAttribute("currentUser") final User currentUser) {
+        final EventCancelResult result = eventService.cancel(id, currentUser.getId());
         if (result == EventCancelResult.NOT_FOUND) {
             throw new EventNotFoundException(id);
         }
@@ -1098,28 +672,27 @@ public class EventController {
     @RequestMapping(value = "/eventos/{id}/favorito", method = RequestMethod.POST)
     public ModelAndView addFavorite(@PathVariable final long id,
                                      @RequestParam(value = "returnTo", required = false) final String returnTo,
-                                     final Principal principal) {
+                                     @ModelAttribute("currentUser") final User currentUser) {
         // Mismo chequeo de acceso que detail() y rsvp(): si no podes ver el evento,
         // tampoco podes guardarlo (si no, "Mis favoritos" mostraria sus datos).
         final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
-        final User user = currentUser(principal);
         final Optional<Registration> myRegistration =
-                registrationService.findByEventAndUserId(id, user.getId());
-        if (!canView(event, user, myRegistration)) {
+                registrationService.findByEventAndUserId(id, currentUser.getId());
+        if (!canView(event, currentUser, myRegistration)) {
             throw new EventNotFoundException(id);
         }
-        favoriteService.add(user.getId(), id);
+        favoriteService.add(currentUser.getId(), id);
         return new ModelAndView("redirect:" + safeReturnTo(returnTo, id));
     }
 
     @RequestMapping(value = "/eventos/{id}/favorito/quitar", method = RequestMethod.POST)
     public ModelAndView removeFavorite(@PathVariable final long id,
                                         @RequestParam(value = "returnTo", required = false) final String returnTo,
-                                        final Principal principal) {
+                                        @ModelAttribute("currentUser") final User currentUser) {
         if (!eventService.findById(id).isPresent()) {
             throw new EventNotFoundException(id);
         }
-        favoriteService.remove(currentUser(principal).getId(), id);
+        favoriteService.remove(currentUser.getId(), id);
         return new ModelAndView("redirect:" + safeReturnTo(returnTo, id));
     }
 

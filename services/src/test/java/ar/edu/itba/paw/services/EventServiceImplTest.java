@@ -1,5 +1,6 @@
 package ar.edu.itba.paw.services;
 
+import ar.edu.itba.paw.dto.EventDTO;
 import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventCategoryInfo;
@@ -67,11 +68,19 @@ public class EventServiceImplTest {
         return event;
     }
 
+    private static EventDTO someDto() {
+        final EventDTO dto = new EventDTO();
+        dto.setCategories(Collections.singletonList(new EventCategoryInfo(CATEGORY_ID)));
+        dto.setCreatorEmail(CREATOR_EMAIL);
+        dto.setCreatorId(CREATOR_ID);
+        return dto;
+    }
+
     @Test
     public void testCreateReturnsTheEventThatTheDaoPersisted() {
         when(mockEventDao.create(any(Event.class))).thenReturn(someEvent());
 
-        final Event result = eventService.create(new Event());
+        final Event result = eventService.create(new EventDTO());
 
         assertEquals(EVENT_ID, result.getId());
     }
@@ -81,7 +90,7 @@ public class EventServiceImplTest {
         when(mockEventDao.create(any(Event.class)))
                 .thenThrow(new DataIntegrityViolationException("fk violation on category_id"));
 
-        eventService.create(someEvent());
+        eventService.create(someDto());
     }
 
     @Test
@@ -92,7 +101,7 @@ public class EventServiceImplTest {
         when(mockEventDao.create(any(Event.class))).thenReturn(someEvent());
         when(mockUserService.findById(CREATOR_ID)).thenReturn(Optional.empty());
 
-        final Event result = eventService.create(someEvent());
+        final Event result = eventService.create(someDto());
 
         assertNotNull(result);
         assertEquals(EVENT_ID, result.getId());

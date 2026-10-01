@@ -1,6 +1,7 @@
 // Contrato de servicio para Event. Implementacion: EventServiceImpl (modulo services).
 package ar.edu.itba.paw.services;
 
+import ar.edu.itba.paw.dto.EventDTO;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventSearchCriteria;
 
@@ -8,7 +9,12 @@ import java.util.List;
 import java.util.Optional;
 
 public interface EventService {
-    Event create(Event event);
+    /**
+     * Crea un evento nuevo a partir de un DTO ya validado (ver EventForm.toDTO()):
+     * el service arma el Event final y lo persiste, sin que el caller tenga que
+     * tocar el modelo de dominio.
+     */
+    Event create(EventDTO dto);
     Optional<Event> findById(long id);
     List<Event> findAll();
     List<Event> findByCategory(long categoryId);

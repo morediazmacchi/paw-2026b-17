@@ -1,6 +1,7 @@
 // Implementa el contrato EventService (modulo services-contracts).
 package ar.edu.itba.paw.services;
 
+import ar.edu.itba.paw.dto.EventDTO;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.InboxMessageType;
@@ -39,7 +40,10 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional
-    public Event create(final Event event) {
+    public Event create(final EventDTO dto) {
+        final Event event = dto.toEvent(dto.getCreatorEmail());
+        event.setCreatorId(dto.getCreatorId());
+
         final Event created;
         try {
             created = eventDao.create(event);

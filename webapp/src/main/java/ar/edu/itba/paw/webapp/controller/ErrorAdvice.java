@@ -1,15 +1,21 @@
 package ar.edu.itba.paw.webapp.controller;
 
+import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.services.UserService;
 import ar.edu.itba.paw.webapp.exception.EventNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.servlet.ModelAndView;
+
+import java.security.Principal;
 
 /**
  * Maneja los errores de TODOS los controllers desde un solo lugar.
@@ -19,6 +25,27 @@ import org.springframework.web.servlet.ModelAndView;
 public class ErrorAdvice {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ErrorAdvice.class);
+
+    private final UserService userService;
+
+    @Autowired
+    public ErrorAdvice(final UserService userService) {
+        this.userService = userService;
+    }
+
+    // Corre antes de CUALQUIER metodo de CUALQUIER controller (ControllerAdvice
+    // es global) y deja "currentUser" en el Model de cada request. Sirve para
+    // dos cosas: los JSP pueden usar ${currentUser} sin que cada controller lo
+    // agregue a mano, y cualquier metodo de controller puede pedirlo directo
+    // como parametro con @ModelAttribute("currentUser") en vez de resolver el
+    // Principal el mismo (ver EventController.publish()).
+    @ModelAttribute("currentUser")
+    public User currentUserFromPrincipal(final Principal principal) {
+        if (principal == null) {
+            return null;
+        }
+        return userService.findByEmail(principal.getName()).orElse(null);
+    }
 
     @ExceptionHandler(EventNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)

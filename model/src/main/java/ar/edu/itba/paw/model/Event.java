@@ -191,4 +191,16 @@ public class Event {
     public boolean isFree() { return price == null || price.signum() == 0; }
     public boolean isPrivate() { return visibility == EventVisibility.PRIVATE; }
     public boolean isCancelled() { return cancelledAt != null; }
+
+    // Ya paso: la fecha del evento quedo en el pasado. No mira cancelledAt a
+    // proposito -- un evento cancelado antes de su fecha no esta "finalizado"
+    // en este sentido, solo cancelado (son carteles distintos en el detalle).
+    public boolean isFinished() {
+        return eventDate.before(new Date());
+    }
+
+    // Pasado o cancelado ya no recibe preguntas nuevas.
+    public boolean isOpenForQuestions() {
+        return !isCancelled() && eventDate.after(new Date());
+    }
 }

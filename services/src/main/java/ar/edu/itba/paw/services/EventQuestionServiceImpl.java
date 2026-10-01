@@ -42,7 +42,7 @@ public class EventQuestionServiceImpl implements EventQuestionService {
         if (Long.valueOf(asker.getId()).equals(event.getCreatorId())) {
             return QuestionResult.OWN_EVENT;
         }
-        if (event.isCancelled() || !event.getEventDate().after(new Date())) {
+        if (!event.isOpenForQuestions()) {
             return QuestionResult.CLOSED;
         }
         final EventQuestion question = questionDao.create(new EventQuestion(eventId, asker.getId(), text.trim()));
