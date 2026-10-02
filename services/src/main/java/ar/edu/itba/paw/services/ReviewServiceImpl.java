@@ -8,6 +8,7 @@ import ar.edu.itba.paw.model.Review;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.persistence.ReviewDao;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -58,7 +59,16 @@ public class ReviewServiceImpl implements ReviewService {
         if (!registration.isPresent() || registration.get().getStatus() != RegistrationStatus.CONFIRMED) {
             return ReviewResult.NOT_ELIGIBLE;
         }
-        reviewDao.create(new Review(eventId, user.getId(), rating, comment));
+        try {
+            reviewDao.create(new Review(eventId, user.getId(), rating, comment));
+        } catch (final DataIntegrityViolationException e) {
+            // Dos envios al mismo tiempo: el SELECT de arriba no vio nada, pero el
+            // otro ya inserto justo antes y choca contra el UNIQUE(event_id, user_id).
+            // El contrato de create() promete que el resultado es el unico canal de
+            // salida (ver ReviewService): no corresponde dejar escapar esto hacia el
+            // controller.
+            return ReviewResult.ALREADY_REVIEWED;
+        }
         return ReviewResult.CREATED;
     }
 

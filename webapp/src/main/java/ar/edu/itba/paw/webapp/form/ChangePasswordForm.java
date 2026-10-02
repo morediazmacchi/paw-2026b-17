@@ -2,9 +2,14 @@
 // Mi perfil), validados con JSR-303.
 package ar.edu.itba.paw.webapp.form;
 
+import ar.edu.itba.paw.webapp.validation.PasswordsMatch;
+
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.Size;
 
+// @PasswordsMatch con password="newPassword": los otros forms usan "password"
+// a secas (el default), pero este campo se llama distinto.
+@PasswordsMatch(password = "newPassword")
 public class ChangePasswordForm {
 
     @NotBlank(message = "La contraseña actual es obligatoria")

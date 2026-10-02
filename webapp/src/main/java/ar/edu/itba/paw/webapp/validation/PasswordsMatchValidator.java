@@ -29,6 +29,13 @@ public class PasswordsMatchValidator implements ConstraintValidator<PasswordsMat
         final BeanWrapper wrapper = new BeanWrapperImpl(form);
         final Object password = wrapper.getPropertyValue(passwordField);
         final Object confirmation = wrapper.getPropertyValue(confirmationField);
+        // Si alguno todavia esta vacio, que lo diga el @NotBlank del campo: sin
+        // este chequeo, un confirmarPassword vacio mostraba "no coinciden" en
+        // vez de "tenes que confirmar la contraseña" (los dos errores caen en
+        // el mismo campo y uno pisa al otro).
+        if (isBlank(password) || isBlank(confirmation)) {
+            return true;
+        }
         if (Objects.equals(password, confirmation)) {
             return true;
         }
@@ -40,5 +47,9 @@ public class PasswordsMatchValidator implements ConstraintValidator<PasswordsMat
                 .addPropertyNode(confirmationField)
                 .addConstraintViolation();
         return false;
+    }
+
+    private static boolean isBlank(final Object value) {
+        return value == null || (value instanceof String && ((String) value).isEmpty());
     }
 }
