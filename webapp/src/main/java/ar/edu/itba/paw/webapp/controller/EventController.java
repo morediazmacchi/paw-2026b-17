@@ -115,7 +115,7 @@ public class EventController {
     @RequestMapping(value = "/eventos", method = RequestMethod.GET)
     public ModelAndView list(final EventSearchForm filters,
                               @RequestParam(value = "rsvp", required = false) final String rsvp,
-                              @ModelAttribute("currentUser") final User currentUser) {
+                              @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final Map<String, String> filterErrors = new HashMap<>();
         if (filters.isPriceRangeInvalid()) {
             filterErrors.put("precioMax", message("event.list.priceRangeInvalid"));
@@ -165,7 +165,7 @@ public class EventController {
     @RequestMapping(value = "/eventos/{id}", method = RequestMethod.GET)
     public ModelAndView detail(@PathVariable final long id,
                                 @RequestParam(value = "preguntasPage", required = false) final String preguntasPage,
-                                @ModelAttribute("currentUser") final User currentUser) {
+                                @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
         // Privado y sin sesion: todavia no sabemos quien sos. Al login, y de
         // vuelta aca (WebAuthConfig.loginSuccessHandler) para chequear si estas invitado.
@@ -264,7 +264,7 @@ public class EventController {
     // no puede vivir en un ConstraintValidator.
     @RequestMapping(value = "/eventos/publicar", method = RequestMethod.POST)
     public ModelAndView publish(@Valid final EventForm form, final BindingResult errors,
-                                 @ModelAttribute("currentUser") final User currentUser) {
+                                 @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         if (errors.hasErrors()) {
             return publishFormWithErrors(form, errors, null);
         }
@@ -359,7 +359,7 @@ public class EventController {
     }
 
     @RequestMapping(value = "/eventos/{id}/inscriptos", method = RequestMethod.GET)
-    public ModelAndView inscriptos(@PathVariable final long id, @ModelAttribute("currentUser") final User currentUser) {
+    public ModelAndView inscriptos(@PathVariable final long id, @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final Event event = eventForOwner(id, currentUser);
         final ModelAndView mav = new ModelAndView("events/inscriptos");
         mav.addObject("event", event);
@@ -368,7 +368,7 @@ public class EventController {
     }
 
     @RequestMapping(value = "/eventos/{id}/editar", method = RequestMethod.GET)
-    public ModelAndView editarForm(@PathVariable final long id, @ModelAttribute("currentUser") final User currentUser) {
+    public ModelAndView editarForm(@PathVariable final long id, @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final Event event = eventForOwner(id, currentUser);
         // Un evento cancelado ya no se edita: de vuelta a Mis eventos.
         if (event.isCancelled()) {
@@ -392,7 +392,7 @@ public class EventController {
     // switch siguen siendo necesarios aca (a diferencia de publish()).
     @RequestMapping(value = "/eventos/{id}/editar", method = RequestMethod.POST)
     public ModelAndView editar(@PathVariable final long id, @Valid final EventForm form, final BindingResult errors,
-                                @ModelAttribute("currentUser") final User currentUser) {
+                                @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         // Mismo chequeo que el GET: si no sos el dueño, ni siquiera llega a
         // mirar el resto del form.
         final Event existing = eventForOwner(id, currentUser);
@@ -466,7 +466,7 @@ public class EventController {
     // EventService.cancel() ya distingue "no existe" de "no sos el dueño" con
     // el mismo NOT_FOUND de siempre.
     @RequestMapping(value = "/eventos/{id}/cancelar", method = RequestMethod.POST)
-    public ModelAndView cancelar(@PathVariable final long id, @ModelAttribute("currentUser") final User currentUser) {
+    public ModelAndView cancelar(@PathVariable final long id, @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final EventCancelResult result = eventService.cancel(id, currentUser.getId());
         if (result == EventCancelResult.NOT_FOUND) {
             throw new EventNotFoundException(id);

@@ -107,7 +107,7 @@ public class AdminController {
     @RequestMapping(value = "/reportes/{id}/descartar", method = RequestMethod.POST)
     public ModelAndView descartar(@PathVariable final long id,
                                    @RequestParam(value = "origen", required = false) final String origen,
-                                   @ModelAttribute("currentUser") final User currentUser,
+                                   @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
                                    final RedirectAttributes redirectAttributes) {
         final ReportResolutionResult result = moderationService.dismiss(id, currentUser.getId());
         // NOT_FOUND: otro admin ya lo resolvio mientras este lo tenia abierto.
@@ -125,7 +125,7 @@ public class AdminController {
                                    @RequestParam(value = "suspenderOrganizador", required = false)
                                    final String suspenderOrganizador,
                                    @RequestParam(value = "origen", required = false) final String origen,
-                                   @ModelAttribute("currentUser") final User currentUser,
+                                   @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
                                    final RedirectAttributes redirectAttributes) {
         final ReportResolutionResult result =
                 moderationService.removeEvent(id, currentUser.getId(), suspenderOrganizador != null);
@@ -137,7 +137,7 @@ public class AdminController {
 
     @RequestMapping(value = "/reportes/{id}/pedir-cambios", method = RequestMethod.POST)
     public ModelAndView pedirCambios(@PathVariable final long id, @Valid final RequestChangesForm form,
-                                      final BindingResult errors, @ModelAttribute("currentUser") final User currentUser,
+                                      final BindingResult errors, @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
                                       final RedirectAttributes redirectAttributes) {
         if (errors.hasErrors()) {
             redirectAttributes.addFlashAttribute("adminReportError", "INVALID");
@@ -151,7 +151,7 @@ public class AdminController {
     }
 
     @RequestMapping(value = "/usuarios", method = RequestMethod.GET)
-    public ModelAndView usuarios(@ModelAttribute("currentUser") final User currentUser) {
+    public ModelAndView usuarios(@ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final ModelAndView mav = new ModelAndView("admin/usuarios");
         mav.addObject("users", userService.findAll());
         mav.addObject("currentUserId", currentUser.getId());
@@ -160,13 +160,24 @@ public class AdminController {
     }
 
     @RequestMapping(value = "/usuarios/{id}/suspender", method = RequestMethod.POST)
-    public ModelAndView suspender(@PathVariable final long id, @ModelAttribute("currentUser") final User currentUser,
+    public ModelAndView suspender(@PathVariable final long id, @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
                                    final RedirectAttributes redirectAttributes) {
         // Nadie se suspende a si mismo: te dejaria sin poder loguearte de nuevo
         // para deshacerlo (la UI ya esconde el boton para tu propia fila, esto
         // es el mismo chequeo por si el POST se manda directo).
         if (id == currentUser.getId()) {
             redirectAttributes.addFlashAttribute("adminError", "SELF");
+            return new ModelAndView("redirect:/admin/usuarios");
+        }
+        // Un admin comun no suspende a otro admin ni al superadmin: /admin/**
+        // lo deja entrar a cualquier admin, asi que sin esto uno podria dejar
+        // afuera a los demas. Solo un superadmin puede (como con promover/revocar).
+        // La UI ya no ofrece el boton en ese caso; esto cubre el POST directo.
+        final boolean targetIsStaff = userService.findById(id)
+                .map(target -> target.getRoles().contains("ROLE_ADMIN") || target.getRoles().contains("ROLE_SUPERADMIN"))
+                .orElse(false);
+        if (targetIsStaff && !currentUser.getRoles().contains("ROLE_SUPERADMIN")) {
+            redirectAttributes.addFlashAttribute("adminError", "ADMIN_TARGET");
             return new ModelAndView("redirect:/admin/usuarios");
         }
         userService.suspend(id);
@@ -186,7 +197,7 @@ public class AdminController {
     }
 
     @RequestMapping(value = "/usuarios/{id}/revocar", method = RequestMethod.POST)
-    public ModelAndView revocar(@PathVariable final long id, @ModelAttribute("currentUser") final User currentUser,
+    public ModelAndView revocar(@PathVariable final long id, @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
                                  final RedirectAttributes redirectAttributes) {
         // Un superadmin no puede sacarse ROLE_ADMIN a si mismo: /admin/** exige
         // ese rol especificamente (ver WebAuthConfig), asi que hacerlo lo dejaria

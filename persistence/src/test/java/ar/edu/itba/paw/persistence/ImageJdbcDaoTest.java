@@ -32,7 +32,6 @@ public class ImageJdbcDaoTest {
             .getBytes(StandardCharsets.UTF_8);
     private static final String CONTENT_TYPE = "image/png";
     private static final String FILE_NAME = "foto.png";
-    private static final String CHECKSUM = "0b894166d3336435c800bea36ff21b29eaa801a52f584c006c49289a0dcf6e2f";
 
     @Autowired
     private DataSource ds;
@@ -48,14 +47,14 @@ public class ImageJdbcDaoTest {
     }
 
     private static Image someImage() {
-        return new Image(DATA, CONTENT_TYPE, FILE_NAME, DATA.length, CHECKSUM);
+        return new Image(DATA, CONTENT_TYPE, FILE_NAME, DATA.length);
     }
 
     private long insertImage() {
         jdbcTemplate.update(
-                "INSERT INTO image (data, content_type, file_name, file_size, checksum) VALUES (?, ?, ?, ?, ?)",
-                DATA, CONTENT_TYPE, FILE_NAME, DATA.length, CHECKSUM);
-        return jdbcTemplate.queryForObject("SELECT id FROM image WHERE checksum = ?", Long.class, CHECKSUM);
+                "INSERT INTO image (data, content_type, file_name, file_size) VALUES (?, ?, ?, ?)",
+                DATA, CONTENT_TYPE, FILE_NAME, DATA.length);
+        return jdbcTemplate.queryForObject("SELECT MAX(id) FROM image", Long.class);
     }
 
     // ---- create() ----
@@ -71,11 +70,10 @@ public class ImageJdbcDaoTest {
         // Assert
         assertTrue(created.getId() > 0);
         final Map<String, Object> row = jdbcTemplate.queryForMap(
-                "SELECT content_type, file_name, file_size, checksum FROM image WHERE id = ?", created.getId());
+                "SELECT content_type, file_name, file_size FROM image WHERE id = ?", created.getId());
         assertEquals(CONTENT_TYPE, row.get("content_type"));
         assertEquals(FILE_NAME, row.get("file_name"));
         assertEquals(DATA.length, row.get("file_size"));
-        assertEquals(CHECKSUM, row.get("checksum"));
         final byte[] storedData = jdbcTemplate.queryForObject(
                 "SELECT data FROM image WHERE id = ?", byte[].class, created.getId());
         assertTrue(Arrays.equals(DATA, storedData));
@@ -111,7 +109,6 @@ public class ImageJdbcDaoTest {
         assertEquals(CONTENT_TYPE, found.get().getContentType());
         assertEquals(FILE_NAME, found.get().getFileName());
         assertEquals(Integer.valueOf(DATA.length), found.get().getFileSize());
-        assertEquals(CHECKSUM, found.get().getChecksum());
     }
 
     @Test
@@ -123,5 +120,40 @@ public class ImageJdbcDaoTest {
 
         // Assert
         assertFalse(found.isPresent());
+    }
+
+    // ---- findOwnerEventId() ----
+
+    private long insertEvent() {
+        jdbcTemplate.update("INSERT INTO event (title, event_date, address, creator_email, visibility) VALUES (?, ?, ?, ?, ?)",
+                "Un evento", new java.sql.Timestamp(System.currentTimeMillis() + 86_400_000L),
+                "Av. Corrientes 1234", "creador@test.com", "PRIVATE");
+        return jdbcTemplate.queryForObject("SELECT id FROM event ORDER BY id DESC LIMIT 1", Long.class);
+    }
+
+    @Test
+    public void testFindOwnerEventIdReturnsTheEventTheImageIsAttachedTo() {
+        // Arrange
+        final long imageId = insertImage();
+        final long eventId = insertEvent();
+        jdbcTemplate.update("INSERT INTO event_image (event_id, image_id) VALUES (?, ?)", eventId, imageId);
+
+        // Act
+        final Optional<Long> owner = imageDao.findOwnerEventId(imageId);
+
+        // Assert
+        assertEquals(Optional.of(eventId), owner);
+    }
+
+    @Test
+    public void testFindOwnerEventIdReturnsEmptyWhenTheImageIsNotAttachedToAnyEvent() {
+        // Arrange: una imagen subida que nunca se asocio a un evento.
+        final long imageId = insertImage();
+
+        // Act
+        final Optional<Long> owner = imageDao.findOwnerEventId(imageId);
+
+        // Assert
+        assertFalse(owner.isPresent());
     }
 }

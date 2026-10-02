@@ -30,7 +30,14 @@
     </div>
 
     <c:if test="${not empty adminError}">
-        <p class="alert"><spring:message code="admin.users.cannotActOnSelf"/></p>
+        <c:choose>
+            <c:when test="${adminError == 'ADMIN_TARGET'}">
+                <p class="alert"><spring:message code="admin.users.cannotSuspendAdmin"/></p>
+            </c:when>
+            <c:otherwise>
+                <p class="alert"><spring:message code="admin.users.cannotActOnSelf"/></p>
+            </c:otherwise>
+        </c:choose>
     </c:if>
 
     <spring:message code="admin.users.suspendButton" var="suspendButtonLabel"/>
@@ -84,11 +91,12 @@
                                         <paw:button text="${reactivateButtonLabel}"/>
                                     </form>
                                 </c:when>
-                                <c:otherwise>
+                                <%-- A un admin solo lo suspende un superadmin (ver AdminController.suspender). --%>
+                                <c:when test="${isSuperadmin or not (fn:contains(targetUser.roles, 'ROLE_ADMIN') or fn:contains(targetUser.roles, 'ROLE_SUPERADMIN'))}">
                                     <form action="<c:url value='/admin/usuarios/${targetUser.id}/suspender'/>" method="post">
                                         <paw:button text="${suspendButtonLabel}" cssClass="btn-danger"/>
                                     </form>
-                                </c:otherwise>
+                                </c:when>
                             </c:choose>
                             <%-- Otorgar/revocar admin: solo si quien mira esta pantalla es
                                  superadmin (WebAuthConfig ya lo exige en el servidor; esto

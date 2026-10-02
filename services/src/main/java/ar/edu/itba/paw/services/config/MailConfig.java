@@ -80,6 +80,12 @@ public class MailConfig {
         props.put("mail.smtp.auth", String.valueOf(auth));
         // starttls: si la conexion se cifra. Gmail lo exige, el falso local no lo soporta.
         props.put("mail.smtp.starttls.enable", String.valueOf(starttls));
+        // Sin timeouts, si el servidor SMTP no responde el hilo que manda el mail
+        // (@Async, ver NotificationServiceImpl) se queda esperando para siempre y,
+        // despues de unos cuantos, el pool entero de hilos queda colgado. En ms.
+        props.put("mail.smtp.connectiontimeout", "5000");
+        props.put("mail.smtp.timeout", "10000");
+        props.put("mail.smtp.writetimeout", "10000");
 
         return sender;
     }

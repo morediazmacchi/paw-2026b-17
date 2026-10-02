@@ -42,6 +42,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import javax.validation.Valid;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -54,6 +55,7 @@ public class ProfileController {
     private final RegistrationService registrationService;
     private final EventService eventService;
     private final FavoriteService favoriteService;
+    private final EventAccessChecker accessChecker;
     private final ReviewService reviewService;
     private final EventInvitationService eventInvitationService;
     private final MessageSource messageSource;
@@ -64,11 +66,13 @@ public class ProfileController {
                               final RegistrationService registrationService, final EventService eventService,
                               final FavoriteService favoriteService, final ReviewService reviewService,
                               final EventInvitationService eventInvitationService,
-                              final MessageSource messageSource, final InboxService inboxService) {
+                              final MessageSource messageSource, final InboxService inboxService,
+                              final EventAccessChecker accessChecker) {
         this.userService = userService;
         this.registrationService = registrationService;
         this.eventService = eventService;
         this.favoriteService = favoriteService;
+        this.accessChecker = accessChecker;
         this.reviewService = reviewService;
         this.eventInvitationService = eventInvitationService;
         this.messageSource = messageSource;
@@ -96,8 +100,40 @@ public class ProfileController {
 
     // Mismo motivo que registrationsCountFor: el badge de "Favoritos" en el
     // sidebar se pide en todas las paginas de la cuenta.
+    // Cuenta solo los que todavia puede ver (ver viewableFavorites()), para que el
+    // numero del badge coincida siempre con lo que muestra "Mis favoritos".
     private int favoritesCountFor(final User user) {
-        return favoriteService.findEventIdsByUser(user.getId()).size();
+        return viewableFavorites(user).size();
+    }
+
+    // Los favoritos de la cuenta, mas recientes primero, SIN los de un evento
+    // privado al que ya no tiene acceso (ej. le revocaron la invitacion): sin este
+    // filtro "Mis favoritos" seguiria mostrando su titulo y direccion. El favorito
+    // no se borra, solo deja de mostrarse; si recupera el acceso, vuelve a aparecer.
+    // Una sola consulta para todos los eventos (findByIds) en vez de una por favorito.
+    private List<Event> viewableFavorites(final User user) {
+        final List<Long> favoriteEventIds = favoriteService.findEventIdsByUser(user.getId());
+        if (favoriteEventIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        final Map<Long, Event> eventsById = eventService.findByIds(favoriteEventIds).stream()
+                .collect(Collectors.toMap(Event::getId, event -> event));
+        final List<Event> viewable = new ArrayList<>();
+        for (final Long eventId : favoriteEventIds) {
+            final Event event = eventsById.get(eventId);
+            if (event != null && canStillView(event, user)) {
+                viewable.add(event);
+            }
+        }
+        return viewable;
+    }
+
+    // El evento publico lo ve cualquiera: ni se busca la inscripcion.
+    private boolean canStillView(final Event event, final User user) {
+        if (!event.isPrivate()) {
+            return true;
+        }
+        return accessChecker.canView(event, user, registrationService.findByEventAndUserId(event.getId(), user.getId()));
     }
 
     // Mismo motivo que registrationsCountFor: el badge de "Mis eventos" en el
@@ -120,7 +156,7 @@ public class ProfileController {
     @RequestMapping(value = "/perfil", method = RequestMethod.GET)
     public ModelAndView perfil(@RequestParam(value = "updated", required = false) final String updated,
                                 @RequestParam(value = "passwordChanged", required = false) final String passwordChanged,
-                                @ModelAttribute("currentUser") final User currentUser) {
+                                @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final ProfileForm profileForm = new ProfileForm();
         profileForm.setNombre(currentUser.getName());
         profileForm.setEmail(currentUser.getEmail());
@@ -140,7 +176,7 @@ public class ProfileController {
 
     @RequestMapping(value = "/perfil", method = RequestMethod.POST)
     public ModelAndView updateProfile(@Valid final ProfileForm form, final BindingResult errors,
-                                       @ModelAttribute("currentUser") final User currentUser) {
+                                       @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         // El campo email llega vacio (esta disabled en perfil.jsp): lo completamos
         // con el de la sesion para que, si hay que re-mostrar el form, se vea igual.
         form.setEmail(currentUser.getEmail());
@@ -171,7 +207,7 @@ public class ProfileController {
 
     @RequestMapping(value = "/perfil/contrasena", method = RequestMethod.POST)
     public ModelAndView changePassword(@Valid final ChangePasswordForm form, final BindingResult errors,
-                                        @ModelAttribute("currentUser") final User currentUser) {
+                                        @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         if (!errors.hasErrors()) {
             final boolean ok = userService.changePassword(currentUser.getId(), form.getCurrentPassword(), form.getNewPassword());
             if (!ok) {
@@ -201,7 +237,7 @@ public class ProfileController {
     }
 
     @RequestMapping(value = "/perfil/inscripciones", method = RequestMethod.GET)
-    public ModelAndView misInscripciones(@ModelAttribute("currentUser") final User currentUser) {
+    public ModelAndView misInscripciones(@ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final List<Registration> registrations = registrationService.findByUserId(currentUser.getId());
 
         final Map<Long, Event> eventsById = new HashMap<>();
@@ -250,7 +286,7 @@ public class ProfileController {
     // cancelara el evento).
     @RequestMapping(value = "/perfil/inscripciones/{id}/cancelar", method = RequestMethod.POST)
     public ModelAndView cancelarInscripcion(@PathVariable final long id,
-                                             @ModelAttribute("currentUser") final User currentUser,
+                                             @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
                                              final RedirectAttributes redirectAttributes) {
         final UnregisterResult result = registrationService.cancel(id, currentUser.getId());
         // NOT_FOUND (no existe, o es de otro usuario) y REJECTED (estado terminal,
@@ -267,7 +303,7 @@ public class ProfileController {
     @RequestMapping(value = "/perfil/inscripciones/{id}/resena", method = RequestMethod.POST)
     public ModelAndView leaveReview(@PathVariable final long id, @Valid final ReviewForm form,
                                      final BindingResult errors,
-                                     @ModelAttribute("currentUser") final User currentUser,
+                                     @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
                                      final RedirectAttributes redirectAttributes) {
         if (errors.hasErrors()) {
             redirectAttributes.addFlashAttribute("reviewError", true);
@@ -290,13 +326,8 @@ public class ProfileController {
     }
 
     @RequestMapping(value = "/perfil/favoritos", method = RequestMethod.GET)
-    public ModelAndView misFavoritos(@ModelAttribute("currentUser") final User currentUser) {
-        final List<Long> favoriteEventIds = favoriteService.findEventIdsByUser(currentUser.getId());
-
-        final List<Event> favoriteEvents = new ArrayList<>();
-        for (final Long eventId : favoriteEventIds) {
-            eventService.findById(eventId).ifPresent(favoriteEvents::add);
-        }
+    public ModelAndView misFavoritos(@ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
+        final List<Event> favoriteEvents = viewableFavorites(currentUser);
 
         final ModelAndView mav = new ModelAndView("auth/favoritos");
         mav.addObject("user", currentUser);
@@ -312,7 +343,7 @@ public class ProfileController {
     // separado de la bandeja (que mezcla todos los tipos de notificacion) para
     // acceder rapido justo a esto. Mismo patron que misFavoritos de arriba.
     @RequestMapping(value = "/perfil/invitaciones", method = RequestMethod.GET)
-    public ModelAndView misInvitaciones(@ModelAttribute("currentUser") final User currentUser) {
+    public ModelAndView misInvitaciones(@ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final List<EventInvitation> invitations = eventInvitationService.findByUser(currentUser.getId());
 
         final List<Event> invitedEvents = new ArrayList<>();
@@ -335,7 +366,7 @@ public class ProfileController {
     // "nuevo" esta vez, y el numerito de la navbar ya sale en 0.
     @RequestMapping(value = "/perfil/bandeja", method = RequestMethod.GET)
     public ModelAndView bandeja(@RequestParam(value = "page", required = false) final String page,
-                                @ModelAttribute("currentUser") final User currentUser) {
+                                @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final PageResult<InboxMessage> result = inboxService.findPage(currentUser.getId(), Paging.parsePage(page));
 
         // El titulo de cada evento, para armar el texto ("Ana se anoto en <titulo>").
@@ -361,7 +392,7 @@ public class ProfileController {
     }
 
     @RequestMapping(value = "/perfil/eventos", method = RequestMethod.GET)
-    public ModelAndView misEventos(@ModelAttribute("currentUser") final User currentUser) {
+    public ModelAndView misEventos(@ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final List<Event> createdEvents = eventService.findByCreatorId(currentUser.getId());
         final List<Review> myReviews = reviewService.findByCreatorId(currentUser.getId());
 
@@ -433,7 +464,7 @@ public class ProfileController {
                                               @RequestParam(value = "approved", required = false) final String approvedParam,
                                               @RequestParam(value = "rejected", required = false) final String rejectedParam,
                                               @RequestParam(value = "full", required = false) final String fullParam,
-                                              @ModelAttribute("currentUser") final User currentUser) {
+                                              @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final Event event = eventForOwner(id, currentUser);
 
         final ModelAndView mav = new ModelAndView("auth/inscriptos");
@@ -457,7 +488,7 @@ public class ProfileController {
 
     @RequestMapping(value = "/perfil/eventos/{id}/inscriptos/{registrationId}/aceptar", method = RequestMethod.POST)
     public ModelAndView approveRegistration(@PathVariable final long id, @PathVariable final long registrationId,
-                                             @ModelAttribute("currentUser") final User currentUser) {
+                                             @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final ApprovalResult result = registrationService.approve(registrationId, currentUser.getId());
         final String param = result == ApprovalResult.FULL ? "?full" : result == ApprovalResult.APPROVED ? "?approved" : "";
         return new ModelAndView("redirect:/perfil/eventos/" + id + "/inscriptos" + param);
@@ -465,7 +496,7 @@ public class ProfileController {
 
     @RequestMapping(value = "/perfil/eventos/{id}/inscriptos/{registrationId}/rechazar", method = RequestMethod.POST)
     public ModelAndView rejectRegistration(@PathVariable final long id, @PathVariable final long registrationId,
-                                            @ModelAttribute("currentUser") final User currentUser) {
+                                            @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final boolean rejected = registrationService.reject(registrationId, currentUser.getId());
         return new ModelAndView("redirect:/perfil/eventos/" + id + "/inscriptos" + (rejected ? "?rejected" : ""));
     }
@@ -473,7 +504,7 @@ public class ProfileController {
     // Volver de "Ver inscriptos" (donde esta el boton Revocar) a esa misma lista.
     @RequestMapping(value = "/perfil/eventos/{id}/inscriptos/{registrationId}/revocar", method = RequestMethod.POST)
     public ModelAndView revokeRegistration(@PathVariable final long id, @PathVariable final long registrationId,
-                                            @ModelAttribute("currentUser") final User currentUser) {
+                                            @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final boolean revoked = registrationService.revoke(registrationId, currentUser.getId());
         return new ModelAndView("redirect:/eventos/" + id + "/inscriptos" + (revoked ? "?revoked" : ""));
     }
@@ -485,7 +516,7 @@ public class ProfileController {
     public ModelAndView inviteForm(@PathVariable final long id,
                                     @RequestParam(value = "sent", required = false) final String sentParam,
                                     @RequestParam(value = "alreadyInvited", required = false) final String alreadyInvitedParam,
-                                    @ModelAttribute("currentUser") final User currentUser) {
+                                    @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final Event event = eventForOwner(id, currentUser);
         if (!event.isPrivate()) {
             throw new EventNotFoundException(id);
@@ -495,7 +526,7 @@ public class ProfileController {
 
     @RequestMapping(value = "/perfil/eventos/{id}/invitar", method = RequestMethod.POST)
     public ModelAndView invite(@PathVariable final long id, @Valid final InviteForm form, final BindingResult errors,
-                                @ModelAttribute("currentUser") final User currentUser) {
+                                @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final Event event = eventForOwner(id, currentUser);
         if (!event.isPrivate()) {
             throw new EventNotFoundException(id);

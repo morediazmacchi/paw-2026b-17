@@ -16,7 +16,6 @@ CREATE TABLE IF NOT EXISTS image (
     content_type   VARCHAR(100) NOT NULL,
     file_name      VARCHAR(255),
     file_size      INTEGER,
-    checksum       VARCHAR(64),
     uploaded_at    TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
 );
 

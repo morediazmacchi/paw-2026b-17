@@ -46,7 +46,7 @@ public class EventQuestionController {
     // "questionMessage" y detail.jsp elige el cartel con eso.
     @RequestMapping(value = "/eventos/{id}/preguntas", method = RequestMethod.POST)
     public ModelAndView ask(@PathVariable final long id, @Valid final QuestionForm form,
-                            final BindingResult errors, @ModelAttribute("currentUser") final User currentUser,
+                            final BindingResult errors, @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
                             final RedirectAttributes redirectAttributes) {
         final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
         // Mismo chequeo que el detalle: en un privado, solo quien puede verlo pregunta.
@@ -68,7 +68,7 @@ public class EventQuestionController {
     @RequestMapping(value = "/eventos/{id}/preguntas/{questionId}/responder", method = RequestMethod.POST)
     public ModelAndView answer(@PathVariable final long id, @PathVariable final long questionId,
                                @Valid final QuestionForm form, final BindingResult errors,
-                               @ModelAttribute("currentUser") final User currentUser,
+                               @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
                                final RedirectAttributes redirectAttributes) {
         if (errors.hasErrors()) {
             redirectAttributes.addFlashAttribute("questionMessage", "INVALID");

@@ -5,7 +5,10 @@ INSERT INTO category (name) VALUES ('Tecnologia') ON CONFLICT (name) DO NOTHING;
 INSERT INTO category (name) VALUES ('Gastronomia') ON CONFLICT (name) DO NOTHING;
 INSERT INTO category (name) VALUES ('Otros') ON CONFLICT (name) DO NOTHING;
 
--- Usuario admin de prueba. Password: admin1234, hasheada con el mismo
+-- Usuario admin semilla (solo se inserta si no existe: ON CONFLICT DO NOTHING).
+-- La password NO se documenta aca: es de desarrollo y hay que cambiarla en cada
+-- entorno real (UPDATE users SET password = <hash bcrypt> WHERE email = ...).
+-- El valor de abajo es el hash, hecho con el mismo
 -- BCryptPasswordEncoder de Spring (prefijo $2a$, no el $2y$ de htpasswd/otras libs:
 -- son compatibles en la practica, pero mejor no mezclar variantes sin necesidad).
 INSERT INTO users (email, name, password)

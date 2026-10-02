@@ -3,6 +3,7 @@ package ar.edu.itba.paw.webapp.config;
 import ar.edu.itba.paw.services.InboxService;
 import ar.edu.itba.paw.services.UserService;
 import ar.edu.itba.paw.webapp.interceptor.CurrentLocaleInterceptor;
+import ar.edu.itba.paw.webapp.interceptor.SuspendedUserInterceptor;
 import ar.edu.itba.paw.webapp.interceptor.UnreadInboxInterceptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -169,21 +170,22 @@ public class WebConfig implements WebMvcConfigurer {
     @Lazy
     private UserService userService;
 
-    // El numerito de la bandeja en la navbar de todas las paginas (ver UnreadInboxInterceptor).
+    // El numerito de la bandeja en la navbar de todas las paginas (ver UnreadInboxInterceptor)
+    // y el corte de sesion de las cuentas suspendidas (ver SuspendedUserInterceptor).
     @Override
     public void addInterceptors(final InterceptorRegistry registry) {
+        registry.addInterceptor(new SuspendedUserInterceptor(userService));
         registry.addInterceptor(new UnreadInboxInterceptor(inboxService, userService));
         registry.addInterceptor(new CurrentLocaleInterceptor());
     }
 
     // Esto es lo que mostro Sotuyo en clase: le dice a Spring que las carpetas
-    // /css, /js e /images NO tienen que pasar por el Front Controller (DispatcherServlet).
+    // /css y /js NO tienen que pasar por el Front Controller (DispatcherServlet).
     // Son archivos estaticos, se sirven directo, no son una ruta nuestra (@RequestMapping).
     @Override
     public void addResourceHandlers(final ResourceHandlerRegistry registry) {
         registry.addResourceHandler("/css/**").addResourceLocations("/css/");
         registry.addResourceHandler("/js/**").addResourceLocations("/js/");
-        registry.addResourceHandler("/images/**").addResourceLocations("/images/");
         registry.addResourceHandler("/favicon.svg").addResourceLocations("/");
     }
 }
