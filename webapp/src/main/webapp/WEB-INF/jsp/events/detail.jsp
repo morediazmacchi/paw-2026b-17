@@ -388,7 +388,8 @@
                                     </p>
                                 </c:when>
                                 <c:when test="${isOwner}">
-                                    <form action="<c:url value='/eventos/${event.id}/preguntas/${question.id}/responder'/>"
+                                    <form class="question-answer-form"
+                                          action="<c:url value='/eventos/${event.id}/preguntas/${question.id}/responder'/>"
                                           method="post" novalidate="novalidate">
                                         <div class="form-group">
                                             <label for="answer-${question.id}"><spring:message code="event.questions.answerLabel"/></label>
