@@ -40,88 +40,113 @@
         </c:choose>
     </c:if>
 
-    <spring:message code="admin.users.suspendButton" var="suspendButtonLabel"/>
-    <spring:message code="admin.users.reactivateButton" var="reactivateButtonLabel"/>
-    <spring:message code="admin.users.promoteButton" var="promoteButtonLabel"/>
-    <spring:message code="admin.users.revokeButton" var="revokeButtonLabel"/>
-    <spring:message code="admin.users.emailColumn" var="emailColumnLabel"/>
-    <spring:message code="admin.users.nameColumn" var="nameColumnLabel"/>
-    <spring:message code="admin.users.rolesColumn" var="rolesColumnLabel"/>
-    <spring:message code="admin.users.statusColumn" var="statusColumnLabel"/>
-    <div class="responsive-table-wrap">
-        <table class="responsive-table users-table">
-            <thead>
-            <tr>
-                <th><c:out value="${emailColumnLabel}"/></th>
-                <th><c:out value="${nameColumnLabel}"/></th>
-                <th><c:out value="${rolesColumnLabel}"/></th>
-                <th><c:out value="${statusColumnLabel}"/></th>
-                <th></th>
-            </tr>
-            </thead>
-            <tbody>
-            <c:forEach var="targetUser" items="${users}">
-                <tr>
-                    <td data-label="${emailColumnLabel}"><c:out value="${targetUser.email}"/></td>
-                    <td data-label="${nameColumnLabel}"><c:out value="${targetUser.name}"/></td>
-                    <td data-label="${rolesColumnLabel}">
-                        <div class="pills">
-                            <c:forEach var="role" items="${targetUser.roles}">
-                                <span class="pill"><spring:message code="admin.users.role.${role}"/></span>
-                            </c:forEach>
-                        </div>
-                    </td>
-                    <td data-label="${statusColumnLabel}">
-                        <c:choose>
-                            <c:when test="${targetUser.suspended}">
-                                <span class="pill"><spring:message code="admin.users.statusSuspended"/></span>
-                            </c:when>
-                            <c:otherwise>
-                                <span class="pill pill-active"><spring:message code="admin.users.statusActive"/></span>
-                            </c:otherwise>
-                        </c:choose>
-                    </td>
-                    <td class="admin-report-actions">
-                        <%-- Nadie actua sobre su propia fila (ver AdminController): ni
-                             suspenderse ni sacarse su propio ROLE_ADMIN. --%>
-                        <c:if test="${targetUser.id != currentUserId}">
-                            <c:choose>
-                                <c:when test="${targetUser.suspended}">
-                                    <form action="<c:url value='/admin/usuarios/${targetUser.id}/reactivar'/>" method="post">
-                                        <paw:button text="${reactivateButtonLabel}"/>
-                                    </form>
-                                </c:when>
-                                <%-- A un admin solo lo suspende un superadmin (ver AdminController.suspender). --%>
-                                <c:when test="${isSuperadmin or not (fn:contains(targetUser.roles, 'ROLE_ADMIN') or fn:contains(targetUser.roles, 'ROLE_SUPERADMIN'))}">
-                                    <form action="<c:url value='/admin/usuarios/${targetUser.id}/suspender'/>" method="post">
-                                        <paw:button text="${suspendButtonLabel}" cssClass="btn-danger"/>
-                                    </form>
-                                </c:when>
-                            </c:choose>
-                            <%-- Otorgar/revocar admin: solo si quien mira esta pantalla es
-                                 superadmin (WebAuthConfig ya lo exige en el servidor; esto
-                                 solo evita ofrecer un boton que el POST va a rechazar). --%>
-                            <c:if test="${isSuperadmin}">
+    <c:choose>
+        <c:when test="${empty users}">
+            <p class="empty-state"><spring:message code="admin.users.empty"/></p>
+        </c:when>
+        <c:otherwise>
+            <spring:message code="admin.users.suspendButton" var="suspendButtonLabel"/>
+            <spring:message code="admin.users.reactivateButton" var="reactivateButtonLabel"/>
+            <spring:message code="admin.users.promoteButton" var="promoteButtonLabel"/>
+            <spring:message code="admin.users.revokeButton" var="revokeButtonLabel"/>
+            <spring:message code="admin.users.emailColumn" var="emailColumnLabel"/>
+            <spring:message code="admin.users.nameColumn" var="nameColumnLabel"/>
+            <spring:message code="admin.users.rolesColumn" var="rolesColumnLabel"/>
+            <spring:message code="admin.users.statusColumn" var="statusColumnLabel"/>
+            <div class="responsive-table-wrap">
+                <table class="responsive-table users-table">
+                    <thead>
+                    <tr>
+                        <th><c:out value="${emailColumnLabel}"/></th>
+                        <th><c:out value="${nameColumnLabel}"/></th>
+                        <th><c:out value="${rolesColumnLabel}"/></th>
+                        <th><c:out value="${statusColumnLabel}"/></th>
+                        <th></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <c:forEach var="targetUser" items="${users}">
+                        <tr>
+                            <td data-label="${emailColumnLabel}"><c:out value="${targetUser.email}"/></td>
+                            <td data-label="${nameColumnLabel}"><c:out value="${targetUser.name}"/></td>
+                            <td data-label="${rolesColumnLabel}">
+                                <div class="pills">
+                                    <c:forEach var="role" items="${targetUser.roles}">
+                                        <span class="pill"><spring:message code="admin.users.role.${role}"/></span>
+                                    </c:forEach>
+                                </div>
+                            </td>
+                            <td data-label="${statusColumnLabel}">
                                 <c:choose>
-                                    <c:when test="${fn:contains(targetUser.roles, 'ROLE_ADMIN')}">
-                                        <form action="<c:url value='/admin/usuarios/${targetUser.id}/revocar'/>" method="post">
-                                            <paw:button text="${revokeButtonLabel}"/>
-                                        </form>
+                                    <c:when test="${targetUser.suspended}">
+                                        <span class="pill"><spring:message code="admin.users.statusSuspended"/></span>
                                     </c:when>
                                     <c:otherwise>
-                                        <form action="<c:url value='/admin/usuarios/${targetUser.id}/promover'/>" method="post">
-                                            <paw:button text="${promoteButtonLabel}"/>
-                                        </form>
+                                        <span class="pill pill-active"><spring:message code="admin.users.statusActive"/></span>
                                     </c:otherwise>
                                 </c:choose>
-                            </c:if>
-                        </c:if>
-                    </td>
-                </tr>
-            </c:forEach>
-            </tbody>
-        </table>
-    </div>
+                            </td>
+                            <td class="admin-report-actions">
+                                <%-- Nadie actua sobre su propia fila (ver AdminController): ni
+                                     suspenderse ni sacarse su propio ROLE_ADMIN. --%>
+                                <c:if test="${targetUser.id != currentUserId}">
+                                    <c:choose>
+                                        <c:when test="${targetUser.suspended}">
+                                            <form action="<c:url value='/admin/usuarios/${targetUser.id}/reactivar'/>" method="post">
+                                                <paw:button text="${reactivateButtonLabel}"/>
+                                            </form>
+                                        </c:when>
+                                        <%-- A un admin solo lo suspende un superadmin (ver AdminController.suspender). --%>
+                                        <c:when test="${isSuperadmin or not (fn:contains(targetUser.roles, 'ROLE_ADMIN') or fn:contains(targetUser.roles, 'ROLE_SUPERADMIN'))}">
+                                            <form action="<c:url value='/admin/usuarios/${targetUser.id}/suspender'/>" method="post">
+                                                <paw:button text="${suspendButtonLabel}" cssClass="btn-danger"/>
+                                            </form>
+                                        </c:when>
+                                    </c:choose>
+                                    <%-- Otorgar/revocar admin: solo si quien mira esta pantalla es
+                                         superadmin (WebAuthConfig ya lo exige en el servidor; esto
+                                         solo evita ofrecer un boton que el POST va a rechazar). --%>
+                                    <c:if test="${isSuperadmin}">
+                                        <c:choose>
+                                            <c:when test="${fn:contains(targetUser.roles, 'ROLE_ADMIN')}">
+                                                <form action="<c:url value='/admin/usuarios/${targetUser.id}/revocar'/>" method="post">
+                                                    <paw:button text="${revokeButtonLabel}"/>
+                                                </form>
+                                            </c:when>
+                                            <c:otherwise>
+                                                <form action="<c:url value='/admin/usuarios/${targetUser.id}/promover'/>" method="post">
+                                                    <paw:button text="${promoteButtonLabel}"/>
+                                                </form>
+                                            </c:otherwise>
+                                        </c:choose>
+                                    </c:if>
+                                </c:if>
+                            </td>
+                        </tr>
+                    </c:forEach>
+                    </tbody>
+                </table>
+            </div>
+
+            <c:if test="${totalPages > 1}">
+                <spring:message code="event.list.prevPage" var="prevPageLabel"/>
+                <spring:message code="event.list.nextPage" var="nextPageLabel"/>
+                <nav class="pager">
+                    <c:if test="${currentPage > 1}">
+                        <a class="pager-arrow" href="<c:url value='/admin/usuarios'><c:param name='page' value='${currentPage - 1}'/></c:url>">
+                            <c:out value="${prevPageLabel}"/>
+                        </a>
+                    </c:if>
+                    <span class="pager-number pager-number-active"><c:out value="${currentPage}"/> / <c:out value="${totalPages}"/></span>
+                    <c:if test="${currentPage < totalPages}">
+                        <a class="pager-arrow" href="<c:url value='/admin/usuarios'><c:param name='page' value='${currentPage + 1}'/></c:url>">
+                            <c:out value="${nextPageLabel}"/>
+                        </a>
+                    </c:if>
+                </nav>
+            </c:if>
+        </c:otherwise>
+    </c:choose>
 </main>
 
 </body>

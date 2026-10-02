@@ -4,6 +4,7 @@ import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.AnswerResult;
+import ar.edu.itba.paw.services.EventAccessService;
 import ar.edu.itba.paw.services.EventQuestionService;
 import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.QuestionResult;
@@ -30,11 +31,11 @@ public class EventQuestionController {
     private final EventService eventService;
     private final RegistrationService registrationService;
     private final EventQuestionService eventQuestionService;
-    private final EventAccessChecker accessChecker;
+    private final EventAccessService accessChecker;
 
     @Autowired
     public EventQuestionController(final EventService eventService, final RegistrationService registrationService,
-                                    final EventQuestionService eventQuestionService, final EventAccessChecker accessChecker) {
+                                    final EventQuestionService eventQuestionService, final EventAccessService accessChecker) {
         this.eventService = eventService;
         this.registrationService = registrationService;
         this.eventQuestionService = eventQuestionService;

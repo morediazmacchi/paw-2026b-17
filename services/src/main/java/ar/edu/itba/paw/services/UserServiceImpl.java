@@ -12,6 +12,7 @@ import ar.edu.itba.paw.persistence.UserDao;
 import ar.edu.itba.paw.persistence.VerificationTokenDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -98,7 +99,16 @@ public class UserServiceImpl implements UserService {
             // loguearse): registrarse con ese email lo completa, no lo pisa.
             userId = user.getId();
         } else {
-            userId = userDao.create(new User(normalizedEmail, name)).getId();
+            try {
+                userId = userDao.create(new User(normalizedEmail, name)).getId();
+            } catch (final DataIntegrityViolationException e) {
+                // Dos registros al mismo tiempo con el mismo email nuevo: el
+                // findByEmail de arriba no vio nada, pero el otro ya inserto
+                // justo antes y choca contra el UNIQUE(email). Mismo criterio
+                // que ReviewServiceImpl.create(): no corresponde dejar escapar
+                // esto hacia el controller como un 500.
+                return UserRegistrationResult.EMAIL_TAKEN;
+            }
         }
         // Reconciliacion del Grupo B: si esta persona ya venia con invitaciones
         // o avisos de bandeja sin resolver (invitada sin cuenta, ver
@@ -204,16 +214,8 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public ProfileUpdateResult updateProfile(final long userId, final String name, final String email) {
-        final String normalizedEmail = email.trim().toLowerCase();
-
-        final Optional<User> existing = userDao.findByEmail(normalizedEmail);
-        if (existing.isPresent() && existing.get().getId() != userId) {
-            return ProfileUpdateResult.EMAIL_TAKEN;
-        }
-
-        userDao.updateProfile(userId, name, normalizedEmail);
-        return ProfileUpdateResult.UPDATED;
+    public boolean updateProfile(final long userId, final String name) {
+        return userDao.updateProfile(userId, name);
     }
 
     @Override

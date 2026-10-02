@@ -149,8 +149,8 @@ public class UserJdbcDao implements UserDao {
     }
 
     @Override
-    public boolean updateProfile(final long userId, final String name, final String email) {
-        return jdbcTemplate.update("UPDATE users SET name = ?, email = ? WHERE id = ?", name, email, userId) == 1;
+    public boolean updateProfile(final long userId, final String name) {
+        return jdbcTemplate.update("UPDATE users SET name = ? WHERE id = ?", name, userId) == 1;
     }
 
     @Override

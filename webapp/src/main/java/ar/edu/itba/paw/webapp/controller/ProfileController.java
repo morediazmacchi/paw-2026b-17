@@ -8,13 +8,13 @@ import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.Review;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.ApprovalResult;
+import ar.edu.itba.paw.services.EventAccessService;
 import ar.edu.itba.paw.services.EventInvitationResult;
 import ar.edu.itba.paw.services.EventInvitationService;
 import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.FavoriteService;
 import ar.edu.itba.paw.services.InboxService;
 import ar.edu.itba.paw.services.PageResult;
-import ar.edu.itba.paw.services.ProfileUpdateResult;
 import ar.edu.itba.paw.services.RegistrationService;
 import ar.edu.itba.paw.services.ReviewResult;
 import ar.edu.itba.paw.services.ReviewService;
@@ -25,13 +25,12 @@ import ar.edu.itba.paw.webapp.form.ChangePasswordForm;
 import ar.edu.itba.paw.webapp.form.InviteForm;
 import ar.edu.itba.paw.webapp.form.ProfileForm;
 import ar.edu.itba.paw.webapp.form.ReviewForm;
+import ar.edu.itba.paw.webapp.util.FormErrors;
 import ar.edu.itba.paw.webapp.util.Paging;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
-import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindingResult;
-import org.springframework.validation.FieldError;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -55,7 +54,7 @@ public class ProfileController {
     private final RegistrationService registrationService;
     private final EventService eventService;
     private final FavoriteService favoriteService;
-    private final EventAccessChecker accessChecker;
+    private final EventAccessService accessChecker;
     private final ReviewService reviewService;
     private final EventInvitationService eventInvitationService;
     private final MessageSource messageSource;
@@ -67,7 +66,7 @@ public class ProfileController {
                               final FavoriteService favoriteService, final ReviewService reviewService,
                               final EventInvitationService eventInvitationService,
                               final MessageSource messageSource, final InboxService inboxService,
-                              final EventAccessChecker accessChecker) {
+                              final EventAccessService accessChecker) {
         this.userService = userService;
         this.registrationService = registrationService;
         this.eventService = eventService;
@@ -79,16 +78,8 @@ public class ProfileController {
         this.inboxService = inboxService;
     }
 
-    private String messageFor(final FieldError fieldError) {
-        return messageSource.getMessage(fieldError, LocaleContextHolder.getLocale());
-    }
-
     private Map<String, String> fieldErrorsOf(final BindingResult errors) {
-        final Map<String, String> fieldErrors = new HashMap<>();
-        for (final FieldError fieldError : errors.getFieldErrors()) {
-            fieldErrors.put(fieldError.getField(), messageFor(fieldError));
-        }
-        return fieldErrors;
+        return FormErrors.of(errors, messageSource);
     }
 
 
@@ -159,7 +150,6 @@ public class ProfileController {
                                 @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final ProfileForm profileForm = new ProfileForm();
         profileForm.setNombre(currentUser.getName());
-        profileForm.setEmail(currentUser.getEmail());
 
         final ModelAndView mav = new ModelAndView("auth/perfil");
         mav.addObject("user", currentUser);
@@ -177,15 +167,8 @@ public class ProfileController {
     @RequestMapping(value = "/perfil", method = RequestMethod.POST)
     public ModelAndView updateProfile(@Valid final ProfileForm form, final BindingResult errors,
                                        @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        // El campo email llega vacio (esta disabled en perfil.jsp): lo completamos
-        // con el de la sesion para que, si hay que re-mostrar el form, se vea igual.
-        form.setEmail(currentUser.getEmail());
-
         if (!errors.hasErrors()) {
-            final ProfileUpdateResult result = userService.updateProfile(currentUser.getId(), form.getNombre(), currentUser.getEmail());
-            if (result == ProfileUpdateResult.EMAIL_TAKEN) {
-                errors.rejectValue("email", "email.taken", "Ese email ya está en uso");
-            }
+            userService.updateProfile(currentUser.getId(), form.getNombre());
         }
 
         if (errors.hasErrors()) {
@@ -198,7 +181,6 @@ public class ProfileController {
             mav.addObject("favoritesCount", favoritesCountFor(currentUser));
             mav.addObject("eventsCount", eventsCountFor(currentUser));
             mav.addObject("invitationsCount", invitationsCountFor(currentUser));
-        mav.addObject("invitationsCount", invitationsCountFor(currentUser));
             return mav;
         }
 
@@ -218,7 +200,6 @@ public class ProfileController {
         if (errors.hasErrors()) {
             final ProfileForm profileForm = new ProfileForm();
             profileForm.setNombre(currentUser.getName());
-            profileForm.setEmail(currentUser.getEmail());
 
             final ModelAndView mav = new ModelAndView("auth/perfil");
             mav.addObject("user", currentUser);
@@ -229,7 +210,6 @@ public class ProfileController {
             mav.addObject("favoritesCount", favoritesCountFor(currentUser));
             mav.addObject("eventsCount", eventsCountFor(currentUser));
             mav.addObject("invitationsCount", invitationsCountFor(currentUser));
-        mav.addObject("invitationsCount", invitationsCountFor(currentUser));
             return mav;
         }
 

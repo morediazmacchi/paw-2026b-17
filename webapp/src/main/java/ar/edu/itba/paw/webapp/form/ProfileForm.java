@@ -10,16 +10,9 @@ public class ProfileForm {
     @Size(max = 150, message = "El nombre no puede superar los 150 caracteres")
     private String nombre;
 
-    // Solo para mostrarlo en la pantalla: el email no se puede cambiar (ver
-    // ProfileController.updateProfile), asi que no se valida ni se usa del POST.
-    private String email;
-
     public ProfileForm() {
     }
 
     public String getNombre() { return nombre; }
     public void setNombre(final String nombre) { this.nombre = nombre; }
-
-    public String getEmail() { return email; }
-    public void setEmail(final String email) { this.email = email; }
 }

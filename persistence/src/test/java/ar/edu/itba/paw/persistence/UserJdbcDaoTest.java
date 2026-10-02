@@ -323,18 +323,18 @@ public class UserJdbcDaoTest {
     // ---- updateProfile() ----
 
     @Test
-    public void testUpdateProfileChangesNameAndEmail() {
+    public void testUpdateProfileChangesTheName() {
         // Arrange
         final long id = insertUser(EMAIL, NAME);
 
         // Act
-        userDao.updateProfile(id, "Nuevo Nombre", "nuevo@mail.com");
+        userDao.updateProfile(id, "Nuevo Nombre");
 
         // Assert
         final Map<String, Object> row = jdbcTemplate.queryForMap(
                 "SELECT name, email FROM users WHERE id = ?", id);
         assertEquals("Nuevo Nombre", row.get("name"));
-        assertEquals("nuevo@mail.com", row.get("email"));
+        assertEquals(EMAIL, row.get("email"));
     }
 
     // ---- setVerified() ----
@@ -572,7 +572,7 @@ public class UserJdbcDaoTest {
         final long id = insertUser(EMAIL, NAME);
 
         // Act
-        final boolean result = userDao.updateProfile(id, "Nuevo Nombre", "nuevo@mail.com");
+        final boolean result = userDao.updateProfile(id, "Nuevo Nombre");
 
         // Assert
         assertTrue(result);
@@ -584,7 +584,7 @@ public class UserJdbcDaoTest {
         // (no hay ningun usuario guardado)
 
         // Act
-        final boolean result = userDao.updateProfile(999_999L, "Nuevo Nombre", "nuevo@mail.com");
+        final boolean result = userDao.updateProfile(999_999L, "Nuevo Nombre");
 
         // Assert
         assertFalse(result);

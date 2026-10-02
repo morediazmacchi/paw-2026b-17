@@ -4,6 +4,7 @@ import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.Image;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.services.EventAccessService;
 import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.ImageService;
 import ar.edu.itba.paw.services.RegistrationService;
@@ -26,7 +27,7 @@ import java.util.Optional;
  * el <img src="/image/7"> del navegador termina aca.
  *
  * Una imagen hereda la visibilidad de su evento: las de un evento privado solo
- * las ve quien puede ver el evento (ver EventAccessChecker). Se contesta 404 y
+ * las ve quien puede ver el evento (ver EventAccessService). Se contesta 404 y
  * no 403 para no confirmar que ese id existe.
  */
 @Controller
@@ -42,12 +43,12 @@ public class ImageController {
     private final EventService eventService;
     private final UserService userService;
     private final RegistrationService registrationService;
-    private final EventAccessChecker accessChecker;
+    private final EventAccessService accessChecker;
 
     @Autowired
     public ImageController(final ImageService imageService, final EventService eventService,
                            final UserService userService, final RegistrationService registrationService,
-                           final EventAccessChecker accessChecker) {
+                           final EventAccessService accessChecker) {
         this.imageService = imageService;
         this.eventService = eventService;
         this.userService = userService;

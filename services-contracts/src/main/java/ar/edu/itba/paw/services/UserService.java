@@ -78,10 +78,11 @@ public interface UserService {
     PasswordResetResult resetPassword(String token, String newPassword);
 
     /**
-     * Actualiza nombre y email desde "Mi perfil". Si el nuevo email ya es de
-     * otro usuario, no toca nada y devuelve EMAIL_TAKEN.
+     * Actualiza el nombre desde "Mi perfil". El email no se puede cambiar desde
+     * aca (ver ProfileController), asi que no hace falta recibirlo ni chequear
+     * duplicados.
      */
-    ProfileUpdateResult updateProfile(long userId, String name, String email);
+    boolean updateProfile(long userId, String name);
 
     /**
      * Cambia la contraseña de un usuario ya logueado. Devuelve false (y no

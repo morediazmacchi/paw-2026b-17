@@ -4,20 +4,17 @@ import ar.edu.itba.paw.services.PasswordResetResult;
 import ar.edu.itba.paw.services.UserService;
 import ar.edu.itba.paw.webapp.form.ForgotPasswordForm;
 import ar.edu.itba.paw.webapp.form.ResetPasswordForm;
+import ar.edu.itba.paw.webapp.util.FormErrors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
-import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindingResult;
-import org.springframework.validation.FieldError;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.ModelAndView;
 
 import javax.validation.Valid;
-import java.util.HashMap;
-import java.util.Map;
 
 // "Olvidé mi contraseña": pedir el link (recuperar) y despues elegir la nueva
 // contraseña con ese link (restablecer). Separado de LoginController porque
@@ -34,10 +31,6 @@ public class PasswordResetController {
         this.messageSource = messageSource;
     }
 
-    private String messageFor(final FieldError fieldError) {
-        return messageSource.getMessage(fieldError, LocaleContextHolder.getLocale());
-    }
-
     @RequestMapping(value = "/login/recuperar", method = RequestMethod.GET)
     public ModelAndView forgotPasswordForm(@RequestParam(value = "sent", required = false) final String sent) {
         final ModelAndView mav = new ModelAndView("auth/recuperar");
@@ -52,13 +45,9 @@ public class PasswordResetController {
     @RequestMapping(value = "/login/recuperar", method = RequestMethod.POST)
     public ModelAndView forgotPassword(@Valid final ForgotPasswordForm form, final BindingResult errors) {
         if (errors.hasErrors()) {
-            final Map<String, String> fieldErrors = new HashMap<>();
-            for (final FieldError fieldError : errors.getFieldErrors()) {
-                fieldErrors.put(fieldError.getField(), messageFor(fieldError));
-            }
             final ModelAndView mav = new ModelAndView("auth/recuperar");
             mav.addObject("forgotPasswordForm", form);
-            mav.addObject("fieldErrors", fieldErrors);
+            mav.addObject("fieldErrors", FormErrors.of(errors, messageSource));
             return mav;
         }
 
@@ -96,14 +85,10 @@ public class PasswordResetController {
     }
 
     private ModelAndView resetPasswordFormWithErrors(final ResetPasswordForm form, final BindingResult errors) {
-        final Map<String, String> fieldErrors = new HashMap<>();
-        for (final FieldError fieldError : errors.getFieldErrors()) {
-            fieldErrors.put(fieldError.getField(), messageFor(fieldError));
-        }
         final ModelAndView mav = new ModelAndView("auth/restablecer");
         mav.addObject("tokenValid", true);
         mav.addObject("resetPasswordForm", form);
-        mav.addObject("fieldErrors", fieldErrors);
+        mav.addObject("fieldErrors", FormErrors.of(errors, messageSource));
         return mav;
     }
 }

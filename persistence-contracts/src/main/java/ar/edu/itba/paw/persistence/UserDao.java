@@ -32,7 +32,7 @@ public interface UserDao {
 
     boolean setPassword(long userId, String passwordHash);
 
-    boolean updateProfile(long userId, String name, String email);
+    boolean updateProfile(long userId, String name);
 
     boolean setVerified(long userId, boolean verified);
 

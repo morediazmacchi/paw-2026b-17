@@ -9,6 +9,7 @@ import ar.edu.itba.paw.services.ModerationService;
 import ar.edu.itba.paw.services.ReportResolutionResult;
 import ar.edu.itba.paw.services.UserService;
 import ar.edu.itba.paw.webapp.form.RequestChangesForm;
+import ar.edu.itba.paw.webapp.util.Paging;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindingResult;
@@ -150,10 +151,28 @@ public class AdminController {
         return new ModelAndView("redirect:/admin/reportes");
     }
 
+    // Tamaño de pagina para "Usuarios": findAll() no tiene version paginada en
+    // la base (ver UserDao), asi que se pagina aca mismo sobre la lista entera.
+    // Nada grave: a esta pantalla solo entran admins, y el panel no se usa
+    // tan seguido como para que paginar en memoria sea un problema real.
+    private static final int USERS_PAGE_SIZE = 20;
+
     @RequestMapping(value = "/usuarios", method = RequestMethod.GET)
-    public ModelAndView usuarios(@ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
+    public ModelAndView usuarios(@RequestParam(value = "page", required = false) final String page,
+                                  @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
+        final List<User> allUsers = userService.findAll();
+        final int totalPages = Math.max(1, (int) Math.ceil(allUsers.size() / (double) USERS_PAGE_SIZE));
+        // Un page mas alla del total (ultima pagina se vacio desde otra
+        // pestaña, o el numero vino escrito a mano en la URL) cae a la ultima
+        // pagina valida en vez de mostrar una lista vacia con paginador roto.
+        final int currentPage = Math.min(Paging.parsePage(page), totalPages);
+        final int fromIndex = Math.min((currentPage - 1) * USERS_PAGE_SIZE, allUsers.size());
+        final int toIndex = Math.min(fromIndex + USERS_PAGE_SIZE, allUsers.size());
+
         final ModelAndView mav = new ModelAndView("admin/usuarios");
-        mav.addObject("users", userService.findAll());
+        mav.addObject("users", allUsers.subList(fromIndex, toIndex));
+        mav.addObject("currentPage", currentPage);
+        mav.addObject("totalPages", totalPages);
         mav.addObject("currentUserId", currentUser.getId());
         mav.addObject("isSuperadmin", currentUser.getRoles().contains("ROLE_SUPERADMIN"));
         return mav;

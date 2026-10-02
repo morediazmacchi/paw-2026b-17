@@ -4,10 +4,10 @@ import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.UserRegistrationResult;
 import ar.edu.itba.paw.services.UserService;
 import ar.edu.itba.paw.webapp.form.SetPasswordForm;
+import ar.edu.itba.paw.webapp.util.FormErrors;
 import ar.edu.itba.paw.webapp.util.SafeRedirect;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
-import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -16,7 +16,6 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindingResult;
-import org.springframework.validation.FieldError;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -27,8 +26,6 @@ import javax.validation.Valid;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Optional;
 
 @Controller
@@ -44,10 +41,6 @@ public class LoginController {
         this.userService = userService;
         this.messageSource = messageSource;
         this.userDetailsService = userDetailsService;
-    }
-
-    private String messageFor(final FieldError fieldError) {
-        return messageSource.getMessage(fieldError, LocaleContextHolder.getLocale());
     }
 
     // El submit del login normal (POST /login) lo intercepta el filtro de Spring
@@ -196,14 +189,10 @@ public class LoginController {
 
     private ModelAndView setPasswordFormWithErrors(final SetPasswordForm form, final BindingResult errors,
                                                     final String redirect) {
-        final Map<String, String> fieldErrors = new HashMap<>();
-        for (final FieldError fieldError : errors.getFieldErrors()) {
-            fieldErrors.put(fieldError.getField(), messageFor(fieldError));
-        }
         final ModelAndView mav = new ModelAndView("auth/login");
         mav.addObject("needsPassword", true);
         mav.addObject("setPasswordForm", form);
-        mav.addObject("fieldErrors", fieldErrors);
+        mav.addObject("fieldErrors", FormErrors.of(errors, messageSource));
         if (SafeRedirect.isSafe(redirect)) {
             mav.addObject("redirectTo", redirect);
         }

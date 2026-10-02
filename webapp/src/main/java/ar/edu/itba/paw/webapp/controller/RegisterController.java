@@ -4,13 +4,12 @@ import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.UserRegistrationResult;
 import ar.edu.itba.paw.services.UserService;
 import ar.edu.itba.paw.webapp.form.UserForm;
+import ar.edu.itba.paw.webapp.util.FormErrors;
 import ar.edu.itba.paw.webapp.util.SafeRedirect;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
-import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindingResult;
-import org.springframework.validation.FieldError;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
@@ -20,8 +19,6 @@ import org.springframework.web.servlet.ModelAndView;
 import javax.validation.Valid;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.Map;
 
 @Controller
 public class RegisterController {
@@ -33,10 +30,6 @@ public class RegisterController {
     public RegisterController(final UserService userService, final MessageSource messageSource) {
         this.userService = userService;
         this.messageSource = messageSource;
-    }
-
-    private String messageFor(final FieldError fieldError) {
-        return messageSource.getMessage(fieldError, LocaleContextHolder.getLocale());
     }
 
     @RequestMapping(value = "/registro", method = RequestMethod.GET)
@@ -82,13 +75,9 @@ public class RegisterController {
 
     private ModelAndView registerFormWithErrors(final UserForm form, final BindingResult errors,
                                                 final String redirect) {
-        final Map<String, String> fieldErrors = new HashMap<>();
-        for (final FieldError fieldError : errors.getFieldErrors()) {
-            fieldErrors.put(fieldError.getField(), messageFor(fieldError));
-        }
         final ModelAndView mav = new ModelAndView("auth/register");
         mav.addObject("userForm", form);
-        mav.addObject("fieldErrors", fieldErrors);
+        mav.addObject("fieldErrors", FormErrors.of(errors, messageSource));
         if (redirect != null) {
             mav.addObject("redirectTo", redirect);
         }

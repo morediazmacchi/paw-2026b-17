@@ -12,6 +12,7 @@ import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.Review;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.CategoryService;
+import ar.edu.itba.paw.services.EventAccessService;
 import ar.edu.itba.paw.services.EventCancelResult;
 import ar.edu.itba.paw.services.EventQuestionService;
 import ar.edu.itba.paw.services.EventService;
@@ -24,13 +25,13 @@ import ar.edu.itba.paw.services.ReviewService;
 import ar.edu.itba.paw.webapp.exception.EventNotFoundException;
 import ar.edu.itba.paw.webapp.form.EventForm;
 import ar.edu.itba.paw.webapp.form.EventSearchForm;
+import ar.edu.itba.paw.webapp.util.FormErrors;
 import ar.edu.itba.paw.webapp.util.Paging;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindingResult;
-import org.springframework.validation.FieldError;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -54,7 +55,7 @@ import java.util.stream.Collectors;
 // de un visitante (RSVP, favoritos, reportar) viven en
 // EventRegistrationController, y las preguntas en EventQuestionController --
 // el chequeo de acceso a eventos privados que comparten los tres vive en
-// EventAccessChecker.
+// EventAccessService.
 @Controller
 public class EventController {
 
@@ -73,14 +74,14 @@ public class EventController {
     private final FavoriteService favoriteService;
     private final ReviewService reviewService;
     private final EventQuestionService eventQuestionService;
-    private final EventAccessChecker accessChecker;
+    private final EventAccessService accessChecker;
     private final MessageSource messageSource;
 
     @Autowired
     public EventController(final EventService eventService, final CategoryService categoryService,
                             final RegistrationService registrationService, final ImageService imageService,
                             final FavoriteService favoriteService, final ReviewService reviewService,
-                            final EventQuestionService eventQuestionService, final EventAccessChecker accessChecker,
+                            final EventQuestionService eventQuestionService, final EventAccessService accessChecker,
                             final MessageSource messageSource) {
         this.eventService = eventService;
         this.categoryService = categoryService;
@@ -97,10 +98,6 @@ public class EventController {
     // errores de negocio) se resuelven aca contra el idioma del pedido actual.
     private String message(final String code, final Object... args) {
         return messageSource.getMessage(code, args, LocaleContextHolder.getLocale());
-    }
-
-    private String messageFor(final FieldError fieldError) {
-        return messageSource.getMessage(fieldError, LocaleContextHolder.getLocale());
     }
 
     @RequestMapping(value = "/", method = RequestMethod.GET)
@@ -318,10 +315,7 @@ public class EventController {
 
     private ModelAndView publishFormWithErrors(final EventForm form, final BindingResult errors,
                                                 final String imageError) {
-        final Map<String, String> fieldErrors = new HashMap<>();
-        for (final FieldError fieldError : errors.getFieldErrors()) {
-            fieldErrors.put(fieldError.getField(), messageFor(fieldError));
-        }
+        final Map<String, String> fieldErrors = FormErrors.of(errors, messageSource);
         final ModelAndView mav = new ModelAndView("events/publish");
         mav.addObject("categories", categoryService.findAll());
         mav.addObject("barrios", Barrio.values());
@@ -443,10 +437,7 @@ public class EventController {
 
     private ModelAndView editarFormWithErrors(final long id, final EventForm form, final BindingResult errors,
                                                final String imageError) {
-        final Map<String, String> fieldErrors = new HashMap<>();
-        for (final FieldError fieldError : errors.getFieldErrors()) {
-            fieldErrors.put(fieldError.getField(), messageFor(fieldError));
-        }
+        final Map<String, String> fieldErrors = FormErrors.of(errors, messageSource);
         final ModelAndView mav = new ModelAndView("events/editar");
         mav.addObject("eventId", id);
         mav.addObject("categories", categoryService.findAll());

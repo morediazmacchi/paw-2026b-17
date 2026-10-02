@@ -301,45 +301,19 @@ public class UserServiceImplTest {
     }
 
     // ---- updateProfile() ----
+    // El email ya no se recibe aca (ver UserService.updateProfile): el unico
+    // comportamiento es delegar el nombre nuevo al DAO.
 
     @Test
-    public void testUpdateProfileUpdatesWhenTheEmailIsFree() {
+    public void testUpdateProfileUpdatesTheName() {
         // Arrange
-        when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.empty());
-        when(userDao.updateProfile(USER_ID, "Nuevo Nombre", NORMALIZED_EMAIL)).thenReturn(true);
+        when(userDao.updateProfile(USER_ID, "Nuevo Nombre")).thenReturn(true);
 
         // Act
-        final ProfileUpdateResult result = userService.updateProfile(USER_ID, "Nuevo Nombre", EMAIL);
+        final boolean result = userService.updateProfile(USER_ID, "Nuevo Nombre");
 
         // Assert
-        assertEquals(ProfileUpdateResult.UPDATED, result);
-    }
-
-    @Test
-    public void testUpdateProfileAllowsKeepingYourOwnEmail() {
-        // Arrange
-        when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(someUser()));
-        when(userDao.updateProfile(USER_ID, "Otro Nombre", NORMALIZED_EMAIL)).thenReturn(true);
-
-        // Act
-        final ProfileUpdateResult result = userService.updateProfile(USER_ID, "Otro Nombre", EMAIL);
-
-        // Assert
-        assertEquals(ProfileUpdateResult.UPDATED, result);
-    }
-
-    @Test
-    public void testUpdateProfileRejectsAnEmailThatBelongsToSomeoneElse() {
-        // Arrange
-        final User someoneElse = someUser();
-        someoneElse.setId(USER_ID + 1);
-        when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(someoneElse));
-
-        // Act
-        final ProfileUpdateResult result = userService.updateProfile(USER_ID, NAME, EMAIL);
-
-        // Assert
-        assertEquals(ProfileUpdateResult.EMAIL_TAKEN, result);
+        assertTrue(result);
     }
 
     // ---- changePassword() ----

@@ -3,6 +3,7 @@ package ar.edu.itba.paw.webapp.controller;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.services.EventAccessService;
 import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.FavoriteService;
 import ar.edu.itba.paw.services.ModerationService;
@@ -30,7 +31,7 @@ import java.util.Optional;
 // Acciones que un visitante hace sobre un evento (no su organizador): RSVP,
 // favoritos, reportar. No comparte nada con el armado del evento en si
 // (EventController) salvo el chequeo de acceso a eventos privados
-// (EventAccessChecker).
+// (EventAccessService).
 @Controller
 public class EventRegistrationController {
 
@@ -38,12 +39,12 @@ public class EventRegistrationController {
     private final RegistrationService registrationService;
     private final FavoriteService favoriteService;
     private final ModerationService moderationService;
-    private final EventAccessChecker accessChecker;
+    private final EventAccessService accessChecker;
 
     @Autowired
     public EventRegistrationController(final EventService eventService, final RegistrationService registrationService,
                                         final FavoriteService favoriteService, final ModerationService moderationService,
-                                        final EventAccessChecker accessChecker) {
+                                        final EventAccessService accessChecker) {
         this.eventService = eventService;
         this.registrationService = registrationService;
         this.favoriteService = favoriteService;
@@ -192,7 +193,7 @@ public class EventRegistrationController {
     }
 
     // El evento, o EventNotFoundException (404) si no existe o quien pide no puede
-    // verlo (ver EventAccessChecker): el mismo 404 en ambos casos, para no
+    // verlo (ver EventAccessService): el mismo 404 en ambos casos, para no
     // confirmar que un evento privado existe.
     private Event findViewableEvent(final long id, final User currentUser) {
         final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
