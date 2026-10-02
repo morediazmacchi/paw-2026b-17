@@ -6,8 +6,8 @@
     --text-muted: #a3a3a3;
     --accent: #c6ff3a;
     --accent-text: #101a00;
-    --danger-bg: #1f2e1a;
-    --danger-border: #3b5c2c;
+    --danger-bg: #2e1616;
+    --danger-border: #5c2626;
 }
 
 * {
@@ -301,6 +301,11 @@ a {
     border-radius: 999px;
     background: rgba(13, 13, 13, 0.6);
     border: 1px solid rgba(255, 255, 255, 0.2);
+    /* En un <span> esto ya se heredaba del body y sobraba, pero el boton de
+       Destacar/Quitar (ver .detail-hero-feature-btn) es un <button> de
+       verdad: el color de texto NO se hereda ahi, usa el default del
+       navegador (negro) -- ilegible contra este fondo casi negro. */
+    color: var(--text);
     font-size: 0.75rem;
     font-weight: 700;
     letter-spacing: 0.05em;
@@ -1842,7 +1847,8 @@ button.btn-accent {
 }
 
 /* Boton "peligroso": Cancelar / Eliminar. Mismo pill que .btn, distinto color.
-   OJO: no es --danger-bg/--danger-border (esas son verdes, para .alert). */
+   Rojo mas saturado que --danger-bg/--danger-border (esas son para el fondo
+   de .alert, mas oscuras/sutiles por ser un bloque de texto, no un boton). */
 .btn-danger {
     background: rgba(255, 90, 90, 0.1);
     border-color: rgba(255, 90, 90, 0.4);
@@ -2135,6 +2141,13 @@ button.btn-accent {
 .review-comment {
     margin: 8px 0 0;
     font-size: 0.9rem;
+}
+
+/* Responder una pregunta (detail.jsp): sin esto, el form queda pegado
+   contra el texto de la pregunta de arriba (.review-comment no tiene
+   margin-bottom, y el <form> no tenia ningun margen propio). */
+.question-answer-form {
+    margin-top: 14px;
 }
 
 /* Puntaje del organizador: detalle de evento y "Mis eventos" */

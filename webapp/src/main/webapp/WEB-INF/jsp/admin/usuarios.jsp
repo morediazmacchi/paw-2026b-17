@@ -60,7 +60,7 @@
                     <td data-label="${rolesColumnLabel}">
                         <div class="pills">
                             <c:forEach var="role" items="${targetUser.roles}">
-                                <span class="pill"><c:out value="${role}"/></span>
+                                <span class="pill"><spring:message code="admin.users.role.${role}"/></span>
                             </c:forEach>
                         </div>
                     </td>
