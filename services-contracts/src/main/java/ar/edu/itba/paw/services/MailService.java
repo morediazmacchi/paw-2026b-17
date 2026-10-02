@@ -12,8 +12,11 @@ public interface MailService {
      * @param to       destinatario
      * @param subject  asunto
      * @param htmlBody cuerpo del mail en HTML
+     * @return true si se pudo despachar, false si el servidor de mail fallo
+     *         (el error ya queda logueado; la excepcion no se propaga, un
+     *         mail caido no tiene que tumbar la operacion principal).
      */
-    void send(String to, String subject, String htmlBody);
+    boolean send(String to, String subject, String htmlBody);
 
     /**
      * Manda un mail armado a partir de una plantilla Thymeleaf. Es el que usa

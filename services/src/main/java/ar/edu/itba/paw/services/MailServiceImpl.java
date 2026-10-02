@@ -42,7 +42,7 @@ public class MailServiceImpl implements MailService {
      * Es el unico lugar de toda la clase que habla con el servidor de mail.
      */
     @Override
-    public void send(final String to, final String subject, final String htmlBody) {
+    public boolean send(final String to, final String subject, final String htmlBody) {
         try {
             // MimeMessage es el mail "completo" (permite HTML, adjuntos, acentos).
             // El otro camino, SimpleMailMessage, solo permite texto plano.
@@ -60,12 +60,14 @@ public class MailServiceImpl implements MailService {
 
             mailSender.send(message);
             LOGGER.info("Mail enviado a {} con asunto '{}'", to, subject);
+            return true;
 
         } catch (final Exception e) {
             // A proposito NO relanzamos: si el servidor de mail esta caido, el
             // usuario igual tiene que poder crear su evento o anotarse. El mail
             // es un efecto secundario, no la operacion principal.
             LOGGER.error("No se pudo enviar el mail a {} con asunto '{}'", to, subject, e);
+            return false;
         }
     }
 

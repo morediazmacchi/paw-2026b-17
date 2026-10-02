@@ -668,7 +668,10 @@ public class NotificationServiceImpl implements NotificationService {
      * El idioma guardado de un destinatario que YA tenemos cargado (no hace
      * falta ir a buscarlo por id).
      */
-    private Locale localeFor(final User user) {
+    // protected (no private): NotificationServiceImplTest, en el mismo paquete,
+    // lo llama directo para probar la resolucion de locale sin tener que pasar
+    // por un metodo void y espiar que le llego a MailService.
+    protected Locale localeFor(final User user) {
         return toLocale(user.getLocale());
     }
 
@@ -678,7 +681,8 @@ public class NotificationServiceImpl implements NotificationService {
      * cuenta, ver EventInvitation.userId) o sin fila (no deberia pasar, pero
      * no vale la pena reventar un mail por eso) caen los dos en DEFAULT_LOCALE.
      */
-    private Locale localeForUserId(final Long userId) {
+    // protected, mismo motivo que localeFor(User).
+    protected Locale localeForUserId(final Long userId) {
         if (userId == null) {
             return DEFAULT_LOCALE;
         }
