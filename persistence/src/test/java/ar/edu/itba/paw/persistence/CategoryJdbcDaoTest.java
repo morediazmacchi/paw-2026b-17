@@ -13,10 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import javax.sql.DataSource;
 import java.util.List;
-import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(SpringJUnit4ClassRunner.class)
@@ -70,27 +68,4 @@ public class CategoryJdbcDaoTest {
         assertTrue(result.isEmpty());
     }
 
-    @Test
-    public void testFindByIdReturnsThePresentCategory() {
-        // Arrange
-        final long id = insertCategory("Musica");
-
-        // Act
-        final Optional<Category> result = categoryDao.findById(id);
-
-        // Assert
-        assertTrue(result.isPresent());
-        assertEquals("Musica", result.get().getName());
-    }
-
-    @Test
-    public void testFindByIdReturnsEmptyWhenTheCategoryDoesNotExist() {
-        // Arrange: no se inserta ninguna categoria con ese id.
-
-        // Act
-        final Optional<Category> result = categoryDao.findById(-1);
-
-        // Assert
-        assertFalse(result.isPresent());
-    }
 }

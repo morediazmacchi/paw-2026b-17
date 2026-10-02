@@ -7,6 +7,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -37,8 +39,14 @@ public class ErrorAdvice {
     // es global) y deja "currentUser" en el Model de cada request. Sirve para
     // dos cosas: los JSP pueden usar ${currentUser} sin que cada controller lo
     // agregue a mano, y cualquier metodo de controller puede pedirlo directo
-    // como parametro con @ModelAttribute("currentUser") en vez de resolver el
-    // Principal el mismo (ver EventController.publish()).
+    // como parametro en vez de resolver el Principal el mismo (ver
+    // EventController.publish()).
+    // OJO: ese parametro SIEMPRE se declara con binding = false:
+    //     @ModelAttribute(value = "currentUser", binding = false) final User currentUser
+    // Sin eso, Spring ademas de tomar el User del Model le "bindea" encima los
+    // parametros del pedido y las {variables} de la URL (User tiene setId, setName
+    // y setEmail): en POST /eventos/7/quiero-ir el {id}=7 del evento terminaba
+    // pisando el id del usuario logueado.
     @ModelAttribute("currentUser")
     public User currentUserFromPrincipal(final Principal principal) {
         if (principal == null) {
@@ -63,6 +71,23 @@ public class ErrorAdvice {
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ModelAndView invalidIdFormat(final MethodArgumentTypeMismatchException e) {
+        return new ModelAndView("errors/404");
+    }
+
+    // Alguien abre con el navegador (GET) una URL que solo acepta POST -- un
+    // link viejo, o escribir a mano /eventos/7/quiero-ir --, o falta un parametro
+    // obligatorio. No es un fallo nuestro, asi que no es un 500 ni se loguea como
+    // error: se contesta con el codigo HTTP que corresponde y la misma pantalla
+    // de "no encontrado".
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    @ResponseStatus(HttpStatus.METHOD_NOT_ALLOWED)
+    public ModelAndView methodNotAllowed(final HttpRequestMethodNotSupportedException e) {
+        return new ModelAndView("errors/404");
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ModelAndView missingParameter(final MissingServletRequestParameterException e) {
         return new ModelAndView("errors/404");
     }
 

@@ -79,11 +79,6 @@ public class EventInvitationJdbcDao implements EventInvitationDao {
     }
 
     @Override
-    public void deleteByEventAndEmail(final long eventId, final String email) {
-        jdbcTemplate.update("DELETE FROM event_invitation WHERE event_id = ? AND email = ?", eventId, email);
-    }
-
-    @Override
     public List<EventInvitation> findByEvent(final long eventId) {
         return jdbcTemplate.query(
                 "SELECT * FROM event_invitation WHERE event_id = ? ORDER BY created_at DESC",

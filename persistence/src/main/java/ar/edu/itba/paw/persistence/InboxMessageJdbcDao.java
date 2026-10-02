@@ -63,38 +63,6 @@ public class InboxMessageJdbcDao implements InboxMessageDao {
     }
 
     @Override
-    public List<InboxMessage> findByRecipient(final String email, final int page, final int pageSize) {
-        // id como desempate: dos avisos creados en la misma transaccion tienen el
-        // mismo created_at, y sin esto podrian cambiar de pagina entre consultas.
-        return jdbcTemplate.query(
-                "SELECT * FROM inbox_message WHERE recipient_email = ? "
-                        + "ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?",
-                ROW_MAPPER, email, pageSize, (page - 1) * pageSize);
-    }
-
-    @Override
-    public long countByRecipient(final String email) {
-        final Long count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM inbox_message WHERE recipient_email = ?", Long.class, email);
-        return count == null ? 0 : count;
-    }
-
-    @Override
-    public long countUnread(final String email) {
-        final Long count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM inbox_message WHERE recipient_email = ? AND read_at IS NULL",
-                Long.class, email);
-        return count == null ? 0 : count;
-    }
-
-    @Override
-    public void markAllRead(final String email, final Date when) {
-        jdbcTemplate.update(
-                "UPDATE inbox_message SET read_at = ? WHERE recipient_email = ? AND read_at IS NULL",
-                new Timestamp(when.getTime()), email);
-    }
-
-    @Override
     public List<InboxMessage> findByRecipientUserId(final long userId, final int page, final int pageSize) {
         return jdbcTemplate.query(
                 "SELECT * FROM inbox_message WHERE user_id = ? "

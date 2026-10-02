@@ -10,6 +10,7 @@ import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.EventInvitationDao;
 import ar.edu.itba.paw.persistence.RegistrationDao;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +27,22 @@ public class RegistrationServiceImpl implements RegistrationService {
     private final NotificationService notificationService;
     private final EventInvitationDao invitationDao;
     private final InboxService inboxService;
+    // Proxy propio: cancel()/revoke() llaman a promoteFromWaitlist() de esta
+    // misma clase, y ese es un metodo @Transactional del contrato publico (lo
+    // llaman tambien EventServiceImpl y los tests, via el proxy de siempre).
+    // Una llamada directa (this implicito) no pasa por el proxy de Spring, asi
+    // que ignoraria en silencio cualquier semantica de AOP que dependa de el
+    // (otra propagacion, rollbackFor, etc.) si el dia de mañana cambia. Por
+    // inyeccion de campo (no de constructor, a diferencia del resto de esta
+    // clase): un parametro de constructor "me a mi mismo" rompe la construccion
+    // manual en los tests (new RegistrationServiceImpl(...)), que no pasan por
+    // un ApplicationContext. @Lazy rompe el ciclo en produccion: el bean termina
+    // de construirse antes de que este campo se resuelva de verdad. Paquete-visible
+    // (no private) para que el test, en el mismo paquete, lo pueda asignar
+    // directo sin reflection.
+    @Autowired
+    @Lazy
+    RegistrationService self;
 
     @Autowired
     public RegistrationServiceImpl(final RegistrationDao registrationDao, final EventDao eventDao,
@@ -40,16 +57,22 @@ public class RegistrationServiceImpl implements RegistrationService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public RegistrationResult register(final long eventId, final User user) {
+        // Bloquea la fila del evento ANTES de chequear si ya existe: dos clics
+        // simultaneos del mismo usuario ahora se serializan en este lock (el
+        // segundo espera a que el primero termine su transaccion), en vez de
+        // pasar los dos el chequeo de "existing" y recien chocar contra el
+        // UNIQUE(event_id, email) al insertar -- que era lo que obligaba al
+        // controller a reintentar en una segunda transaccion (ver
+        // EventRegistrationController.registerRetryingOnConflict()).
+        final Event event = eventDao.findByIdForUpdate(eventId)
+                .orElseThrow(() -> new IllegalArgumentException("Evento inexistente: " + eventId));
+
         final Registration existing = registrationDao.findByEventAndUserId(eventId, user.getId()).orElse(null);
         if (existing != null) {
             return alreadyExistsResult(existing.getStatus());
         }
-
-        // Bloquea la fila para que dos registros concurrentes no se pisen.
-        final Event event = eventDao.findByIdForUpdate(eventId)
-                .orElseThrow(() -> new IllegalArgumentException("Evento inexistente: " + eventId));
 
         // El creador no se anota a su propio evento: no tiene sentido pedirse
         // aprobacion a si mismo en uno con requiresApproval, ni "invitarse" a
@@ -82,7 +105,9 @@ public class RegistrationServiceImpl implements RegistrationService {
         final boolean full = isFull(event, invited);
         final RegistrationStatus status = registrationStatus(event, full, invited);
 
-        // Si viola el UNIQUE(event_id, email), se propaga: quien llama reintenta en otra transaccion.
+        // El UNIQUE(event_id, email) sigue siendo la ultima red, pero ya no
+        // deberia dispararse en el camino normal: el lock de arriba serializa
+        // los clics simultaneos del mismo usuario antes de llegar aca.
         final Registration registration = new Registration(eventId, normalizedEmail, user.getName(), status);
         // Quien se anota siempre esta logueado (el endpoint lo exige, ver
         // EventController.rsvp()): a diferencia de antes, no hace falta
@@ -233,7 +258,7 @@ public class RegistrationServiceImpl implements RegistrationService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public UnregisterResult cancel(final long registrationId, final long userId) {
         final Registration unlocked = registrationDao.findById(registrationId).orElse(null);
         if (unlocked == null || !Long.valueOf(userId).equals(unlocked.getUserId())) {
@@ -271,7 +296,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         // pasa ninguna. Devuelve a cuantos movio, para poder contarselo al
         // organizador sin volver a consultar. Que se vaya alguien pendiente o de
         // la lista de espera no libera nada: no ocupaban cupo.
-        final int promoted = wasConfirmed ? promoteFromWaitlist(eventId) : 0;
+        final int promoted = wasConfirmed ? self.promoteFromWaitlist(eventId) : 0;
 
         // Solo se avisa si se libero un lugar de verdad. Que alguien salga de la
         // lista de espera no le cambia nada al organizador: el cupo disponible
@@ -311,7 +336,7 @@ public class RegistrationServiceImpl implements RegistrationService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public ApprovalResult approve(final long registrationId, final long creatorId) {
         final Registration unlocked = pendingOwnedBy(registrationId, creatorId).orElse(null);
         if (unlocked == null) {
@@ -360,7 +385,7 @@ public class RegistrationServiceImpl implements RegistrationService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public boolean reject(final long registrationId, final long creatorId) {
         final Registration unlocked = pendingOwnedBy(registrationId, creatorId).orElse(null);
         if (unlocked == null) {
@@ -388,7 +413,7 @@ public class RegistrationServiceImpl implements RegistrationService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public boolean revoke(final long registrationId, final long creatorId) {
         final Registration unlocked = registrationDao.findById(registrationId).orElse(null);
         if (unlocked == null) {
@@ -415,12 +440,12 @@ public class RegistrationServiceImpl implements RegistrationService {
         notificationService.notifyRegistrationRevoked(event, registration);
         inboxService.add(registration.getEmail(), InboxMessageType.REGISTRATION_REVOKED, eventId, null, null);
         // El lugar que quedo libre se lo lleva el primero de la lista de espera.
-        promoteFromWaitlist(eventId);
+        self.promoteFromWaitlist(eventId);
         return true;
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public int promoteFromWaitlist(final long eventId) {
         // FOR UPDATE: dos bajas simultaneas se serializan aca y no le dan el mismo
         // lugar a dos personas.

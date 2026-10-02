@@ -23,7 +23,6 @@ public class ImageJdbcDao implements ImageDao {
         image.setContentType(rs.getString("content_type"));
         image.setFileName(rs.getString("file_name"));
         image.setFileSize(rs.getObject("file_size", Integer.class));
-        image.setChecksum(rs.getString("checksum"));
         image.setUploadedAt(rs.getTimestamp("uploaded_at"));
         return image;
     };
@@ -37,7 +36,7 @@ public class ImageJdbcDao implements ImageDao {
         this.jdbcInsert = new SimpleJdbcInsert(ds)
                 .withTableName("image")
                 .usingGeneratedKeyColumns("id")
-                .usingColumns("data", "content_type", "file_name", "file_size", "checksum");
+                .usingColumns("data", "content_type", "file_name", "file_size");
     }
 
     @Override
@@ -47,7 +46,6 @@ public class ImageJdbcDao implements ImageDao {
         args.put("content_type", image.getContentType());
         args.put("file_name", image.getFileName());
         args.put("file_size", image.getFileSize());
-        args.put("checksum", image.getChecksum());
 
         final Number id = jdbcInsert.executeAndReturnKey(args);
         image.setId(id.longValue());
@@ -57,6 +55,14 @@ public class ImageJdbcDao implements ImageDao {
     @Override
     public Optional<Image> findById(final long id) {
         return jdbcTemplate.query("SELECT * FROM image WHERE id = ?", ROW_MAPPER, id)
+                .stream().findFirst();
+    }
+
+    @Override
+    public Optional<Long> findOwnerEventId(final long imageId) {
+        // event_image.image_id es UNIQUE: a lo sumo una fila por imagen.
+        return jdbcTemplate.query("SELECT event_id FROM event_image WHERE image_id = ?",
+                        (rs, rowNum) -> rs.getLong("event_id"), imageId)
                 .stream().findFirst();
     }
 }

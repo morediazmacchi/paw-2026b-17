@@ -134,7 +134,7 @@ public class WebAuthConfig {
     public SecurityFilterChain filterChain(final HttpSecurity http) throws Exception {
         http.authenticationProvider(authenticationProvider())
                 .authorizeRequests(auth -> auth
-                        .antMatchers("/css/**", "/js/**", "/images/**", "/image/**").permitAll()
+                        .antMatchers("/css/**", "/js/**", "/image/**").permitAll()
                         .antMatchers("/login", "/login/nueva-contrasena", "/registro").permitAll()
                         .antMatchers("/login/recuperar", "/login/restablecer").permitAll()
                         .antMatchers("/login/reenviar-confirmacion", "/confirmar-cuenta").permitAll()

@@ -5,6 +5,7 @@ import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.Review;
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.ReviewDao;
 import org.junit.Before;
 import org.junit.Test;
@@ -28,7 +29,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 /**
- * Tests unitarios con Mockito: ReviewDao, EventService y RegistrationService son @Mock
+ * Tests unitarios con Mockito: ReviewDao, EventDao y RegistrationService son @Mock
  * y cada test asierta sobre lo que devuelve el service (sin verify).
  */
 @RunWith(MockitoJUnitRunner.class)
@@ -45,7 +46,7 @@ public class ReviewServiceImplTest {
     @Mock
     private ReviewDao reviewDao;
     @Mock
-    private EventService eventService;
+    private EventDao eventDao;
     @Mock
     private RegistrationService registrationService;
 
@@ -53,7 +54,7 @@ public class ReviewServiceImplTest {
 
     @Before
     public void setUp() {
-        reviewService = new ReviewServiceImpl(reviewDao, eventService, registrationService);
+        reviewService = new ReviewServiceImpl(reviewDao, eventDao, registrationService);
     }
 
     private static User someUser() {
@@ -119,7 +120,7 @@ public class ReviewServiceImplTest {
     // Usuario que puede opinar: no opino todavia, el evento ya paso y estaba confirmado.
     private void eligibleUser() {
         when(reviewDao.findByEventAndUser(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(pastEvent()));
+        when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(pastEvent()));
         when(registrationService.findByEventAndUserId(EVENT_ID, USER_ID))
                 .thenReturn(Optional.of(registrationOfTheUser(RegistrationStatus.CONFIRMED)));
     }
@@ -159,6 +160,7 @@ public class ReviewServiceImplTest {
     @Test
     public void testCreateFailsWhenAlreadyReviewed() {
         // Arrange
+        when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(pastEvent()));
         when(reviewDao.findByEventAndUser(EVENT_ID, USER_ID))
                 .thenReturn(Optional.of(new Review(EVENT_ID, USER_ID, 5, "Ya la mande")));
 
@@ -189,7 +191,7 @@ public class ReviewServiceImplTest {
     public void testCreateFailsWhenTheEventDoesNotExist() {
         // Arrange
         when(reviewDao.findByEventAndUser(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.empty());
+        when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
         final ReviewResult result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
@@ -202,7 +204,7 @@ public class ReviewServiceImplTest {
     public void testCreateFailsWhenTheEventHasNotFinishedYet() {
         // Arrange
         when(reviewDao.findByEventAndUser(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(futureEvent()));
+        when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(futureEvent()));
 
         // Act
         final ReviewResult result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
@@ -215,7 +217,7 @@ public class ReviewServiceImplTest {
     public void testCreateFailsWhenTheUserWasNeverRegistered() {
         // Arrange
         when(reviewDao.findByEventAndUser(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(pastEvent()));
+        when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(pastEvent()));
         when(registrationService.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
 
         // Act
@@ -231,7 +233,7 @@ public class ReviewServiceImplTest {
         final Event cancelled = pastEvent();
         cancelled.setCancelledAt(new Date());
         when(reviewDao.findByEventAndUser(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(cancelled));
+        when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(cancelled));
         // Aunque el usuario si estuvo confirmado, un evento cancelado no se puede opinar: el service
         // corta antes de mirar la inscripcion, por eso este stub es lenient (no se usa a proposito).
         lenient().when(registrationService.findByEventAndUserId(EVENT_ID, USER_ID))
@@ -248,7 +250,7 @@ public class ReviewServiceImplTest {
     public void testCreateFailsWhenTheUserOnlyReachedTheWaitlist() {
         // Arrange
         when(reviewDao.findByEventAndUser(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(pastEvent()));
+        when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(pastEvent()));
         when(registrationService.findByEventAndUserId(EVENT_ID, USER_ID))
                 .thenReturn(Optional.of(registrationOfTheUser(RegistrationStatus.WAITLISTED)));
 

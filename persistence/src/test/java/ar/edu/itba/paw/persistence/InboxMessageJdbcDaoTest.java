@@ -71,13 +71,6 @@ public class InboxMessageJdbcDaoTest {
         return lastInsertedId();
     }
 
-    private long insertMessageAt(final String email, final InboxMessageType type, final Timestamp createdAt) {
-        jdbcTemplate.update(
-                "INSERT INTO inbox_message (recipient_email, type, event_id, created_at) VALUES (?, ?, ?, ?)",
-                email, type.name(), eventId, createdAt);
-        return lastInsertedId();
-    }
-
     private String whereId(final long id) {
         return "id = " + id;
     }
@@ -175,194 +168,19 @@ public class InboxMessageJdbcDaoTest {
         assertNull(storedUserId);
     }
 
-    // ---- findByRecipient() ----
-
-    @Test
-    public void testFindByRecipientReturnsTheStoredMessageUnread() {
-        // Arrange
-        insertMessage(EMAIL, null, InboxMessageType.NEW_REGISTRATION, eventId, "Juan", "hola");
-
-        // Act
-        final List<InboxMessage> found = inboxMessageDao.findByRecipient(EMAIL, 1, 20);
-
-        // Assert
-        assertEquals(1, found.size());
-        final InboxMessage m = found.get(0);
-        assertEquals(InboxMessageType.NEW_REGISTRATION, m.getType());
-        assertEquals(Long.valueOf(eventId), m.getEventId());
-        assertEquals("Juan", m.getActorName());
-        assertEquals("hola", m.getBody());
-        assertTrue(m.getCreatedAt() != null);
-        assertTrue(m.isUnread());
-    }
-
-    @Test
-    public void testFindByRecipientReturnsNullEventIdWhenStoredNull() {
-        // Arrange
-        insertMessage(EMAIL, null, InboxMessageType.PRIVATE_INVITE, null, null, null);
-
-        // Act
-        final List<InboxMessage> found = inboxMessageDao.findByRecipient(EMAIL, 1, 20);
-
-        // Assert
-        assertNull(found.get(0).getEventId());
-    }
-
-    @Test
-    public void testFindByRecipientOnlyReturnsThatRecipientsMessages() {
-        // Arrange
-        insertMessage(EMAIL, null, InboxMessageType.NEW_REGISTRATION, eventId, null, null);
-        insertMessage(OTHER_EMAIL, null, InboxMessageType.NEW_REGISTRATION, eventId, null, null);
-
-        // Act
-        final List<InboxMessage> found = inboxMessageDao.findByRecipient(EMAIL, 1, 20);
-
-        // Assert
-        assertEquals(1, found.size());
-    }
-
-    @Test
-    public void testFindByRecipientOrdersNewestFirst() {
-        // Arrange
-        final Timestamp t1 = new Timestamp(System.currentTimeMillis() - 2000);
-        final Timestamp t2 = new Timestamp(System.currentTimeMillis() - 1000);
-        final Timestamp t3 = new Timestamp(System.currentTimeMillis());
-        final long primero = insertMessageAt(EMAIL, InboxMessageType.REGISTERED_CONFIRMED, t1);
-        final long segundo = insertMessageAt(EMAIL, InboxMessageType.EVENT_UPDATED, t2);
-        final long tercero = insertMessageAt(EMAIL, InboxMessageType.EVENT_CANCELLED, t3);
-
-        // Act
-        final List<InboxMessage> found = inboxMessageDao.findByRecipient(EMAIL, 1, 20);
-
-        // Assert
-        assertEquals(tercero, found.get(0).getId());
-        assertEquals(segundo, found.get(1).getId());
-        assertEquals(primero, found.get(2).getId());
-    }
-
-    @Test
-    public void testFindByRecipientFirstPageHasAsManyMessagesAsThePageSize() {
-        // Arrange
-        insertMessageAt(EMAIL, InboxMessageType.REGISTERED_CONFIRMED, new Timestamp(System.currentTimeMillis() - 2000));
-        insertMessageAt(EMAIL, InboxMessageType.EVENT_UPDATED, new Timestamp(System.currentTimeMillis() - 1000));
-        insertMessageAt(EMAIL, InboxMessageType.EVENT_CANCELLED, new Timestamp(System.currentTimeMillis()));
-
-        // Act
-        final List<InboxMessage> pagina1 = inboxMessageDao.findByRecipient(EMAIL, 1, 2);
-
-        // Assert
-        assertEquals(2, pagina1.size());
-    }
-
-    @Test
-    public void testFindByRecipientSecondPageHasTheRemainingOldestMessage() {
-        // Arrange
-        final long primero = insertMessageAt(EMAIL, InboxMessageType.REGISTERED_CONFIRMED,
-                new Timestamp(System.currentTimeMillis() - 2000));
-        insertMessageAt(EMAIL, InboxMessageType.EVENT_UPDATED, new Timestamp(System.currentTimeMillis() - 1000));
-        insertMessageAt(EMAIL, InboxMessageType.EVENT_CANCELLED, new Timestamp(System.currentTimeMillis()));
-
-        // Act
-        final List<InboxMessage> pagina2 = inboxMessageDao.findByRecipient(EMAIL, 2, 2);
-
-        // Assert
-        assertEquals(1, pagina2.size());
-        assertEquals(primero, pagina2.get(0).getId());
-    }
-
-    // ---- countByRecipient() ----
-
-    @Test
-    public void testCountByRecipientCountsOnlyThatRecipientsMessages() {
-        // Arrange
-        insertMessage(EMAIL, null, InboxMessageType.NEW_REGISTRATION, eventId, null, null);
-        insertMessage(EMAIL, null, InboxMessageType.NEW_PENDING, eventId, null, null);
-        insertMessage(OTHER_EMAIL, null, InboxMessageType.NEW_REGISTRATION, eventId, null, null);
-
-        // Act
-        final long count = inboxMessageDao.countByRecipient(EMAIL);
-
-        // Assert
-        assertEquals(2, count);
-    }
-
-    @Test
-    public void testCountByRecipientReturnsZeroWhenThereAreNoMessages() {
-        // Arrange: no se inserta ningun mensaje.
-
-        // Act
-        final long count = inboxMessageDao.countByRecipient(EMAIL);
-
-        // Assert
-        assertEquals(0, count);
-    }
-
-    // ---- countUnread() ----
-
-    @Test
-    public void testCountUnreadCountsOnlyUnreadMessagesOfThatRecipient() {
-        // Arrange
-        insertMessage(EMAIL, null, InboxMessageType.NEW_REGISTRATION, eventId, null, null);
-        final long readId = insertMessage(EMAIL, null, InboxMessageType.NEW_PENDING, eventId, null, null);
-        jdbcTemplate.update("UPDATE inbox_message SET read_at = ? WHERE id = ?", new Timestamp(System.currentTimeMillis()), readId);
-        insertMessage(OTHER_EMAIL, null, InboxMessageType.NEW_REGISTRATION, eventId, null, null);
-
-        // Act
-        final long count = inboxMessageDao.countUnread(EMAIL);
-
-        // Assert
-        assertEquals(1, count);
-    }
-
-    // ---- markAllRead() ----
-
-    @Test
-    public void testMarkAllReadSetsReadAtOnlyForThatRecipientsUnreadMessages() {
-        // Arrange
-        final long first = insertMessage(EMAIL, null, InboxMessageType.NEW_REGISTRATION, eventId, null, null);
-        final long second = insertMessage(EMAIL, null, InboxMessageType.NEW_PENDING, eventId, null, null);
-        final long other = insertMessage(OTHER_EMAIL, null, InboxMessageType.NEW_REGISTRATION, eventId, null, null);
-
-        // Act
-        inboxMessageDao.markAllRead(EMAIL, new Date());
-
-        // Assert
-        assertEquals(0, JdbcTestUtils.countRowsInTableWhere(
-                jdbcTemplate, "inbox_message", whereId(first) + " AND read_at IS NULL"));
-        assertEquals(0, JdbcTestUtils.countRowsInTableWhere(
-                jdbcTemplate, "inbox_message", whereId(second) + " AND read_at IS NULL"));
-        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
-                jdbcTemplate, "inbox_message", whereId(other) + " AND read_at IS NULL"));
-    }
-
-    @Test
-    public void testMarkAllReadDoesNotOverwriteAnAlreadyReadMessage() {
-        // Arrange
-        final long id = insertMessage(EMAIL, null, InboxMessageType.NEW_REGISTRATION, eventId, null, null);
-        final Timestamp primeraVez = new Timestamp(System.currentTimeMillis() - 86_400_000L);
-        jdbcTemplate.update("UPDATE inbox_message SET read_at = ? WHERE id = ?", primeraVez, id);
-
-        // Act
-        inboxMessageDao.markAllRead(EMAIL, new Date());
-
-        // Assert
-        final Timestamp readAt = jdbcTemplate.queryForObject(
-                "SELECT read_at FROM inbox_message WHERE id = ?", Timestamp.class, id);
-        assertEquals(primeraVez.getTime(), readAt.getTime());
-    }
-
     // ---- ON DELETE CASCADE con event ----
 
     // El borrado en cascada es una propiedad del esquema (se arma por SQL en el Arrange);
-    // lo que prueba el DAO es que countByRecipient() ya no cuenta esos mensajes.
+    // lo que prueba el DAO es que countByUserId() ya no cuenta esos mensajes.
     @Test
-    public void testCountByRecipientDoesNotCountMessagesOfADeletedEvent() {
+    public void testCountByUserIdDoesNotCountMessagesOfADeletedEvent() {
         // Arrange
-        insertMessage(EMAIL, null, InboxMessageType.NEW_REGISTRATION, eventId, null, null);
+        final long userId = insertUser(EMAIL);
+        insertMessage(EMAIL, userId, InboxMessageType.NEW_REGISTRATION, eventId, null, null);
         jdbcTemplate.update("DELETE FROM event WHERE id = ?", eventId);
 
         // Act
-        final long count = inboxMessageDao.countByRecipient(EMAIL);
+        final long count = inboxMessageDao.countByUserId(userId);
 
         // Assert
         assertEquals(0, count);

@@ -124,35 +124,6 @@ public class UserServiceImplTest {
         assertFalse(result.isPresent());
     }
 
-    // ---- findOrCreate() ----
-
-    @Test
-    public void testFindOrCreateReturnsTheExistingUserAndNormalizesTheEmail() {
-        // Arrange
-        when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(someUser()));
-
-        // Act
-        final User result = userService.findOrCreate(EMAIL, NAME);
-
-        // Assert
-        assertEquals(USER_ID, result.getId());
-        assertEquals(NORMALIZED_EMAIL, result.getEmail());
-    }
-
-    @Test
-    public void testFindOrCreateCreatesANewUserWithTheNormalizedEmailWhenNoneExists() {
-        // Arrange
-        when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.empty());
-        when(userDao.create(argThat(user -> NORMALIZED_EMAIL.equals(user.getEmail()) && NAME.equals(user.getName()))))
-                .thenReturn(someUser());
-
-        // Act
-        final User result = userService.findOrCreate(EMAIL, NAME);
-
-        // Assert
-        assertEquals(USER_ID, result.getId());
-    }
-
     // ---- findByEmail() ----
 
     @Test
@@ -179,7 +150,7 @@ public class UserServiceImplTest {
         when(userDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
     }
 
-    // Fantasma: lo creo findOrCreate (publicar/inscribirse sin login), password null.
+    // Fantasma: fila sin password (puede quedar de datos viejos, ver UserService.register()).
     private void ghostFlow() {
         when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(someUser()));
         when(userDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));

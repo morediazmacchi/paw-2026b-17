@@ -345,25 +345,6 @@ public class EventJdbcDao implements EventDao {
     }
 
     @Override
-    public List<Event> findAll() {
-        final List<Event> events = jdbcTemplate.query(
-                SELECT_BASE + " WHERE e.cancelled_at IS NULL ORDER BY e.event_date", ROW_MAPPER);
-        attachRelated(events);
-        return events;
-    }
-
-    @Override
-    public List<Event> findByCategory(final long categoryId) {
-        final List<Event> events = jdbcTemplate.query(
-                SELECT_BASE + " WHERE EXISTS (SELECT 1 FROM event_category ec "
-                        + "WHERE ec.event_id = e.id AND ec.category_id = ?) "
-                        + "AND e.cancelled_at IS NULL ORDER BY e.event_date",
-                ROW_MAPPER, categoryId);
-        attachRelated(events);
-        return events;
-    }
-
-    @Override
     public List<Event> findByCreatorId(final long creatorId) {
         final List<Event> events = jdbcTemplate.query(SELECT_BASE + " WHERE e.creator_id = ? ORDER BY e.event_date DESC",
                 ROW_MAPPER, creatorId);

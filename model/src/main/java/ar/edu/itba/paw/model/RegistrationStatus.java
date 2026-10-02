@@ -1,7 +1,7 @@
 // Los cuatro estados posibles de una inscripcion. En la base se guardan con
-// name() (en mayuscula) y se leen con valueOf(), igual que InvitationStatus,
-// EventVisibility y Barrio. Tienen que coincidir con el CHECK de la columna
-// status en la tabla registration (schema.sql y postgres-migrations.sql).
+// name() (en mayuscula) y se leen con valueOf(), igual que EventVisibility y
+// Barrio. Tienen que coincidir con el CHECK de la columna status en la tabla
+// registration (schema.sql y postgres-migrations.sql).
 package ar.edu.itba.paw.model;
 
 public enum RegistrationStatus {

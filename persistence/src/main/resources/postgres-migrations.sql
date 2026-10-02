@@ -34,7 +34,7 @@
 -- son sentencias simples, ninguna con nada adentro que lleve ";".
 --
 -- Estados en MAYUSCULA (RegistrationStatus.name()/valueOf(), mismo criterio que
--- InvitationStatus, EventVisibility y Barrio). Antes eran minuscula.
+-- EventVisibility y Barrio). Antes eran minuscula.
 -- OJO, el orden importa:
 --   1. Los DROP primero: mientras este el CHECK viejo (solo minuscula), el
 --      UPDATE a mayuscula lo violaria.
@@ -169,3 +169,48 @@ ALTER TABLE event_image ADD CONSTRAINT event_image_image_id_fk
 
 ALTER TABLE event_image DROP CONSTRAINT IF EXISTS event_image_image_id_uq;
 ALTER TABLE event_image ADD CONSTRAINT event_image_image_id_uq UNIQUE (image_id);
+
+-- Limpieza de restos del sistema viejo de lista de espera (invitacion con 24hs
+-- para aceptar/rechazar, reemplazado por promoteFromWaitlist(): quien sale de
+-- la espera pasa confirmado/pendiente directo, sin tener que aceptar nada).
+-- Primero las filas de bandeja: InboxMessageType ya no tiene estas 3 constantes
+-- (WAITLIST_SPOT_OFFERED/ACCEPTED/DECLINED, nunca se vuelven a generar), asi que
+-- InboxMessageJdbcDao.valueOf() reventaria con un 500 al leer la bandeja de
+-- quien tenga alguna fila vieja con ese type. Idempotente: la segunda vez que
+-- corre no encuentra ninguna fila con esos types y no hace nada.
+DELETE FROM inbox_message WHERE type IN ('WAITLIST_SPOT_OFFERED', 'WAITLIST_ACCEPTED', 'WAITLIST_DECLINED');
+
+-- La tabla en si, del esquema anterior a promoteFromWaitlist(): ya nadie la lee
+-- ni la escribe (ver schema.sql). IF EXISTS la hace idempotente.
+DROP TABLE IF EXISTS waitlist_invitation;
+
+-- Columnas de fecha/hora sin zona horaria -> WITH TIME ZONE (ver schema.sql,
+-- donde ya nacen asi para una base nueva/HSQLDB). El USING de cada ALTER es
+-- "columna::timestamptz", nunca "columna AT TIME ZONE 'algo'": ese cast simple
+-- es lo que lo hace idempotente sin DO block (mismo motivo que el resto del
+-- archivo para no usar DO, ver comentario de arriba de todo). La primera vez
+-- que corre, columna es TIMESTAMP (sin tz): Postgres interpreta cada valor
+-- existente en la zona horaria de la sesion (la misma que ya se usaba para
+-- mostrarlo), asi que no cambia ningun dato visible, solo lo vuelve inequivoco
+-- de ahi en mas. La segunda vez que corre, columna ya es TIMESTAMPTZ: el mismo
+-- cast ahi es un no-op (timestamptz::timestamptz), no reinterpreta nada.
+ALTER TABLE image ALTER COLUMN uploaded_at TYPE TIMESTAMP WITH TIME ZONE USING uploaded_at::timestamptz;
+ALTER TABLE event ALTER COLUMN event_date TYPE TIMESTAMP WITH TIME ZONE USING event_date::timestamptz;
+ALTER TABLE event ALTER COLUMN created_at TYPE TIMESTAMP WITH TIME ZONE USING created_at::timestamptz;
+ALTER TABLE event ALTER COLUMN cancelled_at TYPE TIMESTAMP WITH TIME ZONE USING cancelled_at::timestamptz;
+ALTER TABLE event ALTER COLUMN reminder_sent_at TYPE TIMESTAMP WITH TIME ZONE USING reminder_sent_at::timestamptz;
+ALTER TABLE event ALTER COLUMN featured_at TYPE TIMESTAMP WITH TIME ZONE USING featured_at::timestamptz;
+ALTER TABLE event_image ALTER COLUMN created_at TYPE TIMESTAMP WITH TIME ZONE USING created_at::timestamptz;
+ALTER TABLE registration ALTER COLUMN registered_at TYPE TIMESTAMP WITH TIME ZONE USING registered_at::timestamptz;
+ALTER TABLE favorite ALTER COLUMN created_at TYPE TIMESTAMP WITH TIME ZONE USING created_at::timestamptz;
+ALTER TABLE verification_token ALTER COLUMN expires_at TYPE TIMESTAMP WITH TIME ZONE USING expires_at::timestamptz;
+ALTER TABLE verification_token ALTER COLUMN created_at TYPE TIMESTAMP WITH TIME ZONE USING created_at::timestamptz;
+ALTER TABLE review ALTER COLUMN created_at TYPE TIMESTAMP WITH TIME ZONE USING created_at::timestamptz;
+ALTER TABLE event_invitation ALTER COLUMN created_at TYPE TIMESTAMP WITH TIME ZONE USING created_at::timestamptz;
+ALTER TABLE inbox_message ALTER COLUMN created_at TYPE TIMESTAMP WITH TIME ZONE USING created_at::timestamptz;
+ALTER TABLE inbox_message ALTER COLUMN read_at TYPE TIMESTAMP WITH TIME ZONE USING read_at::timestamptz;
+ALTER TABLE event_question ALTER COLUMN created_at TYPE TIMESTAMP WITH TIME ZONE USING created_at::timestamptz;
+ALTER TABLE event_question ALTER COLUMN answered_at TYPE TIMESTAMP WITH TIME ZONE USING answered_at::timestamptz;
+ALTER TABLE event_report ALTER COLUMN created_at TYPE TIMESTAMP WITH TIME ZONE USING created_at::timestamptz;
+ALTER TABLE event_report ALTER COLUMN resolved_at TYPE TIMESTAMP WITH TIME ZONE USING resolved_at::timestamptz;
+ALTER TABLE event_report ALTER COLUMN changes_requested_at TYPE TIMESTAMP WITH TIME ZONE USING changes_requested_at::timestamptz;

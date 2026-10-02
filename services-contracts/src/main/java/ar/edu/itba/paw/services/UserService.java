@@ -17,11 +17,6 @@ public interface UserService {
     List<User> findAll();
 
     /**
-     * Busca un user por email; si no existe, lo crea. Nunca pisa un user existente.
-     */
-    User findOrCreate(String email, String name);
-
-    /**
      * Para autenticacion: el User que devuelve ya trae password y roles
      * (ver UserDao). Nunca es null "porque no tiene roles": eso es un Set vacio,
      * no ausencia de Optional.
@@ -29,10 +24,10 @@ public interface UserService {
     Optional<User> findByEmail(String email);
 
     /**
-     * Registro propio (login/registro), no findOrCreate. Hashea rawPassword y
-     * asigna ROLE_USER. Si el email ya existe pero es un usuario "fantasma"
-     * (findOrCreate, sin password: nunca pudo loguearse) reclama esa misma fila
-     * en vez de rechazar el registro. Si el email ya tiene password, EMAIL_TAKEN.
+     * Registro propio (login/registro). Hashea rawPassword y asigna ROLE_USER.
+     * Si el email ya existe pero es un usuario "fantasma" (fila sin password,
+     * que nunca pudo loguearse: puede quedar de datos viejos) reclama esa misma
+     * fila en vez de rechazar el registro. Si el email ya tiene password, EMAIL_TAKEN.
      * La cuenta queda sin verificar (ver User.isVerified()) y se le manda un mail
      * con un link de confirmacion: no puede loguearse hasta que lo confirme.
      *

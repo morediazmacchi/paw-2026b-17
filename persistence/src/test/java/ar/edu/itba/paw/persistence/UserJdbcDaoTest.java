@@ -302,24 +302,6 @@ public class UserJdbcDaoTest {
                 jdbcTemplate, "user_role", "user_id = " + id + " AND role = 'ROLE_USER'"));
     }
 
-    // ---- findRoles() ----
-
-    @Test
-    public void testFindRolesReturnsAllRolesOfThatUser() {
-        // Arrange
-        final long id = insertUser(EMAIL, NAME);
-        insertRole(id, "ROLE_USER");
-        insertRole(id, "ROLE_ADMIN");
-
-        // Act
-        final Set<String> roles = userDao.findRoles(id);
-
-        // Assert
-        assertEquals(2, roles.size());
-        assertTrue(roles.contains("ROLE_USER"));
-        assertTrue(roles.contains("ROLE_ADMIN"));
-    }
-
     // ---- setPassword() ----
 
     @Test

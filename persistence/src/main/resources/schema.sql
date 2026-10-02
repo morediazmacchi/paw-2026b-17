@@ -16,15 +16,14 @@ CREATE TABLE IF NOT EXISTS image (
     content_type   VARCHAR(100) NOT NULL,
     file_name      VARCHAR(255),
     file_size      INTEGER,
-    checksum       VARCHAR(64),
-    uploaded_at    TIMESTAMP NOT NULL DEFAULT now()
+    uploaded_at    TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS event (
     id              SERIAL PRIMARY KEY,
     title           VARCHAR(150) NOT NULL,
     description     TEXT,
-    event_date      TIMESTAMP NOT NULL,
+    event_date      TIMESTAMP WITH TIME ZONE NOT NULL,
     address         VARCHAR(200) NOT NULL,
     neighborhood    VARCHAR(80),
     price           NUMERIC(10,2) DEFAULT 0 NOT NULL
@@ -32,7 +31,7 @@ CREATE TABLE IF NOT EXISTS event (
     max_capacity    INTEGER
                         CHECK (max_capacity IS NULL OR max_capacity > 0),
     creator_email   VARCHAR(150) NOT NULL,
-    created_at      TIMESTAMP NOT NULL DEFAULT now()
+    created_at      TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
 );
 
 -- Un evento puede tener varias fotos (antes era 1:1, con una columna
@@ -48,7 +47,7 @@ CREATE TABLE IF NOT EXISTS event_image (
     id          SERIAL PRIMARY KEY,
     event_id    INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
     image_id    INTEGER NOT NULL REFERENCES image(id) ON DELETE CASCADE UNIQUE,
-    created_at  TIMESTAMP NOT NULL DEFAULT now()
+    created_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
 );
 
 -- Un evento puede tener varias categorias (antes era 1:1, con una columna
@@ -61,7 +60,11 @@ CREATE TABLE IF NOT EXISTS event_image (
 -- dinamico para esto.
 CREATE TABLE IF NOT EXISTS event_category (
     event_id     INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
-    category_id  INTEGER NOT NULL REFERENCES category(id),
+    -- ON DELETE RESTRICT explicito (antes implicito: es el default de Postgres
+    -- para una FK sin clausula): no hay codigo hoy que borre una categoria, asi
+    -- que nunca se dispara, pero documenta la intencion -- si alguna vez se
+    -- agrega un "borrar categoria", esta fila es la que lo va a bloquear.
+    category_id  INTEGER NOT NULL REFERENCES category(id) ON DELETE RESTRICT,
     extra_info   VARCHAR(500),
     PRIMARY KEY (event_id, category_id)
 );
@@ -74,7 +77,7 @@ CREATE TABLE IF NOT EXISTS registration (
     event_id          INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
     email             VARCHAR(150) NOT NULL,
     name              VARCHAR(150),
-    registered_at     TIMESTAMP NOT NULL DEFAULT now(),
+    registered_at     TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
     status            VARCHAR(20) DEFAULT 'CONFIRMED' NOT NULL
                           CHECK (status IN ('CONFIRMED', 'WAITLISTED', 'PENDING', 'REJECTED')),
     UNIQUE (event_id, email)
@@ -94,7 +97,7 @@ CREATE TABLE IF NOT EXISTS user_role (
 CREATE TABLE IF NOT EXISTS favorite (
     user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     event_id    INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
-    created_at  TIMESTAMP NOT NULL DEFAULT now(),
+    created_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
     PRIMARY KEY (user_id, event_id)
 );
 
@@ -120,8 +123,8 @@ CREATE TABLE IF NOT EXISTS verification_token (
     user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     purpose     VARCHAR(20) NOT NULL
                     CHECK (purpose IN ('VERIFY_EMAIL', 'RESET_PASSWORD')),
-    expires_at  TIMESTAMP NOT NULL,
-    created_at  TIMESTAMP NOT NULL DEFAULT now()
+    expires_at  TIMESTAMP WITH TIME ZONE NOT NULL,
+    created_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
 );
 
 -- Una reseña por (evento, usuario): solo se puede dejar una vez que el evento
@@ -133,7 +136,7 @@ CREATE TABLE IF NOT EXISTS review (
     user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     rating      INTEGER NOT NULL CHECK (rating BETWEEN 0 AND 5),
     comment     VARCHAR(1000),
-    created_at  TIMESTAMP NOT NULL DEFAULT now(),
+    created_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
     UNIQUE (event_id, user_id)
 );
 
@@ -141,8 +144,9 @@ CREATE TABLE IF NOT EXISTS review (
 -- Lista de espera: no tiene tabla propia. Es simplemente registration con status
 -- WAITLISTED, ordenada por registered_at. Cuando se libera un lugar, el primero
 -- pasa directo a CONFIRMED (ver RegistrationServiceImpl.promoteFromWaitlist()).
--- Las bases viejas pueden conservar la tabla waitlist_invitation del esquema
--- anterior (invitacion con 24hs para aceptar): ya nadie la lee ni la escribe.
+-- Las bases viejas podian conservar la tabla waitlist_invitation del esquema
+-- anterior (invitacion con 24hs para aceptar): postgres-migrations.sql ya la
+-- borra (DROP TABLE IF EXISTS).
 
 -- La consulta "quien sigue en la lista de espera de este evento" corre en cada
 -- cancelacion. Filtra por event_id y status, y ordena por registered_at: las
@@ -198,7 +202,7 @@ CREATE TABLE IF NOT EXISTS event_invitation (
     event_id    INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
     email       VARCHAR(150) NOT NULL,
     invited_by  VARCHAR(150) NOT NULL,
-    created_at  TIMESTAMP NOT NULL DEFAULT now(),
+    created_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
     UNIQUE (event_id, email)
 );
 
@@ -208,7 +212,7 @@ CREATE TABLE IF NOT EXISTS event_invitation (
 -- tiene que poder seguir viendolo en "Mis inscripciones"/el detalle).
 -- EventJdbcDao.search()/findAll()/findByCategory() lo excluyen; findById()/
 -- findByCreatorEmail() no, a proposito.
-ALTER TABLE event ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP;
+ALTER TABLE event ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP WITH TIME ZONE;
 
 -- Pin en el mapa (Leaflet + OpenStreetMap, ver publish.jsp/editar.jsp): el
 -- creador elige a mano, de forma explicita, entre buscar la direccion contra
@@ -251,8 +255,8 @@ CREATE TABLE IF NOT EXISTS inbox_message (
     event_id         INTEGER REFERENCES event(id) ON DELETE CASCADE,
     actor_name       VARCHAR(150),
     body             VARCHAR(2000),
-    created_at       TIMESTAMP NOT NULL DEFAULT now(),
-    read_at          TIMESTAMP
+    created_at       TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+    read_at          TIMESTAMP WITH TIME ZONE
 );
 
 -- La bandeja siempre se lee por destinatario y de la mas nueva a la mas vieja.
@@ -262,7 +266,7 @@ CREATE INDEX IF NOT EXISTS idx_inbox_recipient
 -- Recordatorio "falta menos de 24 hs" (ver EventReminderScheduler): NULL = todavia
 -- no se mando. Sirve para no mandarlo dos veces: la tarea lo "reclama" con un
 -- UPDATE ... WHERE reminder_sent_at IS NULL, y solo quien lo reclamo manda los mails.
-ALTER TABLE event ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMP;
+ALTER TABLE event ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMP WITH TIME ZONE;
 
 -- Preguntas y respuestas de un evento. answer_text NULL = todavia sin responder.
 -- Se responde con UPDATE ... WHERE answer_text IS NULL: una sola respuesta, nunca se pisa.
@@ -272,8 +276,8 @@ CREATE TABLE IF NOT EXISTS event_question (
     user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     question_text VARCHAR(300) NOT NULL,
     answer_text   VARCHAR(300),
-    created_at    TIMESTAMP NOT NULL DEFAULT now(),
-    answered_at   TIMESTAMP
+    created_at    TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+    answered_at   TIMESTAMP WITH TIME ZONE
 );
 
 -- Si el evento cuenta con estacionamiento para los asistentes. Checkbox
@@ -328,7 +332,7 @@ ALTER TABLE event ADD COLUMN IF NOT EXISTS removed_reason VARCHAR(500);
 -- setFeatured(), AdminController.destacar()/quitarDestacado()). featured_at
 -- ordena el banner (mas reciente primero) y se limpia al desmarcar.
 ALTER TABLE event ADD COLUMN IF NOT EXISTS featured BOOLEAN NOT NULL DEFAULT false;
-ALTER TABLE event ADD COLUMN IF NOT EXISTS featured_at TIMESTAMP;
+ALTER TABLE event ADD COLUMN IF NOT EXISTS featured_at TIMESTAMP WITH TIME ZONE;
 
 -- Reporte de un evento (ver ModerationService): lo puede hacer cualquier
 -- usuario logueado (admins incluidos), y lo revisa despues un admin, que lo
@@ -339,17 +343,17 @@ CREATE TABLE IF NOT EXISTS event_report (
     event_id                  INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
     reporter_user_id          INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     reason                    VARCHAR(500) NOT NULL,
-    created_at                TIMESTAMP NOT NULL DEFAULT now(),
+    created_at                TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
     status                    VARCHAR(20) DEFAULT 'PENDING' NOT NULL
                                   CHECK (status IN ('PENDING', 'CHANGES_REQUESTED', 'DISMISSED', 'ACTIONED')),
     resolved_by               INTEGER REFERENCES users(id),
-    resolved_at               TIMESTAMP,
+    resolved_at               TIMESTAMP WITH TIME ZONE,
     -- Pedido de cambios (ver ModerationService.requestChanges()): distinto de
     -- resolved_by/resolved_at, que son la resolucion FINAL. No es un estado
     -- final, el reporte sigue abierto (panel de seguimiento) hasta que un
     -- admin lo revise de nuevo y lo descarte o lo accione.
     changes_requested_message VARCHAR(1000),
-    changes_requested_at      TIMESTAMP,
+    changes_requested_at      TIMESTAMP WITH TIME ZONE,
     changes_requested_by      INTEGER REFERENCES users(id)
 );
 

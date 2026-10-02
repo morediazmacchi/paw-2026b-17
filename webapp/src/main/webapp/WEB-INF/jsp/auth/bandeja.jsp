@@ -37,8 +37,7 @@
                         <c:choose>
                             <c:when test="${empty event}"><c:set var="targetUrl" value=""/></c:when>
                             <c:when test="${message.type == 'NEW_REGISTRATION' or message.type == 'REGISTRATION_CANCELLED'
-                                            or message.type == 'NEW_PENDING' or message.type == 'WAITLIST_ACCEPTED'
-                                            or message.type == 'WAITLIST_DECLINED' or message.type == 'EVENT_TOMORROW'}">
+                                            or message.type == 'NEW_PENDING' or message.type == 'EVENT_TOMORROW'}">
                                 <c:url var="targetUrl" value="/perfil/eventos/${event.id}/inscriptos"/>
                             </c:when>
                             <c:otherwise><c:url var="targetUrl" value="/eventos/${event.id}"/></c:otherwise>

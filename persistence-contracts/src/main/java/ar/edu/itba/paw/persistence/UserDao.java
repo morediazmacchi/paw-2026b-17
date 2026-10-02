@@ -5,7 +5,6 @@ import ar.edu.itba.paw.model.User;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 
 public interface UserDao {
     User create(User user);
@@ -25,7 +24,6 @@ public interface UserDao {
     // silencio; el orden del resultado no esta garantizado.
     List<User> findByIds(List<Long> ids);
 
-    Set<String> findRoles(long userId);
     boolean addRole(long userId, String role);
 
     // Complemento de addRole(): usado para revocar ROLE_ADMIN (ver

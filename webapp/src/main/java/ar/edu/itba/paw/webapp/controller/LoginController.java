@@ -127,7 +127,11 @@ public class LoginController {
         // eligio. Es sesion normal de ahi en mas (cookie de sesion de siempre,
         // no "quedar logueado para siempre"): un logout la cierra igual que a
         // cualquiera.
-        autoLogin(confirmed.get(), request);
+        // Una cuenta que un admin suspendio antes de que confirmara el mail no
+        // entra por este atajo: tiene que ver el mismo aviso que en el login.
+        if (!autoLogin(confirmed.get(), request)) {
+            return new ModelAndView("redirect:/login?suspended");
+        }
         return new ModelAndView("redirect:" + (SafeRedirect.isSafe(redirect) ? redirect : "/eventos"));
     }
 
@@ -135,8 +139,19 @@ public class LoginController {
     // resultado al que llega el filtro de formLogin (WebAuthConfig) despues de
     // validar usuario+contraseña: aca no hay contraseña que validar, el token
     // consumido en confirmEmail() ya cumplio ese rol.
-    private void autoLogin(final User user, final HttpServletRequest request) {
+    // Devuelve false (y no inicia sesion) si la cuenta esta deshabilitada: es el
+    // mismo chequeo que hace el login normal, que aca habria que hacer a mano.
+    private boolean autoLogin(final User user, final HttpServletRequest request) {
         final UserDetails userDetails = userDetailsService.loadUserByUsername(user.getEmail());
+        if (!userDetails.isEnabled()) {
+            return false;
+        }
+        // Igual que el login normal de Spring: si ya habia una sesion, se le cambia
+        // el id al autenticarse. Sin esto, quien hubiera logrado fijarle a la victima
+        // un id de sesion conocido (session fixation) quedaria logueado como ella.
+        if (request.getSession(false) != null) {
+            request.changeSessionId();
+        }
         final UsernamePasswordAuthenticationToken authentication =
                 new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
         authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
@@ -144,6 +159,7 @@ public class LoginController {
         request.getSession(true).setAttribute(
                 HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY,
                 SecurityContextHolder.getContext());
+        return true;
     }
 
     // Siempre redirige al mismo "resent", exista o no ese email y este o no ya

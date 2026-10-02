@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 @Service
@@ -39,8 +40,9 @@ public class EventServiceImpl implements EventService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public Event create(final EventDTO dto) {
+        Objects.requireNonNull(dto, "dto");
         final Event event = dto.toEvent(dto.getCreatorEmail());
         event.setCreatorId(dto.getCreatorId());
 
@@ -48,7 +50,8 @@ public class EventServiceImpl implements EventService {
         try {
             created = eventDao.create(event);
         } catch (final DataIntegrityViolationException e) {
-            throw new IllegalArgumentException("La categoria elegida no existe", e);
+            throw new IllegalArgumentException(categoryConstraintViolated(e)
+                    ? "La categoria elegida no existe" : "No se pudo guardar el evento: datos invalidos", e);
         }
         // El creador ya viene resuelto (creatorId, ver EventController.publish()):
         // a diferencia de antes, no hace falta userService.findOrCreate() para
@@ -65,12 +68,6 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional(readOnly = true)
     public List<Event> findByIds(final List<Long> ids) { return eventDao.findByIds(ids); }
-    @Override
-    @Transactional(readOnly = true)
-    public List<Event> findAll() { return eventDao.findAll(); }
-    @Override
-    @Transactional(readOnly = true)
-    public List<Event> findByCategory(final long categoryId) { return eventDao.findByCategory(categoryId); }
     @Override
     @Transactional(readOnly = true)
     public List<Event> findByCreatorId(final long creatorId) {
@@ -91,8 +88,9 @@ public class EventServiceImpl implements EventService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public EventUpdateResult update(final long eventId, final Event changes, final long callerId) {
+        Objects.requireNonNull(changes, "changes");
         // Con lock (SELECT ... FOR UPDATE), igual que register(): mientras se
         // chequea y se cambia el cupo, nadie se puede anotar. Sin esto, alguien
         // podia confirmarse entre el chequeo y el UPDATE y quedar mas gente que cupo.
@@ -127,9 +125,12 @@ public class EventServiceImpl implements EventService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public EventCancelResult cancel(final long eventId, final long callerId) {
-        final Optional<Event> existing = eventDao.findById(eventId);
+        // Con lock, igual que update(): sin esto, un register() concurrente podia
+        // colarse entre el chequeo y el UPDATE y quedar confirmado en un evento
+        // que ya se esta cancelando, sin que nadie le avise.
+        final Optional<Event> existing = eventDao.findByIdForUpdate(eventId);
         if (!existing.isPresent() || !Long.valueOf(callerId).equals(existing.get().getCreatorId())) {
             return EventCancelResult.NOT_FOUND;
         }
@@ -143,7 +144,7 @@ public class EventServiceImpl implements EventService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public EventCancelResult removeByAdmin(final long eventId, final String reason) {
         final Optional<Event> existing = eventDao.findById(eventId);
         if (!existing.isPresent()) {
@@ -170,9 +171,23 @@ public class EventServiceImpl implements EventService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public boolean setFeatured(final long eventId, final boolean featured) {
         return eventDao.setFeatured(eventId, featured);
+    }
+
+    // insertCategories()/insertImages() (ver EventJdbcDao.create()) son las dos
+    // unicas FK que puede violar este insert: category_id contra una categoria
+    // que no existe, o image_id contra una imagen que ya no esta (subida y
+    // despues borrada entre medio, caso rarisimo). Antes se asumia que
+    // CUALQUIER violacion era la categoria; esto distingue mirando el nombre
+    // de la constraint en el mensaje de la excepcion (event_category_...),
+    // que Postgres arma solo con esa convencion a partir del nombre de tabla
+    // y columna.
+    private static boolean categoryConstraintViolated(final DataIntegrityViolationException e) {
+        final Throwable cause = e.getMostSpecificCause();
+        final String message = cause == null ? null : cause.getMessage();
+        return message != null && message.toLowerCase(java.util.Locale.ROOT).contains("event_category");
     }
 
     // Mail: solo a los confirmados (son los que tenian un lugar que pierden).

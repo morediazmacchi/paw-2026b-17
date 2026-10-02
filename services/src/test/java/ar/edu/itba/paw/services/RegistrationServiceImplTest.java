@@ -68,6 +68,9 @@ public class RegistrationServiceImplTest {
     public void setUp() {
         registrationService = new RegistrationServiceImpl(
                 mockRegistrationDao, mockEventDao, notificationService, mockInvitationDao, inboxService);
+        // En produccion lo resuelve Spring (@Autowired @Lazy, ver RegistrationServiceImpl):
+        // aca no hay proxy, asi que "el propio proxy" es directamente la instancia real.
+        registrationService.self = registrationService;
     }
 
     private static User someUser() {
@@ -106,6 +109,7 @@ public class RegistrationServiceImplTest {
     @Test
     public void testRegisterReturnsAlreadyRegisteredWhenTheEmailIsAlreadyInThatEvent() {
         // Arrange
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(10)));
         final Registration existing = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, RegistrationStatus.CONFIRMED);
         when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.of(existing));
 
@@ -119,7 +123,6 @@ public class RegistrationServiceImplTest {
     @Test(expected = IllegalArgumentException.class)
     public void testRegisterWithNonexistentEventThrowsIllegalArgumentException() {
         // Arrange
-        when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
@@ -146,6 +149,7 @@ public class RegistrationServiceImplTest {
     @Test
     public void testRegisterWhenAlreadyOnTheWaitlistReturnsAlreadyWaitlisted() {
         // Arrange
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(10)));
         final Registration existing = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, RegistrationStatus.WAITLISTED);
         when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.of(existing));
 
@@ -256,6 +260,7 @@ public class RegistrationServiceImplTest {
     @Test
     public void testRegisterWhenAlreadyPendingReturnsAlreadyPending() {
         // Arrange
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(10)));
         final Registration existing = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, RegistrationStatus.PENDING);
         when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.of(existing));
 
@@ -269,6 +274,7 @@ public class RegistrationServiceImplTest {
     @Test
     public void testRegisterWhenPreviouslyRejectedReturnsRejected() {
         // Arrange
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(10)));
         final Registration existing = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, RegistrationStatus.REJECTED);
         when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.of(existing));
 

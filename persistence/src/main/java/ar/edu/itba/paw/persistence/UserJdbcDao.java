@@ -6,10 +6,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.ResultSetExtractor;
+import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.jdbc.core.simple.SimpleJdbcInsert;
 import org.springframework.stereotype.Repository;
 
 import javax.sql.DataSource;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -18,7 +21,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 @Repository
 public class UserJdbcDao implements UserDao {
@@ -30,32 +32,39 @@ public class UserJdbcDao implements UserDao {
                     + "FROM users u LEFT JOIN user_role ur ON ur.user_id = u.id";
 
     // Una query, N filas posibles (una por rol, o una sola con role=NULL si no
-    // tiene ninguno): hay que plegarlas en un solo User, por eso ResultSetExtractor
-    // en vez de RowMapper (que mapea cada fila por separado, sin acumular estado).
-    private static final ResultSetExtractor<Optional<User>> USER_WITH_ROLES_EXTRACTOR = rs -> {
-        User user = null;
-        final Set<String> roles = new HashSet<>();
-        while (rs.next()) {
-            if (user == null) {
-                user = new User();
-                user.setId(rs.getLong("id"));
-                user.setEmail(rs.getString("email"));
-                user.setName(rs.getString("name"));
-                user.setPassword(rs.getString("password"));
-                user.setVerified(rs.getBoolean("verified"));
-                user.setLocale(rs.getString("preferred_locale"));
-                user.setSuspended(rs.getBoolean("suspended"));
-            }
-            final String role = rs.getString("role");
-            if (role != null) {
-                roles.add(role);
-            }
-        }
+    // tiene ninguno): hay que plegarlas en un solo User por id, por eso
+    // pivotRow() en vez de un RowMapper comun (que mapea cada fila por
+    // separado, sin acumular estado). Un solo pivoteo para los 3 finders
+    // (antes estaba copiado 3 veces: este extractor, findAll() y findByIds()).
+    private static void pivotRow(final ResultSet rs, final Map<Long, User> byId) throws SQLException {
+        final long id = rs.getLong("id");
+        User user = byId.get(id);
         if (user == null) {
-            return Optional.empty();
+            user = new User();
+            user.setId(id);
+            user.setEmail(rs.getString("email"));
+            user.setName(rs.getString("name"));
+            user.setPassword(rs.getString("password"));
+            user.setVerified(rs.getBoolean("verified"));
+            user.setLocale(rs.getString("preferred_locale"));
+            user.setSuspended(rs.getBoolean("suspended"));
+            user.setRoles(new HashSet<>());
+            byId.put(id, user);
         }
-        user.setRoles(roles);
-        return Optional.of(user);
+        final String role = rs.getString("role");
+        if (role != null) {
+            user.getRoles().add(role);
+        }
+    }
+
+    // findById()/findByEmail(): el WHERE ya garantiza como mucho un usuario, asi
+    // que el mapa pivoteado tiene a lo sumo una entrada.
+    private static final ResultSetExtractor<Optional<User>> USER_WITH_ROLES_EXTRACTOR = rs -> {
+        final Map<Long, User> byId = new LinkedHashMap<>();
+        while (rs.next()) {
+            pivotRow(rs, byId);
+        }
+        return byId.values().stream().findFirst();
     };
 
     private final JdbcTemplate jdbcTemplate;
@@ -93,30 +102,10 @@ public class UserJdbcDao implements UserDao {
 
     @Override
     public List<User> findAll() {
-        // Mismo pivoteo fila-a-fila que USER_WITH_ROLES_EXTRACTOR, pero
-        // acumulando varios usuarios a la vez (esa version asume una sola
-        // persona). LinkedHashMap: conserva el orden del ORDER BY.
+        // LinkedHashMap: conserva el orden del ORDER BY mientras pivotRow() pliega
+        // las filas (una por rol) en un solo User por id.
         final Map<Long, User> byId = new LinkedHashMap<>();
-        jdbcTemplate.query(SELECT_WITH_ROLES + " ORDER BY u.id", rs -> {
-            final long id = rs.getLong("id");
-            User user = byId.get(id);
-            if (user == null) {
-                user = new User();
-                user.setId(id);
-                user.setEmail(rs.getString("email"));
-                user.setName(rs.getString("name"));
-                user.setPassword(rs.getString("password"));
-                user.setVerified(rs.getBoolean("verified"));
-                user.setLocale(rs.getString("preferred_locale"));
-                user.setSuspended(rs.getBoolean("suspended"));
-                user.setRoles(new HashSet<>());
-                byId.put(id, user);
-            }
-            final String role = rs.getString("role");
-            if (role != null) {
-                user.getRoles().add(role);
-            }
-        });
+        jdbcTemplate.query(SELECT_WITH_ROLES + " ORDER BY u.id", (RowCallbackHandler) rs -> pivotRow(rs, byId));
         return new ArrayList<>(byId.values());
     }
 
@@ -125,39 +114,13 @@ public class UserJdbcDao implements UserDao {
         if (ids.isEmpty()) {
             return Collections.emptyList();
         }
-        // Mismo pivoteo fila-a-fila que findAll(), pero filtrado a estos ids.
+        // Mismo pivoteo que findAll(), filtrado a estos ids.
         final Map<Long, User> byId = new LinkedHashMap<>();
         jdbcTemplate.query(
                 SELECT_WITH_ROLES + " WHERE u.id IN (" + SqlPlaceholders.of(ids.size()) + ") ORDER BY u.id",
-                rs -> {
-                    final long id = rs.getLong("id");
-                    User user = byId.get(id);
-                    if (user == null) {
-                        user = new User();
-                        user.setId(id);
-                        user.setEmail(rs.getString("email"));
-                        user.setName(rs.getString("name"));
-                        user.setPassword(rs.getString("password"));
-                        user.setVerified(rs.getBoolean("verified"));
-                        user.setLocale(rs.getString("preferred_locale"));
-                        user.setSuspended(rs.getBoolean("suspended"));
-                        user.setRoles(new HashSet<>());
-                        byId.put(id, user);
-                    }
-                    final String role = rs.getString("role");
-                    if (role != null) {
-                        user.getRoles().add(role);
-                    }
-                },
+                (RowCallbackHandler) rs -> pivotRow(rs, byId),
                 ids.toArray());
         return new ArrayList<>(byId.values());
-    }
-
-    @Override
-    public Set<String> findRoles(final long userId) {
-        return new HashSet<>(jdbcTemplate.query(
-                "SELECT role FROM user_role WHERE user_id = ?",
-                (rs, rowNum) -> rs.getString("role"), userId));
     }
 
     @Override

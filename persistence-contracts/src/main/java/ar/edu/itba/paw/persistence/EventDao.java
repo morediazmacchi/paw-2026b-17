@@ -38,10 +38,6 @@ public interface EventDao {
     // se ignoran en silencio; el orden del resultado no esta garantizado.
     List<Event> findByIds(List<Long> ids);
 
-    // Excluyen eventos cancelados (ver cancel() mas arriba).
-    List<Event> findAll();
-    List<Event> findByCategory(long categoryId);
-
     // "Mis eventos": todos los del creador (pasados y cancelados incluidos, a
     // diferencia de search()), mas recientes primero.
     List<Event> findByCreatorId(long creatorId);

@@ -23,5 +23,13 @@
       <groupId>org.springframework.security</groupId>
       <artifactId>spring-security-core</artifactId>
     </dependency>
+    <!-- Solo para la anotacion @Transactional en los metodos de los contratos
+         (documenta la garantia transaccional que promete cada uno, igual que
+         ya estaba solo en las Impl): no arma ningun proxy aca, eso lo sigue
+         haciendo @EnableTransactionManagement en webapp sobre las Impl reales. -->
+    <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-tx</artifactId>
+    </dependency>
   </dependencies>
 </project>

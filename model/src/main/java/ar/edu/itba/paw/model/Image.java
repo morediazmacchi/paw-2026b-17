@@ -13,19 +13,17 @@ public class Image {
     private String contentType;
     private String fileName;
     private Integer fileSize;
-    private String checksum;
     private Date uploadedAt;
 
     public Image() {
     }
 
     public Image(final byte[] data, final String contentType, final String fileName,
-                 final Integer fileSize, final String checksum) {
+                 final Integer fileSize) {
         this.data = data;
         this.contentType = contentType;
         this.fileName = fileName;
         this.fileSize = fileSize;
-        this.checksum = checksum;
     }
 
     public long getId() { return id; }
@@ -38,8 +36,6 @@ public class Image {
     public void setFileName(final String fileName) { this.fileName = fileName; }
     public Integer getFileSize() { return fileSize; }
     public void setFileSize(final Integer fileSize) { this.fileSize = fileSize; }
-    public String getChecksum() { return checksum; }
-    public void setChecksum(final String checksum) { this.checksum = checksum; }
     public Date getUploadedAt() { return uploadedAt; }
     public void setUploadedAt(final Date uploadedAt) { this.uploadedAt = uploadedAt; }
 }

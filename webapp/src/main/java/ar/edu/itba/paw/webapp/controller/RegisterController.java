@@ -44,7 +44,7 @@ public class RegisterController {
     // un evento privado al que la invitaron). Viaja como hidden en el form y
     // despues dentro del link del mail de confirmacion, hasta el login final.
     public ModelAndView registerForm(@RequestParam(value = "redirect", required = false) final String redirect,
-                                      @ModelAttribute("currentUser") final User currentUser) {
+                                      @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         if (currentUser != null) {
             return new ModelAndView("redirect:" + (SafeRedirect.isSafe(redirect) ? redirect : "/eventos"));
         }
@@ -59,7 +59,7 @@ public class RegisterController {
     @RequestMapping(value = "/registro", method = RequestMethod.POST)
     public ModelAndView register(@Valid final UserForm form, final BindingResult errors,
                                  @RequestParam(value = "redirect", required = false) final String redirect,
-                                 @ModelAttribute("currentUser") final User currentUser) {
+                                 @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final String safeRedirect = SafeRedirect.isSafe(redirect) ? redirect : null;
         if (currentUser != null) {
             return new ModelAndView("redirect:" + (safeRedirect == null ? "/eventos" : safeRedirect));
