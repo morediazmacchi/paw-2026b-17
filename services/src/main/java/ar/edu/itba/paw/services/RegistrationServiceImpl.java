@@ -57,7 +57,7 @@ public class RegistrationServiceImpl implements RegistrationService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public RegistrationResult register(final long eventId, final User user) {
         // Bloquea la fila del evento ANTES de chequear si ya existe: dos clics
         // simultaneos del mismo usuario ahora se serializan en este lock (el
@@ -258,7 +258,7 @@ public class RegistrationServiceImpl implements RegistrationService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public UnregisterResult cancel(final long registrationId, final long userId) {
         final Registration unlocked = registrationDao.findById(registrationId).orElse(null);
         if (unlocked == null || !Long.valueOf(userId).equals(unlocked.getUserId())) {
@@ -336,7 +336,7 @@ public class RegistrationServiceImpl implements RegistrationService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public ApprovalResult approve(final long registrationId, final long creatorId) {
         final Registration unlocked = pendingOwnedBy(registrationId, creatorId).orElse(null);
         if (unlocked == null) {
@@ -385,7 +385,7 @@ public class RegistrationServiceImpl implements RegistrationService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public boolean reject(final long registrationId, final long creatorId) {
         final Registration unlocked = pendingOwnedBy(registrationId, creatorId).orElse(null);
         if (unlocked == null) {
@@ -413,7 +413,7 @@ public class RegistrationServiceImpl implements RegistrationService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public boolean revoke(final long registrationId, final long creatorId) {
         final Registration unlocked = registrationDao.findById(registrationId).orElse(null);
         if (unlocked == null) {
@@ -445,7 +445,7 @@ public class RegistrationServiceImpl implements RegistrationService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public int promoteFromWaitlist(final long eventId) {
         // FOR UPDATE: dos bajas simultaneas se serializan aca y no le dan el mismo
         // lugar a dos personas.

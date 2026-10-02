@@ -10,9 +10,6 @@ public enum InboxMessageType {
     REGISTERED_WAITLISTED,
     REQUEST_APPROVED,
     REQUEST_REJECTED,
-    // Ya no se genera (la lista de espera ahora promueve directo): queda para
-    // poder leer avisos viejos que ya estan en la base.
-    WAITLIST_SPOT_OFFERED,
     // Se libero un lugar y le toco: paso de la lista de espera a confirmado.
     WAITLIST_PROMOTED,
     // El organizador le saco el lugar (estaba confirmado).
@@ -27,8 +24,6 @@ public enum InboxMessageType {
     NEW_REGISTRATION,
     REGISTRATION_CANCELLED,
     NEW_PENDING,
-    WAITLIST_ACCEPTED,
-    WAITLIST_DECLINED,
     // Recordatorio automatico para el organizador: su evento empieza en menos de 24 hs.
     EVENT_TOMORROW,
     // Al organizador: alguien pregunto en su evento.

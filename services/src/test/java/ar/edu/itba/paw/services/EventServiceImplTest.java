@@ -193,32 +193,6 @@ public class EventServiceImplTest {
     }
 
     @Test
-    public void testFindAllReturnsEveryEvent() {
-        // Arrange
-        final List<Event> events = eventsWithIds(2);
-        when(eventDao.findAll()).thenReturn(events);
-
-        // Act
-        final List<Event> result = eventService.findAll();
-
-        // Assert
-        assertEquals(events, result);
-    }
-
-    @Test
-    public void testFindByCategoryReturnsTheEventsOfThatCategory() {
-        // Arrange
-        final List<Event> events = Collections.singletonList(eventWith(1, CATEGORY_ID, CREATOR_ID));
-        when(eventDao.findByCategory(CATEGORY_ID)).thenReturn(events);
-
-        // Act
-        final List<Event> result = eventService.findByCategory(CATEGORY_ID);
-
-        // Assert
-        assertEquals(events, result);
-    }
-
-    @Test
     public void testFindByCreatorIdReturnsTheEventsOfThatCreator() {
         // Arrange
         final List<Event> events = Collections.singletonList(eventWith(1, CATEGORY_ID, CREATOR_ID));
@@ -460,7 +434,7 @@ public class EventServiceImplTest {
     @Test
     public void testCancelSucceedsAndReturnsCancelled() {
         // Arrange
-        existing(someEvent());
+        existingForUpdate(someEvent());
         when(eventDao.cancel(EVENT_ID)).thenReturn(true);
 
         // Act
@@ -473,7 +447,7 @@ public class EventServiceImplTest {
     @Test
     public void testCancelWhenCallerIsNotTheCreatorReturnsNotFound() {
         // Arrange
-        existing(someEvent());
+        existingForUpdate(someEvent());
 
         // Act
         final EventCancelResult result = eventService.cancel(EVENT_ID, OTHER_ID);
@@ -485,7 +459,7 @@ public class EventServiceImplTest {
     @Test
     public void testCancelWhenTheEventDoesNotExistReturnsNotFound() {
         // Arrange
-        when(eventDao.findById(EVENT_ID)).thenReturn(Optional.empty());
+        when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
         final EventCancelResult result = eventService.cancel(EVENT_ID, CREATOR_ID);
@@ -497,7 +471,7 @@ public class EventServiceImplTest {
     @Test
     public void testCancelWhenAlreadyCancelledReturnsAlreadyCancelled() {
         // Arrange
-        existing(cancelledEvent());
+        existingForUpdate(cancelledEvent());
 
         // Act
         final EventCancelResult result = eventService.cancel(EVENT_ID, CREATOR_ID);

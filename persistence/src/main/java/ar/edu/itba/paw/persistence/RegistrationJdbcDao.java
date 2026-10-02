@@ -101,13 +101,6 @@ public class RegistrationJdbcDao implements RegistrationDao {
     }
 
     @Override
-    public List<Registration> findWaitlistedByEvent(final long eventId) {
-        return jdbcTemplate.query(
-                "SELECT * FROM registration WHERE event_id = ? AND status = ? ORDER BY registered_at, id",
-                ROW_MAPPER, eventId, RegistrationStatus.WAITLISTED.name());
-    }
-
-    @Override
     public boolean updateStatus(final long id, final RegistrationStatus status) {
         return jdbcTemplate.update("UPDATE registration SET status = ? WHERE id = ?", status.name(), id) == 1;
     }

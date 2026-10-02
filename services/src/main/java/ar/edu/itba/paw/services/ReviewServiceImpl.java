@@ -6,6 +6,7 @@ import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.Review;
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.ReviewDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -14,20 +15,23 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 @Service
 public class ReviewServiceImpl implements ReviewService {
 
     private final ReviewDao reviewDao;
-    private final EventService eventService;
+    // EventDao directo (no EventService): hace falta findByIdForUpdate() para
+    // el lock de create(), mismo criterio que RegistrationServiceImpl.register().
+    private final EventDao eventDao;
     private final RegistrationService registrationService;
 
     @Autowired
-    public ReviewServiceImpl(final ReviewDao reviewDao, final EventService eventService,
+    public ReviewServiceImpl(final ReviewDao reviewDao, final EventDao eventDao,
                              final RegistrationService registrationService) {
         this.reviewDao = reviewDao;
-        this.eventService = eventService;
+        this.eventDao = eventDao;
         this.registrationService = registrationService;
     }
 
@@ -38,14 +42,17 @@ public class ReviewServiceImpl implements ReviewService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public ReviewResult create(final long eventId, final User user, final int rating, final String comment) {
-        // Ya la mando: no se puede editar ni volver a mandar (chequeo primero,
-        // antes de pedir el evento, es el caso mas comun de "no eligible").
+        Objects.requireNonNull(user, "user");
+        // Lockea el evento primero (mismo criterio que RegistrationServiceImpl.
+        // register()): dos envios simultaneos del mismo usuario se serializan
+        // aca, en vez de pasar los dos el chequeo de "ya la mando" y recien
+        // chocar contra el UNIQUE(event_id, user_id) al insertar.
+        final Optional<Event> event = eventDao.findByIdForUpdate(eventId);
         if (reviewDao.findByEventAndUser(eventId, user.getId()).isPresent()) {
             return ReviewResult.ALREADY_REVIEWED;
         }
-        final Optional<Event> event = eventService.findById(eventId);
         if (!event.isPresent() || !event.get().getEventDate().before(new Date())) {
             return ReviewResult.NOT_ELIGIBLE;
         }

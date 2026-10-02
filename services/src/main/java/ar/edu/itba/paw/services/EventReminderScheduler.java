@@ -8,11 +8,11 @@ import org.springframework.stereotype.Component;
 
 /**
  * Manda solo el recordatorio "falta menos de 24 hs": nadie aprieta nada, es un
- * hecho del reloj (mismo motivo que WaitlistScheduler).
+ * hecho del reloj, no una reaccion a una accion de un usuario.
  *
- * En su propia clase por lo mismo que WaitlistScheduler: cada sendReminder() es
- * una llamada a otro bean, pasa por el proxy de Spring y abre su propia
- * transaccion. Un evento que falla no arrastra a los demas.
+ * En su propia clase para que cada sendReminder() sea una llamada a otro bean:
+ * asi pasa por el proxy de Spring y abre su propia transaccion. Un evento que
+ * falla no arrastra a los demas.
  */
 @Component
 public class EventReminderScheduler {
@@ -23,7 +23,8 @@ public class EventReminderScheduler {
     // seguido no le cambia nada a nadie.
     private static final long CADA_QUINCE_MINUTOS = 15 * 60 * 1000L;
 
-    // Un minuto de gracia al arrancar, igual que WaitlistScheduler.
+    // Un minuto de gracia al arrancar: le da tiempo al contexto de Spring de
+    // terminar de levantar antes de la primera corrida.
     private static final long AL_ARRANCAR = 60 * 1000L;
 
     private final EventReminderService eventReminderService;

@@ -74,18 +74,10 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public User findOrCreate(final String email, final String name) {
-        final String normalizedEmail = email.trim().toLowerCase();
-        return userDao.findByEmail(normalizedEmail)
-                .orElseGet(() -> userDao.create(new User(normalizedEmail, name)));
-    }
-
-    @Override
     @Transactional(readOnly = true)
     public Optional<User> findByEmail(final String email) {
-        // En la base los emails se guardan en minuscula (register/findOrCreate):
-        // sin esto, loguearse con "Sol@gmail.com" no encontraba a "sol@gmail.com".
+        // En la base los emails se guardan en minuscula (ver register()): sin
+        // esto, loguearse con "Sol@gmail.com" no encontraba a "sol@gmail.com".
         return userDao.findByEmail(email.trim().toLowerCase());
     }
 

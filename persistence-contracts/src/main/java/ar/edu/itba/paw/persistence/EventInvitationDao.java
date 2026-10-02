@@ -30,9 +30,6 @@ public interface EventInvitationDao {
      */
     long countOutstanding(long eventId);
 
-    /** Si alguien que fue invitado se da de baja, su invitacion no sigue reteniendo el lugar. */
-    void deleteByEventAndEmail(long eventId, String email);
-
     // Pantalla "a quien invite" del creador, mas recientes primero.
     List<EventInvitation> findByEvent(long eventId);
 

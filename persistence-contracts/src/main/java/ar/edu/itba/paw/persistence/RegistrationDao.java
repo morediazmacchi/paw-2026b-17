@@ -17,9 +17,6 @@ public interface RegistrationDao {
     /** Los proximos de la lista de espera de este evento, del que llego primero al ultimo. */
     List<Registration> findNextWaitlisted(long eventId, int limit);
 
-    /** Toda la lista de espera de un evento, en orden de llegada. */
-    List<Registration> findWaitlistedByEvent(long eventId);
-
     /** Cambia el estado: PENDING a CONFIRMED/REJECTED/WAITLISTED, WAITLISTED a CONFIRMED,
      *  CONFIRMED a REJECTED (el creador revoca). */
     boolean updateStatus(long id, RegistrationStatus status);

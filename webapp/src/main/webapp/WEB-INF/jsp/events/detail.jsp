@@ -165,9 +165,6 @@
             <c:when test="${rsvp == 'ya-en-waitlist'}">
                 <p class="alert detail-alert"><spring:message code="event.rsvp.alreadyWaitlisted"/></p>
             </c:when>
-            <c:when test="${rsvp == 'lleno'}">
-                <p class="alert detail-alert"><spring:message code="event.rsvp.full"/></p>
-            </c:when>
             <c:when test="${rsvp == 'baja'}">
                 <p class="alert detail-alert"><spring:message code="event.rsvp.unregistered"/></p>
             </c:when>
