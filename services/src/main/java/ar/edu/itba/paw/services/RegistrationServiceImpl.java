@@ -10,6 +10,7 @@ import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.EventInvitationDao;
 import ar.edu.itba.paw.persistence.RegistrationDao;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +27,22 @@ public class RegistrationServiceImpl implements RegistrationService {
     private final NotificationService notificationService;
     private final EventInvitationDao invitationDao;
     private final InboxService inboxService;
+    // Proxy propio: cancel()/revoke() llaman a promoteFromWaitlist() de esta
+    // misma clase, y ese es un metodo @Transactional del contrato publico (lo
+    // llaman tambien EventServiceImpl y los tests, via el proxy de siempre).
+    // Una llamada directa (this implicito) no pasa por el proxy de Spring, asi
+    // que ignoraria en silencio cualquier semantica de AOP que dependa de el
+    // (otra propagacion, rollbackFor, etc.) si el dia de mañana cambia. Por
+    // inyeccion de campo (no de constructor, a diferencia del resto de esta
+    // clase): un parametro de constructor "me a mi mismo" rompe la construccion
+    // manual en los tests (new RegistrationServiceImpl(...)), que no pasan por
+    // un ApplicationContext. @Lazy rompe el ciclo en produccion: el bean termina
+    // de construirse antes de que este campo se resuelva de verdad. Paquete-visible
+    // (no private) para que el test, en el mismo paquete, lo pueda asignar
+    // directo sin reflection.
+    @Autowired
+    @Lazy
+    RegistrationService self;
 
     @Autowired
     public RegistrationServiceImpl(final RegistrationDao registrationDao, final EventDao eventDao,
@@ -279,7 +296,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         // pasa ninguna. Devuelve a cuantos movio, para poder contarselo al
         // organizador sin volver a consultar. Que se vaya alguien pendiente o de
         // la lista de espera no libera nada: no ocupaban cupo.
-        final int promoted = wasConfirmed ? promoteFromWaitlist(eventId) : 0;
+        final int promoted = wasConfirmed ? self.promoteFromWaitlist(eventId) : 0;
 
         // Solo se avisa si se libero un lugar de verdad. Que alguien salga de la
         // lista de espera no le cambia nada al organizador: el cupo disponible
@@ -423,7 +440,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         notificationService.notifyRegistrationRevoked(event, registration);
         inboxService.add(registration.getEmail(), InboxMessageType.REGISTRATION_REVOKED, eventId, null, null);
         // El lugar que quedo libre se lo lleva el primero de la lista de espera.
-        promoteFromWaitlist(eventId);
+        self.promoteFromWaitlist(eventId);
         return true;
     }
 

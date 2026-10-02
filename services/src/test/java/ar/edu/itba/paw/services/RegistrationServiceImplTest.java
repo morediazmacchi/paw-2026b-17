@@ -68,6 +68,9 @@ public class RegistrationServiceImplTest {
     public void setUp() {
         registrationService = new RegistrationServiceImpl(
                 mockRegistrationDao, mockEventDao, notificationService, mockInvitationDao, inboxService);
+        // En produccion lo resuelve Spring (@Autowired @Lazy, ver RegistrationServiceImpl):
+        // aca no hay proxy, asi que "el propio proxy" es directamente la instancia real.
+        registrationService.self = registrationService;
     }
 
     private static User someUser() {
