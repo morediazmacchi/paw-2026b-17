@@ -89,8 +89,8 @@ public class EventQuestionServiceImpl implements EventQuestionService {
 
     @Override
     @Transactional
-    public void deleteByAdmin(final long questionId) {
-        questionDao.delete(questionId);
+    public boolean deleteByAdmin(final long questionId) {
+        return questionDao.delete(questionId);
     }
 
     // Para la bandeja del organizador: el nombre, o el mail si no cargo nombre.

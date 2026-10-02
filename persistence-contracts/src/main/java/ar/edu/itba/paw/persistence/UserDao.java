@@ -26,21 +26,21 @@ public interface UserDao {
     List<User> findByIds(List<Long> ids);
 
     Set<String> findRoles(long userId);
-    void addRole(long userId, String role);
+    boolean addRole(long userId, String role);
 
     // Complemento de addRole(): usado para revocar ROLE_ADMIN (ver
     // UserService.revokeAdmin()). No falla si el usuario no tenia ese rol.
-    void removeRole(long userId, String role);
+    boolean removeRole(long userId, String role);
 
-    void setPassword(long userId, String passwordHash);
+    boolean setPassword(long userId, String passwordHash);
 
-    void updateProfile(long userId, String name, String email);
+    boolean updateProfile(long userId, String name, String email);
 
-    void setVerified(long userId, boolean verified);
+    boolean setVerified(long userId, boolean verified);
 
-    void setLocale(long userId, String locale);
+    boolean setLocale(long userId, String locale);
 
     // Suspension por un admin (ver UserService.suspend()/reactivate()):
     // UserDetailsServiceImpl la lee para bloquear el login mientras este en true.
-    void setSuspended(long userId, boolean suspended);
+    boolean setSuspended(long userId, boolean suspended);
 }

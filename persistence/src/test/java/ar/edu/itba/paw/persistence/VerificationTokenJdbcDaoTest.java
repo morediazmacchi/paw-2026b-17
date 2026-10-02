@@ -150,4 +150,53 @@ public class VerificationTokenJdbcDaoTest {
         assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
                 jdbcTemplate, "verification_token", "token = 'reset-token'"));
     }
+
+    @Test
+    public void testCreateReturnsTheTokenThatWasSaved() {
+        // Arrange
+        final VerificationToken toCreate = new VerificationToken(TOKEN, userId, TokenPurpose.VERIFY_EMAIL, inOneHour());
+
+        // Act
+        final VerificationToken result = tokenDao.create(toCreate);
+
+        // Assert
+        assertEquals(TOKEN, result.getToken());
+    }
+
+    @Test
+    public void testDeleteReturnsTrueWhenTheTokenExisted() {
+        // Arrange
+        insertToken(TOKEN, userId, TokenPurpose.RESET_PASSWORD, inOneHour());
+
+        // Act
+        final boolean result = tokenDao.delete(TOKEN);
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    public void testDeleteReturnsFalseWhenThereIsNoSuchToken() {
+        // Arrange
+        // (no se inserta ningun token)
+
+        // Act
+        final boolean result = tokenDao.delete(TOKEN);
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    public void testDeleteByUserAndPurposeReturnsHowManyTokensWereDeleted() {
+        // Arrange
+        insertToken("verify-token", userId, TokenPurpose.VERIFY_EMAIL, inOneHour());
+        insertToken("reset-token", userId, TokenPurpose.RESET_PASSWORD, inOneHour());
+
+        // Act
+        final int result = tokenDao.deleteByUserAndPurpose(userId, TokenPurpose.VERIFY_EMAIL);
+
+        // Assert
+        assertEquals(1, result);
+    }
 }

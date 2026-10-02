@@ -91,7 +91,7 @@ public class EventQuestionJdbcDao implements EventQuestionDao {
     }
 
     @Override
-    public void delete(final long id) {
-        jdbcTemplate.update("DELETE FROM event_question WHERE id = ?", id);
+    public boolean delete(final long id) {
+        return jdbcTemplate.update("DELETE FROM event_question WHERE id = ?", id) == 1;
     }
 }

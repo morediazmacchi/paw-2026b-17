@@ -222,7 +222,7 @@ public class InboxMessageJdbcDaoTest {
     }
 
     @Test
-    public void testFindByRecipientOrdersNewestFirstAndPaginates() {
+    public void testFindByRecipientOrdersNewestFirst() {
         // Arrange
         final Timestamp t1 = new Timestamp(System.currentTimeMillis() - 2000);
         final Timestamp t2 = new Timestamp(System.currentTimeMillis() - 1000);
@@ -232,12 +232,40 @@ public class InboxMessageJdbcDaoTest {
         final long tercero = insertMessageAt(EMAIL, InboxMessageType.EVENT_CANCELLED, t3);
 
         // Act
+        final List<InboxMessage> found = inboxMessageDao.findByRecipient(EMAIL, 1, 20);
+
+        // Assert
+        assertEquals(tercero, found.get(0).getId());
+        assertEquals(segundo, found.get(1).getId());
+        assertEquals(primero, found.get(2).getId());
+    }
+
+    @Test
+    public void testFindByRecipientFirstPageHasAsManyMessagesAsThePageSize() {
+        // Arrange
+        insertMessageAt(EMAIL, InboxMessageType.REGISTERED_CONFIRMED, new Timestamp(System.currentTimeMillis() - 2000));
+        insertMessageAt(EMAIL, InboxMessageType.EVENT_UPDATED, new Timestamp(System.currentTimeMillis() - 1000));
+        insertMessageAt(EMAIL, InboxMessageType.EVENT_CANCELLED, new Timestamp(System.currentTimeMillis()));
+
+        // Act
         final List<InboxMessage> pagina1 = inboxMessageDao.findByRecipient(EMAIL, 1, 2);
+
+        // Assert
+        assertEquals(2, pagina1.size());
+    }
+
+    @Test
+    public void testFindByRecipientSecondPageHasTheRemainingOldestMessage() {
+        // Arrange
+        final long primero = insertMessageAt(EMAIL, InboxMessageType.REGISTERED_CONFIRMED,
+                new Timestamp(System.currentTimeMillis() - 2000));
+        insertMessageAt(EMAIL, InboxMessageType.EVENT_UPDATED, new Timestamp(System.currentTimeMillis() - 1000));
+        insertMessageAt(EMAIL, InboxMessageType.EVENT_CANCELLED, new Timestamp(System.currentTimeMillis()));
+
+        // Act
         final List<InboxMessage> pagina2 = inboxMessageDao.findByRecipient(EMAIL, 2, 2);
 
         // Assert
-        assertEquals(tercero, pagina1.get(0).getId());
-        assertEquals(segundo, pagina1.get(1).getId());
         assertEquals(1, pagina2.size());
         assertEquals(primero, pagina2.get(0).getId());
     }
@@ -325,16 +353,19 @@ public class InboxMessageJdbcDaoTest {
 
     // ---- ON DELETE CASCADE con event ----
 
+    // El borrado en cascada es una propiedad del esquema (se arma por SQL en el Arrange);
+    // lo que prueba el DAO es que countByRecipient() ya no cuenta esos mensajes.
     @Test
-    public void testMessagesGoAwayWithTheirEvent() {
+    public void testCountByRecipientDoesNotCountMessagesOfADeletedEvent() {
         // Arrange
         insertMessage(EMAIL, null, InboxMessageType.NEW_REGISTRATION, eventId, null, null);
-
-        // Act
         jdbcTemplate.update("DELETE FROM event WHERE id = ?", eventId);
 
+        // Act
+        final long count = inboxMessageDao.countByRecipient(EMAIL);
+
         // Assert
-        assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "inbox_message", "recipient_email = '" + EMAIL + "'"));
+        assertEquals(0, count);
     }
 
     // ---- user_id (Grupo B): linkUserId() ----
@@ -440,5 +471,56 @@ public class InboxMessageJdbcDaoTest {
                 jdbcTemplate, "inbox_message", whereId(mine) + " AND read_at IS NULL"));
         assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
                 jdbcTemplate, "inbox_message", whereId(other) + " AND read_at IS NULL"));
+    }
+
+    @Test
+    public void testMarkAllReadByUserIdReturnsHowManyMessagesWereMarked() {
+        // Arrange
+        final long userId = insertUser(EMAIL);
+        insertMessage(EMAIL, userId, InboxMessageType.NEW_REGISTRATION, eventId, null, null);
+        insertMessage(EMAIL, userId, InboxMessageType.NEW_PENDING, eventId, null, null);
+
+        // Act
+        final int result = inboxMessageDao.markAllReadByUserId(userId, new Date());
+
+        // Assert
+        assertEquals(2, result);
+    }
+
+    @Test
+    public void testMarkAllReadByUserIdReturnsZeroWhenThereIsNothingUnread() {
+        // Arrange
+        final long userId = insertUser(EMAIL);
+
+        // Act
+        final int result = inboxMessageDao.markAllReadByUserId(userId, new Date());
+
+        // Assert
+        assertEquals(0, result);
+    }
+
+    @Test
+    public void testLinkUserIdReturnsHowManyMessagesWereLinked() {
+        // Arrange
+        insertMessage(EMAIL, null, InboxMessageType.NEW_REGISTRATION, eventId, null, null);
+        final long recipientId = insertUser(EMAIL);
+
+        // Act
+        final int result = inboxMessageDao.linkUserId(EMAIL, recipientId);
+
+        // Assert
+        assertEquals(1, result);
+    }
+
+    @Test
+    public void testLinkUserIdReturnsZeroWhenNoMessageWasWaiting() {
+        // Arrange
+        final long recipientId = insertUser(EMAIL);
+
+        // Act
+        final int result = inboxMessageDao.linkUserId(EMAIL, recipientId);
+
+        // Assert
+        assertEquals(0, result);
     }
 }

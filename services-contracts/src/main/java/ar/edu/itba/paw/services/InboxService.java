@@ -12,7 +12,7 @@ public interface InboxService {
      * accion hace rollback, el aviso tampoco queda (igual que el mail, que sale
      * recien despues del COMMIT). eventId, actorName y body pueden ser null.
      */
-    void add(String recipientEmail, InboxMessageType type, Long eventId, String actorName, String body);
+    InboxMessage add(String recipientEmail, InboxMessageType type, Long eventId, String actorName, String body);
 
     /**
      * Una pagina de la bandeja de ese usuario logueado, mas nuevos primero. Una
@@ -25,5 +25,5 @@ public interface InboxService {
     long countUnread(long userId);
 
     /** Al abrir la bandeja se marcan todos como leidos. */
-    void markAllRead(long userId);
+    int markAllRead(long userId);
 }

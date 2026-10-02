@@ -31,15 +31,15 @@ public class InboxServiceImpl implements InboxService {
 
     @Override
     @Transactional
-    public void add(final String recipientEmail, final InboxMessageType type, final Long eventId,
-                    final String actorName, final String body) {
+    public InboxMessage add(final String recipientEmail, final InboxMessageType type, final Long eventId,
+                            final String actorName, final String body) {
         final String normalizedEmail = normalize(recipientEmail);
         final InboxMessage message = new InboxMessage(normalizedEmail, type, eventId, actorName, body);
         // Optimista (Grupo B, ver schema.sql): si el destinatario ya tiene
         // cuenta, se enlaza de una. Si no, queda en null y se reconcilia solo
         // cuando se registre (ver UserServiceImpl.register()).
         userService.findByEmail(normalizedEmail).ifPresent(recipient -> message.setUserId(recipient.getId()));
-        inboxMessageDao.create(message);
+        return inboxMessageDao.create(message);
     }
 
     @Override
@@ -58,7 +58,7 @@ public class InboxServiceImpl implements InboxService {
 
     @Override
     @Transactional
-    public void markAllRead(final long userId) {
-        inboxMessageDao.markAllReadByUserId(userId, new Date());
+    public int markAllRead(final long userId) {
+        return inboxMessageDao.markAllReadByUserId(userId, new Date());
     }
 }

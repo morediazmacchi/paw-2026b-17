@@ -274,4 +274,132 @@ public class EventInvitationJdbcDaoTest {
                 "SELECT user_id FROM event_invitation WHERE id = ?", Long.class, id);
         assertEquals(Long.valueOf(firstAccountId), storedUserId);
     }
+
+    // ---- countOutstanding() ----
+
+    private void insertRegistration(final long eventId, final String email) {
+        jdbcTemplate.update("INSERT INTO registration (event_id, email, status) VALUES (?, ?, 'CONFIRMED')",
+                eventId, email);
+    }
+
+    @Test
+    public void testCountOutstandingCountsOnlyTheInvitationsNobodyHasUsedYet() {
+        // Arrange
+        // Una invitacion "usada" es la de quien ya se anoto (tiene registration): deja de
+        // reservar un lugar aparte porque ahora el lugar es su inscripcion.
+        insertInvitation(eventId, "sin-usar@mail.com", null);
+        insertInvitation(eventId, "usada@mail.com", null);
+        insertRegistration(eventId, "usada@mail.com");
+
+        // Act
+        final long count = invitationDao.countOutstanding(eventId);
+
+        // Assert
+        assertEquals(1, count);
+    }
+
+    @Test
+    public void testCountOutstandingDoesNotCountTheInvitationsOfOtherEvents() {
+        // Arrange
+        insertInvitation(eventId, INVITEE_EMAIL, null);
+        final long otherEventId = insertEvent();
+        insertInvitation(otherEventId, "otro@mail.com", null);
+
+        // Act
+        final long count = invitationDao.countOutstanding(otherEventId);
+
+        // Assert
+        assertEquals(1, count);
+    }
+
+    @Test
+    public void testCountOutstandingIsZeroWhenTheEventHasNoInvitations() {
+        // Arrange: el evento del setUp no tiene invitaciones.
+
+        // Act
+        final long count = invitationDao.countOutstanding(eventId);
+
+        // Assert
+        assertEquals(0, count);
+    }
+
+    // ---- findByUserId() ----
+
+    private void insertInvitationAt(final long eventId, final String email, final long userId,
+                                    final Timestamp createdAt) {
+        jdbcTemplate.update(
+                "INSERT INTO event_invitation (event_id, email, invited_by, user_id, created_at) "
+                        + "VALUES (?, ?, ?, ?, ?)",
+                eventId, email, CREATOR_EMAIL, userId, createdAt);
+    }
+
+    @Test
+    public void testFindByUserIdReturnsOnlyTheInvitationsOfThatUser() {
+        // Arrange
+        final long inviteeId = insertUser(INVITEE_EMAIL);
+        final long otherUserId = insertUser("otro@mail.com");
+        insertInvitation(eventId, INVITEE_EMAIL, inviteeId);
+        insertInvitation(eventId, "otro@mail.com", otherUserId);
+
+        // Act
+        final List<EventInvitation> found = invitationDao.findByUserId(inviteeId);
+
+        // Assert
+        assertEquals(1, found.size());
+        assertEquals(INVITEE_EMAIL, found.get(0).getEmail());
+    }
+
+    @Test
+    public void testFindByUserIdOrdersNewestFirst() {
+        // Arrange
+        final long inviteeId = insertUser(INVITEE_EMAIL);
+        final long otherEventId = insertEvent();
+        insertInvitationAt(eventId, INVITEE_EMAIL, inviteeId, new Timestamp(System.currentTimeMillis() - 2000));
+        insertInvitationAt(otherEventId, INVITEE_EMAIL, inviteeId, new Timestamp(System.currentTimeMillis()));
+
+        // Act
+        final List<EventInvitation> found = invitationDao.findByUserId(inviteeId);
+
+        // Assert
+        assertEquals(otherEventId, found.get(0).getEventId());
+        assertEquals(eventId, found.get(1).getEventId());
+    }
+
+    @Test
+    public void testFindByUserIdIgnoresInvitationsNotLinkedToAnAccountYet() {
+        // Arrange
+        final long inviteeId = insertUser(INVITEE_EMAIL);
+        insertInvitation(eventId, INVITEE_EMAIL, null);
+
+        // Act
+        final List<EventInvitation> found = invitationDao.findByUserId(inviteeId);
+
+        // Assert
+        assertTrue(found.isEmpty());
+    }
+
+    @Test
+    public void testLinkUserIdReturnsHowManyInvitationsWereLinked() {
+        // Arrange
+        insertInvitation(eventId, INVITEE_EMAIL, null);
+        final long inviteeId = insertUser(INVITEE_EMAIL);
+
+        // Act
+        final int result = invitationDao.linkUserId(INVITEE_EMAIL, inviteeId);
+
+        // Assert
+        assertEquals(1, result);
+    }
+
+    @Test
+    public void testLinkUserIdReturnsZeroWhenNoInvitationWasWaiting() {
+        // Arrange
+        final long inviteeId = insertUser(INVITEE_EMAIL);
+
+        // Act
+        final int result = invitationDao.linkUserId(INVITEE_EMAIL, inviteeId);
+
+        // Assert
+        assertEquals(0, result);
+    }
 }

@@ -164,8 +164,8 @@ public class EventJdbcDao implements EventDao {
     }
 
     @Override
-    public void update(final Event event) {
-        jdbcTemplate.update(
+    public boolean update(final Event event) {
+        final boolean updated = jdbcTemplate.update(
                 "UPDATE event SET title = ?, description = ?, event_date = ?, address = ?, neighborhood = ?, "
                         + "price = ?, max_capacity = ?, requires_approval = ?, "
                         + "visibility = ?, latitude = ?, longitude = ?, has_parking = ?, address_details = ?, "
@@ -181,7 +181,7 @@ public class EventJdbcDao implements EventDao {
                 event.isRequiresApproval(), event.getVisibility().name(),
                 event.getLatitude(), event.getLongitude(), event.isParking(), event.getAddressDetails(),
                 event.isLocationManual(),
-                new Timestamp(event.getEventDate().getTime()), event.getId());
+                new Timestamp(event.getEventDate().getTime()), event.getId()) == 1;
         // Reemplaza todas las categorias de una: mas simple que calcular el
         // diff (altas/bajas/cambios de extra_info) entre lo que habia y lo
         // que llego en "event".
@@ -190,6 +190,7 @@ public class EventJdbcDao implements EventDao {
         // Mismo criterio que las categorias: reemplaza toda la galeria de una.
         jdbcTemplate.update("DELETE FROM event_image WHERE event_id = ?", event.getId());
         insertImages(event);
+        return updated;
     }
 
     private void insertCategories(final Event event) {
@@ -267,15 +268,15 @@ public class EventJdbcDao implements EventDao {
     }
 
     @Override
-    public void cancel(final long id) {
-        jdbcTemplate.update("UPDATE event SET cancelled_at = now() WHERE id = ?", id);
+    public boolean cancel(final long id) {
+        return jdbcTemplate.update("UPDATE event SET cancelled_at = now() WHERE id = ?", id) == 1;
     }
 
     @Override
-    public void removeByAdmin(final long id, final String reason) {
-        jdbcTemplate.update(
+    public boolean removeByAdmin(final long id, final String reason) {
+        return jdbcTemplate.update(
                 "UPDATE event SET cancelled_at = now(), removed_by_admin = true, removed_reason = ? WHERE id = ?",
-                reason, id);
+                reason, id) == 1;
     }
 
     @Override
@@ -292,10 +293,10 @@ public class EventJdbcDao implements EventDao {
     }
 
     @Override
-    public void setFeatured(final long eventId, final boolean featured) {
-        jdbcTemplate.update(
+    public boolean setFeatured(final long eventId, final boolean featured) {
+        return jdbcTemplate.update(
                 "UPDATE event SET featured = ?, featured_at = ? WHERE id = ?",
-                featured, featured ? new Timestamp(System.currentTimeMillis()) : null, eventId);
+                featured, featured ? new Timestamp(System.currentTimeMillis()) : null, eventId) == 1;
     }
 
     @Override

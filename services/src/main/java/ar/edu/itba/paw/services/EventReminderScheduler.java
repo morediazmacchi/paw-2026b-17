@@ -34,15 +34,19 @@ public class EventReminderScheduler {
     }
 
     @Scheduled(fixedDelay = CADA_QUINCE_MINUTOS, initialDelay = AL_ARRANCAR)
-    public void sendDueReminders() {
+    public int sendDueReminders() {
+        int sent = 0;
         for (final Long eventId : eventReminderService.findEventsNeedingReminder()) {
             try {
-                eventReminderService.sendReminder(eventId);
+                if (eventReminderService.sendReminder(eventId)) {
+                    sent++;
+                }
             } catch (final RuntimeException e) {
                 // Adentro del loop: un evento roto no frena a los demas. Y como es
                 // un hilo propio sin nadie esperando, si no se loguea aca no se ve.
                 LOGGER.error("Fallo el recordatorio de 24 hs del evento {}", eventId, e);
             }
         }
+        return sent;
     }
 }

@@ -400,4 +400,71 @@ public class EventReportJdbcDaoTest {
         assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
                 jdbcTemplate, "event_report", "id = " + ofOtherEvent + " AND status = 'PENDING'"));
     }
+
+    @Test
+    public void testRequestChangesReturnsTrueForAPendingReport() {
+        // Arrange
+        final long id = insertPendingReport(eventId, reporterId, REASON);
+        final long adminId = insertUser("admin-ret1@mail.com");
+
+        // Act
+        final boolean result = eventReportDao.requestChanges(id, "corregi la direccion", adminId);
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    public void testRequestChangesReturnsFalseForAReportThatIsNotPending() {
+        // Arrange
+        final long admin = insertUser("admin-ret2@mail.com");
+        final long id = insertResolvedReport(eventId, reporterId, REASON, ReportStatus.DISMISSED, admin);
+
+        // Act
+        final boolean result = eventReportDao.requestChanges(id, "corregi la direccion", admin);
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    public void testResolveReturnsTrueForAnOpenReport() {
+        // Arrange
+        final long id = insertPendingReport(eventId, reporterId, REASON);
+        final long adminId = insertUser("admin-ret3@mail.com");
+
+        // Act
+        final boolean result = eventReportDao.resolve(id, ReportStatus.ACTIONED, adminId);
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    public void testResolveReturnsFalseForAnAlreadyResolvedReport() {
+        // Arrange
+        final long admin = insertUser("admin-ret4@mail.com");
+        final long id = insertResolvedReport(eventId, reporterId, REASON, ReportStatus.DISMISSED, admin);
+
+        // Act
+        final boolean result = eventReportDao.resolve(id, ReportStatus.ACTIONED, admin);
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    public void testResolveAllPendingForEventReturnsHowManyReportsWereResolved() {
+        // Arrange
+        final long otherReporter = insertUser("otro-ret@mail.com");
+        insertPendingReport(eventId, reporterId, "uno");
+        insertPendingReport(eventId, otherReporter, "dos");
+        final long admin = insertUser("admin-ret5@mail.com");
+
+        // Act
+        final int result = eventReportDao.resolveAllPendingForEvent(eventId, ReportStatus.ACTIONED, admin);
+
+        // Assert
+        assertEquals(2, result);
+    }
 }

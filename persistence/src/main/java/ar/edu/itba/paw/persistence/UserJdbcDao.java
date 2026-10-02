@@ -161,46 +161,47 @@ public class UserJdbcDao implements UserDao {
     }
 
     @Override
-    public void addRole(final long userId, final String role) {
+    public boolean addRole(final long userId, final String role) {
         // "ON CONFLICT" es sintaxis de Postgres: no la entiende HSQLDB (los tests
         // de persistence corren ahi). El PRIMARY KEY compuesto (user_id, role) ya
         // garantiza que no se duplique; si el rol ya estaba, dejamos pasar la
         // violacion en vez de checkear antes (mismo patron que el resto del proyecto
         // usa para conflictos esperables, ej. RegistrationServiceImpl).
         try {
-            jdbcTemplate.update("INSERT INTO user_role (user_id, role) VALUES (?, ?)", userId, role);
+            return jdbcTemplate.update("INSERT INTO user_role (user_id, role) VALUES (?, ?)", userId, role) == 1;
         } catch (final DataIntegrityViolationException e) {
-            // Ya tenia ese rol asignado: idempotente, no hace falta nada mas.
+            // Ya tenia ese rol asignado: idempotente, devuelve false.
+            return false;
         }
     }
 
     @Override
-    public void removeRole(final long userId, final String role) {
-        jdbcTemplate.update("DELETE FROM user_role WHERE user_id = ? AND role = ?", userId, role);
+    public boolean removeRole(final long userId, final String role) {
+        return jdbcTemplate.update("DELETE FROM user_role WHERE user_id = ? AND role = ?", userId, role) == 1;
     }
 
     @Override
-    public void setPassword(final long userId, final String passwordHash) {
-        jdbcTemplate.update("UPDATE users SET password = ? WHERE id = ?", passwordHash, userId);
+    public boolean setPassword(final long userId, final String passwordHash) {
+        return jdbcTemplate.update("UPDATE users SET password = ? WHERE id = ?", passwordHash, userId) == 1;
     }
 
     @Override
-    public void updateProfile(final long userId, final String name, final String email) {
-        jdbcTemplate.update("UPDATE users SET name = ?, email = ? WHERE id = ?", name, email, userId);
+    public boolean updateProfile(final long userId, final String name, final String email) {
+        return jdbcTemplate.update("UPDATE users SET name = ?, email = ? WHERE id = ?", name, email, userId) == 1;
     }
 
     @Override
-    public void setVerified(final long userId, final boolean verified) {
-        jdbcTemplate.update("UPDATE users SET verified = ? WHERE id = ?", verified, userId);
+    public boolean setVerified(final long userId, final boolean verified) {
+        return jdbcTemplate.update("UPDATE users SET verified = ? WHERE id = ?", verified, userId) == 1;
     }
 
     @Override
-    public void setLocale(final long userId, final String locale) {
-        jdbcTemplate.update("UPDATE users SET preferred_locale = ? WHERE id = ?", locale, userId);
+    public boolean setLocale(final long userId, final String locale) {
+        return jdbcTemplate.update("UPDATE users SET preferred_locale = ? WHERE id = ?", locale, userId) == 1;
     }
 
     @Override
-    public void setSuspended(final long userId, final boolean suspended) {
-        jdbcTemplate.update("UPDATE users SET suspended = ? WHERE id = ?", suspended, userId);
+    public boolean setSuspended(final long userId, final boolean suspended) {
+        return jdbcTemplate.update("UPDATE users SET suspended = ? WHERE id = ?", suspended, userId) == 1;
     }
 }

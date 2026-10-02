@@ -84,14 +84,13 @@ public class FavoriteJdbcDaoTest {
     }
 
     @Test
-    public void testAddTwiceIsIdempotent() {
-        // Arrange: nada favorito todavia.
+    public void testAddWhenItIsAlreadyAFavoriteIsIdempotent() {
+        // Arrange: el favorito ya esta (insertado por SQL, no con add()).
+        insertFavorite(userId, eventId);
 
         // Act
         // No hay ON CONFLICT (no es portable a HSQLDB): add() depende de que
-        // el PRIMARY KEY compuesto absorba el duplicado sin explotar. Las DOS
-        // llamadas son el Act en si.
-        favoriteDao.add(userId, eventId);
+        // el PRIMARY KEY compuesto absorba el duplicado sin explotar.
         favoriteDao.add(userId, eventId);
 
         // Assert
@@ -189,5 +188,55 @@ public class FavoriteJdbcDaoTest {
 
         // Assert
         assertTrue(found.isEmpty());
+    }
+
+    // ---- valores de retorno (true si cambio una fila) ----
+
+    @Test
+    public void testAddReturnsTrueWhenTheFavoriteWasInserted() {
+        // Arrange
+        // (sin favorito todavia)
+
+        // Act
+        final boolean result = favoriteDao.add(userId, eventId);
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    public void testAddReturnsFalseWhenItWasAlreadyAFavorite() {
+        // Arrange
+        insertFavorite(userId, eventId);
+
+        // Act
+        final boolean result = favoriteDao.add(userId, eventId);
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    public void testRemoveReturnsTrueWhenTheFavoriteWasDeleted() {
+        // Arrange
+        insertFavorite(userId, eventId);
+
+        // Act
+        final boolean result = favoriteDao.remove(userId, eventId);
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    public void testRemoveReturnsFalseWhenItWasNeverAFavorite() {
+        // Arrange
+        // (no hay ningun favorito guardado)
+
+        // Act
+        final boolean result = favoriteDao.remove(userId, eventId);
+
+        // Assert
+        assertFalse(result);
     }
 }

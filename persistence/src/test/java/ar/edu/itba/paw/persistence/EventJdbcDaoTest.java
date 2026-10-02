@@ -876,10 +876,23 @@ public class EventJdbcDaoTest {
 
         // Act
         final List<Event> byFirstCategory = eventDao.findByCategory(categoryId);
-        final List<Event> byOtherCategory = eventDao.findByCategory(otherCategoryId);
 
         // Assert
         assertEquals(1, byFirstCategory.size());
+    }
+
+    @Test
+    public void testFindByCategoryReturnsAnEventThatHasSeveralCategoriesWhenSearchingByTheOtherOne() {
+        // Arrange
+        final long otherCategoryId = insertCategory(OTHER_CATEGORY_NAME);
+        final long id = insertEvent();
+        insertEventCategory(id, categoryId, null);
+        insertEventCategory(id, otherCategoryId, null);
+
+        // Act
+        final List<Event> byOtherCategory = eventDao.findByCategory(otherCategoryId);
+
+        // Assert
         assertEquals(1, byOtherCategory.size());
     }
 
@@ -1090,24 +1103,36 @@ public class EventJdbcDaoTest {
         assertEquals(1, count);
     }
 
+    // Los dos tests siguientes usan EXACTAMENTE los mismos datos y el mismo filtro,
+    // uno para search() y otro para countSearch(): las dos queries comparten
+    // buildWhereClause, y si se desincronizaran, el "N eventos encontrados" no
+    // coincidiria con lo que se ve en la pagina (uno de los dos dejaria de dar 2).
     @Test
-    public void testCountSearchMatchesSearchWhenFilteringByFewSpotsLeft() {
+    public void testCountSearchCountsTheEventsWithFewSpotsLeft() {
         // Arrange
         eventWith(10, 6, "Cuatro libres");
         eventWith(10, 9, "Un libre");
         eventWith(10, 1, "Nueve libres");
 
         // Act
-        // Las dos queries comparten buildWhereClause: si se desincronizaran, el
-        // "N eventos encontrados" no coincidiria con lo que se ve en la pagina.
-        // Por eso, y solo aca, el Act ejercita LAS DOS: es la consistencia entre
-        // ambas lo que este test prueba, no el resultado de una sola.
-        final int searchSize = eventDao.search(fewSpotsCriteria()).size();
-        final long countSearchResult = eventDao.countSearch(fewSpotsCriteria());
+        final long count = eventDao.countSearch(fewSpotsCriteria());
 
         // Assert
-        assertEquals(searchSize, countSearchResult);
-        assertEquals(2, countSearchResult);
+        assertEquals(2, count);
+    }
+
+    @Test
+    public void testSearchReturnsTheEventsWithFewSpotsLeft() {
+        // Arrange
+        eventWith(10, 6, "Cuatro libres");
+        eventWith(10, 9, "Un libre");
+        eventWith(10, 1, "Nueve libres");
+
+        // Act
+        final List<Event> result = eventDao.search(fewSpotsCriteria());
+
+        // Assert
+        assertEquals(2, result.size());
     }
 
     // ==================================================================
@@ -1120,7 +1145,7 @@ public class EventJdbcDaoTest {
     }
 
     @Test
-    public void testSearchSortsByDateBothWays() {
+    public void testSearchSortsByDateAscending() {
         // Arrange
         final long enTres = eventOn(3, BigDecimal.ZERO, "En tres dias");
         final long enUno = eventOn(1, BigDecimal.ZERO, "Manana");
@@ -1128,15 +1153,27 @@ public class EventJdbcDaoTest {
 
         // Act
         final List<Long> ascending = idsOf(eventDao.search(sortedBy(EventSort.FECHA_ASC)));
-        final List<Long> descending = idsOf(eventDao.search(sortedBy(EventSort.FECHA_DESC)));
 
         // Assert
         assertEquals(Arrays.asList(enUno, enDos, enTres), ascending);
+    }
+
+    @Test
+    public void testSearchSortsByDateDescending() {
+        // Arrange
+        final long enTres = eventOn(3, BigDecimal.ZERO, "En tres dias");
+        final long enUno = eventOn(1, BigDecimal.ZERO, "Manana");
+        final long enDos = eventOn(2, BigDecimal.ZERO, "En dos dias");
+
+        // Act
+        final List<Long> descending = idsOf(eventDao.search(sortedBy(EventSort.FECHA_DESC)));
+
+        // Assert
         assertEquals(Arrays.asList(enTres, enDos, enUno), descending);
     }
 
     @Test
-    public void testSearchSortsByPriceBothWays() {
+    public void testSearchSortsByPriceAscending() {
         // Arrange
         final long caro = eventOn(1, new BigDecimal("5000"), "Caro");
         final long gratis = eventOn(2, BigDecimal.ZERO, "Gratis");
@@ -1144,27 +1181,51 @@ public class EventJdbcDaoTest {
 
         // Act
         final List<Long> ascending = idsOf(eventDao.search(sortedBy(EventSort.PRECIO_ASC)));
-        final List<Long> descending = idsOf(eventDao.search(sortedBy(EventSort.PRECIO_DESC)));
 
         // Assert
         assertEquals(Arrays.asList(gratis, medio, caro), ascending);
-        assertEquals(Arrays.asList(caro, medio, gratis), descending);
     }
 
     @Test
-    public void testSearchSortsBySpotsLeftWithUnlimitedEventsAsInfinite() {
+    public void testSearchSortsByPriceDescending() {
+        // Arrange
+        final long caro = eventOn(1, new BigDecimal("5000"), "Caro");
+        final long gratis = eventOn(2, BigDecimal.ZERO, "Gratis");
+        final long medio = eventOn(3, new BigDecimal("1500.50"), "Medio");
+
+        // Act
+        final List<Long> descending = idsOf(eventDao.search(sortedBy(EventSort.PRECIO_DESC)));
+
+        // Assert
+        assertEquals(Arrays.asList(caro, medio, gratis), descending);
+    }
+
+    // Sin limite = lugares "infinitos": ultimo de menos a mas, primero de mas a menos.
+    @Test
+    public void testSearchSortsBySpotsLeftAscendingWithUnlimitedEventsLast() {
         // Arrange
         final long unLibre = eventWith(10, 9, "Un libre");
         final long sinLimite = eventWith(null, 3, "Sin limite");
         final long ochoLibres = eventWith(10, 2, "Ocho libres");
 
         // Act
-        // Sin limite = lugares "infinitos": ultimo de menos a mas, primero de mas a menos.
         final List<Long> ascending = idsOf(eventDao.search(sortedBy(EventSort.CUPOS_ASC)));
-        final List<Long> descending = idsOf(eventDao.search(sortedBy(EventSort.CUPOS_DESC)));
 
         // Assert
         assertEquals(Arrays.asList(unLibre, ochoLibres, sinLimite), ascending);
+    }
+
+    @Test
+    public void testSearchSortsBySpotsLeftDescendingWithUnlimitedEventsFirst() {
+        // Arrange
+        final long unLibre = eventWith(10, 9, "Un libre");
+        final long sinLimite = eventWith(null, 3, "Sin limite");
+        final long ochoLibres = eventWith(10, 2, "Ocho libres");
+
+        // Act
+        final List<Long> descending = idsOf(eventDao.search(sortedBy(EventSort.CUPOS_DESC)));
+
+        // Assert
         assertEquals(Arrays.asList(sinLimite, ochoLibres, unLibre), descending);
     }
 
@@ -1224,20 +1285,32 @@ public class EventJdbcDaoTest {
         assertEquals(2, count);
     }
 
+    // Los agotados no aparecen en ninguno de los dos sentidos.
     @Test
-    public void testSearchSortedBySpotsLeavesOutSoldOutEvents() {
+    public void testSearchSortedBySpotsAscendingLeavesOutSoldOutEvents() {
         // Arrange
         final long unLibre = eventWith(10, 9, "Un libre");
         eventWith(10, 10, "Lleno");
         final long sinLimite = eventWith(null, 3, "Sin limite");
 
         // Act
-        // Los agotados no aparecen en ninguno de los dos sentidos.
         final List<Long> ascending = idsOf(eventDao.search(sortedBy(EventSort.CUPOS_ASC)));
-        final List<Long> descending = idsOf(eventDao.search(sortedBy(EventSort.CUPOS_DESC)));
 
         // Assert
         assertEquals(Arrays.asList(unLibre, sinLimite), ascending);
+    }
+
+    @Test
+    public void testSearchSortedBySpotsDescendingLeavesOutSoldOutEvents() {
+        // Arrange
+        final long unLibre = eventWith(10, 9, "Un libre");
+        eventWith(10, 10, "Lleno");
+        final long sinLimite = eventWith(null, 3, "Sin limite");
+
+        // Act
+        final List<Long> descending = idsOf(eventDao.search(sortedBy(EventSort.CUPOS_DESC)));
+
+        // Assert
         assertEquals(Arrays.asList(sinLimite, unLibre), descending);
     }
 
@@ -1681,17 +1754,44 @@ public class EventJdbcDaoTest {
     }
 
     @Test
-    public void testMarkReminderSentOnlyWorksTheFirstTime() {
+    public void testMarkReminderSentReturnsTrueTheFirstTime() {
         // Arrange
         final long id = eventInHours(10, "Una vez");
 
         // Act
-        final boolean firstResult = eventDao.markReminderSent(id, new Date());
-        final boolean secondResult = eventDao.markReminderSent(id, new Date());
+        final boolean result = eventDao.markReminderSent(id, new Date());
 
         // Assert
-        assertTrue(firstResult);
-        assertFalse(secondResult);
+        assertTrue(result);
+    }
+
+    @Test
+    public void testMarkReminderSentStoresTheMomentOfTheReminder() {
+        // Arrange
+        final long id = eventInHours(10, "Una vez");
+
+        // Act
+        eventDao.markReminderSent(id, new Date());
+
+        // Assert
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
+                jdbcTemplate, "event", "id = " + id + " AND reminder_sent_at IS NOT NULL"));
+    }
+
+    // Si ya estaba reclamado (el UPDATE tiene "reminder_sent_at IS NULL"), no lo
+    // reclama de nuevo: es lo que garantiza que el recordatorio salga una sola vez.
+    @Test
+    public void testMarkReminderSentReturnsFalseWhenTheReminderWasAlreadySent() {
+        // Arrange
+        final long id = insertEvent(cols("address", "Ya avisado",
+                "event_date", new Timestamp(System.currentTimeMillis() + 10 * HORA),
+                "reminder_sent_at", new Timestamp(System.currentTimeMillis())));
+
+        // Act
+        final boolean result = eventDao.markReminderSent(id, new Date());
+
+        // Assert
+        assertFalse(result);
     }
 
     @Test
@@ -1731,5 +1831,149 @@ public class EventJdbcDaoTest {
         final Timestamp reminderSentAt = jdbcTemplate.queryForObject(
                 "SELECT reminder_sent_at FROM event WHERE id = ?", Timestamp.class, id);
         assertNull(reminderSentAt);
+    }
+
+    // ==================================================================
+    // findByIds()
+    // ==================================================================
+
+    @Test
+    public void testFindByIdsReturnsOnlyTheRequestedEvents() {
+        // Arrange
+        final long first = insertEvent();
+        insertEvent();
+        final long third = insertEvent();
+
+        // Act
+        final List<Event> result = eventDao.findByIds(Arrays.asList(first, third));
+
+        // Assert
+        assertEquals(Arrays.asList(first, third), idsOf(result).stream().sorted().collect(Collectors.toList()));
+    }
+
+    @Test
+    public void testFindByIdsIgnoresIdsThatDoNotExist() {
+        // Arrange
+        final long id = insertEvent();
+
+        // Act
+        final List<Event> result = eventDao.findByIds(Arrays.asList(id, id + 999));
+
+        // Assert
+        assertEquals(Collections.singletonList(id), idsOf(result));
+    }
+
+    @Test
+    public void testFindByIdsWithAnEmptyListReturnsAnEmptyList() {
+        // Arrange
+        insertEvent();
+
+        // Act
+        final List<Event> result = eventDao.findByIds(Collections.emptyList());
+
+        // Assert
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    public void testUpdateReturnsTrueWhenTheEventExisted() {
+        // Arrange
+        final long id = insertEvent();
+        insertEventCategory(id, categoryId, null);
+        final Event changes = someEvent(categoryId);
+        changes.setId(id);
+
+        // Act
+        final boolean result = eventDao.update(changes);
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    public void testUpdateReturnsFalseWhenThereIsNoSuchEvent() {
+        // Arrange
+        // Sin categorias ni imagenes: lo unico que se intenta tocar es la fila del evento, que no existe.
+        final Event changes = someEvent(categoryId);
+        changes.setCategories(java.util.Collections.emptyList());
+        changes.setId(999_999L);
+
+        // Act
+        final boolean result = eventDao.update(changes);
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    public void testCancelReturnsTrueWhenTheEventExisted() {
+        // Arrange
+        final long id = insertEvent();
+
+        // Act
+        final boolean result = eventDao.cancel(id);
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    public void testCancelReturnsFalseWhenThereIsNoSuchEvent() {
+        // Arrange
+        // (no hay ningun evento guardado)
+
+        // Act
+        final boolean result = eventDao.cancel(999_999L);
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    public void testRemoveByAdminReturnsTrueWhenTheEventExisted() {
+        // Arrange
+        final long id = insertEvent();
+
+        // Act
+        final boolean result = eventDao.removeByAdmin(id, "Contenido inapropiado");
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    public void testRemoveByAdminReturnsFalseWhenThereIsNoSuchEvent() {
+        // Arrange
+        // (no hay ningun evento guardado)
+
+        // Act
+        final boolean result = eventDao.removeByAdmin(999_999L, "Contenido inapropiado");
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    public void testSetFeaturedReturnsTrueWhenTheEventExisted() {
+        // Arrange
+        final long id = insertEvent();
+
+        // Act
+        final boolean result = eventDao.setFeatured(id, true);
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    public void testSetFeaturedReturnsFalseWhenThereIsNoSuchEvent() {
+        // Arrange
+        // (no hay ningun evento guardado)
+
+        // Act
+        final boolean result = eventDao.setFeatured(999_999L, true);
+
+        // Assert
+        assertFalse(result);
     }
 }

@@ -31,16 +31,16 @@ public interface EventReportDao {
      * que resolve(): no pisa un reporte que ya tenia un pedido de cambios, o
      * que ya estaba resuelto).
      */
-    void requestChanges(long reportId, String message, long adminUserId);
+    boolean requestChanges(long reportId, String message, long adminUserId);
 
     // Resuelve UN reporte puntual (descartado o accionado). No toca los que ya
     // estaban resueltos: quien llama solo actualiza si seguia abierto
     // (PENDING o CHANGES_REQUESTED).
-    void resolve(long reportId, ReportStatus status, long resolvedByUserId);
+    boolean resolve(long reportId, ReportStatus status, long resolvedByUserId);
 
     // Al dar de baja un evento, cualquier OTRO reporte abierto (PENDING o
     // CHANGES_REQUESTED) sobre el mismo evento tambien queda resuelto
     // (ACTIONED): ya no tiene sentido seguir mostrandolo en la cola o en el
     // panel de seguimiento, el evento ya se removio.
-    void resolveAllPendingForEvent(long eventId, ReportStatus status, long resolvedByUserId);
+    int resolveAllPendingForEvent(long eventId, ReportStatus status, long resolvedByUserId);
 }

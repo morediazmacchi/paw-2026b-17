@@ -171,8 +171,8 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional
-    public void setFeatured(final long eventId, final boolean featured) {
-        eventDao.setFeatured(eventId, featured);
+    public boolean setFeatured(final long eventId, final boolean featured) {
+        return eventDao.setFeatured(eventId, featured);
     }
 
     // Mail: solo a los confirmados (son los que tenian un lugar que pierden).

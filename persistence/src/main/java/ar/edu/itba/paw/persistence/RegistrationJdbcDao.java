@@ -108,13 +108,13 @@ public class RegistrationJdbcDao implements RegistrationDao {
     }
 
     @Override
-    public void updateStatus(final long id, final RegistrationStatus status) {
-        jdbcTemplate.update("UPDATE registration SET status = ? WHERE id = ?", status.name(), id);
+    public boolean updateStatus(final long id, final RegistrationStatus status) {
+        return jdbcTemplate.update("UPDATE registration SET status = ? WHERE id = ?", status.name(), id) == 1;
     }
 
     @Override
-    public void delete(final long id) {
-        jdbcTemplate.update("DELETE FROM registration WHERE id = ?", id);
+    public boolean delete(final long id) {
+        return jdbcTemplate.update("DELETE FROM registration WHERE id = ?", id) == 1;
     }
 
     @Override

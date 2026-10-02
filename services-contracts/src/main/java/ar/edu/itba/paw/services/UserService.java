@@ -59,7 +59,7 @@ public interface UserService {
      * fantasma) o ya está verificado: siempre "sin efecto visible" para quien
      * llama, así no sirve para averiguar si un email está registrado.
      */
-    void resendVerificationEmail(String email);
+    boolean resendVerificationEmail(String email);
 
     /**
      * Pide un link para restablecer la contraseña ("olvidé mi contraseña"). No
@@ -67,7 +67,7 @@ public interface UserService {
      * motivo que resendVerificationEmail, no hay forma de distinguir los casos
      * desde afuera.
      */
-    void sendPasswordResetEmail(String email);
+    boolean sendPasswordResetEmail(String email);
 
     /**
      * Para la pantalla de "elegir nueva contraseña": si el token del link
@@ -103,24 +103,24 @@ public interface UserService {
      * idioma en el que se le mandan los mails (ver NotificationServiceImpl).
      * No valida el valor: quien llama ya lo valido contra los idiomas soportados.
      */
-    void updateLocale(long userId, String locale);
+    boolean updateLocale(long userId, String locale);
 
     /**
      * Suspende la cuenta (ver UserDetailsServiceImpl): no va a poder loguearse
      * hasta que un admin la reactive. Le avisa por mail y por la bandeja.
      */
-    void suspend(long userId);
+    boolean suspend(long userId);
 
     /** Levanta una suspension. Le avisa por mail y por la bandeja. */
-    void reactivate(long userId);
+    boolean reactivate(long userId);
 
     /**
      * Le da ROLE_ADMIN a un usuario. Quien puede invocar esto (solo un
      * superadmin) lo controla la seguridad HTTP (ver WebAuthConfig), no este
      * metodo: es una simple asignacion de rol, ya autorizada al llegar aca.
      */
-    void grantAdmin(long userId);
+    boolean grantAdmin(long userId);
 
     /** Le saca ROLE_ADMIN a un usuario (no toca ROLE_SUPERADMIN). */
-    void revokeAdmin(long userId);
+    boolean revokeAdmin(long userId);
 }

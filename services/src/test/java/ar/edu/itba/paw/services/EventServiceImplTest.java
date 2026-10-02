@@ -1,15 +1,17 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.dto.EventDTO;
-import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventCategoryInfo;
+import ar.edu.itba.paw.model.EventSearchCriteria;
+import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationStatus;
+import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.persistence.EventDao;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -17,19 +19,26 @@ import org.springframework.dao.DataIntegrityViolationException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.lenient;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.when;
 
+/**
+ * Tests unitarios con Mockito: EventDao, UserService y RegistrationService son @Mock.
+ * Los comandos del dao (update, cancel, removeByAdmin, setFeatured) devuelven boolean: el
+ * test los stubea con argumentos especificos (si el service no los invoca, Mockito falla por
+ * stub sin usar) y asierta sobre lo que devuelve el service. Los avisos (mail e inbox) son
+ * "disparar y olvidar" (void) y se anotan con los fakes RecordingNotificationService /
+ * RecordingInboxService.
+ */
 @RunWith(MockitoJUnitRunner.class)
 public class EventServiceImplTest {
 
@@ -41,29 +50,34 @@ public class EventServiceImplTest {
     private static final long OTHER_ID = 43;
 
     @Mock
-    private EventDao mockEventDao;
+    private EventDao eventDao;
     @Mock
-    private UserService mockUserService;
-    // Necesario aunque ningun test lo use: @InjectMocks arma el objeto por
-    // constructor, y sin este mock le pasaria null -> NPE al notificar.
+    private UserService userService;
     @Mock
-    private NotificationService mockNotificationService;
-    @Mock
-    private RegistrationService mockRegistrationService;
+    private RegistrationService registrationService;
 
-    // La bandeja: se verifica que cada accion deje su aviso.
-    @Mock
-    private InboxService mockInboxService;
+    private RecordingNotificationService notifications;
+    private RecordingInboxService inbox;
 
-    @InjectMocks
     private EventServiceImpl eventService;
 
+    @Before
+    public void setUp() {
+        notifications = new RecordingNotificationService();
+        inbox = new RecordingInboxService();
+        eventService = new EventServiceImpl(eventDao, userService, notifications, registrationService, inbox);
+    }
+
     private static Event someEvent() {
+        return eventWith(EVENT_ID, CATEGORY_ID, CREATOR_ID);
+    }
+
+    private static Event eventWith(final long id, final long categoryId, final long creatorId) {
         final Event event = new Event();
-        event.setId(EVENT_ID);
-        event.setCategories(Collections.singletonList(new EventCategoryInfo(CATEGORY_ID)));
+        event.setId(id);
+        event.setCategories(Collections.singletonList(new EventCategoryInfo(categoryId)));
         event.setCreatorEmail(CREATOR_EMAIL);
-        event.setCreatorId(CREATOR_ID);
+        event.setCreatorId(creatorId);
         return event;
     }
 
@@ -75,52 +89,63 @@ public class EventServiceImplTest {
         return dto;
     }
 
-    // notifyEventUpdated()/notifyEventCancelled() son void: se captura cada
-    // registration con la que se los llamo (con doAnswer() sobre el stub,
-    // nunca con Mockito.verify()) para comprobar despues a quienes se avisa.
-    private List<Registration> captureUpdateNotifications() {
-        final List<Registration> notified = new ArrayList<>();
-        doAnswer(invocation -> {
-            notified.add(invocation.getArgument(1));
-            return null;
-        }).when(mockNotificationService).notifyEventUpdated(any(Event.class), any(Registration.class));
-        return notified;
+    private static Registration registration(final String email, final RegistrationStatus status) {
+        return new Registration(EVENT_ID, email, "Nombre", status);
     }
 
-    private List<Registration> captureCancelNotifications() {
-        final List<Registration> notified = new ArrayList<>();
-        doAnswer(invocation -> {
-            notified.add(invocation.getArgument(1));
-            return null;
-        }).when(mockNotificationService).notifyEventCancelled(any(Event.class), any(Registration.class));
-        return notified;
+    // A quien se le pidio cada aviso: en notifyEventUpdated/notifyEventCancelled el
+    // segundo argumento es la inscripcion.
+    private List<Object> registrationsNotified(final String method) {
+        final List<Object> result = new ArrayList<>();
+        for (final Object[] args : notifications.argsOf(method)) {
+            result.add(args[1]);
+        }
+        return result;
     }
 
-    private List<String> captureInboxRecipients() {
-        final List<String> recipients = new ArrayList<>();
-        doAnswer(invocation -> {
-            recipients.add(invocation.getArgument(0));
-            return null;
-        }).when(mockInboxService).add(any(), any(), any(), any(), any());
-        return recipients;
+    private static List<Event> eventsWithIds(final int count) {
+        final List<Event> events = new ArrayList<>();
+        for (int i = 1; i <= count; i++) {
+            events.add(eventWith(i, CATEGORY_ID, CREATOR_ID));
+        }
+        return events;
     }
+
+    // El evento existe en el dao (con y sin lock, segun el metodo del service).
+    private void existing(final Event event) {
+        when(eventDao.findById(EVENT_ID)).thenReturn(Optional.of(event));
+    }
+
+    private void existingForUpdate(final Event event) {
+        when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(event));
+    }
+
+    private static Event cancelledEvent() {
+        final Event event = someEvent();
+        event.setCancelledAt(new Date());
+        return event;
+    }
+
+    // ---- create() ----
 
     @Test
     public void testCreateReturnsTheEventThatTheDaoPersisted() {
         // Arrange
-        when(mockEventDao.create(any(Event.class))).thenReturn(someEvent());
+        final Event persisted = someEvent();
+        when(eventDao.create(argThat(event -> Long.valueOf(CREATOR_ID).equals(event.getCreatorId()))))
+                .thenReturn(persisted);
 
         // Act
-        final Event result = eventService.create(new EventDTO());
+        final Event result = eventService.create(someDto());
 
         // Assert
-        assertEquals(EVENT_ID, result.getId());
+        assertSame(persisted, result);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testCreateWithInvalidCategoryThrowsIllegalArgumentException() {
         // Arrange
-        when(mockEventDao.create(any(Event.class)))
+        when(eventDao.create(argThat(event -> true)))
                 .thenThrow(new DataIntegrityViolationException("fk violation on category_id"));
 
         // Act
@@ -130,26 +155,54 @@ public class EventServiceImplTest {
     }
 
     @Test
+    public void testCreateNotifiesTheCreatorWithTheirName() {
+        // Arrange
+        when(eventDao.create(argThat(event -> true))).thenReturn(someEvent());
+        when(userService.findById(CREATOR_ID)).thenReturn(Optional.of(new User(CREATOR_EMAIL, "Creadora")));
+
+        // Act
+        eventService.create(someDto());
+
+        // Assert
+        assertEquals("Creadora", notifications.argsOf("notifyEventCreated").get(0)[1]);
+    }
+
+    @Test
     public void testCreateStillReturnsTheEventWhenCreatorLookupFindsNothing() {
         // Arrange
         // El creador ya viene resuelto (creatorId) desde el controller: esto
         // solo puede pasar si esa fila desapareciera justo entre medio. No
         // tiene que romper la creacion del evento, solo el nombre del mail.
-        when(mockEventDao.create(any(Event.class))).thenReturn(someEvent());
-        when(mockUserService.findById(CREATOR_ID)).thenReturn(Optional.empty());
+        final Event persisted = someEvent();
+        when(eventDao.create(argThat(event -> true))).thenReturn(persisted);
+        when(userService.findById(CREATOR_ID)).thenReturn(Optional.empty());
 
         // Act
         final Event result = eventService.create(someDto());
 
         // Assert
-        assertNotNull(result);
-        assertEquals(EVENT_ID, result.getId());
+        assertSame(persisted, result);
     }
+
+    @Test
+    public void testCreateNotifiesWithoutNameWhenCreatorLookupFindsNothing() {
+        // Arrange
+        when(eventDao.create(argThat(event -> true))).thenReturn(someEvent());
+        when(userService.findById(CREATOR_ID)).thenReturn(Optional.empty());
+
+        // Act
+        eventService.create(someDto());
+
+        // Assert
+        assertNull(notifications.argsOf("notifyEventCreated").get(0)[1]);
+    }
+
+    // ---- findById / findByIds / findAll / findByCategory / findByCreatorId ----
 
     @Test
     public void testFindByIdReturnsThePresentEvent() {
         // Arrange
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(someEvent()));
+        existing(someEvent());
 
         // Act
         final Optional<Event> result = eventService.findById(EVENT_ID);
@@ -162,7 +215,7 @@ public class EventServiceImplTest {
     @Test
     public void testFindByIdReturnsEmptyWhenTheEventDoesNotExist() {
         // Arrange
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.empty());
+        when(eventDao.findById(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
         final Optional<Event> result = eventService.findById(EVENT_ID);
@@ -172,53 +225,175 @@ public class EventServiceImplTest {
     }
 
     @Test
-    public void testFindAllReturnsWhatTheDaoReturns() {
+    public void testFindByIdsReturnsTheEventsTheDaoFinds() {
         // Arrange
-        final List<Event> events = Arrays.asList(someEvent(), someEvent());
-        when(mockEventDao.findAll()).thenReturn(events);
+        final List<Event> events = Arrays.asList(eventWith(1, CATEGORY_ID, CREATOR_ID), eventWith(3, CATEGORY_ID, CREATOR_ID));
+        when(eventDao.findByIds(Arrays.asList(1L, 3L))).thenReturn(events);
+
+        // Act
+        final List<Event> result = eventService.findByIds(Arrays.asList(1L, 3L));
+
+        // Assert
+        assertEquals(events, result);
+    }
+
+    @Test
+    public void testFindAllReturnsEveryEvent() {
+        // Arrange
+        final List<Event> events = eventsWithIds(2);
+        when(eventDao.findAll()).thenReturn(events);
 
         // Act
         final List<Event> result = eventService.findAll();
 
         // Assert
-        assertEquals(2, result.size());
+        assertEquals(events, result);
     }
 
     @Test
-    public void testFindByCategoryReturnsWhatTheDaoReturns() {
+    public void testFindByCategoryReturnsTheEventsOfThatCategory() {
         // Arrange
-        final List<Event> events = Collections.singletonList(someEvent());
-        when(mockEventDao.findByCategory(CATEGORY_ID)).thenReturn(events);
+        final List<Event> events = Collections.singletonList(eventWith(1, CATEGORY_ID, CREATOR_ID));
+        when(eventDao.findByCategory(CATEGORY_ID)).thenReturn(events);
 
         // Act
         final List<Event> result = eventService.findByCategory(CATEGORY_ID);
 
         // Assert
-        assertEquals(1, result.size());
-        assertEquals(CATEGORY_ID, result.get(0).getCategories().get(0).getCategoryId());
+        assertEquals(events, result);
     }
 
     @Test
-    public void testFindByCreatorIdReturnsWhatTheDaoReturns() {
+    public void testFindByCreatorIdReturnsTheEventsOfThatCreator() {
         // Arrange
-        final List<Event> events = Collections.singletonList(someEvent());
-        when(mockEventDao.findByCreatorId(CREATOR_ID)).thenReturn(events);
+        final List<Event> events = Collections.singletonList(eventWith(1, CATEGORY_ID, CREATOR_ID));
+        when(eventDao.findByCreatorId(CREATOR_ID)).thenReturn(events);
 
         // Act
         final List<Event> result = eventService.findByCreatorId(CREATOR_ID);
 
         // Assert
-        assertEquals(1, result.size());
-        assertEquals(CREATOR_EMAIL, result.get(0).getCreatorEmail());
+        assertEquals(events, result);
+    }
+
+    // ---- search() ----
+
+    private static EventSearchCriteria criteria(final int page, final int pageSize) {
+        final EventSearchCriteria criteria = new EventSearchCriteria();
+        criteria.setPage(page);
+        criteria.setPageSize(pageSize);
+        return criteria;
+    }
+
+    @Test
+    public void testSearchReturnsTheRequestedPage() {
+        // Arrange
+        final EventSearchCriteria criteria = criteria(2, 10);
+        final List<Event> page = eventsWithIds(10);
+        when(eventDao.countSearch(criteria)).thenReturn(25L);
+        when(eventDao.search(argThat(searched -> searched.getPage() == 2))).thenReturn(page);
+
+        // Act
+        final PageResult<Event> result = eventService.search(criteria);
+
+        // Assert
+        assertEquals(2, result.getPage());
+        assertEquals(page, result.getContent());
+    }
+
+    @Test
+    public void testSearchReturnsTheTotalNumberOfMatches() {
+        // Arrange
+        final EventSearchCriteria criteria = criteria(1, 10);
+        when(eventDao.countSearch(criteria)).thenReturn(25L);
+        when(eventDao.search(criteria)).thenReturn(eventsWithIds(10));
+
+        // Act
+        final PageResult<Event> result = eventService.search(criteria);
+
+        // Assert
+        assertEquals(25L, result.getTotalElements());
+        assertEquals(3, result.getTotalPages());
+    }
+
+    @Test
+    public void testSearchWhenThePageIsBeyondTheLastFallsBackToTheLastPage() {
+        // Arrange
+        final EventSearchCriteria criteria = criteria(99, 10);
+        final List<Event> lastPage = eventsWithIds(5);
+        when(eventDao.countSearch(criteria)).thenReturn(25L);
+        when(eventDao.search(argThat(searched -> searched.getPage() == 3))).thenReturn(lastPage);
+
+        // Act
+        final PageResult<Event> result = eventService.search(criteria);
+
+        // Assert
+        assertEquals(3, result.getPage());
+        assertEquals(lastPage, result.getContent());
+    }
+
+    @Test
+    public void testSearchWhenThePageIsBelowOneFallsBackToTheFirstPage() {
+        // Arrange
+        final EventSearchCriteria criteria = criteria(0, 10);
+        final List<Event> firstPage = eventsWithIds(10);
+        when(eventDao.countSearch(criteria)).thenReturn(25L);
+        when(eventDao.search(argThat(searched -> searched.getPage() == 1))).thenReturn(firstPage);
+
+        // Act
+        final PageResult<Event> result = eventService.search(criteria);
+
+        // Assert
+        assertEquals(1, result.getPage());
+        assertEquals(firstPage, result.getContent());
+    }
+
+    @Test
+    public void testSearchWithoutResultsReturnsTheFirstPageEmpty() {
+        // Arrange
+        final EventSearchCriteria criteria = criteria(5, 10);
+        when(eventDao.countSearch(criteria)).thenReturn(0L);
+        when(eventDao.search(argThat(searched -> searched.getPage() == 1))).thenReturn(Collections.emptyList());
+
+        // Act
+        final PageResult<Event> result = eventService.search(criteria);
+
+        // Assert
+        assertEquals(1, result.getPage());
+        assertTrue(result.getContent().isEmpty());
+    }
+
+    // ---- update() ----
+
+    // Caso feliz de update(): el evento es del que llama, sigue activo, y la capacidad nueva alcanza.
+    private void updatable(final long occupied) {
+        existingForUpdate(someEvent());
+        when(registrationService.occupiedSpots(EVENT_ID)).thenReturn(occupied);
     }
 
     @Test
     public void testUpdateSucceedsAndReturnsUpdated() {
         // Arrange
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(someEvent()));
+        updatable(5);
         final Event changes = someEvent();
         changes.setMaxCapacity(20);
-        when(mockRegistrationService.occupiedSpots(EVENT_ID)).thenReturn(5L);
+        when(eventDao.update(changes)).thenReturn(true);
+
+        // Act
+        final EventUpdateResult result = eventService.update(EVENT_ID, changes, CREATOR_ID);
+
+        // Assert
+        assertEquals(EventUpdateResult.UPDATED, result);
+    }
+
+    @Test
+    public void testUpdateStoresTheChangesUnderTheEventId() {
+        // Arrange
+        updatable(0);
+        final Event changes = new Event(); // llega sin id: el service se lo pone
+        changes.setCreatorId(CREATOR_ID);
+        changes.setMaxCapacity(20);
+        when(eventDao.update(argThat(updated -> updated.getId() == EVENT_ID))).thenReturn(true);
 
         // Act
         final EventUpdateResult result = eventService.update(EVENT_ID, changes, CREATOR_ID);
@@ -230,7 +405,7 @@ public class EventServiceImplTest {
     @Test
     public void testUpdateWhenCallerIsNotTheCreatorReturnsNotFound() {
         // Arrange
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(someEvent()));
+        existingForUpdate(someEvent());
 
         // Act
         final EventUpdateResult result = eventService.update(EVENT_ID, someEvent(), OTHER_ID);
@@ -242,7 +417,7 @@ public class EventServiceImplTest {
     @Test
     public void testUpdateWhenTheEventDoesNotExistReturnsNotFound() {
         // Arrange
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.empty());
+        when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
         final EventUpdateResult result = eventService.update(EVENT_ID, someEvent(), CREATOR_ID);
@@ -252,12 +427,23 @@ public class EventServiceImplTest {
     }
 
     @Test
+    public void testUpdateWhenTheEventIsCancelledReturnsCancelled() {
+        // Arrange
+        existingForUpdate(cancelledEvent());
+
+        // Act
+        final EventUpdateResult result = eventService.update(EVENT_ID, someEvent(), CREATOR_ID);
+
+        // Assert
+        assertEquals(EventUpdateResult.CANCELLED, result);
+    }
+
+    @Test
     public void testUpdateWhenNewCapacityIsBelowOccupiedReturnsCapacityTooLow() {
         // Arrange
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(someEvent()));
+        updatable(5);
         final Event changes = someEvent();
         changes.setMaxCapacity(3);
-        when(mockRegistrationService.occupiedSpots(EVENT_ID)).thenReturn(5L);
 
         // Act
         final EventUpdateResult result = eventService.update(EVENT_ID, changes, CREATOR_ID);
@@ -267,50 +453,104 @@ public class EventServiceImplTest {
     }
 
     @Test
+    public void testUpdateWhenCapacityTooLowDoesNotNotifyAnyone() {
+        // Arrange
+        updatable(5);
+        final Event changes = someEvent();
+        changes.setMaxCapacity(3);
+
+        // Act
+        eventService.update(EVENT_ID, changes, CREATOR_ID);
+
+        // Assert
+        assertTrue(notifications.methods().isEmpty());
+        assertTrue(inbox.all().isEmpty());
+    }
+
+    @Test
     public void testUpdateWhenNewCapacityEqualsOccupiedSucceeds() {
         // Arrange
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(someEvent()));
+        updatable(5);
         final Event changes = someEvent();
         changes.setMaxCapacity(5);
-        when(mockRegistrationService.occupiedSpots(EVENT_ID)).thenReturn(5L);
+        when(eventDao.update(changes)).thenReturn(true);
 
         // Act
         final EventUpdateResult result = eventService.update(EVENT_ID, changes, CREATOR_ID);
 
         // Assert
         assertEquals(EventUpdateResult.UPDATED, result);
+    }
+
+    @Test
+    public void testUpdateWhenNewCapacityIsNullSucceedsEvenIfSomeSpotsAreOccupied() {
+        // Arrange
+        // Sin cupo (ilimitado) no hay nada que comparar contra lo ocupado: tiene
+        // que actualizar igual aunque haya lugares ocupados.
+        existingForUpdate(someEvent());
+        final Event changes = someEvent();
+        changes.setMaxCapacity(null);
+        when(eventDao.update(changes)).thenReturn(true);
+
+        // Act
+        final EventUpdateResult result = eventService.update(EVENT_ID, changes, CREATOR_ID);
+
+        // Assert
+        assertEquals(EventUpdateResult.UPDATED, result);
+    }
+
+    @Test
+    public void testUpdateNotifiesOnlyConfirmedRegistrants() {
+        // Arrange
+        existingForUpdate(someEvent());
+        final Registration confirmed = registration("confirmado@mail.com", RegistrationStatus.CONFIRMED);
+        when(registrationService.findByEventId(EVENT_ID)).thenReturn(Arrays.asList(confirmed,
+                registration("espera@mail.com", RegistrationStatus.WAITLISTED)));
+
+        // Act
+        eventService.update(EVENT_ID, someEvent(), CREATOR_ID);
+
+        // Assert
+        assertEquals(Collections.singletonList(confirmed), registrationsNotified("notifyEventUpdated"));
+    }
+
+    @Test
+    public void testUpdateTellsOnlyConfirmedRegistrantsInTheInbox() {
+        // Arrange
+        existingForUpdate(someEvent());
+        when(registrationService.findByEventId(EVENT_ID)).thenReturn(Arrays.asList(
+                registration("confirmado@mail.com", RegistrationStatus.CONFIRMED),
+                registration("espera@mail.com", RegistrationStatus.WAITLISTED)));
+
+        // Act
+        eventService.update(EVENT_ID, someEvent(), CREATOR_ID);
+
+        // Assert
+        assertEquals(Collections.singletonList("confirmado@mail.com"), inbox.recipients());
+    }
+
+    @Test
+    public void testUpdateLeavesAnEventUpdatedMessageInTheInbox() {
+        // Arrange
+        existingForUpdate(someEvent());
+        when(registrationService.findByEventId(EVENT_ID)).thenReturn(Collections.singletonList(
+                registration("confirmado@mail.com", RegistrationStatus.CONFIRMED)));
+
+        // Act
+        eventService.update(EVENT_ID, someEvent(), CREATOR_ID);
+
+        // Assert
+        assertEquals(InboxMessageType.EVENT_UPDATED, inbox.to("confirmado@mail.com").get(0).type);
     }
 
     // Si el organizador sube el cupo, los primeros de la lista de espera entran ya.
     @Test
     public void testUpdatePromotesTheWaitlistSoRaisedCapacityIsFilled() {
         // Arrange
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(someEvent()));
+        updatable(0);
         final Event changes = someEvent();
         changes.setMaxCapacity(20);
-        final boolean[] promoted = {false};
-        doAnswer(invocation -> {
-            promoted[0] = true;
-            return 0;
-        }).when(mockRegistrationService).promoteFromWaitlist(EVENT_ID);
-
-        // Act
-        eventService.update(EVENT_ID, changes, CREATOR_ID);
-
-        // Assert
-        assertTrue(promoted[0]);
-    }
-
-    @Test
-    public void testUpdateWhenNewCapacityIsNullSucceedsWithoutCheckingOccupied() {
-        // Arrange
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(someEvent()));
-        final Event changes = someEvent();
-        changes.setMaxCapacity(null);
-        // Si se llegara a consultar occupiedSpots() con cupo null, es un bug:
-        // se stubea para que reviente en vez de devolver un valor cualquiera.
-        lenient().when(mockRegistrationService.occupiedSpots(EVENT_ID))
-                .thenThrow(new AssertionError("no deberia consultar occupiedSpots con cupo null"));
+        when(registrationService.promoteFromWaitlist(EVENT_ID)).thenReturn(2);
 
         // Act
         final EventUpdateResult result = eventService.update(EVENT_ID, changes, CREATOR_ID);
@@ -319,105 +559,73 @@ public class EventServiceImplTest {
         assertEquals(EventUpdateResult.UPDATED, result);
     }
 
-    @Test
-    public void testUpdateSucceedsAndNotifiesOnlyConfirmedRegistrants() {
-        // Arrange
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(someEvent()));
-        final Event changes = someEvent();
-        final Registration confirmed = new Registration(EVENT_ID, "confirmado@mail.com", "Confirmado",
-                RegistrationStatus.CONFIRMED);
-        final Registration waitlisted = new Registration(EVENT_ID, "espera@mail.com", "Espera",
-                RegistrationStatus.WAITLISTED);
-        when(mockRegistrationService.findByEventId(EVENT_ID)).thenReturn(Arrays.asList(confirmed, waitlisted));
-        final List<Registration> notified = captureUpdateNotifications();
-
-        // Act
-        final EventUpdateResult result = eventService.update(EVENT_ID, changes, CREATOR_ID);
-
-        // Assert
-        assertEquals(EventUpdateResult.UPDATED, result);
-        assertEquals(Collections.singletonList(confirmed), notified);
-    }
+    // ---- cancel() ----
 
     @Test
-    public void testUpdateWhenCapacityTooLowDoesNotNotifyAnyone() {
+    public void testCancelSucceedsAndReturnsCancelled() {
         // Arrange
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(someEvent()));
-        final Event changes = someEvent();
-        changes.setMaxCapacity(3);
-        when(mockRegistrationService.occupiedSpots(EVENT_ID)).thenReturn(5L);
-
-        // Act
-        final EventUpdateResult result = eventService.update(EVENT_ID, changes, CREATOR_ID);
-
-        // Assert
-        assertEquals(EventUpdateResult.CAPACITY_TOO_LOW, result);
-    }
-
-    @Test
-    public void testCancelSucceedsAndNotifiesOnlyConfirmedRegistrants() {
-        // Arrange
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(someEvent()));
-        final Registration confirmed = new Registration(EVENT_ID, "confirmado@mail.com", "Confirmado",
-                RegistrationStatus.CONFIRMED);
-        final Registration waitlisted = new Registration(EVENT_ID, "espera@mail.com", "Espera",
-                RegistrationStatus.WAITLISTED);
-        final Registration pending = new Registration(EVENT_ID, "pendiente@mail.com", "Pendiente",
-                RegistrationStatus.PENDING);
-        when(mockRegistrationService.findByEventId(EVENT_ID))
-                .thenReturn(Arrays.asList(confirmed, waitlisted, pending));
-        final List<Registration> notified = captureCancelNotifications();
+        existing(someEvent());
+        when(eventDao.cancel(EVENT_ID)).thenReturn(true);
 
         // Act
         final EventCancelResult result = eventService.cancel(EVENT_ID, CREATOR_ID);
 
         // Assert
         assertEquals(EventCancelResult.CANCELLED, result);
-        assertEquals(Collections.singletonList(confirmed), notified);
     }
 
     @Test
-    public void testCancelTellsEveryoneStillWaitingInTheInboxButNotTheRejected() {
+    public void testCancelNotifiesOnlyConfirmedRegistrants() {
         // Arrange
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(someEvent()));
-        when(mockRegistrationService.findByEventId(EVENT_ID)).thenReturn(Arrays.asList(
-                new Registration(EVENT_ID, "confirmado@mail.com", "C", RegistrationStatus.CONFIRMED),
-                new Registration(EVENT_ID, "espera@mail.com", "E", RegistrationStatus.WAITLISTED),
-                new Registration(EVENT_ID, "pendiente@mail.com", "P", RegistrationStatus.PENDING),
-                new Registration(EVENT_ID, "rechazado@mail.com", "R", RegistrationStatus.REJECTED)));
-        final List<String> recipients = captureInboxRecipients();
+        existing(someEvent());
+        final Registration confirmed = registration("confirmado@mail.com", RegistrationStatus.CONFIRMED);
+        when(registrationService.findByEventId(EVENT_ID)).thenReturn(Arrays.asList(confirmed,
+                registration("espera@mail.com", RegistrationStatus.WAITLISTED),
+                registration("pendiente@mail.com", RegistrationStatus.PENDING)));
 
         // Act
         eventService.cancel(EVENT_ID, CREATOR_ID);
 
         // Assert
-        assertTrue(recipients.contains("confirmado@mail.com"));
-        assertTrue(recipients.contains("espera@mail.com"));
-        assertTrue(recipients.contains("pendiente@mail.com"));
-        assertFalse(recipients.contains("rechazado@mail.com"));
+        assertEquals(Collections.singletonList(confirmed), registrationsNotified("notifyEventCancelled"));
     }
 
     @Test
-    public void testUpdateTellsOnlyConfirmedRegistrantsInTheInbox() {
+    public void testCancelTellsEveryoneStillWaitingInTheInboxButNotTheRejected() {
         // Arrange
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(someEvent()));
-        when(mockRegistrationService.findByEventId(EVENT_ID)).thenReturn(Arrays.asList(
-                new Registration(EVENT_ID, "confirmado@mail.com", "C", RegistrationStatus.CONFIRMED),
-                new Registration(EVENT_ID, "espera@mail.com", "E", RegistrationStatus.WAITLISTED)));
-        final List<String> recipients = captureInboxRecipients();
+        existing(someEvent());
+        when(registrationService.findByEventId(EVENT_ID)).thenReturn(Arrays.asList(
+                registration("confirmado@mail.com", RegistrationStatus.CONFIRMED),
+                registration("espera@mail.com", RegistrationStatus.WAITLISTED),
+                registration("pendiente@mail.com", RegistrationStatus.PENDING),
+                registration("rechazado@mail.com", RegistrationStatus.REJECTED)));
 
         // Act
-        eventService.update(EVENT_ID, someEvent(), CREATOR_ID);
+        eventService.cancel(EVENT_ID, CREATOR_ID);
 
         // Assert
-        assertTrue(recipients.contains("confirmado@mail.com"));
-        assertFalse(recipients.contains("espera@mail.com"));
+        assertEquals(Arrays.asList("confirmado@mail.com", "espera@mail.com", "pendiente@mail.com"),
+                inbox.recipients());
+    }
+
+    @Test
+    public void testCancelLeavesAnEventCancelledMessageInTheInbox() {
+        // Arrange
+        existing(someEvent());
+        when(registrationService.findByEventId(EVENT_ID)).thenReturn(Collections.singletonList(
+                registration("confirmado@mail.com", RegistrationStatus.CONFIRMED)));
+
+        // Act
+        eventService.cancel(EVENT_ID, CREATOR_ID);
+
+        // Assert
+        assertEquals(InboxMessageType.EVENT_CANCELLED, inbox.to("confirmado@mail.com").get(0).type);
     }
 
     @Test
     public void testCancelWhenCallerIsNotTheCreatorReturnsNotFound() {
         // Arrange
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(someEvent()));
+        existing(someEvent());
 
         // Act
         final EventCancelResult result = eventService.cancel(EVENT_ID, OTHER_ID);
@@ -429,7 +637,7 @@ public class EventServiceImplTest {
     @Test
     public void testCancelWhenTheEventDoesNotExistReturnsNotFound() {
         // Arrange
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.empty());
+        when(eventDao.findById(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
         final EventCancelResult result = eventService.cancel(EVENT_ID, CREATOR_ID);
@@ -439,11 +647,9 @@ public class EventServiceImplTest {
     }
 
     @Test
-    public void testCancelWhenAlreadyCancelledDoesNotCancelOrNotifyAgain() {
+    public void testCancelWhenAlreadyCancelledReturnsAlreadyCancelled() {
         // Arrange
-        final Event alreadyCancelled = someEvent();
-        alreadyCancelled.setCancelledAt(new java.util.Date());
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(alreadyCancelled));
+        existing(cancelledEvent());
 
         // Act
         final EventCancelResult result = eventService.cancel(EVENT_ID, CREATOR_ID);
@@ -457,79 +663,86 @@ public class EventServiceImplTest {
     @Test
     public void testRemoveByAdminSucceedsRegardlessOfWhoCreatedTheEvent() {
         // Arrange
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(someEvent()));
-        when(mockRegistrationService.findByEventId(EVENT_ID)).thenReturn(Collections.emptyList());
-        // removeByAdmin() y cancel() devuelven el mismo CANCELLED: sin capturar
-        // cual de los dos se uso, serian indistinguibles para el test.
-        final boolean[] calledRemoveByAdmin = {false};
-        doAnswer(invocation -> {
-            calledRemoveByAdmin[0] = true;
-            return null;
-        }).when(mockEventDao).removeByAdmin(EVENT_ID, "Contenido inapropiado");
-        lenient().doThrow(new AssertionError("removeByAdmin no deberia usar cancel()"))
-                .when(mockEventDao).cancel(anyLong());
+        // removeByAdmin() y cancel() devuelven el mismo CANCELLED: lo que los distingue es el
+        // comando del dao que ejecutan (removeByAdmin guarda la marca "retirado por un admin" y el motivo).
+        existing(someEvent());
+        when(eventDao.removeByAdmin(EVENT_ID, "Contenido inapropiado")).thenReturn(true);
 
         // Act
         final EventCancelResult result = eventService.removeByAdmin(EVENT_ID, "Contenido inapropiado");
 
         // Assert
         assertEquals(EventCancelResult.CANCELLED, result);
-        assertTrue(calledRemoveByAdmin[0]);
     }
 
     @Test
     public void testRemoveByAdminNotifiesTheCreatorWithTheReason() {
         // Arrange
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(someEvent()));
-        when(mockRegistrationService.findByEventId(EVENT_ID)).thenReturn(Collections.emptyList());
-        final Object[] notifyArgs = new Object[2];
-        doAnswer(invocation -> {
-            notifyArgs[0] = invocation.getArgument(0);
-            notifyArgs[1] = invocation.getArgument(1);
-            return null;
-        }).when(mockNotificationService).notifyEventRemovedByAdmin(any(Event.class), any());
-        final List<Object[]> inboxCalls = new ArrayList<>();
-        doAnswer(invocation -> {
-            inboxCalls.add(new Object[] {invocation.getArgument(0), invocation.getArgument(1),
-                    invocation.getArgument(2), invocation.getArgument(4)});
-            return null;
-        }).when(mockInboxService).add(any(), any(), any(), any(), any());
+        existing(someEvent());
 
         // Act
         eventService.removeByAdmin(EVENT_ID, "Contenido inapropiado");
 
         // Assert
-        assertEquals("Contenido inapropiado", notifyArgs[1]);
-        final Object[] creatorInboxCall = inboxCalls.stream()
-                .filter(call -> CREATOR_EMAIL.equals(call[0]))
-                .findFirst().orElseThrow(AssertionError::new);
-        assertEquals(InboxMessageType.EVENT_REMOVED_BY_ADMIN, creatorInboxCall[1]);
-        assertEquals(EVENT_ID, creatorInboxCall[2]);
-        assertEquals("Contenido inapropiado", creatorInboxCall[3]);
+        assertEquals("Contenido inapropiado", notifications.argsOf("notifyEventRemovedByAdmin").get(0)[1]);
+    }
+
+    @Test
+    public void testRemoveByAdminLeavesARemovedByAdminMessageForTheCreatorInTheInbox() {
+        // Arrange
+        existing(someEvent());
+
+        // Act
+        eventService.removeByAdmin(EVENT_ID, "Contenido inapropiado");
+
+        // Assert
+        assertEquals(InboxMessageType.EVENT_REMOVED_BY_ADMIN, inbox.to(CREATOR_EMAIL).get(0).type);
+    }
+
+    @Test
+    public void testRemoveByAdminPutsTheReasonInTheCreatorsInboxMessage() {
+        // Arrange
+        existing(someEvent());
+
+        // Act
+        eventService.removeByAdmin(EVENT_ID, "Contenido inapropiado");
+
+        // Assert
+        assertEquals("Contenido inapropiado", inbox.to(CREATOR_EMAIL).get(0).body);
     }
 
     @Test
     public void testRemoveByAdminAlsoNotifiesConfirmedRegistrantsLikeAnyCancellation() {
         // Arrange
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(someEvent()));
-        final Registration confirmed = new Registration(EVENT_ID, "confirmado@mail.com", "Confirmado",
-                RegistrationStatus.CONFIRMED);
-        when(mockRegistrationService.findByEventId(EVENT_ID)).thenReturn(Collections.singletonList(confirmed));
-        final List<Registration> notified = captureCancelNotifications();
-        final List<String> recipients = captureInboxRecipients();
+        existing(someEvent());
+        final Registration confirmed = registration("confirmado@mail.com", RegistrationStatus.CONFIRMED);
+        when(registrationService.findByEventId(EVENT_ID)).thenReturn(Collections.singletonList(confirmed));
 
         // Act
         eventService.removeByAdmin(EVENT_ID, "Contenido inapropiado");
 
         // Assert
-        assertEquals(Collections.singletonList(confirmed), notified);
-        assertTrue(recipients.contains("confirmado@mail.com"));
+        assertEquals(Collections.singletonList(confirmed), registrationsNotified("notifyEventCancelled"));
+    }
+
+    @Test
+    public void testRemoveByAdminAlsoTellsConfirmedRegistrantsInTheInbox() {
+        // Arrange
+        existing(someEvent());
+        when(registrationService.findByEventId(EVENT_ID)).thenReturn(Collections.singletonList(
+                registration("confirmado@mail.com", RegistrationStatus.CONFIRMED)));
+
+        // Act
+        eventService.removeByAdmin(EVENT_ID, "Contenido inapropiado");
+
+        // Assert
+        assertEquals(InboxMessageType.EVENT_CANCELLED, inbox.to("confirmado@mail.com").get(0).type);
     }
 
     @Test
     public void testRemoveByAdminWhenTheEventDoesNotExistReturnsNotFound() {
         // Arrange
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.empty());
+        when(eventDao.findById(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
         final EventCancelResult result = eventService.removeByAdmin(EVENT_ID, "motivo");
@@ -539,11 +752,9 @@ public class EventServiceImplTest {
     }
 
     @Test
-    public void testRemoveByAdminWhenAlreadyCancelledDoesNothing() {
+    public void testRemoveByAdminWhenAlreadyCancelledReturnsAlreadyCancelled() {
         // Arrange
-        final Event alreadyCancelled = someEvent();
-        alreadyCancelled.setCancelledAt(new java.util.Date());
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(alreadyCancelled));
+        existing(cancelledEvent());
 
         // Act
         final EventCancelResult result = eventService.removeByAdmin(EVENT_ID, "motivo");
@@ -552,37 +763,67 @@ public class EventServiceImplTest {
         assertEquals(EventCancelResult.ALREADY_CANCELLED, result);
     }
 
+    @Test
+    public void testRemoveByAdminWhenAlreadyCancelledDoesNotNotifyAnything() {
+        // Arrange
+        existing(cancelledEvent());
+
+        // Act
+        eventService.removeByAdmin(EVENT_ID, "motivo");
+
+        // Assert
+        assertTrue(notifications.methods().isEmpty());
+        assertTrue(inbox.all().isEmpty());
+    }
+
     // ---- findFeatured() / setFeatured() (banner de /eventos) ----
 
     @Test
-    public void testFindFeaturedDelegatesToTheDao() {
+    public void testFindFeaturedReturnsTheFeaturedEventsTheDaoFinds() {
         // Arrange
-        when(mockEventDao.findFeatured(5)).thenReturn(java.util.Collections.singletonList(someEvent()));
+        final List<Event> featured = Arrays.asList(eventWith(2, CATEGORY_ID, CREATOR_ID), eventWith(3, CATEGORY_ID, CREATOR_ID));
+        when(eventDao.findFeatured(2)).thenReturn(featured);
 
         // Act
-        final int size = eventService.findFeatured(5).size();
+        final List<Event> result = eventService.findFeatured(2);
 
         // Assert
-        assertEquals(1, size);
+        assertEquals(featured, result);
     }
 
     @Test
-    public void testSetFeaturedDelegatesToTheDao() {
+    public void testSetFeaturedTrueReturnsTrueWhenTheEventWasMarked() {
         // Arrange
-        // setFeatured() es void: se captura con doAnswer() en vez de con
-        // Mockito.verify().
-        final Object[] calledWith = new Object[2];
-        doAnswer(invocation -> {
-            calledWith[0] = invocation.getArgument(0);
-            calledWith[1] = invocation.getArgument(1);
-            return null;
-        }).when(mockEventDao).setFeatured(anyLong(), org.mockito.ArgumentMatchers.anyBoolean());
+        when(eventDao.setFeatured(EVENT_ID, true)).thenReturn(true);
 
         // Act
-        eventService.setFeatured(EVENT_ID, true);
+        final boolean result = eventService.setFeatured(EVENT_ID, true);
 
         // Assert
-        assertEquals(EVENT_ID, calledWith[0]);
-        assertEquals(true, calledWith[1]);
+        assertTrue(result);
+    }
+
+    @Test
+    public void testSetFeaturedFalseReturnsTrueWhenTheEventWasUnmarked() {
+        // Arrange
+        when(eventDao.setFeatured(EVENT_ID, false)).thenReturn(true);
+
+        // Act
+        final boolean result = eventService.setFeatured(EVENT_ID, false);
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    public void testSetFeaturedReturnsFalseWhenTheEventDoesNotExist() {
+        // Arrange
+        when(eventDao.setFeatured(EVENT_ID, true)).thenReturn(false);
+
+        // Act
+        final boolean result = eventService.setFeatured(EVENT_ID, true);
+
+        // Assert
+        assertFalse(result);
     }
 }

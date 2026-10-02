@@ -12,19 +12,18 @@ public interface EventDao {
 
     // event.getId() tiene que venir seteado (identifica la fila a actualizar).
     // No toca creator_email ni created_at -- quien creo el evento y cuando no
-    // se editan. Devuelve void a proposito, mismo patron que UserDao.updateProfile:
-    // no hay ningun dato generado que devolver como si fuera un create().
-    void update(Event event);
+    // se editan. Devuelve true si la fila existia y se actualizo.
+    boolean update(Event event);
 
     // Soft-delete: marca cancelled_at = now(). No borra la fila (ver comentario
     // en schema.sql). Idempotente a nivel SQL, pero quien llama (EventService)
     // es responsable de no invocarlo dos veces sobre el mismo evento.
-    void cancel(long id);
+    boolean cancel(long id);
 
     // Baja por moderacion (ver ModerationService.removeEvent()): mismo mecanismo
     // que cancel() (marca cancelled_at), pero ademas deja marcado que fue un
     // admin y por que, para que el detalle y el mail al creador lo digan.
-    void removeByAdmin(long id, String reason);
+    boolean removeByAdmin(long id, String reason);
 
     // No excluye cancelados a proposito: el detalle de un evento cancelado
     // sigue siendo accesible para quien ya estaba anotado (ver EventController).
@@ -71,5 +70,5 @@ public interface EventDao {
 
     // Marca o desmarca un evento para el banner (ver AdminController.destacar()/
     // quitarDestacado()). Al desmarcar limpia featured_at.
-    void setFeatured(long eventId, boolean featured);
+    boolean setFeatured(long eventId, boolean featured);
 }

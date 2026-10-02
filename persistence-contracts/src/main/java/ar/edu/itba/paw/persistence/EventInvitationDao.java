@@ -47,5 +47,5 @@ public interface EventInvitationDao {
      * invitaciones que quedaron sin resolver (user_id NULL), sin tocar las que
      * ya lo tenian.
      */
-    void linkUserId(String email, long userId);
+    int linkUserId(String email, long userId);
 }

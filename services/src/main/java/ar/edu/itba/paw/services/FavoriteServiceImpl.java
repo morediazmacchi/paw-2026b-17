@@ -20,14 +20,14 @@ public class FavoriteServiceImpl implements FavoriteService {
 
     @Override
     @Transactional
-    public void add(final long userId, final long eventId) {
-        favoriteDao.add(userId, eventId);
+    public boolean add(final long userId, final long eventId) {
+        return favoriteDao.add(userId, eventId);
     }
 
     @Override
     @Transactional
-    public void remove(final long userId, final long eventId) {
-        favoriteDao.remove(userId, eventId);
+    public boolean remove(final long userId, final long eventId) {
+        return favoriteDao.remove(userId, eventId);
     }
 
     @Override

@@ -354,4 +354,138 @@ public class RegistrationJdbcDaoTest {
         assertEquals("primero@mail.com", pending.get(0).getEmail());
         assertEquals("segundo@mail.com", pending.get(1).getEmail());
     }
+
+    // ---- updateStatus() ----
+
+    @Test
+    public void testUpdateStatusChangesTheStatusOfThatRegistration() {
+        // Arrange
+        final long id = insertRegistration(eventId, EMAIL, userId, NAME, RegistrationStatus.PENDING);
+
+        // Act
+        registrationDao.updateStatus(id, RegistrationStatus.CONFIRMED);
+
+        // Assert
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "registration",
+                "id = " + id + " AND status = 'CONFIRMED'"));
+    }
+
+    @Test
+    public void testUpdateStatusLeavesTheOtherRegistrationsAlone() {
+        // Arrange
+        final long id = insertRegistration(eventId, EMAIL, userId, NAME, RegistrationStatus.PENDING);
+        final long otherUserId = insertUser("otra@mail.com", "Otra");
+        final long otherId = insertRegistration(eventId, "otra@mail.com", otherUserId, "Otra",
+                RegistrationStatus.PENDING);
+
+        // Act
+        registrationDao.updateStatus(id, RegistrationStatus.REJECTED);
+
+        // Assert
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "registration",
+                "id = " + otherId + " AND status = 'PENDING'"));
+    }
+
+    // ---- findNextWaitlisted() ----
+
+    private long insertWaitlistedAt(final long eventId, final String email, final long millisAgo) {
+        final long waiterId = insertUser(email, "Espera");
+        return insertRegistrationAt(eventId, email, waiterId, "Espera", RegistrationStatus.WAITLISTED,
+                new Timestamp(System.currentTimeMillis() - millisAgo));
+    }
+
+    @Test
+    public void testFindNextWaitlistedOrdersByWhoArrivedFirst() {
+        // Arrange
+        final long last = insertWaitlistedAt(eventId, "tercero@mail.com", 1000);
+        final long first = insertWaitlistedAt(eventId, "primero@mail.com", 3000);
+        final long second = insertWaitlistedAt(eventId, "segundo@mail.com", 2000);
+
+        // Act
+        final List<Registration> found = registrationDao.findNextWaitlisted(eventId, 10);
+
+        // Assert
+        assertEquals(first, found.get(0).getId());
+        assertEquals(second, found.get(1).getId());
+        assertEquals(last, found.get(2).getId());
+    }
+
+    @Test
+    public void testFindNextWaitlistedReturnsAtMostTheLimit() {
+        // Arrange
+        final long first = insertWaitlistedAt(eventId, "primero@mail.com", 3000);
+        insertWaitlistedAt(eventId, "segundo@mail.com", 2000);
+        insertWaitlistedAt(eventId, "tercero@mail.com", 1000);
+
+        // Act
+        final List<Registration> found = registrationDao.findNextWaitlisted(eventId, 1);
+
+        // Assert
+        assertEquals(1, found.size());
+        assertEquals(first, found.get(0).getId());
+    }
+
+    @Test
+    public void testFindNextWaitlistedIgnoresOtherStatusesAndOtherEvents() {
+        // Arrange
+        final long waiting = insertWaitlistedAt(eventId, "espera@mail.com", 1000);
+        insertRegistration(eventId, EMAIL, userId, NAME, RegistrationStatus.CONFIRMED);
+        final long otherEventId = insertEvent();
+        insertWaitlistedAt(otherEventId, "otro-evento@mail.com", 1000);
+
+        // Act
+        final List<Registration> found = registrationDao.findNextWaitlisted(eventId, 10);
+
+        // Assert
+        assertEquals(1, found.size());
+        assertEquals(waiting, found.get(0).getId());
+    }
+
+    @Test
+    public void testDeleteReturnsTrueWhenTheRegistrationExisted() {
+        // Arrange
+        final long id = insertRegistration(eventId, EMAIL, userId, NAME, RegistrationStatus.CONFIRMED);
+
+        // Act
+        final boolean result = registrationDao.delete(id);
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    public void testDeleteReturnsFalseWhenThereIsNoSuchRegistration() {
+        // Arrange
+        // (no hay ninguna inscripcion guardada)
+
+        // Act
+        final boolean result = registrationDao.delete(999_999L);
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    public void testUpdateStatusReturnsTrueWhenTheRegistrationExisted() {
+        // Arrange
+        final long id = insertRegistration(eventId, EMAIL, userId, NAME, RegistrationStatus.PENDING);
+
+        // Act
+        final boolean result = registrationDao.updateStatus(id, RegistrationStatus.CONFIRMED);
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    public void testUpdateStatusReturnsFalseWhenThereIsNoSuchRegistration() {
+        // Arrange
+        // (no hay ninguna inscripcion guardada)
+
+        // Act
+        final boolean result = registrationDao.updateStatus(999_999L, RegistrationStatus.CONFIRMED);
+
+        // Assert
+        assertFalse(result);
+    }
 }

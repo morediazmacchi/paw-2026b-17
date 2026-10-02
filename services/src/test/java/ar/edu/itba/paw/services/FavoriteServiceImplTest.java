@@ -1,27 +1,23 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.persistence.FavoriteDao;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 
-// Unidad 5 - Unit Testing: "es recomendable NO utilizar el metodo verify,
-// pues queremos verificar comportamiento, no la implementacion". Para add()/
-// remove() (void, sin nada que devolver) el comportamiento es justamente
-// "que le llegue esto al dao" -- se captura con doAnswer() sobre el stub y se
-// comprueba con un assert comun, nunca con Mockito.verify().
+// Unidad 5 - Unit Testing: el dao es un mock de Mockito (@Mock + when) y cada test
+// asierta sobre lo que DEVUELVE el service (el contrato), sin verify.
 @RunWith(MockitoJUnitRunner.class)
 public class FavoriteServiceImplTest {
 
@@ -29,51 +25,67 @@ public class FavoriteServiceImplTest {
     private static final long EVENT_ID = 2;
 
     @Mock
-    private FavoriteDao mockFavoriteDao;
+    private FavoriteDao favoriteDao;
 
-    @InjectMocks
     private FavoriteServiceImpl favoriteService;
 
-    @Test
-    public void testAddDelegatesToTheDao() {
-        // Arrange
-        final long[] calledWith = new long[2];
-        doAnswer(invocation -> {
-            calledWith[0] = invocation.getArgument(0);
-            calledWith[1] = invocation.getArgument(1);
-            return null;
-        }).when(mockFavoriteDao).add(anyLong(), anyLong());
-
-        // Act
-        favoriteService.add(USER_ID, EVENT_ID);
-
-        // Assert
-        assertEquals(USER_ID, calledWith[0]);
-        assertEquals(EVENT_ID, calledWith[1]);
+    @Before
+    public void setUp() {
+        favoriteService = new FavoriteServiceImpl(favoriteDao);
     }
 
     @Test
-    public void testRemoveDelegatesToTheDao() {
+    public void testAddReturnsTrueWhenTheEventWasAdded() {
         // Arrange
-        final long[] calledWith = new long[2];
-        doAnswer(invocation -> {
-            calledWith[0] = invocation.getArgument(0);
-            calledWith[1] = invocation.getArgument(1);
-            return null;
-        }).when(mockFavoriteDao).remove(anyLong(), anyLong());
+        when(favoriteDao.add(USER_ID, EVENT_ID)).thenReturn(true);
 
         // Act
-        favoriteService.remove(USER_ID, EVENT_ID);
+        final boolean result = favoriteService.add(USER_ID, EVENT_ID);
 
         // Assert
-        assertEquals(USER_ID, calledWith[0]);
-        assertEquals(EVENT_ID, calledWith[1]);
+        assertTrue(result);
     }
 
     @Test
-    public void testIsFavoriteReturnsTrueWhenTheDaoSaysSo() {
+    public void testAddReturnsFalseWhenTheEventWasAlreadyAFavorite() {
         // Arrange
-        when(mockFavoriteDao.isFavorite(USER_ID, EVENT_ID)).thenReturn(true);
+        when(favoriteDao.add(USER_ID, EVENT_ID)).thenReturn(false);
+
+        // Act
+        final boolean result = favoriteService.add(USER_ID, EVENT_ID);
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    public void testRemoveReturnsTrueWhenTheEventWasRemoved() {
+        // Arrange
+        when(favoriteDao.remove(USER_ID, EVENT_ID)).thenReturn(true);
+
+        // Act
+        final boolean result = favoriteService.remove(USER_ID, EVENT_ID);
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    public void testRemoveReturnsFalseWhenTheEventWasNotAFavorite() {
+        // Arrange
+        when(favoriteDao.remove(USER_ID, EVENT_ID)).thenReturn(false);
+
+        // Act
+        final boolean result = favoriteService.remove(USER_ID, EVENT_ID);
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    public void testIsFavoriteReturnsTrueWhenTheEventIsAFavoriteOfTheUser() {
+        // Arrange
+        when(favoriteDao.isFavorite(USER_ID, EVENT_ID)).thenReturn(true);
 
         // Act
         final boolean result = favoriteService.isFavorite(USER_ID, EVENT_ID);
@@ -83,9 +95,9 @@ public class FavoriteServiceImplTest {
     }
 
     @Test
-    public void testIsFavoriteReturnsFalseWhenTheDaoSaysSo() {
+    public void testIsFavoriteReturnsFalseWhenTheEventIsNotAFavoriteOfTheUser() {
         // Arrange
-        when(mockFavoriteDao.isFavorite(USER_ID, EVENT_ID)).thenReturn(false);
+        when(favoriteDao.isFavorite(USER_ID, EVENT_ID)).thenReturn(false);
 
         // Act
         final boolean result = favoriteService.isFavorite(USER_ID, EVENT_ID);
@@ -95,15 +107,26 @@ public class FavoriteServiceImplTest {
     }
 
     @Test
-    public void testFindEventIdsByUserDelegatesToTheDao() {
+    public void testFindEventIdsByUserReturnsThatUsersFavorites() {
         // Arrange
-        final List<Long> ids = Collections.singletonList(EVENT_ID);
-        when(mockFavoriteDao.findEventIdsByUser(USER_ID)).thenReturn(ids);
+        when(favoriteDao.findEventIdsByUser(USER_ID)).thenReturn(Arrays.asList(EVENT_ID, EVENT_ID + 1));
 
         // Act
         final List<Long> result = favoriteService.findEventIdsByUser(USER_ID);
 
         // Assert
-        assertEquals(ids, result);
+        assertEquals(Arrays.asList(EVENT_ID, EVENT_ID + 1), result);
+    }
+
+    @Test
+    public void testFindEventIdsByUserReturnsEmptyWhenTheUserHasNoFavorites() {
+        // Arrange
+        when(favoriteDao.findEventIdsByUser(USER_ID)).thenReturn(Collections.emptyList());
+
+        // Act
+        final List<Long> result = favoriteService.findEventIdsByUser(USER_ID);
+
+        // Assert
+        assertEquals(Collections.emptyList(), result);
     }
 }

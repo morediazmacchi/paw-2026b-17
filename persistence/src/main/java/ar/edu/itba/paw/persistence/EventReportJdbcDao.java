@@ -91,26 +91,26 @@ public class EventReportJdbcDao implements EventReportDao {
     }
 
     @Override
-    public void requestChanges(final long reportId, final String message, final long adminUserId) {
-        jdbcTemplate.update(
+    public boolean requestChanges(final long reportId, final String message, final long adminUserId) {
+        return jdbcTemplate.update(
                 "UPDATE event_report SET status = ?, changes_requested_message = ?, changes_requested_by = ?, "
                         + "changes_requested_at = ? WHERE id = ? AND status = ?",
                 ReportStatus.CHANGES_REQUESTED.name(), message, adminUserId,
-                new Timestamp(System.currentTimeMillis()), reportId, ReportStatus.PENDING.name());
+                new Timestamp(System.currentTimeMillis()), reportId, ReportStatus.PENDING.name()) == 1;
     }
 
     @Override
-    public void resolve(final long reportId, final ReportStatus status, final long resolvedByUserId) {
-        jdbcTemplate.update(
+    public boolean resolve(final long reportId, final ReportStatus status, final long resolvedByUserId) {
+        return jdbcTemplate.update(
                 "UPDATE event_report SET status = ?, resolved_by = ?, resolved_at = ? "
                         + "WHERE id = ? AND status IN (?, ?)",
                 status.name(), resolvedByUserId, new Timestamp(System.currentTimeMillis()),
-                reportId, ReportStatus.PENDING.name(), ReportStatus.CHANGES_REQUESTED.name());
+                reportId, ReportStatus.PENDING.name(), ReportStatus.CHANGES_REQUESTED.name()) == 1;
     }
 
     @Override
-    public void resolveAllPendingForEvent(final long eventId, final ReportStatus status, final long resolvedByUserId) {
-        jdbcTemplate.update(
+    public int resolveAllPendingForEvent(final long eventId, final ReportStatus status, final long resolvedByUserId) {
+        return jdbcTemplate.update(
                 "UPDATE event_report SET status = ?, resolved_by = ?, resolved_at = ? "
                         + "WHERE event_id = ? AND status IN (?, ?)",
                 status.name(), resolvedByUserId, new Timestamp(System.currentTimeMillis()),

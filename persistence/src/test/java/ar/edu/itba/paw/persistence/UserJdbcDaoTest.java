@@ -14,6 +14,9 @@ import org.springframework.test.jdbc.JdbcTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.sql.DataSource;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -251,16 +254,14 @@ public class UserJdbcDaoTest {
     }
 
     @Test
-    public void testAddRoleTwiceIsIdempotent() {
+    public void testAddRoleWhenTheUserAlreadyHasItIsIdempotent() {
         // Arrange
         // No hay ON CONFLICT (no es portable a HSQLDB): addRole() depende de
         // que el PRIMARY KEY compuesto absorba el duplicado sin explotar.
         final long id = insertUser(EMAIL, NAME);
+        insertRole(id, "ROLE_USER");
 
         // Act
-        // Las DOS llamadas son el Act en si (es lo que hace idempotente a
-        // "idempotente"), no una contaminando a la otra.
-        userDao.addRole(id, "ROLE_USER");
         userDao.addRole(id, "ROLE_USER");
 
         // Assert
@@ -463,5 +464,219 @@ public class UserJdbcDaoTest {
 
         // Assert
         assertTrue(all.isEmpty());
+    }
+
+    // ---- findByIds() ----
+
+    @Test
+    public void testFindByIdsReturnsOnlyTheRequestedUsers() {
+        // Arrange
+        final long first = insertUser("uno@mail.com", "Uno");
+        insertUser("dos@mail.com", "Dos");
+        final long third = insertUser("tres@mail.com", "Tres");
+
+        // Act
+        final List<User> result = userDao.findByIds(Arrays.asList(first, third));
+
+        // Assert
+        assertEquals(2, result.size());
+        assertEquals("uno@mail.com", result.get(0).getEmail());
+        assertEquals("tres@mail.com", result.get(1).getEmail());
+    }
+
+    @Test
+    public void testFindByIdsLoadsTheRolesOfEachUser() {
+        // Arrange
+        final long id = insertUser("uno@mail.com", "Uno");
+        insertRole(id, "ROLE_USER");
+        insertRole(id, "ROLE_ADMIN");
+
+        // Act
+        final List<User> result = userDao.findByIds(Collections.singletonList(id));
+
+        // Assert
+        assertEquals(new HashSet<>(Arrays.asList("ROLE_USER", "ROLE_ADMIN")), result.get(0).getRoles());
+    }
+
+    @Test
+    public void testFindByIdsWithAnEmptyListReturnsAnEmptyList() {
+        // Arrange
+        insertUser("uno@mail.com", "Uno");
+
+        // Act
+        final List<User> result = userDao.findByIds(Collections.emptyList());
+
+        // Assert
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    public void testAddRoleReturnsTrueWhenTheRoleWasAdded() {
+        // Arrange
+        final long id = insertUser(EMAIL, NAME);
+
+        // Act
+        final boolean result = userDao.addRole(id, "ROLE_USER");
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    public void testAddRoleReturnsFalseWhenTheUserAlreadyHadIt() {
+        // Arrange
+        final long id = insertUser(EMAIL, NAME);
+        insertRole(id, "ROLE_USER");
+
+        // Act
+        final boolean result = userDao.addRole(id, "ROLE_USER");
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    public void testRemoveRoleReturnsTrueWhenTheRoleWasRemoved() {
+        // Arrange
+        final long id = insertUser(EMAIL, NAME);
+        insertRole(id, "ROLE_ADMIN");
+
+        // Act
+        final boolean result = userDao.removeRole(id, "ROLE_ADMIN");
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    public void testRemoveRoleReturnsFalseWhenTheUserDidNotHaveIt() {
+        // Arrange
+        final long id = insertUser(EMAIL, NAME);
+
+        // Act
+        final boolean result = userDao.removeRole(id, "ROLE_ADMIN");
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    public void testSetPasswordReturnsTrueWhenTheUserExists() {
+        // Arrange
+        final long id = insertUser(EMAIL, NAME);
+
+        // Act
+        final boolean result = userDao.setPassword(id, "hashed-password");
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    public void testSetPasswordReturnsFalseWhenThereIsNoSuchUser() {
+        // Arrange
+        // (no hay ningun usuario guardado)
+
+        // Act
+        final boolean result = userDao.setPassword(999_999L, "hashed-password");
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    public void testUpdateProfileReturnsTrueWhenTheUserExists() {
+        // Arrange
+        final long id = insertUser(EMAIL, NAME);
+
+        // Act
+        final boolean result = userDao.updateProfile(id, "Nuevo Nombre", "nuevo@mail.com");
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    public void testUpdateProfileReturnsFalseWhenThereIsNoSuchUser() {
+        // Arrange
+        // (no hay ningun usuario guardado)
+
+        // Act
+        final boolean result = userDao.updateProfile(999_999L, "Nuevo Nombre", "nuevo@mail.com");
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    public void testSetVerifiedReturnsTrueWhenTheUserExists() {
+        // Arrange
+        final long id = insertUser(EMAIL, NAME);
+
+        // Act
+        final boolean result = userDao.setVerified(id, true);
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    public void testSetVerifiedReturnsFalseWhenThereIsNoSuchUser() {
+        // Arrange
+        // (no hay ningun usuario guardado)
+
+        // Act
+        final boolean result = userDao.setVerified(999_999L, true);
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    public void testSetLocaleReturnsTrueWhenTheUserExists() {
+        // Arrange
+        final long id = insertUser(EMAIL, NAME);
+
+        // Act
+        final boolean result = userDao.setLocale(id, "en");
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    public void testSetLocaleReturnsFalseWhenThereIsNoSuchUser() {
+        // Arrange
+        // (no hay ningun usuario guardado)
+
+        // Act
+        final boolean result = userDao.setLocale(999_999L, "en");
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    public void testSetSuspendedReturnsTrueWhenTheUserExists() {
+        // Arrange
+        final long id = insertUser(EMAIL, NAME);
+
+        // Act
+        final boolean result = userDao.setSuspended(id, true);
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    public void testSetSuspendedReturnsFalseWhenThereIsNoSuchUser() {
+        // Arrange
+        // (no hay ningun usuario guardado)
+
+        // Act
+        final boolean result = userDao.setSuspended(999_999L, true);
+
+        // Assert
+        assertFalse(result);
     }
 }

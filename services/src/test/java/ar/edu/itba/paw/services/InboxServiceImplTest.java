@@ -4,99 +4,138 @@ import ar.edu.itba.paw.model.InboxMessage;
 import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.persistence.InboxMessageDao;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
+import static org.junit.Assert.assertSame;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
+/**
+ * Tests unitarios con Mockito: InboxMessageDao y UserService son @Mock. Los stubs con
+ * argumentos especificos hacen de expectativa (si el service arma mal el mensaje, no
+ * matchean y el test falla) y se asierta sobre lo que devuelve el service.
+ */
 @RunWith(MockitoJUnitRunner.class)
 public class InboxServiceImplTest {
 
-    @Mock
-    private InboxMessageDao mockDao;
+    private static final long USER_ID = 55;
 
-    // Enlace optimista del Grupo B (ver InboxServiceImpl.add()).
     @Mock
-    private UserService mockUserService;
+    private InboxMessageDao inboxDao;
+    @Mock
+    private UserService userService;
 
-    @InjectMocks
     private InboxServiceImpl inboxService;
 
-    // create() es lo que persiste el mensaje: se captura con doAnswer() sobre
-    // el stub (no con Mockito.verify()+ArgumentCaptor) para poder inspeccionar
-    // despues del Act que InboxMessage le llego.
-    private InboxMessage[] captureCreatedMessage() {
-        final InboxMessage[] captured = new InboxMessage[1];
-        doAnswer(invocation -> {
-            captured[0] = invocation.getArgument(0);
-            return captured[0];
-        }).when(mockDao).create(any(InboxMessage.class));
-        return captured;
+    @Before
+    public void setUp() {
+        inboxService = new InboxServiceImpl(inboxDao, userService);
+    }
+
+    private static InboxMessage anyMessage() {
+        return new InboxMessage("ana@mail.com", InboxMessageType.NEW_PENDING, 7L, "Juan", null);
+    }
+
+    // ---- add() ----
+
+    @Test
+    public void testAddNormalizesTheEmail() {
+        // Arrange
+        final InboxMessage saved = anyMessage();
+        when(userService.findByEmail("ana@mail.com")).thenReturn(Optional.empty());
+        when(inboxDao.create(argThat(message -> "ana@mail.com".equals(message.getRecipientEmail()))))
+                .thenReturn(saved);
+
+        // Act
+        final InboxMessage result = inboxService.add("  Ana@Mail.com ", InboxMessageType.NEW_PENDING, 7L, "Juan", null);
+
+        // Assert
+        assertSame(saved, result);
     }
 
     @Test
-    public void testAddNormalizesTheEmailAndKeepsTheData() {
+    public void testAddKeepsTheTypeEventActorAndBody() {
         // Arrange
-        when(mockUserService.findByEmail("ana@mail.com")).thenReturn(Optional.empty());
-        final InboxMessage[] created = captureCreatedMessage();
+        final InboxMessage saved = anyMessage();
+        when(userService.findByEmail("ana@mail.com")).thenReturn(Optional.empty());
+        when(inboxDao.create(argThat(message -> message.getType() == InboxMessageType.NEW_PENDING
+                && Long.valueOf(7).equals(message.getEventId())
+                && "Juan".equals(message.getActorName())
+                && "texto".equals(message.getBody())))).thenReturn(saved);
 
         // Act
-        inboxService.add("  Ana@Mail.com ", InboxMessageType.NEW_PENDING, 7L, "Juan", null);
+        final InboxMessage result = inboxService.add("ana@mail.com", InboxMessageType.NEW_PENDING, 7L, "Juan", "texto");
 
         // Assert
-        assertEquals("ana@mail.com", created[0].getRecipientEmail());
-        assertEquals(InboxMessageType.NEW_PENDING, created[0].getType());
-        assertEquals(Long.valueOf(7), created[0].getEventId());
-        assertEquals("Juan", created[0].getActorName());
-        assertNull(created[0].getUserId());
+        assertSame(saved, result);
+    }
+
+    @Test
+    public void testAddLeavesTheUserIdEmptyWhenTheRecipientHasNoAccountYet() {
+        // Arrange
+        final InboxMessage saved = anyMessage();
+        when(userService.findByEmail("ana@mail.com")).thenReturn(Optional.empty());
+        when(inboxDao.create(argThat(message -> message.getUserId() == null))).thenReturn(saved);
+
+        // Act
+        final InboxMessage result = inboxService.add("ana@mail.com", InboxMessageType.NEW_PENDING, 7L, "Juan", null);
+
+        // Assert
+        assertSame(saved, result);
     }
 
     @Test
     public void testAddLinksTheRecipientsUserIdWhenTheyAlreadyHaveAnAccount() {
         // Arrange
         final User recipient = new User("ana@mail.com", "Ana");
-        recipient.setId(55);
-        when(mockUserService.findByEmail("ana@mail.com")).thenReturn(Optional.of(recipient));
-        final InboxMessage[] created = captureCreatedMessage();
+        recipient.setId(USER_ID);
+        final InboxMessage saved = anyMessage();
+        when(userService.findByEmail("ana@mail.com")).thenReturn(Optional.of(recipient));
+        when(inboxDao.create(argThat(message -> Long.valueOf(USER_ID).equals(message.getUserId()))))
+                .thenReturn(saved);
 
         // Act
-        inboxService.add("  Ana@Mail.com ", InboxMessageType.NEW_PENDING, 7L, "Juan", null);
+        final InboxMessage result = inboxService.add("  Ana@Mail.com ", InboxMessageType.NEW_PENDING, 7L, "Juan", null);
 
         // Assert
-        assertEquals(Long.valueOf(55), created[0].getUserId());
+        assertSame(saved, result);
     }
 
-    private static final long USER_ID = 55;
+    // ---- findPage() ----
 
     @Test
     public void testFindPageTreatsAnInvalidPageAsTheFirst() {
         // Arrange
-        when(mockDao.findByRecipientUserId(USER_ID, 1, InboxServiceImpl.PAGE_SIZE)).thenReturn(Collections.emptyList());
-        when(mockDao.countByUserId(USER_ID)).thenReturn(0L);
+        final List<InboxMessage> messages = Arrays.asList(anyMessage(), anyMessage(), anyMessage());
+        when(inboxDao.findByRecipientUserId(USER_ID, 1, InboxServiceImpl.PAGE_SIZE)).thenReturn(messages);
+        when(inboxDao.countByUserId(USER_ID)).thenReturn(3L);
 
         // Act
         final PageResult<InboxMessage> result = inboxService.findPage(USER_ID, -3);
 
         // Assert
         assertEquals(1, result.getPage());
+        assertEquals(messages, result.getContent());
     }
 
     @Test
     public void testFindPageCalculatesTotalPages() {
         // Arrange
-        when(mockDao.findByRecipientUserId(USER_ID, 2, InboxServiceImpl.PAGE_SIZE)).thenReturn(Collections.emptyList());
-        when(mockDao.countByUserId(USER_ID)).thenReturn(45L);
+        when(inboxDao.findByRecipientUserId(USER_ID, 2, InboxServiceImpl.PAGE_SIZE))
+                .thenReturn(Collections.emptyList());
+        when(inboxDao.countByUserId(USER_ID)).thenReturn(45L);
 
         // Act
         final PageResult<InboxMessage> result = inboxService.findPage(USER_ID, 2);
@@ -106,33 +145,60 @@ public class InboxServiceImplTest {
     }
 
     @Test
-    public void testMarkAllReadDelegatesToTheDao() {
+    public void testFindPageReturnsTheRequestedPageAndTheTotalCount() {
         // Arrange
-        final long[] capturedUserId = new long[1];
-        final Date[] capturedDate = new Date[1];
-        doAnswer(invocation -> {
-            capturedUserId[0] = invocation.getArgument(0);
-            capturedDate[0] = invocation.getArgument(1);
-            return null;
-        }).when(mockDao).markAllReadByUserId(org.mockito.ArgumentMatchers.anyLong(), any(Date.class));
+        final List<InboxMessage> lastPage = Arrays.asList(anyMessage(), anyMessage());
+        when(inboxDao.findByRecipientUserId(USER_ID, 3, InboxServiceImpl.PAGE_SIZE)).thenReturn(lastPage);
+        when(inboxDao.countByUserId(USER_ID)).thenReturn(42L);
 
         // Act
-        inboxService.markAllRead(USER_ID);
+        final PageResult<InboxMessage> result = inboxService.findPage(USER_ID, 3);
 
         // Assert
-        assertEquals(USER_ID, capturedUserId[0]);
-        assertEquals(new java.util.Date().getTime(), capturedDate[0].getTime(), 5000);
+        assertEquals(lastPage, result.getContent());
+        assertEquals(42L, result.getTotalElements());
+        assertEquals(3, result.getPage());
+    }
+
+    // ---- markAllRead() ----
+
+    @Test
+    public void testMarkAllReadReturnsHowManyMessagesWereMarked() {
+        // Arrange
+        when(inboxDao.markAllReadByUserId(eq(USER_ID), argThat(date -> date != null))).thenReturn(2);
+
+        // Act
+        final int result = inboxService.markAllRead(USER_ID);
+
+        // Assert
+        assertEquals(2, result);
     }
 
     @Test
-    public void testCountUnreadDelegatesToTheDao() {
+    public void testMarkAllReadStampsTheReadMomentWithNow() {
         // Arrange
-        when(mockDao.countUnreadByUserId(USER_ID)).thenReturn(4L);
+        final long before = new Date().getTime();
+        when(inboxDao.markAllReadByUserId(eq(USER_ID),
+                argThat(date -> Math.abs(date.getTime() - before) < 5000))).thenReturn(1);
+
+        // Act
+        final int result = inboxService.markAllRead(USER_ID);
+
+        // Assert
+        assertEquals(1, result);
+    }
+
+    // ---- countUnread() ----
+
+    @Test
+    public void testCountUnreadReturnsTheUnreadCountOfThatUser() {
+        // Arrange
+        when(inboxDao.countUnreadByUserId(USER_ID)).thenReturn(2L);
 
         // Act
         final long result = inboxService.countUnread(USER_ID);
 
         // Assert
-        assertEquals(4, result);
+        assertEquals(2, result);
     }
 }

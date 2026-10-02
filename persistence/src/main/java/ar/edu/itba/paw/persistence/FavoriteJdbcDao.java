@@ -20,20 +20,21 @@ public class FavoriteJdbcDao implements FavoriteDao {
     }
 
     @Override
-    public void add(final long userId, final long eventId) {
+    public boolean add(final long userId, final long eventId) {
         // Mismo patron que UserJdbcDao.addRole: el PRIMARY KEY compuesto ya
         // garantiza que no se duplique, dejamos pasar la violacion en vez de
         // checkear antes (y "ON CONFLICT" no es portable a HSQLDB).
         try {
-            jdbcTemplate.update("INSERT INTO favorite (user_id, event_id) VALUES (?, ?)", userId, eventId);
+            return jdbcTemplate.update("INSERT INTO favorite (user_id, event_id) VALUES (?, ?)", userId, eventId) == 1;
         } catch (final DataIntegrityViolationException e) {
-            // Ya era favorito: idempotente, no hace falta nada mas.
+            // Ya era favorito: idempotente, devuelve false.
+            return false;
         }
     }
 
     @Override
-    public void remove(final long userId, final long eventId) {
-        jdbcTemplate.update("DELETE FROM favorite WHERE user_id = ? AND event_id = ?", userId, eventId);
+    public boolean remove(final long userId, final long eventId) {
+        return jdbcTemplate.update("DELETE FROM favorite WHERE user_id = ? AND event_id = ?", userId, eventId) == 1;
     }
 
     @Override

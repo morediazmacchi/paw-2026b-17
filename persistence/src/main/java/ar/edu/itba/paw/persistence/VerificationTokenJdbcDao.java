@@ -28,10 +28,11 @@ public class VerificationTokenJdbcDao implements VerificationTokenDao {
     }
 
     @Override
-    public void create(final VerificationToken token) {
+    public VerificationToken create(final VerificationToken token) {
         jdbcTemplate.update(
                 "INSERT INTO verification_token (token, user_id, purpose, expires_at) VALUES (?, ?, ?, ?)",
                 token.getToken(), token.getUserId(), token.getPurpose().name(), token.getExpiresAt());
+        return token;
     }
 
     @Override
@@ -41,13 +42,13 @@ public class VerificationTokenJdbcDao implements VerificationTokenDao {
     }
 
     @Override
-    public void delete(final String token) {
-        jdbcTemplate.update("DELETE FROM verification_token WHERE token = ?", token);
+    public boolean delete(final String token) {
+        return jdbcTemplate.update("DELETE FROM verification_token WHERE token = ?", token) == 1;
     }
 
     @Override
-    public void deleteByUserAndPurpose(final long userId, final TokenPurpose purpose) {
-        jdbcTemplate.update("DELETE FROM verification_token WHERE user_id = ? AND purpose = ?",
+    public int deleteByUserAndPurpose(final long userId, final TokenPurpose purpose) {
+        return jdbcTemplate.update("DELETE FROM verification_token WHERE user_id = ? AND purpose = ?",
                 userId, purpose.name());
     }
 }

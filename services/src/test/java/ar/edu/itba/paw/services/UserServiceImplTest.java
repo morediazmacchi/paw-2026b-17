@@ -1,5 +1,7 @@
 package ar.edu.itba.paw.services;
 
+import ar.edu.itba.paw.model.InboxMessage;
+import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.TokenPurpose;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.VerificationToken;
@@ -7,33 +9,31 @@ import ar.edu.itba.paw.persistence.EventInvitationDao;
 import ar.edu.itba.paw.persistence.InboxMessageDao;
 import ar.edu.itba.paw.persistence.UserDao;
 import ar.edu.itba.paw.persistence.VerificationTokenDao;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.util.Collections;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.lenient;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.when;
 
-// Unidad 5 - Unit Testing: "es recomendable NO utilizar el metodo verify,
-// pues queremos verificar comportamiento, no la implementacion". Los
-// colaboradores void se capturan con doAnswer() sobre el stub, y "nunca se
-// llamo" se prueba stubeando para que reviente (lenient(), porque a proposito
-// se espera que el stub quede sin usar).
+// Unidad 5 - Unit Testing: los DAOs son @Mock (Mockito). Los comandos del dao ahora devuelven
+// boolean/int: el test los stubea con argumentos especificos y eso hace de expectativa (si el
+// service no los invoca, Mockito falla por stub sin usar); lo que se asierta es lo que devuelve el
+// service. Los avisos por mail son "disparar y olvidar" (void) y se anotan con el fake
+// RecordingNotificationService.
 @RunWith(MockitoJUnitRunner.class)
 public class UserServiceImplTest {
 
@@ -43,27 +43,28 @@ public class UserServiceImplTest {
     private static final String NAME = "Ana";
     private static final String RAW_PASSWORD = "supersecret";
     private static final String HASHED_PASSWORD = "hashed-password";
+    private static final String NEW_HASHED_PASSWORD = "new-hashed-password";
 
     @Mock
-    private UserDao mockUserDao;
-
+    private UserDao userDao;
     @Mock
-    private VerificationTokenDao mockTokenDao;
-
+    private VerificationTokenDao tokenDao;
     @Mock
-    private PasswordEncoder mockPasswordEncoder;
-
+    private EventInvitationDao invitationDao;
     @Mock
-    private NotificationService mockNotificationService;
-
+    private InboxMessageDao inboxMessageDao;
     @Mock
-    private EventInvitationDao mockInvitationDao;
+    private PasswordEncoder passwordEncoder;
 
-    @Mock
-    private InboxMessageDao mockInboxMessageDao;
+    private final RecordingNotificationService notifications = new RecordingNotificationService();
 
-    @InjectMocks
     private UserServiceImpl userService;
+
+    @Before
+    public void setUp() {
+        userService = new UserServiceImpl(
+                userDao, tokenDao, passwordEncoder, notifications, invitationDao, inboxMessageDao);
+    }
 
     private static User someUser() {
         final User user = new User(NORMALIZED_EMAIL, NAME);
@@ -71,10 +72,37 @@ public class UserServiceImplTest {
         return user;
     }
 
+    // Un usuario que ya se registro de verdad: tiene password.
+    private static User registeredUser() {
+        final User user = someUser();
+        user.setPassword(HASHED_PASSWORD);
+        return user;
+    }
+
+    private static User unverifiedUser() {
+        final User user = registeredUser();
+        user.setVerified(false);
+        return user;
+    }
+
+    private static VerificationToken tokenOf(final TokenPurpose purpose, final Date expiresAt) {
+        return new VerificationToken("some-token", USER_ID, purpose, expiresAt);
+    }
+
+    private static Date inOneHour() {
+        return new Date(System.currentTimeMillis() + 3_600_000L);
+    }
+
+    private static Date oneHourAgo() {
+        return new Date(System.currentTimeMillis() - 3_600_000L);
+    }
+
+    // ---- findById() ----
+
     @Test
     public void testFindByIdReturnsThePresentUser() {
         // Arrange
-        when(mockUserDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
+        when(userDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
 
         // Act
         final Optional<User> result = userService.findById(USER_ID);
@@ -87,7 +115,7 @@ public class UserServiceImplTest {
     @Test
     public void testFindByIdReturnsEmptyWhenTheUserDoesNotExist() {
         // Arrange
-        when(mockUserDao.findById(USER_ID)).thenReturn(Optional.empty());
+        when(userDao.findById(USER_ID)).thenReturn(Optional.empty());
 
         // Act
         final Optional<User> result = userService.findById(USER_ID);
@@ -96,10 +124,12 @@ public class UserServiceImplTest {
         assertFalse(result.isPresent());
     }
 
+    // ---- findOrCreate() ----
+
     @Test
     public void testFindOrCreateReturnsTheExistingUserAndNormalizesTheEmail() {
         // Arrange
-        when(mockUserDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(someUser()));
+        when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(someUser()));
 
         // Act
         final User result = userService.findOrCreate(EMAIL, NAME);
@@ -110,10 +140,11 @@ public class UserServiceImplTest {
     }
 
     @Test
-    public void testFindOrCreateCreatesANewUserWhenNoneExists() {
+    public void testFindOrCreateCreatesANewUserWithTheNormalizedEmailWhenNoneExists() {
         // Arrange
-        when(mockUserDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.empty());
-        when(mockUserDao.create(any(User.class))).thenReturn(someUser());
+        when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.empty());
+        when(userDao.create(argThat(user -> NORMALIZED_EMAIL.equals(user.getEmail()) && NAME.equals(user.getName()))))
+                .thenReturn(someUser());
 
         // Act
         final User result = userService.findOrCreate(EMAIL, NAME);
@@ -128,7 +159,7 @@ public class UserServiceImplTest {
     public void testFindByEmailIgnoresCaseAndSpaces() {
         // Arrange
         // Es lo que usa el login (UserDetailsServiceImpl): "  Test@Mail.com  " tiene que entrar.
-        when(mockUserDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(someUser()));
+        when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(someUser()));
 
         // Act
         final Optional<User> result = userService.findByEmail(EMAIL);
@@ -140,202 +171,183 @@ public class UserServiceImplTest {
 
     // ---- register() ----
 
-    private Object[] captureSetPassword() {
-        final Object[] captured = new Object[2];
-        doAnswer(invocation -> {
-            captured[0] = invocation.getArgument(0);
-            captured[1] = invocation.getArgument(1);
-            return null;
-        }).when(mockUserDao).setPassword(anyLong(), anyString());
-        return captured;
+    // Usuario nuevo: no existia y el dao lo crea con id USER_ID (y despues se lo vuelve a leer).
+    private void newUserFlow() {
+        when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.empty());
+        when(userDao.create(argThat(user -> NORMALIZED_EMAIL.equals(user.getEmail()) && NAME.equals(user.getName()))))
+                .thenReturn(someUser());
+        when(userDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
     }
 
-    private Object[] captureAddRole() {
-        final Object[] captured = new Object[2];
-        doAnswer(invocation -> {
-            captured[0] = invocation.getArgument(0);
-            captured[1] = invocation.getArgument(1);
-            return null;
-        }).when(mockUserDao).addRole(anyLong(), anyString());
-        return captured;
-    }
-
-    private Object[] captureSetVerified() {
-        final Object[] captured = new Object[2];
-        doAnswer(invocation -> {
-            captured[0] = invocation.getArgument(0);
-            captured[1] = invocation.getArgument(1);
-            return null;
-        }).when(mockUserDao).setVerified(anyLong(), anyBoolean());
-        return captured;
-    }
-
-    private Object[] captureNotifyAccountVerification() {
-        final Object[] captured = new Object[3];
-        doAnswer(invocation -> {
-            captured[0] = invocation.getArgument(0);
-            captured[1] = invocation.getArgument(1);
-            captured[2] = invocation.getArgument(2);
-            return null;
-        }).when(mockNotificationService).notifyAccountVerification(any(User.class), anyString(), any());
-        return captured;
-    }
-
-    private Object[] captureLinkUserIdInvitation() {
-        final Object[] captured = new Object[2];
-        doAnswer(invocation -> {
-            captured[0] = invocation.getArgument(0);
-            captured[1] = invocation.getArgument(1);
-            return null;
-        }).when(mockInvitationDao).linkUserId(anyString(), anyLong());
-        return captured;
-    }
-
-    private Object[] captureLinkUserIdInbox() {
-        final Object[] captured = new Object[2];
-        doAnswer(invocation -> {
-            captured[0] = invocation.getArgument(0);
-            captured[1] = invocation.getArgument(1);
-            return null;
-        }).when(mockInboxMessageDao).linkUserId(anyString(), anyLong());
-        return captured;
+    // Fantasma: lo creo findOrCreate (publicar/inscribirse sin login), password null.
+    private void ghostFlow() {
+        when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(someUser()));
+        when(userDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
     }
 
     @Test
     public void testRegisterCreatesANewUserWhenNoneExists() {
         // Arrange
-        when(mockUserDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.empty());
-        when(mockUserDao.create(any(User.class))).thenReturn(someUser());
-        when(mockUserDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
-        when(mockPasswordEncoder.encode(RAW_PASSWORD)).thenReturn(HASHED_PASSWORD);
-        final Object[] setPasswordArgs = captureSetPassword();
-        final Object[] addRoleArgs = captureAddRole();
-        final Object[] setVerifiedArgs = captureSetVerified();
-        final Object[] notifyArgs = captureNotifyAccountVerification();
-        final Object[] linkInvitationArgs = captureLinkUserIdInvitation();
-        final Object[] linkInboxArgs = captureLinkUserIdInbox();
+        newUserFlow();
 
         // Act
         final UserRegistrationResult result = userService.register(EMAIL, NAME, RAW_PASSWORD, null);
 
         // Assert
         assertEquals(UserRegistrationResult.CREATED, result);
-        assertEquals(USER_ID, setPasswordArgs[0]);
-        assertEquals(HASHED_PASSWORD, setPasswordArgs[1]);
-        assertEquals(USER_ID, addRoleArgs[0]);
-        assertEquals("ROLE_USER", addRoleArgs[1]);
-        // Cuenta nueva: no puede loguearse hasta confirmar el mail.
-        assertEquals(USER_ID, setVerifiedArgs[0]);
-        assertEquals(false, setVerifiedArgs[1]);
-        assertTrue(notifyArgs[0] != null);
-        // Reconciliacion Grupo B: invitaciones/avisos que la esperaban sin cuenta.
-        assertEquals(NORMALIZED_EMAIL, linkInvitationArgs[0]);
-        assertEquals(USER_ID, linkInvitationArgs[1]);
-        assertEquals(NORMALIZED_EMAIL, linkInboxArgs[0]);
-        assertEquals(USER_ID, linkInboxArgs[1]);
+    }
+
+    @Test
+    public void testRegisterSavesTheHashOfThePassword() {
+        // Arrange
+        newUserFlow();
+        when(passwordEncoder.encode(RAW_PASSWORD)).thenReturn(HASHED_PASSWORD);
+        when(userDao.setPassword(USER_ID, HASHED_PASSWORD)).thenReturn(true);
+
+        // Act
+        final UserRegistrationResult result = userService.register(EMAIL, NAME, RAW_PASSWORD, null);
+
+        // Assert
+        assertEquals(UserRegistrationResult.CREATED, result);
+    }
+
+    @Test
+    public void testRegisterGivesTheNewUserTheUserRole() {
+        // Arrange
+        newUserFlow();
+        when(userDao.addRole(USER_ID, "ROLE_USER")).thenReturn(true);
+
+        // Act
+        final UserRegistrationResult result = userService.register(EMAIL, NAME, RAW_PASSWORD, null);
+
+        // Assert
+        assertEquals(UserRegistrationResult.CREATED, result);
+    }
+
+    // Cuenta nueva: no puede loguearse hasta confirmar el mail.
+    @Test
+    public void testRegisterLeavesTheNewAccountUnverified() {
+        // Arrange
+        newUserFlow();
+        when(userDao.setVerified(USER_ID, false)).thenReturn(true);
+
+        // Act
+        final UserRegistrationResult result = userService.register(EMAIL, NAME, RAW_PASSWORD, null);
+
+        // Assert
+        assertEquals(UserRegistrationResult.CREATED, result);
+    }
+
+    @Test
+    public void testRegisterSendsTheVerificationMailToTheNewUser() {
+        // Arrange
+        newUserFlow();
+
+        // Act
+        userService.register(EMAIL, NAME, RAW_PASSWORD, null);
+
+        // Assert
+        assertEquals(1, notifications.count("notifyAccountVerification"));
+        final User notified = (User) notifications.argsOf("notifyAccountVerification").get(0)[0];
+        assertEquals(USER_ID, notified.getId());
+    }
+
+    @Test
+    public void testRegisterCreatesAVerificationTokenForTheNewUser() {
+        // Arrange
+        newUserFlow();
+        when(tokenDao.create(argThat(token -> token.getUserId() == USER_ID
+                && token.getPurpose() == TokenPurpose.VERIFY_EMAIL
+                && token.getExpiresAt().after(new Date())))).thenReturn(tokenOf(TokenPurpose.VERIFY_EMAIL, inOneHour()));
+
+        // Act
+        final UserRegistrationResult result = userService.register(EMAIL, NAME, RAW_PASSWORD, null);
+
+        // Assert
+        assertEquals(UserRegistrationResult.CREATED, result);
+    }
+
+    // Reconciliacion Grupo B: invitaciones que la esperaban sin cuenta.
+    @Test
+    public void testRegisterLinksTheInvitationsThatWereWaitingForTheEmail() {
+        // Arrange
+        newUserFlow();
+        when(invitationDao.linkUserId(NORMALIZED_EMAIL, USER_ID)).thenReturn(1);
+
+        // Act
+        final UserRegistrationResult result = userService.register(EMAIL, NAME, RAW_PASSWORD, null);
+
+        // Assert
+        assertEquals(UserRegistrationResult.CREATED, result);
+    }
+
+    // Reconciliacion Grupo B: avisos de la bandeja que la esperaban sin cuenta.
+    @Test
+    public void testRegisterLinksTheInboxMessagesThatWereWaitingForTheEmail() {
+        // Arrange
+        newUserFlow();
+        when(inboxMessageDao.linkUserId(NORMALIZED_EMAIL, USER_ID)).thenReturn(2);
+
+        // Act
+        final UserRegistrationResult result = userService.register(EMAIL, NAME, RAW_PASSWORD, null);
+
+        // Assert
+        assertEquals(UserRegistrationResult.CREATED, result);
     }
 
     @Test
     public void testRegisterPassesTheRedirectToTheVerificationMail() {
         // Arrange
         // Venia de una invitacion a un evento privado: el link del mail lo tiene que llevar.
-        when(mockUserDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.empty());
-        when(mockUserDao.create(any(User.class))).thenReturn(someUser());
-        when(mockUserDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
-        final Object[] notifyArgs = captureNotifyAccountVerification();
+        newUserFlow();
 
         // Act
         userService.register(EMAIL, NAME, RAW_PASSWORD, "/eventos/7");
 
         // Assert
-        assertEquals("/eventos/7", notifyArgs[2]);
+        assertEquals("/eventos/7", notifications.argsOf("notifyAccountVerification").get(0)[2]);
     }
 
     @Test
     public void testRegisterClaimsAGhostUserThatHasNoPassword() {
         // Arrange
-        // Fantasma: creado por findOrCreate (publicar/inscribirse sin login), password null.
-        final User ghost = someUser();
-        when(mockUserDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(ghost));
-        when(mockUserDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
-        when(mockPasswordEncoder.encode(RAW_PASSWORD)).thenReturn(HASHED_PASSWORD);
-        // Ya existe como fantasma: no deberia crear una fila nueva.
-        lenient().when(mockUserDao.create(any(User.class)))
-                .thenThrow(new AssertionError("no deberia crear un usuario nuevo para un fantasma existente"));
-        final Object[] setPasswordArgs = captureSetPassword();
-        final Object[] addRoleArgs = captureAddRole();
-        final Object[] setVerifiedArgs = captureSetVerified();
-        final Object[] linkInvitationArgs = captureLinkUserIdInvitation();
-        final Object[] linkInboxArgs = captureLinkUserIdInbox();
+        // Lo completa (mismo id), no crea una fila nueva: el id sale del fantasma.
+        ghostFlow();
+        when(passwordEncoder.encode(RAW_PASSWORD)).thenReturn(HASHED_PASSWORD);
+        when(userDao.setPassword(USER_ID, HASHED_PASSWORD)).thenReturn(true);
+        when(userDao.addRole(USER_ID, "ROLE_USER")).thenReturn(true);
 
         // Act
         final UserRegistrationResult result = userService.register(EMAIL, NAME, RAW_PASSWORD, null);
 
         // Assert
         assertEquals(UserRegistrationResult.CREATED, result);
-        assertEquals(USER_ID, setPasswordArgs[0]);
-        assertEquals(HASHED_PASSWORD, setPasswordArgs[1]);
-        assertEquals("ROLE_USER", addRoleArgs[1]);
-        assertEquals(false, setVerifiedArgs[1]);
-        assertEquals(NORMALIZED_EMAIL, linkInvitationArgs[0]);
-        assertEquals(NORMALIZED_EMAIL, linkInboxArgs[0]);
     }
 
+    // El idioma con el que se estaba navegando en el momento de registrarse (cookie de
+    // LocaleResolver, ver WebConfig) queda guardado: asi el mail de confirmacion que sigue ya
+    // sale en ese idioma (ver NotificationServiceImpl.notifyAccountVerification()).
     @Test
     public void testRegisterSavesTheCurrentPageLocaleWhenTheAccountHadNone() {
         // Arrange
-        // El idioma con el que se estaba navegando en el momento de registrarse
-        // (cookie de LocaleResolver, ver WebConfig) queda guardado: asi el mail
-        // de confirmacion que sigue ya sale en ese idioma (ver
-        // NotificationServiceImpl.notifyAccountVerification()).
-        org.springframework.context.i18n.LocaleContextHolder.setLocale(new Locale("en"));
+        newUserFlow();
+        when(userDao.setLocale(USER_ID, "en")).thenReturn(true);
+        LocaleContextHolder.setLocale(new Locale("en"));
         try {
-            when(mockUserDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.empty());
-            when(mockUserDao.create(any(User.class))).thenReturn(someUser());
-            when(mockUserDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
-            final Object[] setLocaleArgs = new Object[2];
-            doAnswer(invocation -> {
-                setLocaleArgs[0] = invocation.getArgument(0);
-                setLocaleArgs[1] = invocation.getArgument(1);
-                return null;
-            }).when(mockUserDao).setLocale(anyLong(), anyString());
-
             // Act
-            userService.register(EMAIL, NAME, RAW_PASSWORD, null);
+            final UserRegistrationResult result = userService.register(EMAIL, NAME, RAW_PASSWORD, null);
 
             // Assert
-            assertEquals(USER_ID, setLocaleArgs[0]);
-            assertEquals("en", setLocaleArgs[1]);
+            assertEquals(UserRegistrationResult.CREATED, result);
         } finally {
-            org.springframework.context.i18n.LocaleContextHolder.resetLocaleContext();
+            LocaleContextHolder.resetLocaleContext();
         }
-    }
-
-    @Test
-    public void testRegisterDoesNotOverwriteALocaleTheGhostAccountAlreadyHad() {
-        // Arrange
-        // Fantasma que ya habia elegido idioma antes de registrarse de verdad
-        // (por ejemplo, alguien lo invito y de paso cambio el idioma del sitio):
-        // register() no lo pisa.
-        final User ghostWithLocale = someUser();
-        ghostWithLocale.setLocale("es");
-        when(mockUserDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(ghostWithLocale));
-        when(mockUserDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
-        lenient().doThrow(new AssertionError("no deberia pisar el idioma que el fantasma ya tenia"))
-                .when(mockUserDao).setLocale(anyLong(), anyString());
-
-        // Act
-        userService.register(EMAIL, NAME, RAW_PASSWORD, null);
-
-        // Assert: que no reviente el stub de arriba ES el assert.
     }
 
     @Test
     public void testRegisterRejectsAnEmailThatAlreadyHasAPassword() {
         // Arrange
-        final User existing = someUser();
-        existing.setPassword(HASHED_PASSWORD);
-        when(mockUserDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(existing));
+        when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(registeredUser()));
 
         // Act
         final UserRegistrationResult result = userService.register(EMAIL, NAME, RAW_PASSWORD, null);
@@ -347,46 +359,29 @@ public class UserServiceImplTest {
     // ---- updateProfile() ----
 
     @Test
-    public void testUpdateProfileUpdatesWhenTheEmailIsFreeOrItsOwn() {
+    public void testUpdateProfileUpdatesWhenTheEmailIsFree() {
         // Arrange
-        when(mockUserDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.empty());
-        final Object[] updateProfileArgs = new Object[3];
-        doAnswer(invocation -> {
-            updateProfileArgs[0] = invocation.getArgument(0);
-            updateProfileArgs[1] = invocation.getArgument(1);
-            updateProfileArgs[2] = invocation.getArgument(2);
-            return null;
-        }).when(mockUserDao).updateProfile(anyLong(), anyString(), anyString());
+        when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.empty());
+        when(userDao.updateProfile(USER_ID, "Nuevo Nombre", NORMALIZED_EMAIL)).thenReturn(true);
 
         // Act
         final ProfileUpdateResult result = userService.updateProfile(USER_ID, "Nuevo Nombre", EMAIL);
 
         // Assert
         assertEquals(ProfileUpdateResult.UPDATED, result);
-        assertEquals(USER_ID, updateProfileArgs[0]);
-        assertEquals("Nuevo Nombre", updateProfileArgs[1]);
-        assertEquals(NORMALIZED_EMAIL, updateProfileArgs[2]);
     }
 
     @Test
     public void testUpdateProfileAllowsKeepingYourOwnEmail() {
         // Arrange
-        when(mockUserDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(someUser()));
-        final Object[] updateProfileArgs = new Object[3];
-        doAnswer(invocation -> {
-            updateProfileArgs[0] = invocation.getArgument(0);
-            updateProfileArgs[1] = invocation.getArgument(1);
-            updateProfileArgs[2] = invocation.getArgument(2);
-            return null;
-        }).when(mockUserDao).updateProfile(anyLong(), anyString(), anyString());
+        when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(someUser()));
+        when(userDao.updateProfile(USER_ID, "Otro Nombre", NORMALIZED_EMAIL)).thenReturn(true);
 
         // Act
-        final ProfileUpdateResult result = userService.updateProfile(USER_ID, NAME, EMAIL);
+        final ProfileUpdateResult result = userService.updateProfile(USER_ID, "Otro Nombre", EMAIL);
 
         // Assert
         assertEquals(ProfileUpdateResult.UPDATED, result);
-        assertEquals(NAME, updateProfileArgs[1]);
-        assertEquals(NORMALIZED_EMAIL, updateProfileArgs[2]);
     }
 
     @Test
@@ -394,7 +389,7 @@ public class UserServiceImplTest {
         // Arrange
         final User someoneElse = someUser();
         someoneElse.setId(USER_ID + 1);
-        when(mockUserDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(someoneElse));
+        when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(someoneElse));
 
         // Act
         final ProfileUpdateResult result = userService.updateProfile(USER_ID, NAME, EMAIL);
@@ -408,28 +403,23 @@ public class UserServiceImplTest {
     @Test
     public void testChangePasswordSucceedsWhenTheCurrentPasswordMatches() {
         // Arrange
-        final User user = someUser();
-        user.setPassword(HASHED_PASSWORD);
-        when(mockUserDao.findById(USER_ID)).thenReturn(Optional.of(user));
-        when(mockPasswordEncoder.matches("old-password", HASHED_PASSWORD)).thenReturn(true);
-        when(mockPasswordEncoder.encode(RAW_PASSWORD)).thenReturn("new-hashed-password");
-        final Object[] setPasswordArgs = captureSetPassword();
+        when(userDao.findById(USER_ID)).thenReturn(Optional.of(registeredUser()));
+        when(passwordEncoder.matches("old-password", HASHED_PASSWORD)).thenReturn(true);
+        when(passwordEncoder.encode(RAW_PASSWORD)).thenReturn(NEW_HASHED_PASSWORD);
+        when(userDao.setPassword(USER_ID, NEW_HASHED_PASSWORD)).thenReturn(true);
 
         // Act
         final boolean result = userService.changePassword(USER_ID, "old-password", RAW_PASSWORD);
 
         // Assert
         assertTrue(result);
-        assertEquals("new-hashed-password", setPasswordArgs[1]);
     }
 
     @Test
     public void testChangePasswordFailsWhenTheCurrentPasswordIsWrong() {
         // Arrange
-        final User user = someUser();
-        user.setPassword(HASHED_PASSWORD);
-        when(mockUserDao.findById(USER_ID)).thenReturn(Optional.of(user));
-        when(mockPasswordEncoder.matches("wrong-password", HASHED_PASSWORD)).thenReturn(false);
+        when(userDao.findById(USER_ID)).thenReturn(Optional.of(registeredUser()));
+        when(passwordEncoder.matches("wrong-password", HASHED_PASSWORD)).thenReturn(false);
 
         // Act
         final boolean result = userService.changePassword(USER_ID, "wrong-password", RAW_PASSWORD);
@@ -438,52 +428,51 @@ public class UserServiceImplTest {
         assertFalse(result);
     }
 
+    @Test(expected = IllegalArgumentException.class)
+    public void testChangePasswordOfAUserThatDoesNotExistThrowsIllegalArgumentException() {
+        // Arrange
+        when(userDao.findById(USER_ID)).thenReturn(Optional.empty());
+
+        // Act
+        userService.changePassword(USER_ID, "old-password", RAW_PASSWORD);
+
+        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
+    }
+
     // ---- updateLocale() ----
 
     @Test
-    public void testUpdateLocaleDelegatesToTheDao() {
+    public void testUpdateLocaleReturnsTrueWhenTheLanguageWasSaved() {
         // Arrange
-        final Object[] setLocaleArgs = new Object[2];
-        doAnswer(invocation -> {
-            setLocaleArgs[0] = invocation.getArgument(0);
-            setLocaleArgs[1] = invocation.getArgument(1);
-            return null;
-        }).when(mockUserDao).setLocale(anyLong(), anyString());
+        when(userDao.setLocale(USER_ID, "en")).thenReturn(true);
 
         // Act
-        userService.updateLocale(USER_ID, "en");
+        final boolean result = userService.updateLocale(USER_ID, "en");
 
         // Assert
-        assertEquals(USER_ID, setLocaleArgs[0]);
-        assertEquals("en", setLocaleArgs[1]);
+        assertTrue(result);
+    }
+
+    @Test
+    public void testUpdateLocaleReturnsFalseWhenThereIsNoSuchUser() {
+        // Arrange
+        when(userDao.setLocale(USER_ID, "en")).thenReturn(false);
+
+        // Act
+        final boolean result = userService.updateLocale(USER_ID, "en");
+
+        // Assert
+        assertFalse(result);
     }
 
     // ---- confirmEmail() ----
 
-    private static VerificationToken tokenOf(final TokenPurpose purpose, final Date expiresAt) {
-        return new VerificationToken("some-token", USER_ID, purpose, expiresAt);
-    }
-
-    private static Date inOneHour() {
-        return new Date(System.currentTimeMillis() + 3_600_000L);
-    }
-
-    private static Date oneHourAgo() {
-        return new Date(System.currentTimeMillis() - 3_600_000L);
-    }
-
     @Test
-    public void testConfirmEmailVerifiesTheUserAndConsumesTheToken() {
+    public void testConfirmEmailVerifiesTheUser() {
         // Arrange
-        when(mockTokenDao.findByToken("some-token"))
-                .thenReturn(Optional.of(tokenOf(TokenPurpose.VERIFY_EMAIL, inOneHour())));
-        when(mockUserDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
-        final Object[] setVerifiedArgs = captureSetVerified();
-        final String[] deletedToken = new String[1];
-        doAnswer(invocation -> {
-            deletedToken[0] = invocation.getArgument(0);
-            return null;
-        }).when(mockTokenDao).delete(anyString());
+        when(tokenDao.findByToken("some-token")).thenReturn(Optional.of(tokenOf(TokenPurpose.VERIFY_EMAIL, inOneHour())));
+        when(userDao.setVerified(USER_ID, true)).thenReturn(true);
+        when(userDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
 
         // Act
         final Optional<User> result = userService.confirmEmail("some-token");
@@ -491,15 +480,26 @@ public class UserServiceImplTest {
         // Assert
         assertTrue(result.isPresent());
         assertEquals(USER_ID, result.get().getId());
-        assertEquals(USER_ID, setVerifiedArgs[0]);
-        assertEquals(true, setVerifiedArgs[1]);
-        assertEquals("some-token", deletedToken[0]);
+    }
+
+    @Test
+    public void testConfirmEmailConsumesTheToken() {
+        // Arrange
+        when(tokenDao.findByToken("some-token")).thenReturn(Optional.of(tokenOf(TokenPurpose.VERIFY_EMAIL, inOneHour())));
+        when(tokenDao.delete("some-token")).thenReturn(true);
+        when(userDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
+
+        // Act
+        final Optional<User> result = userService.confirmEmail("some-token");
+
+        // Assert
+        assertTrue(result.isPresent());
     }
 
     @Test
     public void testConfirmEmailFailsWhenTheTokenDoesNotExist() {
         // Arrange
-        when(mockTokenDao.findByToken("some-token")).thenReturn(Optional.empty());
+        when(tokenDao.findByToken("some-token")).thenReturn(Optional.empty());
 
         // Act
         final Optional<User> result = userService.confirmEmail("some-token");
@@ -511,8 +511,7 @@ public class UserServiceImplTest {
     @Test
     public void testConfirmEmailFailsWhenTheTokenExpired() {
         // Arrange
-        when(mockTokenDao.findByToken("some-token"))
-                .thenReturn(Optional.of(tokenOf(TokenPurpose.VERIFY_EMAIL, oneHourAgo())));
+        when(tokenDao.findByToken("some-token")).thenReturn(Optional.of(tokenOf(TokenPurpose.VERIFY_EMAIL, oneHourAgo())));
 
         // Act
         final Optional<User> result = userService.confirmEmail("some-token");
@@ -524,8 +523,7 @@ public class UserServiceImplTest {
     @Test
     public void testConfirmEmailFailsWhenTheTokenIsForTheWrongPurpose() {
         // Arrange
-        when(mockTokenDao.findByToken("some-token"))
-                .thenReturn(Optional.of(tokenOf(TokenPurpose.RESET_PASSWORD, inOneHour())));
+        when(tokenDao.findByToken("some-token")).thenReturn(Optional.of(tokenOf(TokenPurpose.RESET_PASSWORD, inOneHour())));
 
         // Act
         final Optional<User> result = userService.confirmEmail("some-token");
@@ -537,127 +535,156 @@ public class UserServiceImplTest {
     // ---- resendVerificationEmail() ----
 
     @Test
-    public void testResendVerificationEmailSendsANewOneWhenUnverified() {
+    public void testResendVerificationEmailReturnsTrueAndSendsANewMailWhenUnverified() {
         // Arrange
-        final User unverified = someUser();
-        unverified.setPassword(HASHED_PASSWORD);
-        unverified.setVerified(false);
-        when(mockUserDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(unverified));
-        final Object[] deleteByUserAndPurposeArgs = new Object[2];
-        doAnswer(invocation -> {
-            deleteByUserAndPurposeArgs[0] = invocation.getArgument(0);
-            deleteByUserAndPurposeArgs[1] = invocation.getArgument(1);
-            return null;
-        }).when(mockTokenDao).deleteByUserAndPurpose(anyLong(), any(TokenPurpose.class));
-        final Object[] notifyArgs = captureNotifyAccountVerification();
+        when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(unverifiedUser()));
 
         // Act
-        userService.resendVerificationEmail(EMAIL);
+        final boolean result = userService.resendVerificationEmail(EMAIL);
 
         // Assert
-        assertEquals(USER_ID, deleteByUserAndPurposeArgs[0]);
-        assertEquals(TokenPurpose.VERIFY_EMAIL, deleteByUserAndPurposeArgs[1]);
-        assertTrue(notifyArgs[0] != null);
+        assertTrue(result);
+        assertEquals(1, notifications.count("notifyAccountVerification"));
     }
 
     @Test
-    public void testResendVerificationEmailDoesNothingWhenAlreadyVerified() {
+    public void testResendVerificationEmailInvalidatesThePreviousTokens() {
         // Arrange
-        final User verified = someUser();
-        verified.setPassword(HASHED_PASSWORD);
-        verified.setVerified(true);
-        when(mockUserDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(verified));
-        lenient().doThrow(new AssertionError("ya esta verificado, no deberia volver a avisarle"))
-                .when(mockNotificationService).notifyAccountVerification(any(), any(), any());
+        when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(unverifiedUser()));
+        when(tokenDao.deleteByUserAndPurpose(USER_ID, TokenPurpose.VERIFY_EMAIL)).thenReturn(1);
 
         // Act
-        userService.resendVerificationEmail(EMAIL);
+        final boolean result = userService.resendVerificationEmail(EMAIL);
 
-        // Assert: que no reviente el stub de arriba ES el assert.
+        // Assert
+        assertTrue(result);
     }
 
     @Test
-    public void testResendVerificationEmailDoesNothingWhenTheAccountIsAGhost() {
+    public void testResendVerificationEmailCreatesANewToken() {
+        // Arrange
+        when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(unverifiedUser()));
+        when(tokenDao.create(argThat(token -> token.getUserId() == USER_ID
+                && token.getPurpose() == TokenPurpose.VERIFY_EMAIL
+                && token.getExpiresAt().after(new Date())))).thenReturn(tokenOf(TokenPurpose.VERIFY_EMAIL, inOneHour()));
+
+        // Act
+        final boolean result = userService.resendVerificationEmail(EMAIL);
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    public void testResendVerificationEmailReturnsFalseWhenAlreadyVerified() {
+        // Arrange
+        final User verified = registeredUser();
+        verified.setVerified(true);
+        when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(verified));
+
+        // Act
+        final boolean result = userService.resendVerificationEmail(EMAIL);
+
+        // Assert
+        assertFalse(result);
+        assertEquals(0, notifications.count("notifyAccountVerification"));
+    }
+
+    @Test
+    public void testResendVerificationEmailReturnsFalseWhenTheAccountIsAGhost() {
         // Arrange
         final User ghost = someUser();
         ghost.setVerified(false);
-        when(mockUserDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(ghost));
-        lenient().doThrow(new AssertionError("un fantasma sin password no deberia recibir este mail"))
-                .when(mockNotificationService).notifyAccountVerification(any(), any(), any());
+        when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(ghost));
 
         // Act
-        userService.resendVerificationEmail(EMAIL);
+        final boolean result = userService.resendVerificationEmail(EMAIL);
 
-        // Assert: que no reviente el stub de arriba ES el assert.
+        // Assert
+        assertFalse(result);
+        assertEquals(0, notifications.count("notifyAccountVerification"));
     }
 
     @Test
-    public void testResendVerificationEmailDoesNothingWhenTheEmailDoesNotExist() {
+    public void testResendVerificationEmailReturnsFalseWhenTheEmailDoesNotExist() {
         // Arrange
-        when(mockUserDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.empty());
-        lenient().doThrow(new AssertionError("el email no existe, no deberia mandar nada"))
-                .when(mockNotificationService).notifyAccountVerification(any(), any(), any());
+        when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.empty());
 
         // Act
-        userService.resendVerificationEmail(EMAIL);
+        final boolean result = userService.resendVerificationEmail(EMAIL);
 
-        // Assert: que no reviente el stub de arriba ES el assert.
+        // Assert
+        assertFalse(result);
+        assertEquals(0, notifications.count("notifyAccountVerification"));
     }
 
     // ---- sendPasswordResetEmail() ----
 
     @Test
-    public void testSendPasswordResetEmailSendsItWhenTheAccountHasAPassword() {
+    public void testSendPasswordResetEmailReturnsTrueAndSendsItWhenTheAccountHasAPassword() {
         // Arrange
-        final User user = someUser();
-        user.setPassword(HASHED_PASSWORD);
-        when(mockUserDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(user));
-        final Object[] deleteByUserAndPurposeArgs = new Object[2];
-        doAnswer(invocation -> {
-            deleteByUserAndPurposeArgs[0] = invocation.getArgument(0);
-            deleteByUserAndPurposeArgs[1] = invocation.getArgument(1);
-            return null;
-        }).when(mockTokenDao).deleteByUserAndPurpose(anyLong(), any(TokenPurpose.class));
-        final boolean[] notified = {false};
-        doAnswer(invocation -> {
-            notified[0] = true;
-            return null;
-        }).when(mockNotificationService).notifyPasswordReset(any(User.class), anyString());
+        when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(registeredUser()));
 
         // Act
-        userService.sendPasswordResetEmail(EMAIL);
+        final boolean result = userService.sendPasswordResetEmail(EMAIL);
 
         // Assert
-        assertEquals(USER_ID, deleteByUserAndPurposeArgs[0]);
-        assertEquals(TokenPurpose.RESET_PASSWORD, deleteByUserAndPurposeArgs[1]);
-        assertTrue(notified[0]);
+        assertTrue(result);
+        assertEquals(1, notifications.count("notifyPasswordReset"));
     }
 
     @Test
-    public void testSendPasswordResetEmailDoesNothingWhenTheAccountIsAGhost() {
+    public void testSendPasswordResetEmailInvalidatesThePreviousTokens() {
         // Arrange
-        final User ghost = someUser();
-        when(mockUserDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(ghost));
-        lenient().doThrow(new AssertionError("un fantasma sin password no deberia recibir este mail"))
-                .when(mockNotificationService).notifyPasswordReset(any(), any());
+        when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(registeredUser()));
+        when(tokenDao.deleteByUserAndPurpose(USER_ID, TokenPurpose.RESET_PASSWORD)).thenReturn(1);
 
         // Act
-        userService.sendPasswordResetEmail(EMAIL);
+        final boolean result = userService.sendPasswordResetEmail(EMAIL);
 
-        // Assert: que no reviente el stub de arriba ES el assert.
+        // Assert
+        assertTrue(result);
     }
 
     @Test
-    public void testSendPasswordResetEmailDoesNothingWhenTheEmailDoesNotExist() {
+    public void testSendPasswordResetEmailCreatesANewToken() {
         // Arrange
-        when(mockUserDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.empty());
-        lenient().doThrow(new AssertionError("el email no existe, no deberia mandar nada"))
-                .when(mockNotificationService).notifyPasswordReset(any(), any());
+        when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(registeredUser()));
+        when(tokenDao.create(argThat(token -> token.getUserId() == USER_ID
+                && token.getPurpose() == TokenPurpose.RESET_PASSWORD
+                && token.getExpiresAt().after(new Date())))).thenReturn(tokenOf(TokenPurpose.RESET_PASSWORD, inOneHour()));
 
         // Act
-        userService.sendPasswordResetEmail(EMAIL);
+        final boolean result = userService.sendPasswordResetEmail(EMAIL);
 
-        // Assert: que no reviente el stub de arriba ES el assert.
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    public void testSendPasswordResetEmailReturnsFalseWhenTheAccountIsAGhost() {
+        // Arrange
+        when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(someUser()));
+
+        // Act
+        final boolean result = userService.sendPasswordResetEmail(EMAIL);
+
+        // Assert
+        assertFalse(result);
+        assertEquals(0, notifications.count("notifyPasswordReset"));
+    }
+
+    @Test
+    public void testSendPasswordResetEmailReturnsFalseWhenTheEmailDoesNotExist() {
+        // Arrange
+        when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.empty());
+
+        // Act
+        final boolean result = userService.sendPasswordResetEmail(EMAIL);
+
+        // Assert
+        assertFalse(result);
+        assertEquals(0, notifications.count("notifyPasswordReset"));
     }
 
     // ---- isResetTokenValid() ----
@@ -665,8 +692,7 @@ public class UserServiceImplTest {
     @Test
     public void testIsResetTokenValidReturnsTrueForAFreshToken() {
         // Arrange
-        when(mockTokenDao.findByToken("some-token"))
-                .thenReturn(Optional.of(tokenOf(TokenPurpose.RESET_PASSWORD, inOneHour())));
+        when(tokenDao.findByToken("some-token")).thenReturn(Optional.of(tokenOf(TokenPurpose.RESET_PASSWORD, inOneHour())));
 
         // Act
         final boolean result = userService.isResetTokenValid("some-token");
@@ -678,8 +704,7 @@ public class UserServiceImplTest {
     @Test
     public void testIsResetTokenValidReturnsFalseWhenExpired() {
         // Arrange
-        when(mockTokenDao.findByToken("some-token"))
-                .thenReturn(Optional.of(tokenOf(TokenPurpose.RESET_PASSWORD, oneHourAgo())));
+        when(tokenDao.findByToken("some-token")).thenReturn(Optional.of(tokenOf(TokenPurpose.RESET_PASSWORD, oneHourAgo())));
 
         // Act
         final boolean result = userService.isResetTokenValid("some-token");
@@ -691,7 +716,7 @@ public class UserServiceImplTest {
     @Test
     public void testIsResetTokenValidReturnsFalseWhenItDoesNotExist() {
         // Arrange
-        when(mockTokenDao.findByToken("some-token")).thenReturn(Optional.empty());
+        when(tokenDao.findByToken("some-token")).thenReturn(Optional.empty());
 
         // Act
         final boolean result = userService.isResetTokenValid("some-token");
@@ -703,27 +728,36 @@ public class UserServiceImplTest {
     // ---- resetPassword() ----
 
     @Test
-    public void testResetPasswordChangesThePasswordAndConsumesTheToken() {
+    public void testResetPasswordChangesThePassword() {
         // Arrange
-        when(mockTokenDao.findByToken("some-token"))
-                .thenReturn(Optional.of(tokenOf(TokenPurpose.RESET_PASSWORD, inOneHour())));
-        when(mockPasswordEncoder.encode(RAW_PASSWORD)).thenReturn(HASHED_PASSWORD);
+        when(tokenDao.findByToken("some-token")).thenReturn(Optional.of(tokenOf(TokenPurpose.RESET_PASSWORD, inOneHour())));
+        when(passwordEncoder.encode(RAW_PASSWORD)).thenReturn(NEW_HASHED_PASSWORD);
+        when(userDao.setPassword(USER_ID, NEW_HASHED_PASSWORD)).thenReturn(true);
 
         // Act
         final PasswordResetResult result = userService.resetPassword("some-token", RAW_PASSWORD);
 
         // Assert
-        // OK es un literal al final de un unico camino recto (setPassword +
-        // delete, sin ninguna otra rama ni llamada stubeada aparte): el
-        // resultado ya implica que las dos pasaron.
+        assertEquals(PasswordResetResult.OK, result);
+    }
+
+    @Test
+    public void testResetPasswordConsumesTheToken() {
+        // Arrange
+        when(tokenDao.findByToken("some-token")).thenReturn(Optional.of(tokenOf(TokenPurpose.RESET_PASSWORD, inOneHour())));
+        when(tokenDao.delete("some-token")).thenReturn(true);
+
+        // Act
+        final PasswordResetResult result = userService.resetPassword("some-token", RAW_PASSWORD);
+
+        // Assert
         assertEquals(PasswordResetResult.OK, result);
     }
 
     @Test
     public void testResetPasswordFailsWhenTheTokenExpired() {
         // Arrange
-        when(mockTokenDao.findByToken("some-token"))
-                .thenReturn(Optional.of(tokenOf(TokenPurpose.RESET_PASSWORD, oneHourAgo())));
+        when(tokenDao.findByToken("some-token")).thenReturn(Optional.of(tokenOf(TokenPurpose.RESET_PASSWORD, oneHourAgo())));
 
         // Act
         final PasswordResetResult result = userService.resetPassword("some-token", RAW_PASSWORD);
@@ -735,8 +769,7 @@ public class UserServiceImplTest {
     @Test
     public void testResetPasswordFailsWhenTheTokenIsForTheWrongPurpose() {
         // Arrange
-        when(mockTokenDao.findByToken("some-token"))
-                .thenReturn(Optional.of(tokenOf(TokenPurpose.VERIFY_EMAIL, inOneHour())));
+        when(tokenDao.findByToken("some-token")).thenReturn(Optional.of(tokenOf(TokenPurpose.VERIFY_EMAIL, inOneHour())));
 
         // Act
         final PasswordResetResult result = userService.resetPassword("some-token", RAW_PASSWORD);
@@ -748,132 +781,202 @@ public class UserServiceImplTest {
     // ---- suspend()/reactivate() (moderacion) ----
 
     @Test
-    public void testSuspendMarksTheUserSuspendedAndNotifies() {
+    public void testSuspendReturnsTrueWhenTheUserWasMarkedSuspended() {
         // Arrange
-        when(mockUserDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
-        final Object[] setSuspendedArgs = new Object[2];
-        doAnswer(invocation -> {
-            setSuspendedArgs[0] = invocation.getArgument(0);
-            setSuspendedArgs[1] = invocation.getArgument(1);
-            return null;
-        }).when(mockUserDao).setSuspended(anyLong(), anyBoolean());
-        final boolean[] notified = {false};
-        doAnswer(invocation -> {
-            notified[0] = true;
-            return null;
-        }).when(mockNotificationService).notifyUserSuspended(any(User.class));
-        final boolean[] inboxWritten = {false};
-        doAnswer(invocation -> {
-            inboxWritten[0] = true;
-            return null;
-        }).when(mockInboxMessageDao).create(any());
+        when(userDao.setSuspended(USER_ID, true)).thenReturn(true);
+        when(userDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
+
+        // Act
+        final boolean result = userService.suspend(USER_ID);
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    public void testSuspendReturnsFalseWhenThereIsNoSuchUser() {
+        // Arrange
+        when(userDao.setSuspended(USER_ID, true)).thenReturn(false);
+        when(userDao.findById(USER_ID)).thenReturn(Optional.empty());
+
+        // Act
+        final boolean result = userService.suspend(USER_ID);
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    public void testSuspendNotifiesTheUserByMail() {
+        // Arrange
+        when(userDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
 
         // Act
         userService.suspend(USER_ID);
 
         // Assert
-        assertEquals(USER_ID, setSuspendedArgs[0]);
-        assertEquals(true, setSuspendedArgs[1]);
-        assertTrue(notified[0]);
-        assertTrue(inboxWritten[0]);
+        assertEquals(1, notifications.count("notifyUserSuspended"));
     }
 
     @Test
-    public void testSuspendOnAUserThatDisappearedStillSetsTheFlagButDoesNotNotify() {
+    public void testSuspendLeavesAMessageInTheUsersInbox() {
         // Arrange
-        when(mockUserDao.findById(USER_ID)).thenReturn(Optional.empty());
-        final Object[] setSuspendedArgs = new Object[2];
-        doAnswer(invocation -> {
-            setSuspendedArgs[0] = invocation.getArgument(0);
-            setSuspendedArgs[1] = invocation.getArgument(1);
-            return null;
-        }).when(mockUserDao).setSuspended(anyLong(), anyBoolean());
-        lenient().doThrow(new AssertionError("el usuario ya no existe, no hay a quien notificarle"))
-                .when(mockNotificationService).notifyUserSuspended(any());
+        when(userDao.setSuspended(USER_ID, true)).thenReturn(true);
+        when(userDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
+        when(inboxMessageDao.create(argThat(message -> message.getType() == InboxMessageType.ACCOUNT_SUSPENDED
+                && Long.valueOf(USER_ID).equals(message.getUserId()))))
+                .thenReturn(new InboxMessage(NORMALIZED_EMAIL, InboxMessageType.ACCOUNT_SUSPENDED, null, null, null));
+
+        // Act
+        final boolean result = userService.suspend(USER_ID);
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    public void testSuspendOnAUserThatDisappearedDoesNotNotify() {
+        // Arrange: el usuario ya no existe, no hay a quien notificarle.
+        when(userDao.findById(USER_ID)).thenReturn(Optional.empty());
 
         // Act
         userService.suspend(USER_ID);
 
         // Assert
-        assertEquals(USER_ID, setSuspendedArgs[0]);
-        assertEquals(true, setSuspendedArgs[1]);
+        assertEquals(0, notifications.count("notifyUserSuspended"));
     }
 
     @Test
-    public void testReactivateMarksTheUserNotSuspendedAndNotifies() {
+    public void testReactivateReturnsTrueWhenTheUserWasMarkedNotSuspended() {
         // Arrange
-        when(mockUserDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
-        final Object[] setSuspendedArgs = new Object[2];
-        doAnswer(invocation -> {
-            setSuspendedArgs[0] = invocation.getArgument(0);
-            setSuspendedArgs[1] = invocation.getArgument(1);
-            return null;
-        }).when(mockUserDao).setSuspended(anyLong(), anyBoolean());
-        final boolean[] notified = {false};
-        doAnswer(invocation -> {
-            notified[0] = true;
-            return null;
-        }).when(mockNotificationService).notifyUserReactivated(any(User.class));
-        final boolean[] inboxWritten = {false};
-        doAnswer(invocation -> {
-            inboxWritten[0] = true;
-            return null;
-        }).when(mockInboxMessageDao).create(any());
+        when(userDao.setSuspended(USER_ID, false)).thenReturn(true);
+        when(userDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
+
+        // Act
+        final boolean result = userService.reactivate(USER_ID);
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    public void testReactivateReturnsFalseWhenThereIsNoSuchUser() {
+        // Arrange
+        when(userDao.setSuspended(USER_ID, false)).thenReturn(false);
+        when(userDao.findById(USER_ID)).thenReturn(Optional.empty());
+
+        // Act
+        final boolean result = userService.reactivate(USER_ID);
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    public void testReactivateNotifiesTheUserByMail() {
+        // Arrange
+        when(userDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
 
         // Act
         userService.reactivate(USER_ID);
 
         // Assert
-        assertEquals(USER_ID, setSuspendedArgs[0]);
-        assertEquals(false, setSuspendedArgs[1]);
-        assertTrue(notified[0]);
-        assertTrue(inboxWritten[0]);
+        assertEquals(1, notifications.count("notifyUserReactivated"));
+    }
+
+    @Test
+    public void testReactivateLeavesAMessageInTheUsersInbox() {
+        // Arrange
+        when(userDao.setSuspended(USER_ID, false)).thenReturn(true);
+        when(userDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
+        when(inboxMessageDao.create(argThat(message -> message.getType() == InboxMessageType.ACCOUNT_REACTIVATED
+                && Long.valueOf(USER_ID).equals(message.getUserId()))))
+                .thenReturn(new InboxMessage(NORMALIZED_EMAIL, InboxMessageType.ACCOUNT_REACTIVATED, null, null, null));
+
+        // Act
+        final boolean result = userService.reactivate(USER_ID);
+
+        // Assert
+        assertTrue(result);
     }
 
     // ---- grantAdmin()/revokeAdmin() ----
 
     @Test
-    public void testGrantAdminAddsRoleAdmin() {
+    public void testGrantAdminReturnsTrueWhenTheRoleWasAdded() {
         // Arrange
-        final Object[] addRoleArgs = captureAddRole();
+        when(userDao.addRole(USER_ID, "ROLE_ADMIN")).thenReturn(true);
 
         // Act
-        userService.grantAdmin(USER_ID);
+        final boolean result = userService.grantAdmin(USER_ID);
 
         // Assert
-        assertEquals(USER_ID, addRoleArgs[0]);
-        assertEquals("ROLE_ADMIN", addRoleArgs[1]);
+        assertTrue(result);
     }
 
     @Test
-    public void testRevokeAdminRemovesRoleAdmin() {
+    public void testGrantAdminReturnsFalseWhenTheUserWasAlreadyAdmin() {
         // Arrange
-        final Object[] removeRoleArgs = new Object[2];
-        doAnswer(invocation -> {
-            removeRoleArgs[0] = invocation.getArgument(0);
-            removeRoleArgs[1] = invocation.getArgument(1);
-            return null;
-        }).when(mockUserDao).removeRole(anyLong(), anyString());
+        when(userDao.addRole(USER_ID, "ROLE_ADMIN")).thenReturn(false);
 
         // Act
-        userService.revokeAdmin(USER_ID);
+        final boolean result = userService.grantAdmin(USER_ID);
 
         // Assert
-        assertEquals(USER_ID, removeRoleArgs[0]);
-        assertEquals("ROLE_ADMIN", removeRoleArgs[1]);
+        assertFalse(result);
+    }
+
+    @Test
+    public void testRevokeAdminReturnsTrueWhenTheRoleWasRemoved() {
+        // Arrange
+        when(userDao.removeRole(USER_ID, "ROLE_ADMIN")).thenReturn(true);
+
+        // Act
+        final boolean result = userService.revokeAdmin(USER_ID);
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    public void testRevokeAdminReturnsFalseWhenTheUserWasNotAdmin() {
+        // Arrange
+        when(userDao.removeRole(USER_ID, "ROLE_ADMIN")).thenReturn(false);
+
+        // Act
+        final boolean result = userService.revokeAdmin(USER_ID);
+
+        // Assert
+        assertFalse(result);
     }
 
     // ---- findAll() ----
 
     @Test
-    public void testFindAllDelegatesToTheDao() {
+    public void testFindAllReturnsEveryUser() {
         // Arrange
-        when(mockUserDao.findAll()).thenReturn(java.util.Collections.singletonList(someUser()));
+        final List<User> users = Collections.singletonList(someUser());
+        when(userDao.findAll()).thenReturn(users);
 
         // Act
-        final java.util.List<User> all = userService.findAll();
+        final List<User> all = userService.findAll();
 
         // Assert
-        assertEquals(1, all.size());
+        assertEquals(users, all);
+    }
+
+    // ---- findByIds() ----
+
+    @Test
+    public void testFindByIdsReturnsTheUsersTheDaoFinds() {
+        // Arrange
+        final List<User> users = Collections.singletonList(someUser());
+        when(userDao.findByIds(Collections.singletonList(USER_ID))).thenReturn(users);
+
+        // Act
+        final List<User> result = userService.findByIds(Collections.singletonList(USER_ID));
+
+        // Assert
+        assertEquals(users, result);
     }
 }

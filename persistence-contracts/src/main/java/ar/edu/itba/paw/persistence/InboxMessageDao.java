@@ -32,12 +32,12 @@ public interface InboxMessageDao {
 
     long countUnreadByUserId(long userId);
 
-    void markAllReadByUserId(long userId, Date when);
+    int markAllReadByUserId(long userId, Date when);
 
     /**
      * Reconciliacion (ver UserServiceImpl.register()): alguien que recibio
      * avisos sin tener cuenta todavia acaba de crearse una. Completa el
      * user_id de los suyos que quedaron sin resolver (user_id NULL).
      */
-    void linkUserId(String email, long userId);
+    int linkUserId(String email, long userId);
 }

@@ -98,8 +98,8 @@ public class EventInvitationJdbcDao implements EventInvitationDao {
     }
 
     @Override
-    public void linkUserId(final String email, final long userId) {
-        jdbcTemplate.update(
+    public int linkUserId(final String email, final long userId) {
+        return jdbcTemplate.update(
                 "UPDATE event_invitation SET user_id = ? WHERE email = ? AND user_id IS NULL",
                 userId, email);
     }

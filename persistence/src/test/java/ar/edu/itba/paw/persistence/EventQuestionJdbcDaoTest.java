@@ -14,6 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import javax.sql.DataSource;
 import java.sql.Timestamp;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -161,7 +163,7 @@ public class EventQuestionJdbcDaoTest {
     // ---- findByEvent() ----
 
     @Test
-    public void testFindByEventOrdersNewestFirstAndPaginates() {
+    public void testFindByEventOrdersNewestFirst() {
         // Arrange
         final Timestamp t1 = new Timestamp(System.currentTimeMillis() - 2000);
         final Timestamp t2 = new Timestamp(System.currentTimeMillis() - 1000);
@@ -171,15 +173,40 @@ public class EventQuestionJdbcDaoTest {
         final long third = insertQuestionAt(eventId, userId, "Tercera", t3);
 
         // Act
+        final List<EventQuestion> found = questionDao.findByEvent(eventId, 1, 20);
+
+        // Assert
+        assertEquals(Arrays.asList(third, second, first),
+                Arrays.asList(found.get(0).getId(), found.get(1).getId(), found.get(2).getId()));
+    }
+
+    @Test
+    public void testFindByEventFirstPageHasAsManyQuestionsAsThePageSize() {
+        // Arrange
+        insertQuestionAt(eventId, userId, "Primera", new Timestamp(System.currentTimeMillis() - 2000));
+        insertQuestionAt(eventId, userId, "Segunda", new Timestamp(System.currentTimeMillis() - 1000));
+        insertQuestionAt(eventId, userId, "Tercera", new Timestamp(System.currentTimeMillis()));
+
+        // Act
         final List<EventQuestion> page1 = questionDao.findByEvent(eventId, 1, 2);
-        final List<EventQuestion> page2 = questionDao.findByEvent(eventId, 2, 2);
 
         // Assert
         assertEquals(2, page1.size());
-        assertEquals(third, page1.get(0).getId());
-        assertEquals(second, page1.get(1).getId());
+    }
+
+    @Test
+    public void testFindByEventSecondPageHasTheRemainingOldestQuestion() {
+        // Arrange
+        final long first = insertQuestionAt(eventId, userId, "Primera", new Timestamp(System.currentTimeMillis() - 2000));
+        insertQuestionAt(eventId, userId, "Segunda", new Timestamp(System.currentTimeMillis() - 1000));
+        insertQuestionAt(eventId, userId, "Tercera", new Timestamp(System.currentTimeMillis()));
+
+        // Act
+        final List<EventQuestion> page2 = questionDao.findByEvent(eventId, 2, 2);
+
+        // Assert
+        assertEquals(Collections.singletonList(first), Collections.singletonList(page2.get(0).getId()));
         assertEquals(1, page2.size());
-        assertEquals(first, page2.get(0).getId());
     }
 
     @Test
@@ -286,5 +313,29 @@ public class EventQuestionJdbcDaoTest {
         // Assert
         assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "event_question", "id = " + toDelete));
         assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "event_question", "id = " + toKeep));
+    }
+
+    @Test
+    public void testDeleteReturnsTrueWhenTheQuestionExisted() {
+        // Arrange
+        final long id = insertQuestion(eventId, userId, "Se puede ir con perros?");
+
+        // Act
+        final boolean result = questionDao.delete(id);
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    public void testDeleteReturnsFalseWhenThereIsNoSuchQuestion() {
+        // Arrange
+        // (no hay ninguna pregunta guardada)
+
+        // Act
+        final boolean result = questionDao.delete(999_999L);
+
+        // Assert
+        assertFalse(result);
     }
 }

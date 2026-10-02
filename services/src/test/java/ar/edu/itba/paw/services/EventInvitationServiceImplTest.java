@@ -8,9 +8,9 @@ import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.EventInvitationDao;
 import ar.edu.itba.paw.persistence.RegistrationDao;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
@@ -21,10 +21,9 @@ import java.util.Optional;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.doAnswer;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
@@ -44,19 +43,21 @@ public class EventInvitationServiceImplTest {
     private EventDao mockEventDao;
     @Mock
     private RegistrationDao mockRegistrationDao;
-    @Mock
-    private NotificationService mockNotificationService;
-
-    // La bandeja: se verifica que cada accion deje su aviso.
-    @Mock
-    private InboxService mockInboxService;
+    // Avisos y bandeja: fakes escritos a mano que anotan lo que les piden.
+    private final RecordingNotificationService notifications = new RecordingNotificationService();
+    private final RecordingInboxService inbox = new RecordingInboxService();
 
     // Enlace optimista del Grupo B (ver EventInvitationServiceImpl.invite()).
     @Mock
     private UserService mockUserService;
 
-    @InjectMocks
     private EventInvitationServiceImpl invitationService;
+
+    @Before
+    public void setUp() {
+        invitationService = new EventInvitationServiceImpl(
+                mockInvitationDao, mockEventDao, mockRegistrationDao, notifications, inbox, mockUserService);
+    }
 
     private static Event privateEvent() {
         final Event event = new Event();
@@ -76,15 +77,10 @@ public class EventInvitationServiceImplTest {
         return event;
     }
 
-    // create() es void: se captura la invitacion persistida con doAnswer()
-    // sobre el stub, nunca con Mockito.verify()+ArgumentCaptor.
-    private EventInvitation[] captureCreatedInvitation() {
-        final EventInvitation[] created = new EventInvitation[1];
-        doAnswer(invocation -> {
-            created[0] = invocation.getArgument(0);
-            return created[0];
-        }).when(mockInvitationDao).create(any(EventInvitation.class));
-        return created;
+    // La invitacion que se guardo es la misma que el service le pasa al aviso
+    // (notifyEventInvitation(event, invitation)): se lee de ahi.
+    private EventInvitation invitationNotified() {
+        return (EventInvitation) notifications.argsOf("notifyEventInvitation").get(0)[1];
     }
 
     // ---- invite() ----
@@ -95,16 +91,20 @@ public class EventInvitationServiceImplTest {
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
         when(mockInvitationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
         when(mockUserService.findByEmail(NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
-        final EventInvitation[] created = captureCreatedInvitation();
+        // El dao recibe la invitacion ya normalizada y con quien invito: si no, este stub no matchea y devuelve null.
+        when(mockInvitationDao.create(argThat(invitation ->
+                NORMALIZED_INVITEE_EMAIL.equals(invitation.getEmail()) && invitation.getEventId() == EVENT_ID
+                        && Long.valueOf(CREATOR_ID).equals(invitation.getInvitedByUserId()))))
+                .thenReturn(new EventInvitation(EVENT_ID, NORMALIZED_INVITEE_EMAIL, CREATOR_EMAIL));
 
         // Act
         final EventInvitationResult result = invitationService.invite(EVENT_ID, CREATOR_ID, INVITEE_EMAIL);
 
         // Assert
         assertEquals(EventInvitationResult.SENT, result);
-        assertEquals(NORMALIZED_INVITEE_EMAIL, created[0].getEmail());
-        assertEquals(EVENT_ID, created[0].getEventId());
-        assertEquals(CREATOR_EMAIL, created[0].getInvitedBy());
+        assertEquals(NORMALIZED_INVITEE_EMAIL, invitationNotified().getEmail());
+        assertEquals(EVENT_ID, invitationNotified().getEventId());
+        assertEquals(CREATOR_EMAIL, invitationNotified().getInvitedBy());
     }
 
     @Test
@@ -116,13 +116,15 @@ public class EventInvitationServiceImplTest {
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
         when(mockInvitationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
         when(mockUserService.findByEmail(NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.of(invitee));
-        final EventInvitation[] created = captureCreatedInvitation();
+        when(mockInvitationDao.create(argThat(invitation -> Long.valueOf(inviteeId).equals(invitation.getUserId()))))
+                .thenReturn(new EventInvitation(EVENT_ID, NORMALIZED_INVITEE_EMAIL, CREATOR_EMAIL));
 
         // Act
-        invitationService.invite(EVENT_ID, CREATOR_ID, INVITEE_EMAIL);
+        final EventInvitationResult result = invitationService.invite(EVENT_ID, CREATOR_ID, INVITEE_EMAIL);
 
         // Assert
-        assertEquals(Long.valueOf(inviteeId), created[0].getUserId());
+        assertEquals(EventInvitationResult.SENT, result);
+        assertEquals(Long.valueOf(inviteeId), invitationNotified().getUserId());
     }
 
     @Test
@@ -131,13 +133,15 @@ public class EventInvitationServiceImplTest {
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
         when(mockInvitationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
         when(mockUserService.findByEmail(NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
-        final EventInvitation[] created = captureCreatedInvitation();
+        when(mockInvitationDao.create(argThat(invitation -> invitation.getUserId() == null)))
+                .thenReturn(new EventInvitation(EVENT_ID, NORMALIZED_INVITEE_EMAIL, CREATOR_EMAIL));
 
         // Act
-        invitationService.invite(EVENT_ID, CREATOR_ID, INVITEE_EMAIL);
+        final EventInvitationResult result = invitationService.invite(EVENT_ID, CREATOR_ID, INVITEE_EMAIL);
 
         // Assert
-        assertNull(created[0].getUserId());
+        assertEquals(EventInvitationResult.SENT, result);
+        assertNull(invitationNotified().getUserId());
     }
 
     @Test
@@ -147,17 +151,13 @@ public class EventInvitationServiceImplTest {
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(event));
         when(mockInvitationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
         when(mockUserService.findByEmail(NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
-        final boolean[] notified = {false};
-        doAnswer(invocation -> {
-            notified[0] = true;
-            return null;
-        }).when(mockNotificationService).notifyEventInvitation(any(), any());
 
         // Act
         invitationService.invite(EVENT_ID, CREATOR_ID, INVITEE_EMAIL);
 
         // Assert
-        assertTrue(notified[0]);
+        assertEquals(1, notifications.count("notifyEventInvitation"));
+        assertSame(event, notifications.argsOf("notifyEventInvitation").get(0)[0]);
     }
 
     @Test
@@ -166,17 +166,12 @@ public class EventInvitationServiceImplTest {
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
         when(mockInvitationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
         when(mockUserService.findByEmail(NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
-        final String[] inboxRecipient = new String[1];
-        doAnswer(invocation -> {
-            inboxRecipient[0] = invocation.getArgument(0);
-            return null;
-        }).when(mockInboxService).add(any(), any(), any(), any(), any());
 
         // Act
         invitationService.invite(EVENT_ID, CREATOR_ID, INVITEE_EMAIL);
 
         // Assert
-        assertEquals(NORMALIZED_INVITEE_EMAIL, inboxRecipient[0]);
+        assertEquals(Collections.singletonList(NORMALIZED_INVITEE_EMAIL), inbox.recipients());
     }
 
     @Test
@@ -278,10 +273,11 @@ public class EventInvitationServiceImplTest {
     public void testFindByEventReturnsEmptyWhenAskedBySomeoneElse() {
         // Arrange
         when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
-        // Si quien pregunta no es el dueño, la implementacion no deberia ni
-        // consultar al dao: se stubea para que reviente si se llega a invocar.
+        // El dao SI tiene una invitacion: si el service la devolviera para cualquiera,
+        // el resultado no estaria vacio.
         lenient().when(mockInvitationDao.findByEvent(EVENT_ID))
-                .thenThrow(new AssertionError("no deberia consultar el dao si quien pregunta no es el dueño"));
+                .thenReturn(Collections.singletonList(
+                        new EventInvitation(EVENT_ID, NORMALIZED_INVITEE_EMAIL, CREATOR_EMAIL)));
 
         // Act
         final List<EventInvitation> result = invitationService.findByEvent(EVENT_ID, OTHER_ID);
@@ -337,5 +333,21 @@ public class EventInvitationServiceImplTest {
 
         // Assert
         assertEquals(EventInvitationResult.SENT, result);
+    }
+
+    // ---- findByUser() ----
+
+    @Test
+    public void testFindByUserReturnsTheInvitationsTheUserReceived() {
+        // Arrange
+        final List<EventInvitation> invitations = Collections.singletonList(
+                new EventInvitation(EVENT_ID, NORMALIZED_INVITEE_EMAIL, CREATOR_EMAIL));
+        when(mockInvitationDao.findByUserId(OTHER_ID)).thenReturn(invitations);
+
+        // Act
+        final List<EventInvitation> result = invitationService.findByUser(OTHER_ID);
+
+        // Assert
+        assertEquals(invitations, result);
     }
 }

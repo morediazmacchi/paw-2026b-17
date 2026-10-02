@@ -24,5 +24,5 @@ public interface EventQuestionDao {
     // Moderacion (ver EventQuestionService.deleteByAdmin()): borrado duro, con
     // su respuesta si tenia (no hay soft-delete para preguntas, a diferencia
     // de event/registration). No se puede deshacer.
-    void delete(long id);
+    boolean delete(long id);
 }

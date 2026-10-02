@@ -148,23 +148,29 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public void resendVerificationEmail(final String email) {
-        userDao.findByEmail(email.trim().toLowerCase())
+    public boolean resendVerificationEmail(final String email) {
+        return userDao.findByEmail(email.trim().toLowerCase())
                 .filter(user -> user.getPassword() != null && !user.isVerified())
                 // Reenvio desde el login: ya no sabemos de donde venia, sin redirect.
-                .ifPresent(user -> sendVerificationEmail(user, null));
+                .map(user -> {
+                    sendVerificationEmail(user, null);
+                    return true;
+                })
+                .orElse(false);
     }
 
     @Override
     @Transactional
-    public void sendPasswordResetEmail(final String email) {
-        userDao.findByEmail(email.trim().toLowerCase())
+    public boolean sendPasswordResetEmail(final String email) {
+        return userDao.findByEmail(email.trim().toLowerCase())
                 .filter(user -> user.getPassword() != null)
-                .ifPresent(user -> {
+                .map(user -> {
                     tokenDao.deleteByUserAndPurpose(user.getId(), TokenPurpose.RESET_PASSWORD);
                     final String token = newToken(user.getId(), TokenPurpose.RESET_PASSWORD, RESET_TOKEN_TTL_MILLIS);
                     notificationService.notifyPasswordReset(user, token);
-                });
+                    return true;
+                })
+                .orElse(false);
     }
 
     @Override
@@ -234,40 +240,42 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public void updateLocale(final long userId, final String locale) {
-        userDao.setLocale(userId, locale);
+    public boolean updateLocale(final long userId, final String locale) {
+        return userDao.setLocale(userId, locale);
     }
 
     @Override
     @Transactional
-    public void suspend(final long userId) {
-        userDao.setSuspended(userId, true);
+    public boolean suspend(final long userId) {
+        final boolean changed = userDao.setSuspended(userId, true);
         userDao.findById(userId).ifPresent(user -> {
             notificationService.notifyUserSuspended(user);
             addInboxMessage(user, InboxMessageType.ACCOUNT_SUSPENDED, null);
         });
+        return changed;
     }
 
     @Override
     @Transactional
-    public void reactivate(final long userId) {
-        userDao.setSuspended(userId, false);
+    public boolean reactivate(final long userId) {
+        final boolean changed = userDao.setSuspended(userId, false);
         userDao.findById(userId).ifPresent(user -> {
             notificationService.notifyUserReactivated(user);
             addInboxMessage(user, InboxMessageType.ACCOUNT_REACTIVATED, null);
         });
+        return changed;
     }
 
     @Override
     @Transactional
-    public void grantAdmin(final long userId) {
-        userDao.addRole(userId, ROLE_ADMIN);
+    public boolean grantAdmin(final long userId) {
+        return userDao.addRole(userId, ROLE_ADMIN);
     }
 
     @Override
     @Transactional
-    public void revokeAdmin(final long userId) {
-        userDao.removeRole(userId, ROLE_ADMIN);
+    public boolean revokeAdmin(final long userId) {
+        return userDao.removeRole(userId, ROLE_ADMIN);
     }
 
     // Igual que InboxServiceImpl.add(), pero sin pasar por ese service (evitaria

@@ -118,15 +118,15 @@ public class InboxMessageJdbcDao implements InboxMessageDao {
     }
 
     @Override
-    public void markAllReadByUserId(final long userId, final Date when) {
-        jdbcTemplate.update(
+    public int markAllReadByUserId(final long userId, final Date when) {
+        return jdbcTemplate.update(
                 "UPDATE inbox_message SET read_at = ? WHERE user_id = ? AND read_at IS NULL",
                 new Timestamp(when.getTime()), userId);
     }
 
     @Override
-    public void linkUserId(final String email, final long userId) {
-        jdbcTemplate.update(
+    public int linkUserId(final String email, final long userId) {
+        return jdbcTemplate.update(
                 "UPDATE inbox_message SET user_id = ? WHERE recipient_email = ? AND user_id IS NULL",
                 userId, email);
     }

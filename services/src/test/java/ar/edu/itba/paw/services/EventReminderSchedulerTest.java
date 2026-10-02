@@ -1,69 +1,87 @@
 package ar.edu.itba.paw.services;
 
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
+import java.util.Collections;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 
+/**
+ * Tests unitarios con Mockito: el EventReminderService es un @Mock. sendDueReminders()
+ * devuelve cuantos recordatorios salieron, y los tests asertan sobre eso.
+ */
 @RunWith(MockitoJUnitRunner.class)
 public class EventReminderSchedulerTest {
 
     @Mock
-    private EventReminderService mockReminderService;
+    private EventReminderService reminderService;
 
-    @InjectMocks
     private EventReminderScheduler scheduler;
 
-    // sendReminder() es void: se captura cada id con el que se lo llamo (con
-    // doAnswer() sobre el stub, no con Mockito.verify()) para despues poder
-    // comprobar con un assert comun a cuales se les mando.
-    private List<Long> captureRemindedIds() {
-        final List<Long> remindedIds = new ArrayList<>();
-        doAnswer(invocation -> {
-            remindedIds.add(invocation.getArgument(0));
-            return null;
-        }).when(mockReminderService).sendReminder(anyLong());
-        return remindedIds;
+    @Before
+    public void setUp() {
+        scheduler = new EventReminderScheduler(reminderService);
     }
 
     @Test
     public void testSendsTheReminderOfEveryDueEvent() {
         // Arrange
-        when(mockReminderService.findEventsNeedingReminder()).thenReturn(Arrays.asList(1L, 2L));
-        final List<Long> remindedIds = captureRemindedIds();
+        when(reminderService.findEventsNeedingReminder()).thenReturn(Arrays.asList(1L, 2L));
+        when(reminderService.sendReminder(1L)).thenReturn(true);
+        when(reminderService.sendReminder(2L)).thenReturn(true);
 
         // Act
-        scheduler.sendDueReminders();
+        final int result = scheduler.sendDueReminders();
 
         // Assert
-        assertEquals(Arrays.asList(1L, 2L), remindedIds);
+        assertEquals(2, result);
+    }
+
+    @Test
+    public void testSendsNothingWhenNoEventIsDue() {
+        // Arrange
+        when(reminderService.findEventsNeedingReminder()).thenReturn(Collections.emptyList());
+
+        // Act
+        final int result = scheduler.sendDueReminders();
+
+        // Assert
+        assertEquals(0, result);
+    }
+
+    @Test
+    public void testDoesNotCountTheEventsWhoseReminderWasNotSent() {
+        // Arrange
+        when(reminderService.findEventsNeedingReminder()).thenReturn(Arrays.asList(1L, 2L));
+        when(reminderService.sendReminder(1L)).thenReturn(true);
+        when(reminderService.sendReminder(2L)).thenReturn(false);
+
+        // Act
+        final int result = scheduler.sendDueReminders();
+
+        // Assert
+        assertEquals(1, result);
     }
 
     /** Un evento que falla no deja sin recordatorio a los que vienen despues. */
     @Test
     public void testOneBrokenEventDoesNotStopTheRest() {
         // Arrange
-        when(mockReminderService.findEventsNeedingReminder()).thenReturn(Arrays.asList(1L, 2L, 3L));
-        final List<Long> remindedIds = captureRemindedIds();
-        // Mas especifico que el stub general de arriba: para el id 2, gana este.
-        doThrow(new RuntimeException("se rompio")).when(mockReminderService).sendReminder(2L);
+        when(reminderService.findEventsNeedingReminder()).thenReturn(Arrays.asList(1L, 2L, 3L));
+        when(reminderService.sendReminder(1L)).thenReturn(true);
+        when(reminderService.sendReminder(2L)).thenThrow(new RuntimeException("se rompio"));
+        when(reminderService.sendReminder(3L)).thenReturn(true);
 
         // Act
-        scheduler.sendDueReminders();
+        final int result = scheduler.sendDueReminders();
 
         // Assert
-        assertTrue(remindedIds.contains(3L));
+        assertEquals(2, result);
     }
 }

@@ -2,9 +2,9 @@ package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Image;
 import ar.edu.itba.paw.persistence.ImageDao;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
@@ -13,10 +13,13 @@ import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.when;
 
+// Unidad 5 - Unit Testing: el ImageDao es un mock de Mockito (sin base de datos); los
+// stubs con argumentos especificos hacen de expectativa y se asierta sobre lo que devuelve el service.
 @RunWith(MockitoJUnitRunner.class)
 public class ImageServiceImplTest {
 
@@ -26,10 +29,14 @@ public class ImageServiceImplTest {
             "0b894166d3336435c800bea36ff21b29eaa801a52f584c006c49289a0dcf6e2f";
 
     @Mock
-    private ImageDao mockImageDao;
+    private ImageDao imageDao;
 
-    @InjectMocks
     private ImageServiceImpl imageService;
+
+    @Before
+    public void setUp() {
+        imageService = new ImageServiceImpl(imageDao);
+    }
 
     // ---- create(): validaciones ----
 
@@ -78,18 +85,33 @@ public class ImageServiceImplTest {
     }
 
     @Test
-    public void testCreateReturnsTheSavedImageWithMetadataAndChecksum() {
+    public void testCreateReturnsTheImageSavedByTheDaoWhenTheChecksumMatches() {
         // Arrange
-        when(mockImageDao.create(any(Image.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        final Image saved = new Image(SOME_DATA, "image/png", "foto.png", SOME_DATA.length, SOME_DATA_SHA256);
+        saved.setId(IMAGE_ID);
+        when(imageDao.create(argThat(image -> SOME_DATA_SHA256.equals(image.getChecksum())))).thenReturn(saved);
 
         // Act
         final Image result = imageService.create(SOME_DATA, "image/png", "foto.png");
 
         // Assert
-        assertEquals("image/png", result.getContentType());
-        assertEquals("foto.png", result.getFileName());
-        assertEquals(Integer.valueOf(SOME_DATA.length), result.getFileSize());
-        assertEquals(SOME_DATA_SHA256, result.getChecksum());
+        assertSame(saved, result);
+    }
+
+    @Test
+    public void testCreateSavesTheImageWithItsMetadata() {
+        // Arrange
+        final Image saved = new Image(SOME_DATA, "image/png", "foto.png", SOME_DATA.length, SOME_DATA_SHA256);
+        saved.setId(IMAGE_ID);
+        when(imageDao.create(argThat(image -> "image/png".equals(image.getContentType())
+                && "foto.png".equals(image.getFileName())
+                && Integer.valueOf(SOME_DATA.length).equals(image.getFileSize())))).thenReturn(saved);
+
+        // Act
+        final Image result = imageService.create(SOME_DATA, "image/png", "foto.png");
+
+        // Assert
+        assertEquals(IMAGE_ID, result.getId());
     }
 
     // ---- findById() ----
@@ -99,7 +121,7 @@ public class ImageServiceImplTest {
         // Arrange
         final Image image = new Image(SOME_DATA, "image/png", "foto.png", SOME_DATA.length, SOME_DATA_SHA256);
         image.setId(IMAGE_ID);
-        when(mockImageDao.findById(IMAGE_ID)).thenReturn(Optional.of(image));
+        when(imageDao.findById(IMAGE_ID)).thenReturn(Optional.of(image));
 
         // Act
         final Optional<Image> result = imageService.findById(IMAGE_ID);
@@ -112,7 +134,7 @@ public class ImageServiceImplTest {
     @Test
     public void testFindByIdReturnsEmptyWhenTheImageDoesNotExist() {
         // Arrange
-        when(mockImageDao.findById(IMAGE_ID)).thenReturn(Optional.empty());
+        when(imageDao.findById(IMAGE_ID)).thenReturn(Optional.empty());
 
         // Act
         final Optional<Image> result = imageService.findById(IMAGE_ID);

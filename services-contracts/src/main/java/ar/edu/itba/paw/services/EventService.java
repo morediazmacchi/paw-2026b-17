@@ -61,5 +61,5 @@ public interface EventService {
     List<Event> findFeatured(int limit);
 
     /** Un admin marca o desmarca este evento para el banner (ver AdminController). */
-    void setFeatured(long eventId, boolean featured);
+    boolean setFeatured(long eventId, boolean featured);
 }

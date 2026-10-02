@@ -22,7 +22,7 @@ public interface RegistrationDao {
 
     /** Cambia el estado: PENDING a CONFIRMED/REJECTED/WAITLISTED, WAITLISTED a CONFIRMED,
      *  CONFIRMED a REJECTED (el creador revoca). */
-    void updateStatus(long id, RegistrationStatus status);
+    boolean updateStatus(long id, RegistrationStatus status);
 
     // "Mis inscripciones": mas recientes primero.
     List<Registration> findByUserId(long userId);
@@ -32,7 +32,7 @@ public interface RegistrationDao {
     // aca lo que importa es quien se anoto primero, no lo mas reciente.
     List<Registration> findByEventId(long eventId);
 
-    void delete(long id);
+    boolean delete(long id);
 
     /** Cuantas inscripciones de este evento estan esperando que el creador las revise. */
     long countPending(long eventId);
