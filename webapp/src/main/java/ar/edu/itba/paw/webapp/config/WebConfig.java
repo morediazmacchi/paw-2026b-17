@@ -12,6 +12,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.PropertySource;
 import org.springframework.context.support.ReloadableResourceBundleMessageSource;
 import org.springframework.core.io.Resource;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
@@ -48,18 +49,22 @@ import java.util.Locale;
 // carga porque web.xml la nombra explicitamente, no por component-scan).
 @Import(WebAuthConfig.class)
 @Configuration
+// La conexion a la base vive en db.properties (mismo criterio que
+// mail.properties/MailConfig): cambiar de base es editar ese archivo, no
+// tocar codigo. No hace falta un PropertySourcesPlaceholderConfigurer propio
+// aca: el que ya registra MailConfig (via el @ComponentScan de aca abajo)
+// resuelve los ${...} de TODO el contexto, no solo los de su propia clase.
+@PropertySource("classpath:db.properties")
 public class WebConfig implements WebMvcConfigurer {
 
-    // LOCAL (desarrollo)
-    // Para volver a desarrollo local: comentar el bloque PAMPERO de abajo, descomentar este
-    private static final String DB_URL = "jdbc:postgresql://localhost/paw2026b";
-    private static final String DB_USERNAME = "paw";
-    private static final String DB_PASSWORD = "paw";
+    @Value("${db.url}")
+    private String dbUrl;
 
-    // PAMPERO (deploy)
-    //private static final String DB_URL = "jdbc:postgresql://10.16.1.110/paw-2026b-17";
-    //private static final String DB_USERNAME = "paw-2026b-17";
-    //private static final String DB_PASSWORD = "cla65LjaE";
+    @Value("${db.username}")
+    private String dbUsername;
+
+    @Value("${db.password}")
+    private String dbPassword;
 
     @Value("classpath:schema.sql")
     private Resource schemaSql;
@@ -125,9 +130,9 @@ public class WebConfig implements WebMvcConfigurer {
     public DataSource dataSource() {
         final SimpleDriverDataSource ds = new SimpleDriverDataSource();
         ds.setDriverClass(org.postgresql.Driver.class);
-        ds.setUrl(DB_URL);
-        ds.setUsername(DB_USERNAME);
-        ds.setPassword(DB_PASSWORD);
+        ds.setUrl(dbUrl);
+        ds.setUsername(dbUsername);
+        ds.setPassword(dbPassword);
         return ds;
     }
 

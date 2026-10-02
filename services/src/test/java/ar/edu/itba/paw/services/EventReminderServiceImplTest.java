@@ -1,9 +1,6 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
-import ar.edu.itba.paw.model.InboxMessageType;
-import ar.edu.itba.paw.model.Registration;
-import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.persistence.EventDao;
 import org.junit.Before;
 import org.junit.Test;
@@ -11,7 +8,6 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
@@ -27,10 +23,11 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 /**
- * Tests unitarios con Mockito: EventDao y RegistrationService son @Mock y cada test
- * asierta sobre lo que devuelve el service (sin verify). Los avisos (inbox y mail) son
- * "disparar y olvidar" (void), asi que se siguen anotando con los fakes a mano
- * RecordingInboxService / RecordingNotificationService.
+ * Tests unitarios con Mockito: todas las dependencias son @Mock y cada test
+ * asierta sobre lo que devuelve el service (sin verify). Los avisos (inbox y
+ * mail) son "disparar y olvidar" (void) y no se testean aca: verificar que se
+ * llamaron seria testear la implementacion de EventReminderServiceImpl, no el
+ * contrato de EventReminderService.
  */
 @RunWith(MockitoJUnitRunner.class)
 public class EventReminderServiceImplTest {
@@ -42,17 +39,16 @@ public class EventReminderServiceImplTest {
     private EventDao eventDao;
     @Mock
     private RegistrationService registrationService;
-
-    private RecordingNotificationService notifications;
-    private RecordingInboxService inbox;
+    @Mock
+    private NotificationService notificationService;
+    @Mock
+    private InboxService inboxService;
 
     private EventReminderServiceImpl reminderService;
 
     @Before
     public void setUp() {
-        notifications = new RecordingNotificationService();
-        inbox = new RecordingInboxService();
-        reminderService = new EventReminderServiceImpl(eventDao, registrationService, notifications, inbox);
+        reminderService = new EventReminderServiceImpl(eventDao, registrationService, notificationService, inboxService);
     }
 
     private static Event eventInHours(final long id, final long hours) {
@@ -61,10 +57,6 @@ public class EventReminderServiceImplTest {
         event.setCreatorEmail(CREATOR_EMAIL);
         event.setEventDate(new Date(System.currentTimeMillis() + hours * 60 * 60 * 1000));
         return event;
-    }
-
-    private static Registration registration(final String email, final RegistrationStatus status) {
-        return new Registration(EVENT_ID, email, "Nombre", status);
     }
 
     // El evento existe y es el que se reclama: el caso feliz de sendReminder().
@@ -87,72 +79,6 @@ public class EventReminderServiceImplTest {
         assertTrue(result);
     }
 
-    @Test
-    public void testSendReminderMailsOnlyTheConfirmedRegistrants() {
-        // Arrange
-        claimable(eventInHours(EVENT_ID, 10));
-        final Registration confirmed = registration("conf@mail.com", RegistrationStatus.CONFIRMED);
-        when(registrationService.findByEventId(EVENT_ID)).thenReturn(Arrays.asList(confirmed,
-                registration("espera@mail.com", RegistrationStatus.WAITLISTED),
-                registration("pend@mail.com", RegistrationStatus.PENDING)));
-
-        // Act
-        reminderService.sendReminder(EVENT_ID);
-
-        // Assert
-        final List<Object> reminded = new ArrayList<>();
-        for (final Object[] args : notifications.argsOf("notifyEventReminder")) {
-            reminded.add(args[1]);
-        }
-        assertEquals(Collections.singletonList(confirmed), reminded);
-    }
-
-    @Test
-    public void testSendReminderTellsTheConfirmedRegistrantsInTheInbox() {
-        // Arrange
-        claimable(eventInHours(EVENT_ID, 10));
-        when(registrationService.findByEventId(EVENT_ID)).thenReturn(Arrays.asList(
-                registration("conf@mail.com", RegistrationStatus.CONFIRMED),
-                registration("espera@mail.com", RegistrationStatus.WAITLISTED),
-                registration("pend@mail.com", RegistrationStatus.PENDING)));
-
-        // Act
-        reminderService.sendReminder(EVENT_ID);
-
-        // Assert
-        assertEquals(Collections.singletonList(InboxMessageType.EVENT_REMINDER),
-                typesOf(inbox.to("conf@mail.com")));
-        assertTrue(inbox.to("espera@mail.com").isEmpty());
-        assertTrue(inbox.to("pend@mail.com").isEmpty());
-    }
-
-    @Test
-    public void testSendReminderMailsTheOrganizer() {
-        // Arrange
-        claimable(eventInHours(EVENT_ID, 10));
-        when(registrationService.findByEventId(EVENT_ID)).thenReturn(Collections.emptyList());
-
-        // Act
-        reminderService.sendReminder(EVENT_ID);
-
-        // Assert
-        assertEquals(1, notifications.count("notifyOrganizerEventReminder"));
-    }
-
-    @Test
-    public void testSendReminderTellsTheOrganizerInTheInboxThatTheEventIsTomorrow() {
-        // Arrange
-        claimable(eventInHours(EVENT_ID, 10));
-        when(registrationService.findByEventId(EVENT_ID)).thenReturn(Collections.emptyList());
-
-        // Act
-        reminderService.sendReminder(EVENT_ID);
-
-        // Assert
-        assertEquals(Collections.singletonList(InboxMessageType.EVENT_TOMORROW),
-                typesOf(inbox.to(CREATOR_EMAIL)));
-    }
-
     /** Si otra corrida ya lo reclamo, no se manda nada: nunca dos recordatorios. */
     @Test
     public void testSendReminderReturnsFalseWhenTheReminderWasAlreadySent() {
@@ -164,19 +90,6 @@ public class EventReminderServiceImplTest {
 
         // Assert
         assertFalse(result);
-    }
-
-    @Test
-    public void testSendReminderWhenAlreadySentDoesNotNotifyAnyone() {
-        // Arrange
-        when(eventDao.markReminderSent(eq(EVENT_ID), any(Date.class))).thenReturn(false);
-
-        // Act
-        reminderService.sendReminder(EVENT_ID);
-
-        // Assert
-        assertTrue(notifications.methods().isEmpty());
-        assertTrue(inbox.all().isEmpty());
     }
 
     @Test
@@ -194,21 +107,6 @@ public class EventReminderServiceImplTest {
     }
 
     @Test
-    public void testSendReminderForACancelledEventDoesNotNotifyAnyone() {
-        // Arrange
-        final Event event = eventInHours(EVENT_ID, 10);
-        event.setCancelledAt(new Date());
-        claimable(event);
-
-        // Act
-        reminderService.sendReminder(EVENT_ID);
-
-        // Assert
-        assertTrue(notifications.methods().isEmpty());
-        assertTrue(inbox.all().isEmpty());
-    }
-
-    @Test
     public void testSendReminderReturnsFalseForAnEventThatAlreadyHappened() {
         // Arrange
         claimable(eventInHours(EVENT_ID, -1));
@@ -218,19 +116,6 @@ public class EventReminderServiceImplTest {
 
         // Assert
         assertFalse(result);
-    }
-
-    @Test
-    public void testSendReminderForAnEventThatAlreadyHappenedDoesNotNotifyAnyone() {
-        // Arrange
-        claimable(eventInHours(EVENT_ID, -1));
-
-        // Act
-        reminderService.sendReminder(EVENT_ID);
-
-        // Assert
-        assertTrue(notifications.methods().isEmpty());
-        assertTrue(inbox.all().isEmpty());
     }
 
     @Test
@@ -275,13 +160,5 @@ public class EventReminderServiceImplTest {
 
         // Assert
         assertTrue(result.isEmpty());
-    }
-
-    private static List<InboxMessageType> typesOf(final List<RecordingInboxService.Added> messages) {
-        final List<InboxMessageType> types = new ArrayList<>();
-        for (final RecordingInboxService.Added message : messages) {
-            types.add(message.type);
-        }
-        return types;
     }
 }

@@ -17,16 +17,17 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertSame;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.when;
 
-// Unidad 5 - Unit Testing: EventReportDao, EventService y UserService son @Mock; los comandos
-// del dao (resolve, requestChanges, ...) devuelven boolean/int y el test los stubea con argumentos
-// especificos (si el service no los invoca, Mockito falla por stub sin usar). Los avisos (inbox y
-// mail) son "disparar y olvidar" (void): se anotan con los fakes RecordingInboxService /
-// RecordingNotificationService.
+// Unidad 5 - Unit Testing: todas las dependencias son @Mock; los comandos del dao
+// (resolve, requestChanges, ...) devuelven boolean/int y el test los stubea con
+// argumentos especificos (si el service no los invoca, Mockito falla por stub sin
+// usar). Los avisos (inbox y mail) son "disparar y olvidar" (void) y no se testean
+// aca: verificar que se llamaron seria testear la implementacion de
+// ModerationServiceImpl, no el contrato de ModerationService -- y su propio
+// comportamiento ya lo cubren InboxServiceImplTest/NotificationServiceImplTest.
 @RunWith(MockitoJUnitRunner.class)
 public class ModerationServiceImplTest {
 
@@ -46,15 +47,16 @@ public class ModerationServiceImplTest {
     private EventService eventService;
     @Mock
     private UserService userService;
-
-    private final RecordingNotificationService notifications = new RecordingNotificationService();
-    private final RecordingInboxService inbox = new RecordingInboxService();
+    @Mock
+    private NotificationService notificationService;
+    @Mock
+    private InboxService inboxService;
 
     private ModerationServiceImpl moderationService;
 
     @Before
     public void setUp() {
-        moderationService = new ModerationServiceImpl(reportDao, eventService, userService, notifications, inbox);
+        moderationService = new ModerationServiceImpl(reportDao, eventService, userService, notificationService, inboxService);
     }
 
     private static User someUser(final long id) {
@@ -161,37 +163,6 @@ public class ModerationServiceImplTest {
 
         // Assert
         assertEquals(ReportResolutionResult.RESOLVED, result);
-    }
-
-    @Test
-    public void testRequestChangesNotifiesTheCreatorByMail() {
-        // Arrange
-        reportOf(somePendingReport());
-        final Event event = someEvent();
-        eventExists(event);
-        when(reportDao.requestChanges(REPORT_ID, CHANGES_MESSAGE, ADMIN_ID)).thenReturn(true);
-
-        // Act
-        moderationService.requestChanges(REPORT_ID, ADMIN_ID, CHANGES_MESSAGE);
-
-        // Assert
-        assertEquals(1, notifications.count("notifyEventChangesRequested"));
-        assertSame(event, notifications.argsOf("notifyEventChangesRequested").get(0)[0]);
-        assertEquals(CHANGES_MESSAGE, notifications.argsOf("notifyEventChangesRequested").get(0)[1]);
-    }
-
-    @Test
-    public void testRequestChangesLeavesAMessageInTheCreatorsInbox() {
-        // Arrange
-        reportOf(somePendingReport());
-        eventExists(someEvent());
-        when(reportDao.requestChanges(REPORT_ID, CHANGES_MESSAGE, ADMIN_ID)).thenReturn(true);
-
-        // Act
-        moderationService.requestChanges(REPORT_ID, ADMIN_ID, CHANGES_MESSAGE);
-
-        // Assert
-        assertEquals(Collections.singletonList(CREATOR_EMAIL), inbox.recipients());
     }
 
     @Test

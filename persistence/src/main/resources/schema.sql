@@ -40,12 +40,14 @@ CREATE TABLE IF NOT EXISTS event (
 -- base vieja que todavia la tiene). El orden de galeria es el orden de
 -- insercion (id ascendente): la primera es la portada, la que se usa en
 -- las tarjetas/listados (ver Event.getImageId() en el modelo, que la
--- deriva de la lista en vez de tener su propia columna). Sin FK a image.id,
--- mismo criterio que la columna vieja: referencia suelta a proposito.
+-- deriva de la lista en vez de tener su propia columna).
+-- UNIQUE(image_id): cada imagen se sube de cero para un evento puntual
+-- (ImageServiceImpl.create() no tiene forma de reusar una fila existente),
+-- asi que una misma imagen nunca deberia colgar de dos eventos.
 CREATE TABLE IF NOT EXISTS event_image (
     id          SERIAL PRIMARY KEY,
     event_id    INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
-    image_id    INTEGER NOT NULL,
+    image_id    INTEGER NOT NULL REFERENCES image(id) ON DELETE CASCADE UNIQUE,
     created_at  TIMESTAMP NOT NULL DEFAULT now()
 );
 

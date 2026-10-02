@@ -157,3 +157,15 @@ ALTER TABLE event_report ADD CONSTRAINT event_report_status_check
 ALTER TABLE event_report ADD COLUMN IF NOT EXISTS changes_requested_message VARCHAR(1000);
 ALTER TABLE event_report ADD COLUMN IF NOT EXISTS changes_requested_at TIMESTAMP;
 ALTER TABLE event_report ADD COLUMN IF NOT EXISTS changes_requested_by INTEGER REFERENCES users(id);
+
+-- FK + UNIQUE en event_image.image_id (ver schema.sql: la tabla nace con las
+-- dos desde el principio en una base nueva/HSQLDB, pero la base real ya tiene
+-- event_image sin ninguna). Mismo motivo que el resto del archivo para no
+-- compartir esto con schema.sql: "ADD CONSTRAINT IF NOT EXISTS" no existe en
+-- Postgres, asi que va el mismo idiom de DROP CONSTRAINT IF EXISTS + ADD.
+ALTER TABLE event_image DROP CONSTRAINT IF EXISTS event_image_image_id_fk;
+ALTER TABLE event_image ADD CONSTRAINT event_image_image_id_fk
+    FOREIGN KEY (image_id) REFERENCES image(id) ON DELETE CASCADE;
+
+ALTER TABLE event_image DROP CONSTRAINT IF EXISTS event_image_image_id_uq;
+ALTER TABLE event_image ADD CONSTRAINT event_image_image_id_uq UNIQUE (image_id);

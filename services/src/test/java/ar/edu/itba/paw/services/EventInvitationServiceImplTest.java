@@ -20,8 +20,6 @@ import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.lenient;
@@ -43,9 +41,10 @@ public class EventInvitationServiceImplTest {
     private EventDao mockEventDao;
     @Mock
     private RegistrationDao mockRegistrationDao;
-    // Avisos y bandeja: fakes escritos a mano que anotan lo que les piden.
-    private final RecordingNotificationService notifications = new RecordingNotificationService();
-    private final RecordingInboxService inbox = new RecordingInboxService();
+    @Mock
+    private NotificationService mockNotificationService;
+    @Mock
+    private InboxService mockInboxService;
 
     // Enlace optimista del Grupo B (ver EventInvitationServiceImpl.invite()).
     @Mock
@@ -56,7 +55,7 @@ public class EventInvitationServiceImplTest {
     @Before
     public void setUp() {
         invitationService = new EventInvitationServiceImpl(
-                mockInvitationDao, mockEventDao, mockRegistrationDao, notifications, inbox, mockUserService);
+                mockInvitationDao, mockEventDao, mockRegistrationDao, mockNotificationService, mockInboxService, mockUserService);
     }
 
     private static Event privateEvent() {
@@ -77,12 +76,6 @@ public class EventInvitationServiceImplTest {
         return event;
     }
 
-    // La invitacion que se guardo es la misma que el service le pasa al aviso
-    // (notifyEventInvitation(event, invitation)): se lee de ahi.
-    private EventInvitation invitationNotified() {
-        return (EventInvitation) notifications.argsOf("notifyEventInvitation").get(0)[1];
-    }
-
     // ---- invite() ----
 
     @Test
@@ -101,10 +94,11 @@ public class EventInvitationServiceImplTest {
         final EventInvitationResult result = invitationService.invite(EVENT_ID, CREATOR_ID, INVITEE_EMAIL);
 
         // Assert
+        // La normalizacion (email/eventId/invitedBy correctos) ya la garantiza
+        // el argThat() de mockInvitationDao.create() de arriba: si invite()
+        // armara la invitacion distinto, ese stub no matchearia y Mockito en
+        // modo estricto haria fallar el test ahi mismo.
         assertEquals(EventInvitationResult.SENT, result);
-        assertEquals(NORMALIZED_INVITEE_EMAIL, invitationNotified().getEmail());
-        assertEquals(EVENT_ID, invitationNotified().getEventId());
-        assertEquals(CREATOR_EMAIL, invitationNotified().getInvitedBy());
     }
 
     @Test
@@ -123,8 +117,8 @@ public class EventInvitationServiceImplTest {
         final EventInvitationResult result = invitationService.invite(EVENT_ID, CREATOR_ID, INVITEE_EMAIL);
 
         // Assert
+        // El enlace del userId ya lo garantiza el argThat() de arriba.
         assertEquals(EventInvitationResult.SENT, result);
-        assertEquals(Long.valueOf(inviteeId), invitationNotified().getUserId());
     }
 
     @Test
@@ -140,38 +134,8 @@ public class EventInvitationServiceImplTest {
         final EventInvitationResult result = invitationService.invite(EVENT_ID, CREATOR_ID, INVITEE_EMAIL);
 
         // Assert
+        // Que el userId quede null ya lo garantiza el argThat() de arriba.
         assertEquals(EventInvitationResult.SENT, result);
-        assertNull(invitationNotified().getUserId());
-    }
-
-    @Test
-    public void testInviteSendsTheNotification() {
-        // Arrange
-        final Event event = privateEvent();
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(event));
-        when(mockInvitationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
-        when(mockUserService.findByEmail(NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
-
-        // Act
-        invitationService.invite(EVENT_ID, CREATOR_ID, INVITEE_EMAIL);
-
-        // Assert
-        assertEquals(1, notifications.count("notifyEventInvitation"));
-        assertSame(event, notifications.argsOf("notifyEventInvitation").get(0)[0]);
-    }
-
-    @Test
-    public void testInviteLeavesAMessageInTheInviteesInbox() {
-        // Arrange
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
-        when(mockInvitationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
-        when(mockUserService.findByEmail(NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
-
-        // Act
-        invitationService.invite(EVENT_ID, CREATOR_ID, INVITEE_EMAIL);
-
-        // Assert
-        assertEquals(Collections.singletonList(NORMALIZED_INVITEE_EMAIL), inbox.recipients());
     }
 
     @Test

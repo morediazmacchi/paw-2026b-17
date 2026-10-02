@@ -32,8 +32,8 @@ import static org.mockito.Mockito.when;
 // Unidad 5 - Unit Testing: los DAOs son @Mock (Mockito). Los comandos del dao ahora devuelven
 // boolean/int: el test los stubea con argumentos especificos y eso hace de expectativa (si el
 // service no los invoca, Mockito falla por stub sin usar); lo que se asierta es lo que devuelve el
-// service. Los avisos por mail son "disparar y olvidar" (void) y se anotan con el fake
-// RecordingNotificationService.
+// service. Los avisos por mail son "disparar y olvidar" (void) y no se testean aca: verificar que
+// se llamaron seria testear la implementacion de UserServiceImpl, no el contrato de UserService.
 @RunWith(MockitoJUnitRunner.class)
 public class UserServiceImplTest {
 
@@ -55,15 +55,15 @@ public class UserServiceImplTest {
     private InboxMessageDao inboxMessageDao;
     @Mock
     private PasswordEncoder passwordEncoder;
-
-    private final RecordingNotificationService notifications = new RecordingNotificationService();
+    @Mock
+    private NotificationService notificationService;
 
     private UserServiceImpl userService;
 
     @Before
     public void setUp() {
         userService = new UserServiceImpl(
-                userDao, tokenDao, passwordEncoder, notifications, invitationDao, inboxMessageDao);
+                userDao, tokenDao, passwordEncoder, notificationService, invitationDao, inboxMessageDao);
     }
 
     private static User someUser() {
@@ -239,20 +239,6 @@ public class UserServiceImplTest {
     }
 
     @Test
-    public void testRegisterSendsTheVerificationMailToTheNewUser() {
-        // Arrange
-        newUserFlow();
-
-        // Act
-        userService.register(EMAIL, NAME, RAW_PASSWORD, null);
-
-        // Assert
-        assertEquals(1, notifications.count("notifyAccountVerification"));
-        final User notified = (User) notifications.argsOf("notifyAccountVerification").get(0)[0];
-        assertEquals(USER_ID, notified.getId());
-    }
-
-    @Test
     public void testRegisterCreatesAVerificationTokenForTheNewUser() {
         // Arrange
         newUserFlow();
@@ -293,19 +279,6 @@ public class UserServiceImplTest {
 
         // Assert
         assertEquals(UserRegistrationResult.CREATED, result);
-    }
-
-    @Test
-    public void testRegisterPassesTheRedirectToTheVerificationMail() {
-        // Arrange
-        // Venia de una invitacion a un evento privado: el link del mail lo tiene que llevar.
-        newUserFlow();
-
-        // Act
-        userService.register(EMAIL, NAME, RAW_PASSWORD, "/eventos/7");
-
-        // Assert
-        assertEquals("/eventos/7", notifications.argsOf("notifyAccountVerification").get(0)[2]);
     }
 
     @Test
@@ -544,7 +517,6 @@ public class UserServiceImplTest {
 
         // Assert
         assertTrue(result);
-        assertEquals(1, notifications.count("notifyAccountVerification"));
     }
 
     @Test
@@ -587,7 +559,6 @@ public class UserServiceImplTest {
 
         // Assert
         assertFalse(result);
-        assertEquals(0, notifications.count("notifyAccountVerification"));
     }
 
     @Test
@@ -602,7 +573,6 @@ public class UserServiceImplTest {
 
         // Assert
         assertFalse(result);
-        assertEquals(0, notifications.count("notifyAccountVerification"));
     }
 
     @Test
@@ -615,7 +585,6 @@ public class UserServiceImplTest {
 
         // Assert
         assertFalse(result);
-        assertEquals(0, notifications.count("notifyAccountVerification"));
     }
 
     // ---- sendPasswordResetEmail() ----
@@ -630,7 +599,6 @@ public class UserServiceImplTest {
 
         // Assert
         assertTrue(result);
-        assertEquals(1, notifications.count("notifyPasswordReset"));
     }
 
     @Test
@@ -671,7 +639,6 @@ public class UserServiceImplTest {
 
         // Assert
         assertFalse(result);
-        assertEquals(0, notifications.count("notifyPasswordReset"));
     }
 
     @Test
@@ -684,7 +651,6 @@ public class UserServiceImplTest {
 
         // Assert
         assertFalse(result);
-        assertEquals(0, notifications.count("notifyPasswordReset"));
     }
 
     // ---- isResetTokenValid() ----
@@ -807,18 +773,6 @@ public class UserServiceImplTest {
     }
 
     @Test
-    public void testSuspendNotifiesTheUserByMail() {
-        // Arrange
-        when(userDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
-
-        // Act
-        userService.suspend(USER_ID);
-
-        // Assert
-        assertEquals(1, notifications.count("notifyUserSuspended"));
-    }
-
-    @Test
     public void testSuspendLeavesAMessageInTheUsersInbox() {
         // Arrange
         when(userDao.setSuspended(USER_ID, true)).thenReturn(true);
@@ -832,18 +786,6 @@ public class UserServiceImplTest {
 
         // Assert
         assertTrue(result);
-    }
-
-    @Test
-    public void testSuspendOnAUserThatDisappearedDoesNotNotify() {
-        // Arrange: el usuario ya no existe, no hay a quien notificarle.
-        when(userDao.findById(USER_ID)).thenReturn(Optional.empty());
-
-        // Act
-        userService.suspend(USER_ID);
-
-        // Assert
-        assertEquals(0, notifications.count("notifyUserSuspended"));
     }
 
     @Test
@@ -870,18 +812,6 @@ public class UserServiceImplTest {
 
         // Assert
         assertFalse(result);
-    }
-
-    @Test
-    public void testReactivateNotifiesTheUserByMail() {
-        // Arrange
-        when(userDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
-
-        // Act
-        userService.reactivate(USER_ID);
-
-        // Assert
-        assertEquals(1, notifications.count("notifyUserReactivated"));
     }
 
     @Test

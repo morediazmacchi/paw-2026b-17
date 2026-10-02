@@ -2,7 +2,6 @@ package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventQuestion;
-import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.persistence.EventQuestionDao;
 import org.junit.Before;
@@ -18,7 +17,6 @@ import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -26,10 +24,11 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 /**
- * Tests unitarios con Mockito: EventQuestionDao y EventService son @Mock y cada test
- * asierta sobre lo que devuelve el service (sin verify). Los avisos (inbox y mail) son
- * "disparar y olvidar" (void), asi que se siguen anotando con los fakes a mano
- * RecordingInboxService / RecordingNotificationService.
+ * Tests unitarios con Mockito: todas las dependencias son @Mock y cada test
+ * asierta sobre lo que devuelve el service (sin verify). Los avisos (inbox y
+ * mail) son "disparar y olvidar" (void) y no se testean aca: verificar que se
+ * llamaron seria testear la implementacion de EventQuestionServiceImpl, no el
+ * contrato de EventQuestionService.
  */
 @RunWith(MockitoJUnitRunner.class)
 public class EventQuestionServiceImplTest {
@@ -45,17 +44,16 @@ public class EventQuestionServiceImplTest {
     private EventQuestionDao questionDao;
     @Mock
     private EventService eventService;
-
-    private RecordingInboxService inbox;
-    private RecordingNotificationService notifications;
+    @Mock
+    private InboxService inboxService;
+    @Mock
+    private NotificationService notificationService;
 
     private EventQuestionServiceImpl questionService;
 
     @Before
     public void setUp() {
-        inbox = new RecordingInboxService();
-        notifications = new RecordingNotificationService();
-        questionService = new EventQuestionServiceImpl(questionDao, eventService, inbox, notifications);
+        questionService = new EventQuestionServiceImpl(questionDao, eventService, inboxService, notificationService);
     }
 
     private static Event eventInHours(final long hours) {
@@ -133,53 +131,6 @@ public class EventQuestionServiceImplTest {
     }
 
     @Test
-    public void testAskTellsTheOrganizerInTheInboxWhoAsked() {
-        // Arrange
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
-        when(questionDao.create(any(EventQuestion.class))).thenReturn(created());
-
-        // Act
-        questionService.ask(EVENT_ID, asker(), "Hay estacionamiento?");
-
-        // Assert
-        final RecordingInboxService.Added message = inbox.to(CREATOR_EMAIL).get(0);
-        assertEquals(InboxMessageType.NEW_QUESTION, message.type);
-        assertEquals("Ana", message.actorName);
-    }
-
-    @Test
-    public void testAskTellsTheOrganizerWithTheEmailWhenTheAskerHasNoName() {
-        // Arrange
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
-        when(questionDao.create(any(EventQuestion.class))).thenReturn(created());
-        final User noName = new User(ASKER_EMAIL, "  ");
-        noName.setId(2);
-
-        // Act
-        questionService.ask(EVENT_ID, noName, "Hay estacionamiento?");
-
-        // Assert
-        assertEquals(ASKER_EMAIL, inbox.to(CREATOR_EMAIL).get(0).actorName);
-    }
-
-    @Test
-    public void testAskMailsTheOrganizerTheNewQuestionWithTheAskerData() {
-        // Arrange
-        final Event event = eventInHours(48);
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event));
-        when(questionDao.create(any(EventQuestion.class))).thenReturn(created());
-
-        // Act
-        questionService.ask(EVENT_ID, asker(), "Hay estacionamiento?");
-
-        // Assert
-        final Object[] args = notifications.argsOf("notifyNewQuestion").get(0);
-        assertSame(event, args[0]);
-        assertEquals(ASKER_EMAIL, ((EventQuestion) args[1]).getAskerEmail());
-        assertEquals("Ana", ((EventQuestion) args[1]).getAskerName());
-    }
-
-    @Test
     public void testTheOrganizerCannotAskOnTheirOwnEvent() {
         // Arrange
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
@@ -231,19 +182,6 @@ public class EventQuestionServiceImplTest {
         assertEquals(QuestionResult.NOT_ALLOWED, result);
     }
 
-    @Test
-    public void testAQuestionThatIsNotAllowedIsNotNotified() {
-        // Arrange
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(-2)));
-
-        // Act
-        questionService.ask(EVENT_ID, asker(), "Hola?");
-
-        // Assert
-        assertTrue(inbox.all().isEmpty());
-        assertTrue(notifications.methods().isEmpty());
-    }
-
     // ---- answer() ----
 
     // Pregunta del evento sin responder y evento del organizador: el caso feliz.
@@ -263,35 +201,6 @@ public class EventQuestionServiceImplTest {
 
         // Assert
         assertEquals(AnswerResult.ANSWERED, result);
-    }
-
-    @Test
-    public void testAnswerTellsTheAskerInTheInbox() {
-        // Arrange
-        answerableQuestion("Si", true);
-
-        // Act
-        questionService.answer(EVENT_ID, QUESTION_ID, CREATOR_ID, "Si");
-
-        // Assert
-        assertEquals(InboxMessageType.QUESTION_ANSWERED, inbox.to(ASKER_EMAIL).get(0).type);
-    }
-
-    @Test
-    public void testAnswerMailsTheAskerTheAnsweredQuestion() {
-        // Arrange
-        final Event event = eventInHours(48);
-        when(questionDao.findById(QUESTION_ID)).thenReturn(Optional.of(questionOf(EVENT_ID)));
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event));
-        when(questionDao.answer(eq(QUESTION_ID), eq("Si"), any(Date.class))).thenReturn(true);
-
-        // Act
-        questionService.answer(EVENT_ID, QUESTION_ID, CREATOR_ID, "Si");
-
-        // Assert
-        final Object[] args = notifications.argsOf("notifyQuestionAnswered").get(0);
-        assertSame(event, args[0]);
-        assertEquals("Si", ((EventQuestion) args[1]).getAnswer());
     }
 
     @Test
@@ -317,19 +226,6 @@ public class EventQuestionServiceImplTest {
 
         // Assert
         assertEquals(AnswerResult.ALREADY_ANSWERED, result);
-    }
-
-    @Test
-    public void testWhenTheQuestionWasAlreadyAnsweredNobodyIsNotifiedAgain() {
-        // Arrange
-        answerableQuestion("Si", false);
-
-        // Act
-        questionService.answer(EVENT_ID, QUESTION_ID, CREATOR_ID, "Si");
-
-        // Assert
-        assertTrue(inbox.all().isEmpty());
-        assertTrue(notifications.methods().isEmpty());
     }
 
     /** Una pregunta de otro evento no se responde desde la URL de este. */

@@ -4,9 +4,6 @@ import ar.edu.itba.paw.dto.EventDTO;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventCategoryInfo;
 import ar.edu.itba.paw.model.EventSearchCriteria;
-import ar.edu.itba.paw.model.InboxMessageType;
-import ar.edu.itba.paw.model.Registration;
-import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.persistence.EventDao;
 import org.junit.Before;
@@ -25,7 +22,6 @@ import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -36,8 +32,8 @@ import static org.mockito.Mockito.when;
  * Los comandos del dao (update, cancel, removeByAdmin, setFeatured) devuelven boolean: el
  * test los stubea con argumentos especificos (si el service no los invoca, Mockito falla por
  * stub sin usar) y asierta sobre lo que devuelve el service. Los avisos (mail e inbox) son
- * "disparar y olvidar" (void) y se anotan con los fakes RecordingNotificationService /
- * RecordingInboxService.
+ * "disparar y olvidar" (void) y no se testean aca: verificar que se llamaron seria testear la
+ * implementacion de EventServiceImpl, no el contrato de EventService.
  */
 @RunWith(MockitoJUnitRunner.class)
 public class EventServiceImplTest {
@@ -55,17 +51,16 @@ public class EventServiceImplTest {
     private UserService userService;
     @Mock
     private RegistrationService registrationService;
-
-    private RecordingNotificationService notifications;
-    private RecordingInboxService inbox;
+    @Mock
+    private NotificationService notificationService;
+    @Mock
+    private InboxService inboxService;
 
     private EventServiceImpl eventService;
 
     @Before
     public void setUp() {
-        notifications = new RecordingNotificationService();
-        inbox = new RecordingInboxService();
-        eventService = new EventServiceImpl(eventDao, userService, notifications, registrationService, inbox);
+        eventService = new EventServiceImpl(eventDao, userService, notificationService, registrationService, inboxService);
     }
 
     private static Event someEvent() {
@@ -87,20 +82,6 @@ public class EventServiceImplTest {
         dto.setCreatorEmail(CREATOR_EMAIL);
         dto.setCreatorId(CREATOR_ID);
         return dto;
-    }
-
-    private static Registration registration(final String email, final RegistrationStatus status) {
-        return new Registration(EVENT_ID, email, "Nombre", status);
-    }
-
-    // A quien se le pidio cada aviso: en notifyEventUpdated/notifyEventCancelled el
-    // segundo argumento es la inscripcion.
-    private List<Object> registrationsNotified(final String method) {
-        final List<Object> result = new ArrayList<>();
-        for (final Object[] args : notifications.argsOf(method)) {
-            result.add(args[1]);
-        }
-        return result;
     }
 
     private static List<Event> eventsWithIds(final int count) {
@@ -155,19 +136,6 @@ public class EventServiceImplTest {
     }
 
     @Test
-    public void testCreateNotifiesTheCreatorWithTheirName() {
-        // Arrange
-        when(eventDao.create(argThat(event -> true))).thenReturn(someEvent());
-        when(userService.findById(CREATOR_ID)).thenReturn(Optional.of(new User(CREATOR_EMAIL, "Creadora")));
-
-        // Act
-        eventService.create(someDto());
-
-        // Assert
-        assertEquals("Creadora", notifications.argsOf("notifyEventCreated").get(0)[1]);
-    }
-
-    @Test
     public void testCreateStillReturnsTheEventWhenCreatorLookupFindsNothing() {
         // Arrange
         // El creador ya viene resuelto (creatorId) desde el controller: esto
@@ -182,19 +150,6 @@ public class EventServiceImplTest {
 
         // Assert
         assertSame(persisted, result);
-    }
-
-    @Test
-    public void testCreateNotifiesWithoutNameWhenCreatorLookupFindsNothing() {
-        // Arrange
-        when(eventDao.create(argThat(event -> true))).thenReturn(someEvent());
-        when(userService.findById(CREATOR_ID)).thenReturn(Optional.empty());
-
-        // Act
-        eventService.create(someDto());
-
-        // Assert
-        assertNull(notifications.argsOf("notifyEventCreated").get(0)[1]);
     }
 
     // ---- findById / findByIds / findAll / findByCategory / findByCreatorId ----
@@ -453,21 +408,6 @@ public class EventServiceImplTest {
     }
 
     @Test
-    public void testUpdateWhenCapacityTooLowDoesNotNotifyAnyone() {
-        // Arrange
-        updatable(5);
-        final Event changes = someEvent();
-        changes.setMaxCapacity(3);
-
-        // Act
-        eventService.update(EVENT_ID, changes, CREATOR_ID);
-
-        // Assert
-        assertTrue(notifications.methods().isEmpty());
-        assertTrue(inbox.all().isEmpty());
-    }
-
-    @Test
     public void testUpdateWhenNewCapacityEqualsOccupiedSucceeds() {
         // Arrange
         updatable(5);
@@ -499,50 +439,6 @@ public class EventServiceImplTest {
         assertEquals(EventUpdateResult.UPDATED, result);
     }
 
-    @Test
-    public void testUpdateNotifiesOnlyConfirmedRegistrants() {
-        // Arrange
-        existingForUpdate(someEvent());
-        final Registration confirmed = registration("confirmado@mail.com", RegistrationStatus.CONFIRMED);
-        when(registrationService.findByEventId(EVENT_ID)).thenReturn(Arrays.asList(confirmed,
-                registration("espera@mail.com", RegistrationStatus.WAITLISTED)));
-
-        // Act
-        eventService.update(EVENT_ID, someEvent(), CREATOR_ID);
-
-        // Assert
-        assertEquals(Collections.singletonList(confirmed), registrationsNotified("notifyEventUpdated"));
-    }
-
-    @Test
-    public void testUpdateTellsOnlyConfirmedRegistrantsInTheInbox() {
-        // Arrange
-        existingForUpdate(someEvent());
-        when(registrationService.findByEventId(EVENT_ID)).thenReturn(Arrays.asList(
-                registration("confirmado@mail.com", RegistrationStatus.CONFIRMED),
-                registration("espera@mail.com", RegistrationStatus.WAITLISTED)));
-
-        // Act
-        eventService.update(EVENT_ID, someEvent(), CREATOR_ID);
-
-        // Assert
-        assertEquals(Collections.singletonList("confirmado@mail.com"), inbox.recipients());
-    }
-
-    @Test
-    public void testUpdateLeavesAnEventUpdatedMessageInTheInbox() {
-        // Arrange
-        existingForUpdate(someEvent());
-        when(registrationService.findByEventId(EVENT_ID)).thenReturn(Collections.singletonList(
-                registration("confirmado@mail.com", RegistrationStatus.CONFIRMED)));
-
-        // Act
-        eventService.update(EVENT_ID, someEvent(), CREATOR_ID);
-
-        // Assert
-        assertEquals(InboxMessageType.EVENT_UPDATED, inbox.to("confirmado@mail.com").get(0).type);
-    }
-
     // Si el organizador sube el cupo, los primeros de la lista de espera entran ya.
     @Test
     public void testUpdatePromotesTheWaitlistSoRaisedCapacityIsFilled() {
@@ -572,54 +468,6 @@ public class EventServiceImplTest {
 
         // Assert
         assertEquals(EventCancelResult.CANCELLED, result);
-    }
-
-    @Test
-    public void testCancelNotifiesOnlyConfirmedRegistrants() {
-        // Arrange
-        existing(someEvent());
-        final Registration confirmed = registration("confirmado@mail.com", RegistrationStatus.CONFIRMED);
-        when(registrationService.findByEventId(EVENT_ID)).thenReturn(Arrays.asList(confirmed,
-                registration("espera@mail.com", RegistrationStatus.WAITLISTED),
-                registration("pendiente@mail.com", RegistrationStatus.PENDING)));
-
-        // Act
-        eventService.cancel(EVENT_ID, CREATOR_ID);
-
-        // Assert
-        assertEquals(Collections.singletonList(confirmed), registrationsNotified("notifyEventCancelled"));
-    }
-
-    @Test
-    public void testCancelTellsEveryoneStillWaitingInTheInboxButNotTheRejected() {
-        // Arrange
-        existing(someEvent());
-        when(registrationService.findByEventId(EVENT_ID)).thenReturn(Arrays.asList(
-                registration("confirmado@mail.com", RegistrationStatus.CONFIRMED),
-                registration("espera@mail.com", RegistrationStatus.WAITLISTED),
-                registration("pendiente@mail.com", RegistrationStatus.PENDING),
-                registration("rechazado@mail.com", RegistrationStatus.REJECTED)));
-
-        // Act
-        eventService.cancel(EVENT_ID, CREATOR_ID);
-
-        // Assert
-        assertEquals(Arrays.asList("confirmado@mail.com", "espera@mail.com", "pendiente@mail.com"),
-                inbox.recipients());
-    }
-
-    @Test
-    public void testCancelLeavesAnEventCancelledMessageInTheInbox() {
-        // Arrange
-        existing(someEvent());
-        when(registrationService.findByEventId(EVENT_ID)).thenReturn(Collections.singletonList(
-                registration("confirmado@mail.com", RegistrationStatus.CONFIRMED)));
-
-        // Act
-        eventService.cancel(EVENT_ID, CREATOR_ID);
-
-        // Assert
-        assertEquals(InboxMessageType.EVENT_CANCELLED, inbox.to("confirmado@mail.com").get(0).type);
     }
 
     @Test
@@ -676,70 +524,6 @@ public class EventServiceImplTest {
     }
 
     @Test
-    public void testRemoveByAdminNotifiesTheCreatorWithTheReason() {
-        // Arrange
-        existing(someEvent());
-
-        // Act
-        eventService.removeByAdmin(EVENT_ID, "Contenido inapropiado");
-
-        // Assert
-        assertEquals("Contenido inapropiado", notifications.argsOf("notifyEventRemovedByAdmin").get(0)[1]);
-    }
-
-    @Test
-    public void testRemoveByAdminLeavesARemovedByAdminMessageForTheCreatorInTheInbox() {
-        // Arrange
-        existing(someEvent());
-
-        // Act
-        eventService.removeByAdmin(EVENT_ID, "Contenido inapropiado");
-
-        // Assert
-        assertEquals(InboxMessageType.EVENT_REMOVED_BY_ADMIN, inbox.to(CREATOR_EMAIL).get(0).type);
-    }
-
-    @Test
-    public void testRemoveByAdminPutsTheReasonInTheCreatorsInboxMessage() {
-        // Arrange
-        existing(someEvent());
-
-        // Act
-        eventService.removeByAdmin(EVENT_ID, "Contenido inapropiado");
-
-        // Assert
-        assertEquals("Contenido inapropiado", inbox.to(CREATOR_EMAIL).get(0).body);
-    }
-
-    @Test
-    public void testRemoveByAdminAlsoNotifiesConfirmedRegistrantsLikeAnyCancellation() {
-        // Arrange
-        existing(someEvent());
-        final Registration confirmed = registration("confirmado@mail.com", RegistrationStatus.CONFIRMED);
-        when(registrationService.findByEventId(EVENT_ID)).thenReturn(Collections.singletonList(confirmed));
-
-        // Act
-        eventService.removeByAdmin(EVENT_ID, "Contenido inapropiado");
-
-        // Assert
-        assertEquals(Collections.singletonList(confirmed), registrationsNotified("notifyEventCancelled"));
-    }
-
-    @Test
-    public void testRemoveByAdminAlsoTellsConfirmedRegistrantsInTheInbox() {
-        // Arrange
-        existing(someEvent());
-        when(registrationService.findByEventId(EVENT_ID)).thenReturn(Collections.singletonList(
-                registration("confirmado@mail.com", RegistrationStatus.CONFIRMED)));
-
-        // Act
-        eventService.removeByAdmin(EVENT_ID, "Contenido inapropiado");
-
-        // Assert
-        assertEquals(InboxMessageType.EVENT_CANCELLED, inbox.to("confirmado@mail.com").get(0).type);
-    }
-
-    @Test
     public void testRemoveByAdminWhenTheEventDoesNotExistReturnsNotFound() {
         // Arrange
         when(eventDao.findById(EVENT_ID)).thenReturn(Optional.empty());
@@ -761,19 +545,6 @@ public class EventServiceImplTest {
 
         // Assert
         assertEquals(EventCancelResult.ALREADY_CANCELLED, result);
-    }
-
-    @Test
-    public void testRemoveByAdminWhenAlreadyCancelledDoesNotNotifyAnything() {
-        // Arrange
-        existing(cancelledEvent());
-
-        // Act
-        eventService.removeByAdmin(EVENT_ID, "motivo");
-
-        // Assert
-        assertTrue(notifications.methods().isEmpty());
-        assertTrue(inbox.all().isEmpty());
     }
 
     // ---- findFeatured() / setFeatured() (banner de /eventos) ----

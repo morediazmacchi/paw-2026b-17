@@ -52,6 +52,38 @@
         <artifactId>spring-tx</artifactId>
         <version>${spring.version}</version>
       </dependency>
+      <!-- spring-aop/beans/core/expression/jcl: nadie las declara directo (llegan
+           transitivas via spring-context/spring-webmvc), pero sin fijarlas aca
+           services-contracts (que solo depende de spring-security-core, sin
+           ningun spring-context/webmvc propio que las arrastre a ${spring.version})
+           las resolvia en la version que trae spring-security-core de arrastre,
+           no en la nuestra. Point: todo el arbol de dependencias en una unica
+           version de Spring, sin ambiguedad. -->
+      <dependency>
+        <groupId>org.springframework</groupId>
+        <artifactId>spring-aop</artifactId>
+        <version>${spring.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.springframework</groupId>
+        <artifactId>spring-beans</artifactId>
+        <version>${spring.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.springframework</groupId>
+        <artifactId>spring-core</artifactId>
+        <version>${spring.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.springframework</groupId>
+        <artifactId>spring-expression</artifactId>
+        <version>${spring.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.springframework</groupId>
+        <artifactId>spring-jcl</artifactId>
+        <version>${spring.version}</version>
+      </dependency>
       <dependency>
         <groupId>org.postgresql</groupId>
         <artifactId>postgresql</artifactId>
