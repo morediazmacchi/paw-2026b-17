@@ -9,7 +9,7 @@ import java.util.Date;
 
 public class EventDateValidator implements ConstraintValidator<ValidEventDate, String> {
 
-    // Mismo regex que el @Pattern de EventForm.fechaEvento: si ni siquiera
+    // Mismo regex que el @Pattern de EventForm.eventDate: si ni siquiera
     // tiene esa forma, se deja que ese @Pattern reporte el error de formato
     // en vez de competir por el mismo campo con un mensaje distinto.
     private static final String SHAPE_REGEX = "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}$";

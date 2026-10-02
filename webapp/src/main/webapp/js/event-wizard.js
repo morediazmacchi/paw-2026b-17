@@ -54,7 +54,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Fecha, hora y minutos van en inputs separados (paso 2), pero el server
     // sigue esperando un solo string "yyyy-MM-ddTHH:mm" en el input oculto
-    // fechaEvento (EventForm.fechaEvento no cambio). Hora/minutos son
+    // eventDate (EventForm.eventDate no cambio). Hora/minutos son
     // <input type=number> a proposito, no <input type=time>: ese widget
     // depende de la configuracion regional del navegador y en muchas termina
     // mostrando AM/PM de nuevo aunque se le pida 24hs.
@@ -115,10 +115,10 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     });
 
-    var fechaHidden = form.querySelector("#fechaEvento");
-    var fechaDateInput = form.querySelector("#fechaEventoDate");
-    var fechaHoursInput = form.querySelector("#fechaEventoHours");
-    var fechaMinutesInput = form.querySelector("#fechaEventoMinutes");
+    var fechaHidden = form.querySelector("#eventDate");
+    var fechaDateInput = form.querySelector("#eventDateDate");
+    var fechaHoursInput = form.querySelector("#eventDateHours");
+    var fechaMinutesInput = form.querySelector("#eventDateMinutes");
 
     function pad2(n) { return n < 10 ? "0" + n : "" + n; }
 
@@ -266,7 +266,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Al abrir el almanaque, siempre mostrar el mes de la fecha ya elegida
     // (si hay una) en vez de quedarse en el mes de la ultima navegacion.
-    var fechaTriggerBtn = document.getElementById("fechaEventoTrigger");
+    var fechaTriggerBtn = document.getElementById("eventDateTrigger");
     if (fechaTriggerBtn) {
         fechaTriggerBtn.addEventListener("click", function () {
             if (fechaDateInput.value) {
@@ -314,7 +314,7 @@ document.addEventListener("DOMContentLoaded", function () {
         // encontro nada, o encontro el lugar pero no pudo identificar el
         // barrio (parques/zonas grandes): en los tres casos hay que buscar
         // de nuevo o pasarse a "texto plano", nunca dejar avanzar el wizard.
-        if (field.id === "barrio" && field.validity.valueMissing) {
+        if (field.id === "neighborhood" && field.validity.valueMissing) {
             var modoManualRadio = document.getElementById("modo-direccion-manual");
             if (!modoManualRadio || !modoManualRadio.checked) {
                 return "No se pudo localizar la dirección. Revisá el nombre o seleccioná el modo \"texto plano\".";
@@ -344,7 +344,7 @@ document.addEventListener("DOMContentLoaded", function () {
             stepCategoryCheckboxes[0].focus();
             return false;
         }
-        var stepFechaTrigger = steps[index].querySelector("#fechaEventoTrigger");
+        var stepFechaTrigger = steps[index].querySelector("#eventDateTrigger");
         if (stepFechaTrigger && !fechaDateInput.value) {
             showStepError("Elegí una fecha antes de seguir.");
             stepFechaTrigger.focus();
@@ -394,7 +394,7 @@ document.addEventListener("DOMContentLoaded", function () {
         if (!field) {
             return "";
         }
-        // precio/cupoMaximo: si el atajo "Gratis"/"Sin limite" esta activo el
+        // price/maxCapacity: si el atajo "Gratis"/"Sin limite" esta activo el
         // input real queda hidden y lo que se ve es el cartel de al lado
         // (quick-options.js); mostrar eso, no el "0" que viaja en el input.
         if (field.hidden) {
@@ -432,28 +432,28 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     function renderReview() {
-        setReview("titulo", fieldValue("titulo"));
+        setReview("title", fieldValue("title"));
         setReview("categoria", selectedCategoriasText());
-        setReview("fecha", formatFecha(fieldValue("fechaEvento")));
+        setReview("fecha", formatFecha(fieldValue("eventDate")));
 
         // El <select> de barrio: fieldValue devuelve el TEXTO de la opcion
         // elegida (util para mostrar), pero para saber si eligio algo hay que
         // mirar el value crudo, no el texto ("Sin especificar" tambien es texto).
-        var barrioField = form.querySelector("[name='barrio']");
-        var barrioChosen = barrioField && barrioField.value ? fieldValue("barrio") : "";
-        var direccion = fieldValue("direccion");
-        setReview("direccion", barrioChosen ? direccion + " (" + barrioChosen + ")" : direccion);
+        var barrioField = form.querySelector("[name='neighborhood']");
+        var barrioChosen = barrioField && barrioField.value ? fieldValue("neighborhood") : "";
+        var direccion = fieldValue("address");
+        setReview("address", barrioChosen ? direccion + " (" + barrioChosen + ")" : direccion);
 
-        var precioField = form.querySelector("[name='precio']");
-        var precioValue = fieldValue("precio");
-        setReview("precio", precioField && !precioField.hidden && precioValue ? "$" + precioValue : precioValue);
-        setReview("cupo", fieldValue("cupoMaximo"));
+        var precioField = form.querySelector("[name='price']");
+        var precioValue = fieldValue("price");
+        setReview("price", precioField && !precioField.hidden && precioValue ? "$" + precioValue : precioValue);
+        setReview("cupo", fieldValue("maxCapacity"));
 
         // Checkboxes, no inputs de texto: no pasan por fieldValue (esa funcion
         // mira .value, que en un checkbox siempre es "true" este o no tildado).
-        setReviewCheckbox("requiereAprobacion");
-        setReviewCheckbox("privado");
-        setReviewCheckbox("estacionamiento");
+        setReviewCheckbox("requiresApproval");
+        setReviewCheckbox("privateEvent");
+        setReviewCheckbox("parking");
 
         // Solo se previsualiza la primera foto elegida (con un contador al
         // lado si eligio mas de una): mostrar las 5 en el resumen no aporta

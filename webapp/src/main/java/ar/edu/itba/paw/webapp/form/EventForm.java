@@ -33,36 +33,36 @@ public class EventForm {
 
     @NotBlank(message = "El titulo es obligatorio")
     @Size(max = 150, message = "El titulo no puede superar los 150 caracteres")
-    private String titulo;
+    private String title;
 
     @Size(max = 1000, message = "La descripcion no puede superar los 1000 caracteres")
-    private String descripcion;
+    private String description;
 
     // Una entrada por cada categoria existente (ver EventController), en vez
     // de un solo id: ahora se puede elegir mas de una. @ValidCategorias chequea
     // que haya al menos una tildada y que las tildadas existan de verdad.
     @Valid
     @ValidCategorias
-    private List<CategoriaSeleccionForm> categorias = new ArrayList<>();
+    private List<CategoriaSeleccionForm> categories = new ArrayList<>();
 
     @NotBlank(message = "La fecha y horario son obligatorios")
     @Pattern(regexp = "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}$", message = "La fecha y horario no tienen un formato valido")
     @ValidEventDate
-    private String fechaEvento;
+    private String eventDate;
 
     @NotBlank(message = "La direccion es obligatoria")
     @Size(max = 200, message = "La direccion no puede superar los 200 caracteres")
-    private String direccion;
+    private String address;
 
     // Info de la direccion que Nominatim no geocodifica (piso, depto,
     // referencias): texto libre y opcional, nunca se manda a buscar en el mapa.
     @Size(max = 300, message = "El detalle de la direccion no puede superar los 300 caracteres")
-    private String detalleDireccion;
+    private String addressDetails;
 
     @NotBlank(message = "Elegí un barrio")
     @Size(max = 80, message = "El barrio no puede superar los 80 caracteres")
     @ValidBarrio
-    private String barrio;
+    private String neighborhood;
 
     // Pin en el mapa (ver event-location-map.js): dos inputs ocultos que el JS
     // completa, segun el modo que haya elegido la persona (botones "con
@@ -72,16 +72,16 @@ public class EventForm {
     // puso ningun pin, o alguien manipulo el request) el controller los
     // ignora en vez de bloquear la publicacion por un campo que ni siquiera
     // es obligatorio.
-    private String latitud;
-    private String longitud;
+    private String latitude;
+    private String longitude;
 
     // "true"/"false": si el pin de arriba (cuando hay uno) lo puso la persona
     // a mano (click en el mapa, modo "texto plano") o event-location-map.js
     // al elegir una sugerencia de Nominatim (modo "con geolocalizacion").
-    // Igual que latitud/longitud, sin JSR-303: el controller (ver
+    // Igual que latitude/longitude, sin JSR-303: el controller (ver
     // EventController.applyPin()) por defecto asume "a mano" (el mas cauto)
     // salvo que venga explicitamente "false".
-    private String pinManual;
+    private String locationManual;
 
     // @Digits acota a lo que entra en la columna price, NUMERIC(10,2) (hasta
     // 8 digitos enteros): sin esto, un precio mas grande pasa el @Pattern (que
@@ -92,29 +92,30 @@ public class EventForm {
     @NotBlank(message = "El precio es obligatorio (0 si es evento gratuito)")
     @Pattern(regexp = "^[0-9]+(\\.[0-9]{1,2})?$", message = "El precio tiene que ser un numero valido, ej: 0 o 1500.50")
     @Digits(integer = 8, fraction = 2, message = "El precio no puede tener mas de 8 digitos enteros")
-    private String precio;
+    private String price;
 
-    // Mismo motivo que el @Digits de precio: sin cota, un cupo mas grande que
+    // Mismo motivo que el @Digits de price: sin cota, un cupo mas grande que
     // Integer.MAX_VALUE hace que Integer.valueOf() explote con
     // NumberFormatException sin capturar en el controller.
     @NotBlank(message = "El cupo maximo es obligatorio (0 si no hay limite)")
     @Pattern(regexp = "^[0-9]+$", message = "El cupo maximo tiene que ser un numero entero")
     @Digits(integer = 9, fraction = 0, message = "El cupo maximo no puede tener mas de 9 digitos")
-    private String cupoMaximo;
+    private String maxCapacity;
 
     // Checkbox comun (sin JSR-303: ausente en el request = false, no hay nada
     // que validar). Si esta en true, las inscripciones nuevas nacen 'pending'
     // en vez de 'confirmed': el creador las tiene que aceptar o rechazar el
     // mismo (ver RegistrationServiceImpl.register()).
-    private boolean requiereAprobacion;
+    private boolean requiresApproval;
 
-    // Mismo criterio que requiereAprobacion: checkbox comun, ausente = false.
+    // Mismo criterio que requiresApproval: checkbox comun, ausente = false.
     // Si esta en true, el evento no aparece en el listado ni en las busquedas
-    // (ver EventVisibility).
-    private boolean privado;
+    // (ver EventVisibility). Se llama privateEvent (no "private": palabra
+    // reservada de Java) para no perder el nombre del concepto.
+    private boolean privateEvent;
 
-    // Mismo criterio que privado/requiereAprobacion: checkbox comun, ausente = false.
-    private boolean estacionamiento;
+    // Mismo criterio que privateEvent/requiresApproval: checkbox comun, ausente = false.
+    private boolean parking;
 
     // Sin @RequestParam aparte en el controller: Spring bindea los MultipartFile
     // del <input type="file" name="images" multiple> directo a esta propiedad,
@@ -126,74 +127,74 @@ public class EventForm {
     public EventForm() {
     }
 
-    public String getTitulo() { return titulo; }
-    public void setTitulo(final String titulo) { this.titulo = titulo; }
+    public String getTitle() { return title; }
+    public void setTitle(final String title) { this.title = title; }
 
-    public String getDescripcion() { return descripcion; }
-    public void setDescripcion(final String descripcion) { this.descripcion = descripcion; }
+    public String getDescription() { return description; }
+    public void setDescription(final String description) { this.description = description; }
 
-    public List<CategoriaSeleccionForm> getCategorias() { return categorias; }
-    public void setCategorias(final List<CategoriaSeleccionForm> categorias) { this.categorias = categorias; }
+    public List<CategoriaSeleccionForm> getCategories() { return categories; }
+    public void setCategories(final List<CategoriaSeleccionForm> categories) { this.categories = categories; }
 
-    public String getFechaEvento() { return fechaEvento; }
-    public void setFechaEvento(final String fechaEvento) { this.fechaEvento = fechaEvento; }
+    public String getEventDate() { return eventDate; }
+    public void setEventDate(final String eventDate) { this.eventDate = eventDate; }
 
-    public String getDireccion() { return direccion; }
-    public void setDireccion(final String direccion) { this.direccion = direccion; }
+    public String getAddress() { return address; }
+    public void setAddress(final String address) { this.address = address; }
 
-    public String getDetalleDireccion() { return detalleDireccion; }
-    public void setDetalleDireccion(final String detalleDireccion) { this.detalleDireccion = detalleDireccion; }
+    public String getAddressDetails() { return addressDetails; }
+    public void setAddressDetails(final String addressDetails) { this.addressDetails = addressDetails; }
 
-    public String getBarrio() { return barrio; }
-    public void setBarrio(final String barrio) { this.barrio = barrio; }
+    public String getNeighborhood() { return neighborhood; }
+    public void setNeighborhood(final String neighborhood) { this.neighborhood = neighborhood; }
 
-    public String getLatitud() { return latitud; }
-    public void setLatitud(final String latitud) { this.latitud = latitud; }
+    public String getLatitude() { return latitude; }
+    public void setLatitude(final String latitude) { this.latitude = latitude; }
 
-    public String getLongitud() { return longitud; }
-    public void setLongitud(final String longitud) { this.longitud = longitud; }
+    public String getLongitude() { return longitude; }
+    public void setLongitude(final String longitude) { this.longitude = longitude; }
 
-    public String getPinManual() { return pinManual; }
-    public void setPinManual(final String pinManual) { this.pinManual = pinManual; }
+    public String getLocationManual() { return locationManual; }
+    public void setLocationManual(final String locationManual) { this.locationManual = locationManual; }
 
-    public String getPrecio() { return precio; }
-    public void setPrecio(final String precio) { this.precio = precio; }
+    public String getPrice() { return price; }
+    public void setPrice(final String price) { this.price = price; }
 
-    public String getCupoMaximo() { return cupoMaximo; }
-    public void setCupoMaximo(final String cupoMaximo) { this.cupoMaximo = cupoMaximo; }
+    public String getMaxCapacity() { return maxCapacity; }
+    public void setMaxCapacity(final String maxCapacity) { this.maxCapacity = maxCapacity; }
 
-    public boolean isRequiereAprobacion() { return requiereAprobacion; }
-    public void setRequiereAprobacion(final boolean requiereAprobacion) { this.requiereAprobacion = requiereAprobacion; }
+    public boolean isRequiresApproval() { return requiresApproval; }
+    public void setRequiresApproval(final boolean requiresApproval) { this.requiresApproval = requiresApproval; }
 
-    public boolean isPrivado() { return privado; }
-    public void setPrivado(final boolean privado) { this.privado = privado; }
+    public boolean isPrivateEvent() { return privateEvent; }
+    public void setPrivateEvent(final boolean privateEvent) { this.privateEvent = privateEvent; }
 
-    public boolean isEstacionamiento() { return estacionamiento; }
-    public void setEstacionamiento(final boolean estacionamiento) { this.estacionamiento = estacionamiento; }
+    public boolean isParking() { return parking; }
+    public void setParking(final boolean parking) { this.parking = parking; }
 
     public List<MultipartFile> getImages() { return images; }
     public void setImages(final List<MultipartFile> images) { this.images = images; }
 
     // Arma el DTO que recibe EventService.create(). Solo se tiene que llamar
     // despues de que @Valid paso sin errores: todo parseo de aca asume que
-    // fechaEvento/barrio/precio/cupoMaximo/categorias ya son validos (lo
+    // eventDate/neighborhood/price/maxCapacity/categories ya son validos (lo
     // garantizan @ValidEventDate, @ValidBarrio, los @Pattern/@Digits y
     // @ValidCategorias), asi que no hace falta try/catch para nada de esto.
     public EventDTO toDTO() {
         final EventDTO dto = new EventDTO();
-        dto.setTitle(titulo);
-        dto.setDescription(descripcion);
+        dto.setTitle(title);
+        dto.setDescription(description);
         dto.setCategories(getSelectedCategories());
-        dto.setEventDate(parseEventDate(fechaEvento));
-        dto.setAddress(direccion);
-        dto.setAddressDetails(detalleDireccion);
-        dto.setNeighborhood(Barrio.valueOf(barrio));
-        dto.setPrice(new BigDecimal(precio));
+        dto.setEventDate(parseEventDate(eventDate));
+        dto.setAddress(address);
+        dto.setAddressDetails(addressDetails);
+        dto.setNeighborhood(Barrio.valueOf(neighborhood));
+        dto.setPrice(new BigDecimal(price));
         // "0" es el valor que usa el atajo "Sin limite" (ver quick-options.js).
-        dto.setMaxCapacity("0".equals(cupoMaximo) ? null : Integer.valueOf(cupoMaximo));
-        dto.setRequiresApproval(requiereAprobacion);
-        dto.setVisibility(privado ? EventVisibility.PRIVATE : EventVisibility.PUBLIC);
-        dto.setParking(estacionamiento);
+        dto.setMaxCapacity("0".equals(maxCapacity) ? null : Integer.valueOf(maxCapacity));
+        dto.setRequiresApproval(requiresApproval);
+        dto.setVisibility(privateEvent ? EventVisibility.PRIVATE : EventVisibility.PUBLIC);
+        dto.setParking(parking);
         applyPin(dto);
         return dto;
     }
@@ -203,7 +204,7 @@ public class EventForm {
     // de que se llegue a llamar esto. Publica porque EventController.editar()
     // tambien la necesita para armar los cambios a guardar.
     public List<EventCategoryInfo> getSelectedCategories() {
-        return categorias.stream()
+        return categories.stream()
                 .filter(CategoriaSeleccionForm::isSeleccionada)
                 .map(c -> new EventCategoryInfo(c.getCategoryId(), blankToNull(c.getExtraInfo())))
                 .collect(Collectors.toList());
@@ -216,7 +217,7 @@ public class EventForm {
             return format.parse(value);
         } catch (final ParseException e) {
             // No deberia pasar nunca: @ValidEventDate ya garantizo que esto parsea.
-            throw new IllegalStateException("fechaEvento invalida a pesar de @ValidEventDate: " + value, e);
+            throw new IllegalStateException("eventDate invalida a pesar de @ValidEventDate: " + value, e);
         }
     }
 
@@ -229,19 +230,19 @@ public class EventForm {
     }
 
     // Pin del mapa (opcional): solo se guarda si llegan las DOS coordenadas, son
-    // numeros y estan dentro de rango (latitud -90..90, longitud -180..180). Fuera
+    // numeros y estan dentro de rango (latitude -90..90, longitude -180..180). Fuera
     // de eso se ignora en silencio: es un dato opcional, y un valor absurdo (o que
     // no entra en NUMERIC(9,6)) no tiene que tumbar la publicacion ni guardarse a medias.
     private void applyPin(final EventDTO dto) {
-        final Double lat = parseCoordinate(latitud);
-        final Double lon = parseCoordinate(longitud);
+        final Double lat = parseCoordinate(latitude);
+        final Double lon = parseCoordinate(longitude);
         final boolean valid = lat != null && lon != null
                 && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180;
         dto.setLatitude(valid ? lat : null);
         dto.setLongitude(valid ? lon : null);
         // Default "a mano" (el mas cauto): solo queda en false si event-location-map.js
         // lo marco explicitamente al elegir una sugerencia de Nominatim con exito.
-        dto.setLocationManual(!"false".equals(pinManual));
+        dto.setLocationManual(!"false".equals(locationManual));
     }
 
     // El pin del mapa es un campo oculto que solo el JS completa: si vino vacio
@@ -261,11 +262,11 @@ public class EventForm {
 
     // Un EventForm vacio para la primera carga de "Publicar": todas las
     // categorias existen sin tildar, para que el binding indexado de Spring
-    // (categorias[0].seleccionada, etc.) este sincronizado con el JSP desde el
+    // (categories[0].seleccionada, etc.) este sincronizado con el JSP desde el
     // primer GET, antes de cualquier submit.
     public static EventForm empty(final List<Category> categories) {
         final EventForm form = new EventForm();
-        form.setCategorias(categoriaFormsFor(Collections.emptyList(), categories));
+        form.setCategories(categoriaFormsFor(Collections.emptyList(), categories));
         return form;
     }
 
@@ -290,33 +291,33 @@ public class EventForm {
     // Precarga "Editar" con los datos actuales del evento.
     public static EventForm from(final Event event, final List<Category> categories) {
         final EventForm form = new EventForm();
-        form.setTitulo(event.getTitle());
-        form.setDescripcion(event.getDescription());
-        form.setCategorias(categoriaFormsFor(event.getCategories(), categories));
-        form.setFechaEvento(new SimpleDateFormat("yyyy-MM-dd'T'HH:mm").format(event.getEventDate()));
-        form.setDireccion(event.getAddress());
-        form.setDetalleDireccion(event.getAddressDetails());
-        form.setBarrio(event.getNeighborhood() == null ? null : event.getNeighborhood().name());
-        form.setPrecio(formatDecimal(event.getPrice()));
+        form.setTitle(event.getTitle());
+        form.setDescription(event.getDescription());
+        form.setCategories(categoriaFormsFor(event.getCategories(), categories));
+        form.setEventDate(new SimpleDateFormat("yyyy-MM-dd'T'HH:mm").format(event.getEventDate()));
+        form.setAddress(event.getAddress());
+        form.setAddressDetails(event.getAddressDetails());
+        form.setNeighborhood(event.getNeighborhood() == null ? null : event.getNeighborhood().name());
+        form.setPrice(formatDecimal(event.getPrice()));
         // "0" es el valor que usa el atajo "Sin limite" (quick-options.js lo
         // detecta por igualdad exacta de string) -- mismo criterio que publish().
-        form.setCupoMaximo(event.getMaxCapacity() == null ? "0" : String.valueOf(event.getMaxCapacity()));
-        form.setRequiereAprobacion(event.isRequiresApproval());
-        form.setPrivado(event.isPrivate());
-        form.setEstacionamiento(event.isParking());
+        form.setMaxCapacity(event.getMaxCapacity() == null ? "0" : String.valueOf(event.getMaxCapacity()));
+        form.setRequiresApproval(event.isRequiresApproval());
+        form.setPrivateEvent(event.isPrivate());
+        form.setParking(event.isParking());
         if (event.isLocationPinned()) {
-            form.setLatitud(String.valueOf(event.getLatitude()));
-            form.setLongitud(String.valueOf(event.getLongitude()));
+            form.setLatitude(String.valueOf(event.getLatitude()));
+            form.setLongitude(String.valueOf(event.getLongitude()));
             // Arranca marcando el modo (geolocalizacion/texto plano, ver
             // publish.jsp/editar.jsp) que corresponde a como quedo el pin la
             // ultima vez, para no perder esa eleccion al reabrir "Editar".
-            form.setPinManual(String.valueOf(event.isLocationManual()));
+            form.setLocationManual(String.valueOf(event.isLocationManual()));
         }
         return form;
     }
 
     // 2500.00 -> "2500" (sin decimales de sobra), 1500.50 -> "1500.5". Los dos
-    // formatos matchean el @Pattern de precio. 0 es un caso aparte:
+    // formatos matchean el @Pattern de price. 0 es un caso aparte:
     // BigDecimal.ZERO.stripTrailingZeros() no es confiable entre versiones de
     // Java (bug historico que a veces devuelve "0E-...").
     private static String formatDecimal(final BigDecimal value) {

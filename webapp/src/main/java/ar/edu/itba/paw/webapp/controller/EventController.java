@@ -336,11 +336,11 @@ public class EventController {
     }
 
     private static String firstCategoriasError(final Map<String, String> fieldErrors) {
-        if (fieldErrors.containsKey("categorias")) {
-            return fieldErrors.get("categorias");
+        if (fieldErrors.containsKey("categories")) {
+            return fieldErrors.get("categories");
         }
         return fieldErrors.entrySet().stream()
-                .filter(e -> e.getKey().startsWith("categorias["))
+                .filter(e -> e.getKey().startsWith("categories["))
                 .map(Map.Entry::getValue)
                 .findFirst()
                 .orElse(null);

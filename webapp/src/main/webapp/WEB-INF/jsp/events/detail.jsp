@@ -277,7 +277,7 @@
                 <span class="detail-address-icon"><paw:icon name="pin"/></span>
                 <div>
                     <p class="detail-address-line"><c:out value="${event.address}"/></p>
-                    <%-- Piso/depto/referencias (ver EventForm.detalleDireccion): texto libre,
+                    <%-- Piso/depto/referencias (ver EventForm.addressDetails): texto libre,
                          nunca geocodificado, solo se muestra aca junto a la direccion. --%>
                     <c:if test="${not empty event.addressDetails}">
                         <p class="detail-address-sub"><c:out value="${event.addressDetails}"/></p>

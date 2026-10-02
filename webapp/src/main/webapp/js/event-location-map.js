@@ -5,10 +5,10 @@
 // (nunca se pasa de uno a otro solo):
 //
 // MODO "con geolocalizacion" (default): el boton "Buscar direccion"
-// geocodifica #direccion contra Nominatim (el geocoder gratuito de
+// geocodifica #address contra Nominatim (el geocoder gratuito de
 // OpenStreetMap, mismo proveedor que las tiles de abajo) y trae hasta 5
 // candidatos -- nunca se toma el primero a ciegas, se muestran todos para que
-// la persona elija el que es. Al elegir uno se completan #latitud/#longitud Y
+// la persona elija el que es. Al elegir uno se completan #latitude/#longitude Y
 // se DEDUCE el barrio a partir del "suburb" de esa sugerencia puntual
 // (normalizado y comparado contra los 48 barrios de window.PAW_BARRIOS, que
 // la JSP arma desde Barrio.values() -- una sola fuente de verdad, no una
@@ -18,12 +18,12 @@
 // toca solo -- se avisa nada mas. Si la persona quiere resolverlo, tiene que
 // pasarse ella misma al otro modo (nunca es automatico).
 //
-// MODO "en texto plano": sin geocodificar nada. El <select id="barrio"> se
+// MODO "en texto plano": sin geocodificar nada. El <select id="neighborhood"> se
 // habilita para elegir a mano, y el mapa se puede clickear para ubicar el pin.
 // Es el mismo mecanismo que el mapa tenia antes de existir Nominatim en esta
 // app.
 //
-// #pin-manual (hidden) guarda si el pin ACTUAL se puso a mano o se geocodifico
+// #location-manual (hidden) guarda si el pin ACTUAL se puso a mano o se geocodifico
 // -- lo pisa la accion real que lo puso ahi (click en el mapa, o elegir una
 // sugerencia), no el radio de modo: cambiar de modo sin tocar el mapa/buscar
 // de nuevo no reescribe esto, para no mentir sobre el origen del pin que ya
@@ -35,15 +35,15 @@ document.addEventListener("DOMContentLoaded", function () {
         return;
     }
 
-    var latInput = document.getElementById("latitud");
-    var lonInput = document.getElementById("longitud");
-    var pinManualInput = document.getElementById("pin-manual");
-    var addressInput = document.getElementById("direccion");
+    var latInput = document.getElementById("latitude");
+    var lonInput = document.getElementById("longitude");
+    var pinManualInput = document.getElementById("location-manual");
+    var addressInput = document.getElementById("address");
     var searchButton = document.getElementById("geocode-address");
     var statusEl = document.getElementById("geocode-status");
     var suggestionsEl = document.getElementById("geocode-suggestions");
-    var barrioSelect = document.getElementById("barrio");
-    var barrioDisplay = document.getElementById("barrio-display");
+    var barrioSelect = document.getElementById("neighborhood");
+    var barrioDisplay = document.getElementById("neighborhood-display");
     var geoSearchPanel = document.getElementById("geo-search-panel");
     var mapHintGeo = document.getElementById("map-hint-geo");
     var mapHintManual = document.getElementById("map-hint-manual");
@@ -98,7 +98,7 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     // Cambia que controles se ven segun el modo elegido. Nunca toca el pin,
-    // el barrio ya elegido, ni #pin-manual: solo visibilidad + si el mapa
+    // el barrio ya elegido, ni #location-manual: solo visibilidad + si el mapa
     // responde a un click.
     function applyMode(isManual) {
         manualPinEnabled = isManual;

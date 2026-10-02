@@ -70,10 +70,10 @@
                     <h2><spring:message code="event.publish.step1Heading"/></h2>
                     <p><spring:message code="event.publish.step1Subheading"/></p>
                 </div>
-                <paw:input name="titulo" label="${titleLabel}" type="text"
-                           value="${eventForm.titulo}" errorMessage="${fieldErrors.titulo}" />
-                <paw:input name="descripcion" label="${descriptionLabel}" type="text" required="${false}"
-                           value="${eventForm.descripcion}" errorMessage="${fieldErrors.descripcion}" />
+                <paw:input name="title" label="${titleLabel}" type="text"
+                           value="${eventForm.title}" errorMessage="${fieldErrors.title}" />
+                <paw:input name="description" label="${descriptionLabel}" type="text" required="${false}"
+                           value="${eventForm.description}" errorMessage="${fieldErrors.description}" />
             </div>
 
             <%-- ---- Paso 2: categoria y fecha ---- --%>
@@ -87,16 +87,16 @@
                     <label><c:out value="${categoryLabel}"/></label>
                     <div class="wizard-category-list">
                         <c:forEach var="cat" items="${categories}" varStatus="catStatus">
-                            <c:set var="catForm" value="${eventForm.categorias[catStatus.index]}"/>
+                            <c:set var="catForm" value="${eventForm.categories[catStatus.index]}"/>
                             <div class="wizard-category-item">
                                 <label class="filter-checkbox">
                                     <input type="checkbox" class="wizard-category-checkbox"
-                                           name="categorias[${catStatus.index}].seleccionada" value="true"
+                                           name="categories[${catStatus.index}].seleccionada" value="true"
                                            data-category-index="${catStatus.index}"
                                            ${catForm.seleccionada ? 'checked="checked"' : ''}/>
                                     <spring:message code="category.${cat.name}" text="${cat.name}" htmlEscape="true"/>
                                 </label>
-                                <input type="hidden" name="categorias[${catStatus.index}].categoryId" value="${cat.id}"/>
+                                <input type="hidden" name="categories[${catStatus.index}].categoryId" value="${cat.id}"/>
                                 <div class="wizard-category-extra" ${catForm.seleccionada ? '' : 'hidden'}>
                                     <c:choose>
                                         <%-- "Otros" es la comodin: no tiene preguntas puntuales,
@@ -106,7 +106,7 @@
                                              para dar mas info util de un vistazo en el detalle
                                              del evento (ver event-wizard.js y detail.jsp). --%>
                                         <c:when test="${cat.name == 'Otros'}">
-                                            <textarea name="categorias[${catStatus.index}].extraInfo" maxlength="500"
+                                            <textarea name="categories[${catStatus.index}].extraInfo" maxlength="500"
                                                       placeholder="${categoryExtraInfoLabel}"><c:out value="${catForm.extraInfo}"/></textarea>
                                         </c:when>
                                         <c:otherwise>
@@ -121,7 +121,7 @@
                                             <%-- Lo que realmente viaja al server: event-wizard.js combina las
                                                  dos respuestas de arriba en "Pregunta: Respuesta" por linea,
                                                  igual formato que ya entendia extraInfo (texto libre). --%>
-                                            <textarea name="categorias[${catStatus.index}].extraInfo" maxlength="500"
+                                            <textarea name="categories[${catStatus.index}].extraInfo" maxlength="500"
                                                       class="wizard-category-extra-hidden" hidden
                                                       data-category-extra-hidden><c:out value="${catForm.extraInfo}"/></textarea>
                                         </c:otherwise>
@@ -135,44 +135,44 @@
                     </c:if>
                 </div>
                 <div class="form-group">
-                    <label for="fechaEventoTrigger"><c:out value="${dateLabel}"/></label>
+                    <label for="eventDateTrigger"><c:out value="${dateLabel}"/></label>
                     <div class="wizard-datetime-row">
                         <%-- El <input type="date"> nativo no se puede restylear (el popup
                              lo dibuja el SO/navegador): en su lugar, un boton que abre el
                              almanaque propio de mas abajo (mismo modal generico de siempre). --%>
-                        <button type="button" id="fechaEventoTrigger" class="calendar-trigger"
-                                data-open-modal="fechaCalendarModal">
+                        <button type="button" id="eventDateTrigger" class="calendar-trigger"
+                                data-open-modal="eventDateCalendarModal">
                             <paw:icon name="calendar"/>
                             <span class="calendar-trigger-text" data-calendar-trigger-text></span>
                         </button>
-                        <input type="hidden" id="fechaEventoDate"/>
+                        <input type="hidden" id="eventDateDate"/>
                         <%-- Nada de <input type="time">: ese widget depende de la
                              configuracion regional del navegador y en muchas
                              termina mostrando AM/PM igual. Dos campos numéricos
                              (0-23 / 0-59) no tienen ese problema: son solo numeros. --%>
                         <div class="wizard-time-row">
-                            <input type="number" id="fechaEventoHours" min="0" max="23"
+                            <input type="number" id="eventDateHours" min="0" max="23"
                                    placeholder="HH" inputmode="numeric" required="required"/>
                             <span class="wizard-time-separator">:</span>
-                            <input type="number" id="fechaEventoMinutes" min="0" max="59"
+                            <input type="number" id="eventDateMinutes" min="0" max="59"
                                    placeholder="MM" inputmode="numeric" required="required"/>
                         </div>
                     </div>
                     <p class="wizard-field-hint"><spring:message code="event.publish.timeFormatHint"/></p>
-                    <c:if test="${not empty fieldErrors.fechaEvento}">
-                        <span class="error-message"><c:out value="${fieldErrors.fechaEvento}"/></span>
+                    <c:if test="${not empty fieldErrors.eventDate}">
+                        <span class="error-message"><c:out value="${fieldErrors.eventDate}"/></span>
                     </c:if>
                     <%-- Lo que realmente viaja al servidor: event-wizard.js lo arma
-                         combinando los campos de arriba (splitea eventForm.fechaEvento
+                         combinando los campos de arriba (splitea eventForm.eventDate
                          en fecha/hora/minutos al cargar la pagina, ver su codigo). --%>
-                    <input type="hidden" id="fechaEvento" name="fechaEvento" value="<c:out value='${eventForm.fechaEvento}'/>"/>
+                    <input type="hidden" id="eventDate" name="eventDate" value="<c:out value='${eventForm.eventDate}'/>"/>
                 </div>
 
                 <%-- Almanaque: la grilla de dias la arma event-wizard.js. Los dias
                      fuera de hoy..+2anios vienen deshabilitados desde el propio JS,
                      asi que no hace falta validar despues "fecha fuera de rango":
                      no se puede clickear una fecha invalida. --%>
-                <div class="modal-overlay calendar-modal" id="fechaCalendarModal" hidden>
+                <div class="modal-overlay calendar-modal" id="eventDateCalendarModal" hidden>
                     <div class="modal-box calendar-box">
                         <div class="modal-header">
                             <h2><c:out value="${dateLabel}"/></h2>
@@ -206,11 +206,11 @@
                     <h2><spring:message code="event.publish.step3Heading"/></h2>
                     <p><spring:message code="event.publish.step3Subheading"/></p>
                 </div>
-                <paw:input name="direccion" label="${addressLabel}" type="text"
-                           value="${eventForm.direccion}" errorMessage="${fieldErrors.direccion}" />
+                <paw:input name="address" label="${addressLabel}" type="text"
+                           value="${eventForm.address}" errorMessage="${fieldErrors.address}" />
                 <spring:message code="event.publish.addressDetailsLabel" var="addressDetailsLabel"/>
-                <paw:input name="detalleDireccion" label="${addressDetailsLabel}" type="text" required="${false}"
-                           value="${eventForm.detalleDireccion}" errorMessage="${fieldErrors.detalleDireccion}" />
+                <paw:input name="addressDetails" label="${addressDetailsLabel}" type="text" required="${false}"
+                           value="${eventForm.addressDetails}" errorMessage="${fieldErrors.addressDetails}" />
 
                 <%-- Elegis EXPLICITAMENTE entre geocodificar la direccion contra
                      Nominatim (mapa de solo lectura, barrio deducido) o cargarla
@@ -220,7 +220,7 @@
                      zonas grandes), solo se avisa, no se cambia de modo. Si el
                      evento ya tenia un pin, arranca en el modo con el que se puso
                      la ultima vez (ver EventController.formFrom()). --%>
-                <c:set var="modoManual" value="${eventForm.pinManual == 'true'}"/>
+                <c:set var="modoManual" value="${eventForm.locationManual == 'true'}"/>
                 <div class="form-group">
                     <label><spring:message code="event.publish.addressModeLabel"/></label>
                     <div class="address-mode-toggle">
@@ -262,26 +262,26 @@
 
                 <%-- Barrio: en modo geo es solo texto (deducido, no se toca); en
                      modo manual es el <select> de siempre. Los dos comparten esta
-                     misma columna del form (name="barrio"), asi que da igual cual
+                     misma columna del form (name="neighborhood"), asi que da igual cual
                      de los dos esta oculto -- el que este visible es el que la
                      persona uso. --%>
                 <c:set var="currentBarrioDisplay" value=""/>
                 <c:forEach var="b" items="${barrios}">
-                    <c:if test="${b.name() == eventForm.barrio}"><c:set var="currentBarrioDisplay" value="${b.displayName}"/></c:if>
+                    <c:if test="${b.name() == eventForm.neighborhood}"><c:set var="currentBarrioDisplay" value="${b.displayName}"/></c:if>
                 </c:forEach>
                 <div class="form-group">
                     <label><c:out value="${neighborhoodLabel}"/></label>
-                    <p id="barrio-display" class="wizard-field-hint" ${modoManual ? 'hidden' : ''}><c:out value="${currentBarrioDisplay}"/></p>
-                    <select id="barrio" name="barrio" required="required" ${modoManual ? '' : 'hidden'}>
-                        <option value="" disabled="disabled" ${empty eventForm.barrio ? 'selected="selected"' : ''}></option>
+                    <p id="neighborhood-display" class="wizard-field-hint" ${modoManual ? 'hidden' : ''}><c:out value="${currentBarrioDisplay}"/></p>
+                    <select id="neighborhood" name="neighborhood" required="required" ${modoManual ? '' : 'hidden'}>
+                        <option value="" disabled="disabled" ${empty eventForm.neighborhood ? 'selected="selected"' : ''}></option>
                         <c:forEach var="b" items="${barrios}">
-                            <option value="${b}" ${b.name() == eventForm.barrio ? 'selected' : ''}>
+                            <option value="${b}" ${b.name() == eventForm.neighborhood ? 'selected' : ''}>
                                 <c:out value="${b.displayName}"/>
                             </option>
                         </c:forEach>
                     </select>
-                    <c:if test="${not empty fieldErrors.barrio}">
-                        <span class="error-message"><c:out value="${fieldErrors.barrio}"/></span>
+                    <c:if test="${not empty fieldErrors.neighborhood}">
+                        <span class="error-message"><c:out value="${fieldErrors.neighborhood}"/></span>
                     </c:if>
                 </div>
                 <script>
@@ -298,12 +298,12 @@
                         <spring:message code="event.publish.mapHintManual"/>
                     </p>
                     <%-- Si el evento ya tenia un pin, event-location-map.js arranca
-                         centrado ahi (ver los value de latitud/longitud de abajo);
+                         centrado ahi (ver los value de latitude/longitude de abajo);
                          si no, arranca en Buenos Aires como en publicar. --%>
                     <div id="location-map" class="wizard-map"></div>
-                    <input type="hidden" id="latitud" name="latitud" value="<c:out value='${eventForm.latitud}'/>"/>
-                    <input type="hidden" id="longitud" name="longitud" value="<c:out value='${eventForm.longitud}'/>"/>
-                    <input type="hidden" id="pin-manual" name="pinManual" value="<c:out value='${eventForm.pinManual}'/>"/>
+                    <input type="hidden" id="latitude" name="latitude" value="<c:out value='${eventForm.latitude}'/>"/>
+                    <input type="hidden" id="longitude" name="longitude" value="<c:out value='${eventForm.longitude}'/>"/>
+                    <input type="hidden" id="location-manual" name="locationManual" value="<c:out value='${eventForm.locationManual}'/>"/>
                 </div>
             </div>
 
@@ -333,32 +333,32 @@
                          controller mantiene la galeria que el evento ya tenia. --%>
                     <p class="wizard-field-hint"><spring:message code="event.edit.currentImageHint"/></p>
                 </div>
-                <paw:input name="precio" label="${priceLabel}" type="number" min="0"
-                           value="${eventForm.precio}" errorMessage="${fieldErrors.precio}"
+                <paw:input name="price" label="${priceLabel}" type="number" min="0"
+                           value="${eventForm.price}" errorMessage="${fieldErrors.price}"
                            toggleText="${freeOptionLabel}" />
-                <paw:input name="cupoMaximo" label="${capacityLabel}" type="number" min="0"
-                           value="${eventForm.cupoMaximo}" errorMessage="${fieldErrors.cupoMaximo}"
+                <paw:input name="maxCapacity" label="${capacityLabel}" type="number" min="0"
+                           value="${eventForm.maxCapacity}" errorMessage="${fieldErrors.maxCapacity}"
                            toggleText="${noLimitOptionLabel}" />
                 <div class="form-group">
                     <label class="filter-checkbox">
-                        <input type="checkbox" id="requiereAprobacion" name="requiereAprobacion" value="true"
-                               ${eventForm.requiereAprobacion ? 'checked="checked"' : ''}/>
+                        <input type="checkbox" id="requiresApproval" name="requiresApproval" value="true"
+                               ${eventForm.requiresApproval ? 'checked="checked"' : ''}/>
                         <spring:message code="event.publish.requiresApprovalLabel"/>
                     </label>
                     <p class="wizard-field-hint"><spring:message code="event.publish.requiresApprovalHint"/></p>
                 </div>
                 <div class="form-group">
                     <label class="filter-checkbox">
-                        <input type="checkbox" id="privado" name="privado" value="true"
-                               ${eventForm.privado ? 'checked="checked"' : ''}/>
+                        <input type="checkbox" id="privateEvent" name="privateEvent" value="true"
+                               ${eventForm.privateEvent ? 'checked="checked"' : ''}/>
                         <spring:message code="event.publish.privateLabel"/>
                     </label>
                     <p class="wizard-field-hint"><spring:message code="event.publish.privateHint"/></p>
                 </div>
                 <div class="form-group">
                     <label class="filter-checkbox">
-                        <input type="checkbox" id="estacionamiento" name="estacionamiento" value="true"
-                               ${eventForm.estacionamiento ? 'checked="checked"' : ''}/>
+                        <input type="checkbox" id="parking" name="parking" value="true"
+                               ${eventForm.parking ? 'checked="checked"' : ''}/>
                         <spring:message code="event.publish.parkingLabel"/>
                     </label>
                 </div>
@@ -375,7 +375,7 @@
                 <div class="wizard-review">
                     <div class="wizard-review-row">
                         <span class="wizard-review-label"><c:out value="${titleLabel}"/></span>
-                        <span class="wizard-review-value" data-review="titulo"></span>
+                        <span class="wizard-review-value" data-review="title"></span>
                     </div>
                     <div class="wizard-review-row">
                         <span class="wizard-review-label"><c:out value="${categoryLabel}"/></span>
@@ -387,11 +387,11 @@
                     </div>
                     <div class="wizard-review-row">
                         <span class="wizard-review-label"><c:out value="${addressLabel}"/></span>
-                        <span class="wizard-review-value" data-review="direccion"></span>
+                        <span class="wizard-review-value" data-review="address"></span>
                     </div>
                     <div class="wizard-review-row">
                         <span class="wizard-review-label"><c:out value="${priceLabel}"/></span>
-                        <span class="wizard-review-value" data-review="precio"></span>
+                        <span class="wizard-review-value" data-review="price"></span>
                     </div>
                     <div class="wizard-review-row">
                         <span class="wizard-review-label"><c:out value="${capacityLabel}"/></span>
@@ -402,19 +402,19 @@
                         <spring:message code="common.yes" var="yesLabel"/>
                         <spring:message code="common.no" var="noLabel"/>
                         <span class="wizard-review-label"><c:out value="${requiresApprovalLabel}"/></span>
-                        <span class="wizard-review-value" data-review="requiereAprobacion"
+                        <span class="wizard-review-value" data-review="requiresApproval"
                               data-yes-label="${yesLabel}" data-no-label="${noLabel}"></span>
                     </div>
                     <div class="wizard-review-row">
                         <spring:message code="event.publish.privateLabel" var="privateLabel"/>
                         <span class="wizard-review-label"><c:out value="${privateLabel}"/></span>
-                        <span class="wizard-review-value" data-review="privado"
+                        <span class="wizard-review-value" data-review="privateEvent"
                               data-yes-label="${yesLabel}" data-no-label="${noLabel}"></span>
                     </div>
                     <div class="wizard-review-row">
                         <spring:message code="event.publish.parkingLabel" var="parkingLabel"/>
                         <span class="wizard-review-label"><c:out value="${parkingLabel}"/></span>
-                        <span class="wizard-review-value" data-review="estacionamiento"
+                        <span class="wizard-review-value" data-review="parking"
                               data-yes-label="${yesLabel}" data-no-label="${noLabel}"></span>
                     </div>
                     <div class="wizard-review-row" data-review-image-row hidden>

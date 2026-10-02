@@ -23,7 +23,7 @@
 
     <main class="account-main">
         <h1><spring:message code="auth.pendingRegistrations.heading"/></h1>
-        <p class="auth-subheading"><spring:message code="auth.pendingRegistrations.subheading" arguments="${event.title}"/></p>
+        <p class="auth-subheading"><spring:message code="auth.pendingRegistrations.subheading" arguments="${event.title}" htmlEscape="true"/></p>
 
         <c:if test="${approved}">
             <p class="alert"><spring:message code="auth.pendingRegistrations.approved"/></p>

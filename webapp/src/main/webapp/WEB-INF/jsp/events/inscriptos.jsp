@@ -19,7 +19,7 @@
 </paw:navbar>
 
 <main class="page">
-    <h1><spring:message code="event.attendees.heading" arguments="${event.title}"/></h1>
+    <h1><spring:message code="event.attendees.heading" arguments="${event.title}" htmlEscape="true"/></h1>
     <p class="auth-subheading">
         <spring:message code="event.attendees.countLabel" arguments="${fn:length(registrations)}"/>
     </p>
