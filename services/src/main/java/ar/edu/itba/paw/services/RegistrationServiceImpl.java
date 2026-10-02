@@ -42,14 +42,20 @@ public class RegistrationServiceImpl implements RegistrationService {
     @Override
     @Transactional
     public RegistrationResult register(final long eventId, final User user) {
+        // Bloquea la fila del evento ANTES de chequear si ya existe: dos clics
+        // simultaneos del mismo usuario ahora se serializan en este lock (el
+        // segundo espera a que el primero termine su transaccion), en vez de
+        // pasar los dos el chequeo de "existing" y recien chocar contra el
+        // UNIQUE(event_id, email) al insertar -- que era lo que obligaba al
+        // controller a reintentar en una segunda transaccion (ver
+        // EventRegistrationController.registerRetryingOnConflict()).
+        final Event event = eventDao.findByIdForUpdate(eventId)
+                .orElseThrow(() -> new IllegalArgumentException("Evento inexistente: " + eventId));
+
         final Registration existing = registrationDao.findByEventAndUserId(eventId, user.getId()).orElse(null);
         if (existing != null) {
             return alreadyExistsResult(existing.getStatus());
         }
-
-        // Bloquea la fila para que dos registros concurrentes no se pisen.
-        final Event event = eventDao.findByIdForUpdate(eventId)
-                .orElseThrow(() -> new IllegalArgumentException("Evento inexistente: " + eventId));
 
         // El creador no se anota a su propio evento: no tiene sentido pedirse
         // aprobacion a si mismo en uno con requiresApproval, ni "invitarse" a
@@ -82,7 +88,9 @@ public class RegistrationServiceImpl implements RegistrationService {
         final boolean full = isFull(event, invited);
         final RegistrationStatus status = registrationStatus(event, full, invited);
 
-        // Si viola el UNIQUE(event_id, email), se propaga: quien llama reintenta en otra transaccion.
+        // El UNIQUE(event_id, email) sigue siendo la ultima red, pero ya no
+        // deberia dispararse en el camino normal: el lock de arriba serializa
+        // los clics simultaneos del mismo usuario antes de llegar aca.
         final Registration registration = new Registration(eventId, normalizedEmail, user.getName(), status);
         // Quien se anota siempre esta logueado (el endpoint lo exige, ver
         // EventController.rsvp()): a diferencia de antes, no hace falta
