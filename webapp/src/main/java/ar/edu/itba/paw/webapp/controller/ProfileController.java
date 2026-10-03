@@ -470,7 +470,8 @@ public class ProfileController {
     public ModelAndView approveRegistration(@PathVariable final long id, @PathVariable final long registrationId,
                                              @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final ApprovalResult result = registrationService.approve(registrationId, currentUser.getId());
-        final String param = result == ApprovalResult.FULL ? "?full" : result == ApprovalResult.APPROVED ? "?approved" : "";
+        final String param = result.getStatus() == ApprovalResult.Status.FULL ? "?full"
+                : result.getStatus() == ApprovalResult.Status.APPROVED ? "?approved" : "";
         return new ModelAndView("redirect:/perfil/eventos/" + id + "/inscriptos" + param);
     }
 

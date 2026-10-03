@@ -342,12 +342,12 @@ public class RegistrationServiceImpl implements RegistrationService {
     public ApprovalResult approve(final long registrationId, final long creatorId) {
         final Registration unlocked = pendingOwnedBy(registrationId, creatorId).orElse(null);
         if (unlocked == null) {
-            return ApprovalResult.NOT_FOUND;
+            return ApprovalResult.of(ApprovalResult.Status.NOT_FOUND);
         }
         // Bloquea el evento: dos aceptaciones simultaneas no pueden pasarse del cupo.
         final Event event = eventDao.findByIdForUpdate(unlocked.getEventId()).orElse(null);
         if (event == null) {
-            return ApprovalResult.NOT_FOUND;
+            return ApprovalResult.of(ApprovalResult.Status.NOT_FOUND);
         }
         // Se vuelve a leer ya con el lock: mientras esperaba, otra aceptacion o un
         // rechazo del mismo pedido pudo haberlo cambiado (y no hay que aceptarlo, ni
@@ -356,12 +356,12 @@ public class RegistrationServiceImpl implements RegistrationService {
                 .filter(r -> r.getStatus() == RegistrationStatus.PENDING)
                 .orElse(null);
         if (registration == null) {
-            return ApprovalResult.NOT_FOUND;
+            return ApprovalResult.of(ApprovalResult.Status.NOT_FOUND);
         }
         // El organizador mira todos los pedidos y acepta hasta que se llena el
         // cupo: pasado ese punto ya no puede aceptar a nadie mas.
         if (isFull(event)) {
-            return ApprovalResult.FULL;
+            return ApprovalResult.of(ApprovalResult.Status.FULL);
         }
         registrationDao.updateStatus(registrationId, RegistrationStatus.CONFIRMED);
         registration.setStatus(RegistrationStatus.CONFIRMED);
@@ -370,11 +370,13 @@ public class RegistrationServiceImpl implements RegistrationService {
         // Esta aceptacion ocupo el ultimo lugar: los que seguian pendientes ya no
         // tienen a donde entrar y pasan a la lista de espera (con su mismo orden de
         // llegada), asi si alguien se baja o se revoca a alguien, entra el primero.
+        boolean eventJustFilled = false;
         if (isFull(event)) {
             notificationService.notifyEventFull(event);
+            eventJustFilled = true;
             moveRemainingPendingToWaitlist(event);
         }
-        return ApprovalResult.APPROVED;
+        return new ApprovalResult(ApprovalResult.Status.APPROVED, eventJustFilled);
     }
 
     private void moveRemainingPendingToWaitlist(final Event event) {
