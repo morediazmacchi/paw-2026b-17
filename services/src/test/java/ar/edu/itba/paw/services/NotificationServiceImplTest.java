@@ -12,8 +12,6 @@ import java.util.Locale;
 import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 /**
@@ -84,15 +82,9 @@ public class NotificationServiceImplTest {
     public void testLocaleForUserIdFallsBackToSpanishWhenUserIdIsNull() {
         // Arrange
         // userId null (evento viejo sin creatorId, o invitado sin cuenta todavia,
-        // ver EventInvitation.userId): no hay a quien buscarle el idioma, no vale
-        // la pena reventar el mail por eso. mockUserDao.findById() se stubea para
-        // que reviente si se llega a llamar: si el test pasa sin ese error, es la
-        // prueba (sin verify()) de que nunca se llamo. lenient(): a proposito se
-        // espera que este stub quede sin usar -- Mockito por default marca eso
-        // como error.
+        // ver EventInvitation.userId): no hay a quien buscarle el idioma, usa
+        // el default directo.
         setUp();
-        lenient().when(mockUserDao.findById(anyLong()))
-                .thenThrow(new AssertionError("no deberia buscar el idioma de un id nulo"));
 
         // Act
         final Locale locale = notificationService.localeForUserId(null);

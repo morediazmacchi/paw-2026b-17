@@ -40,7 +40,7 @@ public class EventServiceImpl implements EventService {
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
+    @Transactional
     public Event create(final EventDTO dto) {
         Objects.requireNonNull(dto, "dto");
         final Event event = dto.toEvent(dto.getCreatorEmail());
@@ -53,12 +53,7 @@ public class EventServiceImpl implements EventService {
             throw new IllegalArgumentException(categoryConstraintViolated(e)
                     ? "La categoria elegida no existe" : "No se pudo guardar el evento: datos invalidos", e);
         }
-        // El creador ya viene resuelto (creatorId, ver EventController.publish()):
-        // a diferencia de antes, no hace falta userService.findOrCreate() para
-        // garantizar una fila en users, el Principal autenticado ya la implica.
-        // Solo se busca para el nombre que va en el mail de bienvenida.
         final User creator = userService.findById(created.getCreatorId()).orElse(null);
-        // Devuelve enseguida: el mail sale en otro hilo (@Async).
         notificationService.notifyEventCreated(created, creator == null ? null : creator.getName());
         return created;
     }

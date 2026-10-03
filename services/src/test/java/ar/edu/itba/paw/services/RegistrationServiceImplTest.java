@@ -117,7 +117,7 @@ public class RegistrationServiceImplTest {
         final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
 
         // Assert
-        assertEquals(RegistrationResult.ALREADY_REGISTERED, result);
+        assertEquals(RegistrationResult.Status.ALREADY_REGISTERED, result.getStatus());
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -143,7 +143,7 @@ public class RegistrationServiceImplTest {
         final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
 
         // Assert
-        assertEquals(RegistrationResult.WAITLISTED, result);
+        assertEquals(RegistrationResult.Status.WAITLISTED, result.getStatus());
     }
 
     @Test
@@ -157,7 +157,7 @@ public class RegistrationServiceImplTest {
         final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
 
         // Assert
-        assertEquals(RegistrationResult.ALREADY_WAITLISTED, result);
+        assertEquals(RegistrationResult.Status.ALREADY_WAITLISTED, result.getStatus());
     }
 
     @Test
@@ -172,7 +172,29 @@ public class RegistrationServiceImplTest {
         final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
 
         // Assert
-        assertEquals(RegistrationResult.CONFIRMED, result);
+        assertEquals(RegistrationResult.Status.CONFIRMED, result.getStatus());
+        // Quedo lugar libre (1 de 2): no se disparo el aviso de "evento lleno".
+        assertFalse(result.isNotificationSent());
+    }
+
+    @Test
+    public void testRegisterWhenConfirmingFillsTheLastSpotMarksNotificationSent() {
+        // Arrange
+        when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(2)));
+        // Antes de esta inscripcion habia 1 de 2 (no esta lleno); despues de
+        // crearla, el segundo chequeo (post-insert) ya ve 2 de 2 (lleno).
+        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(1L, 2L);
+
+        createdAs(RegistrationStatus.CONFIRMED);
+        // Act
+        final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
+
+        // Assert
+        assertEquals(RegistrationResult.Status.CONFIRMED, result.getStatus());
+        // Esta inscripcion ocupo el ultimo lugar: se disparo notifyEventFull().
+        // Sin verify(): se confirma por el valor de retorno, no espiando el mock.
+        assertTrue(result.isNotificationSent());
     }
 
     @Test
@@ -186,7 +208,7 @@ public class RegistrationServiceImplTest {
         final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
 
         // Assert
-        assertEquals(RegistrationResult.CONFIRMED, result);
+        assertEquals(RegistrationResult.Status.CONFIRMED, result.getStatus());
     }
 
     // ---- register(): el creador no se anota a su propio evento ----
@@ -203,7 +225,7 @@ public class RegistrationServiceImplTest {
         final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
 
         // Assert
-        assertEquals(RegistrationResult.OWN_EVENT, result);
+        assertEquals(RegistrationResult.Status.OWN_EVENT, result.getStatus());
     }
 
     @Test
@@ -220,7 +242,7 @@ public class RegistrationServiceImplTest {
         // Assert
         // OWN_EVENT solo se devuelve ANTES de crear la inscripcion o notificar a
         // nadie (early return): el resultado ya prueba que nada de eso paso.
-        assertEquals(RegistrationResult.OWN_EVENT, result);
+        assertEquals(RegistrationResult.Status.OWN_EVENT, result.getStatus());
     }
 
     // ---- register() con requiresApproval ----
@@ -237,7 +259,7 @@ public class RegistrationServiceImplTest {
         final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
 
         // Assert
-        assertEquals(RegistrationResult.PENDING, result);
+        assertEquals(RegistrationResult.Status.PENDING, result.getStatus());
     }
 
     // Sin cupo, la lista de espera gana: no tiene sentido "esperando revision"
@@ -254,7 +276,7 @@ public class RegistrationServiceImplTest {
         final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
 
         // Assert
-        assertEquals(RegistrationResult.WAITLISTED, result);
+        assertEquals(RegistrationResult.Status.WAITLISTED, result.getStatus());
     }
 
     @Test
@@ -268,7 +290,7 @@ public class RegistrationServiceImplTest {
         final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
 
         // Assert
-        assertEquals(RegistrationResult.ALREADY_PENDING, result);
+        assertEquals(RegistrationResult.Status.ALREADY_PENDING, result.getStatus());
     }
 
     @Test
@@ -282,7 +304,7 @@ public class RegistrationServiceImplTest {
         final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
 
         // Assert
-        assertEquals(RegistrationResult.REJECTED, result);
+        assertEquals(RegistrationResult.Status.REJECTED, result.getStatus());
     }
 
     /**
@@ -319,11 +341,8 @@ public class RegistrationServiceImplTest {
         final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
 
         // Assert
-        assertEquals(RegistrationResult.PENDING, result);
+        assertEquals(RegistrationResult.Status.PENDING, result.getStatus());
     }
-
-    // No se testea que RegistrationServiceImpl dispare notifyEventFull() en el
-    // momento correcto: requeriria verify().
 
     // ---- avisos en la bandeja ----
 
@@ -410,7 +429,7 @@ public class RegistrationServiceImplTest {
         final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
 
         // Assert
-        assertEquals(RegistrationResult.WAITLISTED, result);
+        assertEquals(RegistrationResult.Status.WAITLISTED, result.getStatus());
     }
 
     // La persona invitada usa el lugar que ya tenia reservado: para ella el evento
@@ -429,7 +448,7 @@ public class RegistrationServiceImplTest {
         final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
 
         // Assert
-        assertEquals(RegistrationResult.CONFIRMED, result);
+        assertEquals(RegistrationResult.Status.CONFIRMED, result.getStatus());
     }
 
     // Quien fue invitado ya fue elegido por el organizador: no vuelve a pedirle aprobacion.
@@ -445,7 +464,7 @@ public class RegistrationServiceImplTest {
         final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
 
         // Assert
-        assertEquals(RegistrationResult.CONFIRMED, result);
+        assertEquals(RegistrationResult.Status.CONFIRMED, result.getStatus());
     }
 
     @Test

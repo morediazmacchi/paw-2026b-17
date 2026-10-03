@@ -78,7 +78,7 @@ public class EventRegistrationController {
     // (POST-Redirect-GET) y detail.jsp elige el cartel a partir de esto. No en la
     // URL: con un link viejo el cartel volvia a salir sin haber hecho nada.
     private static String rsvpParam(final RegistrationResult result) {
-        switch (result) {
+        switch (result.getStatus()) {
             case WAITLISTED:
                 return "waitlist";
             case PENDING:

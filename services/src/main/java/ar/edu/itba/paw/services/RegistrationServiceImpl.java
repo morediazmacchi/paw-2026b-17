@@ -79,13 +79,13 @@ public class RegistrationServiceImpl implements RegistrationService {
         // uno privado del que ya es dueño. Va antes de tocar la base: no se
         // crea ninguna fila ni sale ningun mail.
         if (Long.valueOf(user.getId()).equals(event.getCreatorId())) {
-            return RegistrationResult.OWN_EVENT;
+            return RegistrationResult.of(RegistrationResult.Status.OWN_EVENT);
         }
 
         // Evento cancelado: la pantalla ya esconde el boton, pero un POST directo
         // no tiene que poder anotar a nadie (ni mandar el mail de "confirmado").
         if (event.isCancelled()) {
-            return RegistrationResult.CANCELLED;
+            return RegistrationResult.of(RegistrationResult.Status.CANCELLED);
         }
 
         // Normalizado: "Test@mail.com" y "test@mail.com" son la misma persona.
@@ -121,6 +121,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         // a quien quedo en lista de espera (o pendiente de revision) le llegaria
         // un mail que dice "confirmamos tu lugar", que es justo lo que no paso.
         // Y al lado de cada mail, su aviso en la bandeja (misma transaccion).
+        boolean eventJustFilled = false;
         if (full) {
             notificationService.notifyWaitlistJoined(event, registration);
             notificationService.notifyNewWaitlistEntry(event, registration);
@@ -144,10 +145,11 @@ public class RegistrationServiceImpl implements RegistrationService {
             // unicamente: si arriba ya estaba lleno, no hay nada que anunciar.
             if (isFull(event, false)) {
                 notificationService.notifyEventFull(event);
+                eventJustFilled = true;
             }
         }
 
-        return registrationResult(status);
+        return new RegistrationResult(registrationResult(status), eventJustFilled);
     }
 
     // Se distingue el caso porque el cartel no dice lo mismo: "ya estabas
@@ -155,15 +157,15 @@ public class RegistrationServiceImpl implements RegistrationService {
     // estan revisando tu pedido" vs "ya te habian rechazado".
     private static RegistrationResult alreadyExistsResult(final RegistrationStatus status) {
         if (status == RegistrationStatus.WAITLISTED) {
-            return RegistrationResult.ALREADY_WAITLISTED;
+            return RegistrationResult.of(RegistrationResult.Status.ALREADY_WAITLISTED);
         }
         if (status == RegistrationStatus.PENDING) {
-            return RegistrationResult.ALREADY_PENDING;
+            return RegistrationResult.of(RegistrationResult.Status.ALREADY_PENDING);
         }
         if (status == RegistrationStatus.REJECTED) {
-            return RegistrationResult.REJECTED;
+            return RegistrationResult.of(RegistrationResult.Status.REJECTED);
         }
-        return RegistrationResult.ALREADY_REGISTERED;
+        return RegistrationResult.of(RegistrationResult.Status.ALREADY_REGISTERED);
     }
 
     // Sin lugar (confirmados + invitaciones ya llenaron el cupo) -> lista de
@@ -182,14 +184,14 @@ public class RegistrationServiceImpl implements RegistrationService {
         return event.isRequiresApproval() ? RegistrationStatus.PENDING : RegistrationStatus.CONFIRMED;
     }
 
-    private static RegistrationResult registrationResult(final RegistrationStatus status) {
+    private static RegistrationResult.Status registrationResult(final RegistrationStatus status) {
         if (status == RegistrationStatus.WAITLISTED) {
-            return RegistrationResult.WAITLISTED;
+            return RegistrationResult.Status.WAITLISTED;
         }
         if (status == RegistrationStatus.PENDING) {
-            return RegistrationResult.PENDING;
+            return RegistrationResult.Status.PENDING;
         }
-        return RegistrationResult.CONFIRMED;
+        return RegistrationResult.Status.CONFIRMED;
     }
 
     @Override

@@ -28,21 +28,12 @@ public class NotificationServiceImpl implements NotificationService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(NotificationServiceImpl.class);
 
-    // Fallback cuando el destinatario todavia no eligio idioma a mano (ver
-    // User.getLocale()/LocaleController): cuentas viejas, o alguien sin cuenta
-    // todavia (invitado por mail, ver EventInvitation.userId).
+    // Fallback cuando el destinatario todavia no eligio idioma a mano
     private static final Locale DEFAULT_LOCALE = new Locale("es");
-
-    // Los precios son siempre en pesos argentinos, no dependen del idioma del mail.
     private static final Locale MONEY_LOCALE = new Locale("es", "AR");
 
     private final MailService mailService;
     private final MessageSource messageSource;
-    // Para resolver el idioma guardado del destinatario a partir de su id
-    // (Event.creatorId, Registration.userId, EventInvitation.userId,
-    // EventQuestion.userId): hablamos directo con el DAO, mismo criterio que
-    // UserServiceImpl usa para la reconciliacion del Grupo B, para no
-    // depender de UserService/su logica de negocio por un simple SELECT.
     private final UserDao userDao;
 
     // De donde sale la parte fija de los links. Vive en mail.properties porque
@@ -74,8 +65,6 @@ public class NotificationServiceImpl implements NotificationService {
                     variables,
                     locale);
         } catch (final RuntimeException e) {
-            // Estamos en otro hilo: si no lo atrapamos aca, la excepcion no
-            // aparece en ningun lado. Nadie esta esperando este metodo.
             LOGGER.error("Fallo la notificacion de evento creado, evento {}", event.getId(), e);
         }
     }

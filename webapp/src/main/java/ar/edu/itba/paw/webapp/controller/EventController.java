@@ -51,20 +51,11 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-// Listar, ver el detalle, publicar, editar y cancelar un evento. Las acciones
-// de un visitante (RSVP, favoritos, reportar) viven en
-// EventRegistrationController, y las preguntas en EventQuestionController --
-// el chequeo de acceso a eventos privados que comparten los tres vive en
-// EventAccessService.
 @Controller
 public class EventController {
 
     private static final int PAGE_SIZE = 12;
     private static final int FEATURED_COUNT = 5;
-    // Ver el comentario de multipart-config en web.xml: sus limites estan
-    // calculados en base a este numero (5 fotos de 5 MB cada una, tope que
-    // impone ImageServiceImpl). Publico porque EventForm.images
-    // (@ValidImageCount) tambien lo referencia.
     public static final int MAX_IMAGES = 5;
 
     private final EventService eventService;
@@ -107,8 +98,7 @@ public class EventController {
 
     // Todo el parseo de filtros (listas de ids, rango de precio/fecha, orden,
     // pagina) y las dos validaciones cruzadas (rango de precio/fecha invertido)
-    // viven en EventSearchForm: un filtro invalido no rechaza la busqueda, solo
-    // se ignora y se avisa, asi que no es un caso de @Valid + BindingResult.
+    // viven en EventSearchForm.
     @RequestMapping(value = "/eventos", method = RequestMethod.GET)
     public ModelAndView list(final EventSearchForm filters,
                               @RequestParam(value = "rsvp", required = false) final String rsvp,
@@ -123,9 +113,7 @@ public class EventController {
 
         final PageResult<Event> result = eventService.search(filters.toCriteria(PAGE_SIZE));
 
-        // Banner destacado: los que un admin eligio (ver AdminController.destacar()),
-        // mas reciente primero. Antes eran "los proximos eventos por fecha" fijo;
-        // ahora es curado a mano, sin los filtros de arriba.
+        // Banner destacado
         final List<Event> featured = eventService.findFeatured(FEATURED_COUNT);
 
         final ModelAndView mav = new ModelAndView("events/list");
@@ -151,8 +139,7 @@ public class EventController {
         mav.addObject("sortOptions", EventSort.values());
         mav.addObject("filterErrors", filterErrors);
         mav.addObject("rsvp", rsvp);
-        // Anonimo no ve el corazon de favorito (paw:card lo esconde con
-        // sec:authorize), asi que ni consultamos: nadie va a leer este set.
+        // Anonimo no ve el corazon de favorito.
         if (currentUser != null) {
             mav.addObject("favoriteEventIds", new HashSet<>(favoriteService.findEventIdsByUser(currentUser.getId())));
         }
@@ -250,15 +237,8 @@ public class EventController {
         return mav;
     }
 
-    // Toda la validacion de forma y de negocio (fecha valida/futura/no muy
-    // lejana, barrio valido, al menos una categoria y que exista de verdad,
-    // no mas de MAX_IMAGES fotos) ya corrio con @Valid, via los validators
-    // custom de EventForm (ver ar.edu.itba.paw.webapp.validation). Si eso
-    // paso, form.toDTO() no puede fallar: arma el DTO parseado y listo para
-    // el service, sin que este metodo tenga que parsear ni rechazar nada el
-    // mismo. Lo unico que queda aca es subir las imagenes: es una accion con
-    // efecto secundario (escribe en disco/base), no una validacion, asi que
-    // no puede vivir en un ConstraintValidator.
+    // Toda la validacion de forma y de negocio ya corrio con @Valid, via los validators
+    // custom de EventForm
     @RequestMapping(value = "/eventos/publicar", method = RequestMethod.POST)
     public ModelAndView publish(@Valid final EventForm form, final BindingResult errors,
                                  @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
@@ -277,17 +257,15 @@ public class EventController {
 
         final EventDTO dto = form.toDTO();
         dto.setImageIds(imageIds);
-        // El creador es quien esta logueado, nunca un campo del form: si viniera del
-        // form, cualquiera podria publicar un evento a nombre de otro email.
+        // El creador es quien esta logueado.
         dto.setCreatorId(currentUser.getId());
         dto.setCreatorEmail(currentUser.getEmail());
 
         final Event created = eventService.create(dto);
-        // Privado: derecho a invitar, para no tener que ir hasta "Mis eventos" a buscarlo.
-        if (created.isPrivate()) {
-            return new ModelAndView("redirect:/perfil/eventos/" + created.getId() + "/invitar");
-        }
-        return new ModelAndView("redirect:/eventos");
+        // Privado: a invitar. Publico: al detalle del evento.
+        return created.isPrivate()
+                ? new ModelAndView("redirect:/perfil/eventos/" + created.getId() + "/invitar")
+                : new ModelAndView("redirect:/eventos/" + created.getId());
     }
 
     // El <input type="file" multiple> manda un MultipartFile por cada slot
