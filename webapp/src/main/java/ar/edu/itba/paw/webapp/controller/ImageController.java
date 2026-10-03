@@ -2,12 +2,10 @@ package ar.edu.itba.paw.webapp.controller;
 
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.Image;
-import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.EventAccessService;
 import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.ImageService;
-import ar.edu.itba.paw.services.RegistrationService;
 import ar.edu.itba.paw.services.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -42,17 +40,14 @@ public class ImageController {
     private final ImageService imageService;
     private final EventService eventService;
     private final UserService userService;
-    private final RegistrationService registrationService;
     private final EventAccessService accessChecker;
 
     @Autowired
     public ImageController(final ImageService imageService, final EventService eventService,
-                           final UserService userService, final RegistrationService registrationService,
-                           final EventAccessService accessChecker) {
+                           final UserService userService, final EventAccessService accessChecker) {
         this.imageService = imageService;
         this.eventService = eventService;
         this.userService = userService;
-        this.registrationService = registrationService;
         this.accessChecker = accessChecker;
     }
 
@@ -91,10 +86,7 @@ public class ImageController {
             return true;
         }
         final User user = principal == null ? null : userService.findByEmail(principal.getName()).orElse(null);
-        final Optional<Registration> myRegistration = user == null
-                ? Optional.empty()
-                : registrationService.findByEventAndUserId(event.get().getId(), user.getId());
-        return accessChecker.canView(event.get(), user, myRegistration);
+        return accessChecker.canView(event.get(), user);
     }
 
     private MediaType servableType(final String contentType) {

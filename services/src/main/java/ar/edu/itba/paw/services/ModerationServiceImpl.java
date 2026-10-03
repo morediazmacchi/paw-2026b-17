@@ -6,6 +6,7 @@ import ar.edu.itba.paw.model.EventReport;
 import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.ReportStatus;
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import ar.edu.itba.paw.persistence.EventReportDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -41,7 +42,7 @@ public class ModerationServiceImpl implements ModerationService {
         // reporte: si no existiera no habria llegado hasta aca. Mismo criterio
         // que RegistrationServiceImpl para este caso "no deberia pasar".
         final Event event = eventService.findById(eventId)
-                .orElseThrow(() -> new IllegalArgumentException("Evento inexistente: " + eventId));
+                .orElseThrow(() -> new EventNotFoundException(eventId));
         if (Long.valueOf(reporter.getId()).equals(event.getCreatorId())) {
             return ReportResult.OWN_EVENT;
         }

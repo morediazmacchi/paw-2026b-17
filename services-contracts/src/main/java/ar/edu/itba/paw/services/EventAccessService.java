@@ -4,6 +4,7 @@ package ar.edu.itba.paw.services;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.model.exception.EventNotFoundException;
 
 import java.util.Optional;
 
@@ -21,4 +22,25 @@ public interface EventAccessService {
      * como metodo privado de un solo controller.
      */
     boolean canView(Event event, User user, Optional<Registration> myRegistration);
+
+    /**
+     * Igual que {@link #canView(Event, User, Optional)}, pero busca la inscripcion propia solo si hace
+     * falta (un evento publico lo ve cualquiera, ni se consulta). {@code user} puede ser null (sin sesion).
+     */
+    boolean canView(Event event, User user);
+
+    /**
+     * El evento, si existe y {@code user} puede verlo.
+     *
+     * @throws EventNotFoundException si no existe o no puede verlo. Es el mismo error en los dos casos:
+     *                                no se le confirma a nadie que un evento privado existe.
+     */
+    Event getViewableEvent(long eventId, User user);
+
+    /**
+     * El evento, si existe y {@code user} es su creador.
+     *
+     * @throws EventNotFoundException si no existe o {@code user} no es el creador (mismo error en los dos casos).
+     */
+    Event getOwnedEvent(long eventId, User user);
 }

@@ -5,6 +5,8 @@ import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventCategoryInfo;
 import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.model.exception.EventNotFoundException;
+import ar.edu.itba.paw.model.exception.InvalidEventException;
 import ar.edu.itba.paw.persistence.EventDao;
 import org.junit.Before;
 import org.junit.Test;
@@ -23,6 +25,7 @@ import java.util.Optional;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.when;
@@ -126,16 +129,32 @@ public class EventServiceImplTest {
         assertSame(persisted, result);
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void testCreateWithInvalidCategoryThrowsIllegalArgumentException() {
+    @Test
+    public void testCreateWithInvalidCategoryThrowsInvalidEventExceptionWithCategoryKey() {
         // Arrange
         when(eventDao.create(argThat(event -> true)))
-                .thenThrow(new DataIntegrityViolationException("fk violation on category_id"));
+                .thenThrow(new DataIntegrityViolationException("violates foreign key constraint event_category_category_id_fkey"));
 
         // Act
-        eventService.create(someDto());
+        final InvalidEventException thrown = assertThrows(InvalidEventException.class,
+                () -> eventService.create(someDto()));
 
-        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
+        // Assert
+        assertEquals("event.publish.categoryNotFound", thrown.getMessageKey());
+    }
+
+    @Test
+    public void testCreateWithAnyOtherConstraintViolationThrowsInvalidEventExceptionWithGenericKey() {
+        // Arrange
+        when(eventDao.create(argThat(event -> true)))
+                .thenThrow(new DataIntegrityViolationException("value too long for column title"));
+
+        // Act
+        final InvalidEventException thrown = assertThrows(InvalidEventException.class,
+                () -> eventService.create(someDto()));
+
+        // Assert
+        assertEquals("event.publish.invalidData", thrown.getMessageKey());
     }
 
     @Test
@@ -333,28 +352,26 @@ public class EventServiceImplTest {
         assertEquals(EventUpdateResult.UPDATED, result);
     }
 
-    @Test
-    public void testUpdateWhenCallerIsNotTheCreatorReturnsNotFound() {
+    @Test(expected = EventNotFoundException.class)
+    public void testUpdateWhenCallerIsNotTheCreatorThrowsEventNotFoundException() {
         // Arrange
         existingForUpdate(someEvent());
 
         // Act
-        final EventUpdateResult result = eventService.update(EVENT_ID, someDto(), OTHER_ID);
+        eventService.update(EVENT_ID, someDto(), OTHER_ID);
 
-        // Assert
-        assertEquals(EventUpdateResult.NOT_FOUND, result);
+        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
 
-    @Test
-    public void testUpdateWhenTheEventDoesNotExistReturnsNotFound() {
+    @Test(expected = EventNotFoundException.class)
+    public void testUpdateWhenTheEventDoesNotExistThrowsEventNotFoundException() {
         // Arrange
         when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
-        final EventUpdateResult result = eventService.update(EVENT_ID, someDto(), CREATOR_ID);
+        eventService.update(EVENT_ID, someDto(), CREATOR_ID);
 
-        // Assert
-        assertEquals(EventUpdateResult.NOT_FOUND, result);
+        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
 
     @Test
@@ -444,28 +461,26 @@ public class EventServiceImplTest {
         assertEquals(EventCancelResult.CANCELLED, result);
     }
 
-    @Test
-    public void testCancelWhenCallerIsNotTheCreatorReturnsNotFound() {
+    @Test(expected = EventNotFoundException.class)
+    public void testCancelWhenCallerIsNotTheCreatorThrowsEventNotFoundException() {
         // Arrange
         existingForUpdate(someEvent());
 
         // Act
-        final EventCancelResult result = eventService.cancel(EVENT_ID, OTHER_ID);
+        eventService.cancel(EVENT_ID, OTHER_ID);
 
-        // Assert
-        assertEquals(EventCancelResult.NOT_FOUND, result);
+        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
 
-    @Test
-    public void testCancelWhenTheEventDoesNotExistReturnsNotFound() {
+    @Test(expected = EventNotFoundException.class)
+    public void testCancelWhenTheEventDoesNotExistThrowsEventNotFoundException() {
         // Arrange
         when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
-        final EventCancelResult result = eventService.cancel(EVENT_ID, CREATOR_ID);
+        eventService.cancel(EVENT_ID, CREATOR_ID);
 
-        // Assert
-        assertEquals(EventCancelResult.NOT_FOUND, result);
+        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
 
     @Test

@@ -4,9 +4,9 @@ package ar.edu.itba.paw.services;
 public enum EventCancelResult {
     CANCELLED,
 
-    // No existe, o existe pero quien pregunta no es el creador -- mismo
-    // criterio que EventUpdateResult.NOT_FOUND: no se distingue cual de los
-    // dos paso.
+    // No existe. Solo lo devuelve removeByAdmin(): cancel() (el del creador)
+    // lanza EventNotFoundException en cambio, tanto si no existe como si
+    // quien pide no es el dueno.
     NOT_FOUND,
 
     // Ya estaba cancelado. Se distingue de CANCELLED para no volver a mandar

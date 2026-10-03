@@ -1,4 +1,4 @@
-package ar.edu.itba.paw.webapp.exception;
+package ar.edu.itba.paw.model.exception;
 
 /**
  * Se pidio un evento que no existe. Extiende RuntimeException (unchecked) a proposito:

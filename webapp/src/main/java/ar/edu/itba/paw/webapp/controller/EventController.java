@@ -13,7 +13,6 @@ import ar.edu.itba.paw.model.Review;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.CategoryService;
 import ar.edu.itba.paw.services.EventAccessService;
-import ar.edu.itba.paw.services.EventCancelResult;
 import ar.edu.itba.paw.services.EventQuestionService;
 import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.EventUpdateResult;
@@ -21,7 +20,9 @@ import ar.edu.itba.paw.services.FavoriteService;
 import ar.edu.itba.paw.services.PageResult;
 import ar.edu.itba.paw.services.RegistrationService;
 import ar.edu.itba.paw.services.ReviewService;
-import ar.edu.itba.paw.webapp.exception.EventNotFoundException;
+import ar.edu.itba.paw.model.exception.EventNotFoundException;
+import ar.edu.itba.paw.model.exception.InvalidEventException;
+import ar.edu.itba.paw.model.exception.InvalidImageException;
 import ar.edu.itba.paw.webapp.form.EventForm;
 import ar.edu.itba.paw.webapp.form.EventSearchForm;
 import ar.edu.itba.paw.webapp.util.FormErrors;
@@ -42,7 +43,6 @@ import org.springframework.web.servlet.ModelAndView;
 import javax.validation.Valid;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -245,7 +245,7 @@ public class EventController {
 
         final List<NewImageData> newImages;
         try {
-            newImages = readImages(nonEmptyImages(form.getImages()));
+            newImages = readImages(form.getImages());
         } catch (final IOException e) {
             return publishFormWithErrors(form, errors, message("event.publish.imageReadError"));
         }
@@ -262,24 +262,15 @@ public class EventController {
         final Event created;
         try {
             created = eventService.create(dto);
-        } catch (final IllegalArgumentException e) {
-            return publishFormWithErrors(form, errors, message(e.getMessage()));
+        } catch (final InvalidImageException e) {
+            return publishFormWithErrors(form, errors, message(e.getMessageKey()));
+        } catch (final InvalidEventException e) {
+            return publishFormWithErrors(form, errors, message(e.getMessageKey()));
         }
         // Privado: a invitar. Publico: al detalle del evento.
         return created.isPrivate()
                 ? new ModelAndView("redirect:/perfil/eventos/" + created.getId() + "/invitar")
                 : new ModelAndView("redirect:/eventos/" + created.getId());
-    }
-
-    // El <input type="file" multiple> manda un MultipartFile por cada slot
-    // del picker, tildado o no: los que quedaron vacios (usuario abrio el
-    // dialogo pero no eligio nada en ese slot) se descartan aca, antes de
-    // contarlos contra MAX_IMAGES.
-    private static List<MultipartFile> nonEmptyImages(final List<MultipartFile> images) {
-        if (images == null) {
-            return Collections.emptyList();
-        }
-        return images.stream().filter(f -> f != null && !f.isEmpty()).collect(Collectors.toList());
     }
 
     // Lee los bytes de cada archivo, sin guardar nada todavia: la persistencia
@@ -323,21 +314,9 @@ public class EventController {
                 .orElse(null);
     }
 
-    // Busca el evento y confirma que quien esta pidiendolo es su creador. Si no
-    // existe, o existe pero no es el dueño, tira el mismo EventNotFoundException
-    // en los dos casos -- no hay que confirmarle a nadie que un evento ajeno
-    // existe. La usan "ver inscriptos" y "editar", que comparten este mismo chequeo.
-    private Event eventForOwner(final long id, final User user) {
-        final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
-        if (!Long.valueOf(user.getId()).equals(event.getCreatorId())) {
-            throw new EventNotFoundException(id);
-        }
-        return event;
-    }
-
     @RequestMapping(value = "/eventos/{id}/inscriptos", method = RequestMethod.GET)
     public ModelAndView inscriptos(@PathVariable final long id, @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final Event event = eventForOwner(id, currentUser);
+        final Event event = accessChecker.getOwnedEvent(id, currentUser);
         final ModelAndView mav = new ModelAndView("events/inscriptos");
         mav.addObject("event", event);
         mav.addObject("registrations", registrationService.findByEventId(id));
@@ -346,7 +325,7 @@ public class EventController {
 
     @RequestMapping(value = "/eventos/{id}/editar", method = RequestMethod.GET)
     public ModelAndView editarForm(@PathVariable final long id, @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final Event event = eventForOwner(id, currentUser);
+        final Event event = accessChecker.getOwnedEvent(id, currentUser);
         // Un evento cancelado ya no se edita: de vuelta a Mis eventos.
         if (event.isCancelled()) {
             return new ModelAndView("redirect:/perfil/eventos");
@@ -372,7 +351,7 @@ public class EventController {
                                 @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         // Mismo chequeo que el GET: si no sos el dueño, ni siquiera llega a
         // mirar el resto del form.
-        final Event existing = eventForOwner(id, currentUser);
+        final Event existing = accessChecker.getOwnedEvent(id, currentUser);
         if (existing.isCancelled()) {
             return new ModelAndView("redirect:/perfil/eventos");
         }
@@ -386,7 +365,7 @@ public class EventController {
         // su misma transaccion (ver EventServiceImpl.update()), no mas aca.
         final List<NewImageData> newImages;
         try {
-            newImages = readImages(nonEmptyImages(form.getImages()));
+            newImages = readImages(form.getImages());
         } catch (final IOException e) {
             return editarFormWithErrors(id, form, errors, message("event.publish.imageReadError"));
         }
@@ -396,8 +375,10 @@ public class EventController {
         final EventUpdateResult result;
         try {
             result = eventService.update(id, dto, currentUser.getId());
-        } catch (final IllegalArgumentException e) {
-            return editarFormWithErrors(id, form, errors, message(e.getMessage()));
+        } catch (final InvalidImageException e) {
+            return editarFormWithErrors(id, form, errors, message(e.getMessageKey()));
+        } catch (final InvalidEventException e) {
+            return editarFormWithErrors(id, form, errors, message(e.getMessageKey()));
         }
         switch (result) {
             case CAPACITY_TOO_LOW:
@@ -407,10 +388,6 @@ public class EventController {
             case CANCELLED:
                 // Se cancelo justo entre medio: no se guardo nada.
                 return new ModelAndView("redirect:/perfil/eventos");
-            case NOT_FOUND:
-                // Ya se confirmo el ownership arriba en eventForOwner(): solo se
-                // llegaria aca si el evento se borro justo entre medio.
-                throw new EventNotFoundException(id);
             case UPDATED:
             default:
                 return new ModelAndView("redirect:/perfil/eventos");
@@ -435,15 +412,12 @@ public class EventController {
     }
 
     // No hace falta un eventForOwner() previo aca (a diferencia de editar()):
-    // no hay ningun dato del evento que usar mas alla del resultado mismo, y
-    // EventService.cancel() ya distingue "no existe" de "no sos el dueño" con
-    // el mismo NOT_FOUND de siempre.
+    // no hay ningun dato del evento que usar, y EventService.cancel() lanza
+    // EventNotFoundException (404, ver ErrorAdvice) tanto si no existe como si
+    // no sos el dueño.
     @RequestMapping(value = "/eventos/{id}/cancelar", method = RequestMethod.POST)
     public ModelAndView cancelar(@PathVariable final long id, @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final EventCancelResult result = eventService.cancel(id, currentUser.getId());
-        if (result == EventCancelResult.NOT_FOUND) {
-            throw new EventNotFoundException(id);
-        }
+        eventService.cancel(id, currentUser.getId());
         // ALREADY_CANCELLED redirige igual que CANCELLED: no es un error que
         // el usuario tenga que ver, ya esta cancelado, que es justo lo que pidio.
         return new ModelAndView("redirect:/perfil/eventos");

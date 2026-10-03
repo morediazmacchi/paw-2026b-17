@@ -20,7 +20,7 @@ import ar.edu.itba.paw.services.ReviewResult;
 import ar.edu.itba.paw.services.ReviewService;
 import ar.edu.itba.paw.services.UnregisterResult;
 import ar.edu.itba.paw.services.UserService;
-import ar.edu.itba.paw.webapp.exception.EventNotFoundException;
+import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import ar.edu.itba.paw.webapp.form.ChangePasswordForm;
 import ar.edu.itba.paw.webapp.form.InviteForm;
 import ar.edu.itba.paw.webapp.form.ProfileForm;
@@ -119,12 +119,9 @@ public class ProfileController {
         return viewable;
     }
 
-    // El evento publico lo ve cualquiera: ni se busca la inscripcion.
+    // El evento publico lo ve cualquiera: el service ni busca la inscripcion.
     private boolean canStillView(final Event event, final User user) {
-        if (!event.isPrivate()) {
-            return true;
-        }
-        return accessChecker.canView(event, user, registrationService.findByEventAndUserId(event.getId(), user.getId()));
+        return accessChecker.canView(event, user);
     }
 
     // Mismo motivo que registrationsCountFor: el badge de "Mis eventos" en el
@@ -423,18 +420,6 @@ public class ProfileController {
         return mav;
     }
 
-    // Busca el evento y confirma que quien pregunta es su creador. Si no existe,
-    // o existe pero no es el dueño, mismo EventNotFoundException en los dos
-    // casos -- no hay que confirmarle a nadie que un evento ajeno existe. Mismo
-    // helper que EventController.eventForOwner().
-    private Event eventForOwner(final long id, final User user) {
-        final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
-        if (!Long.valueOf(user.getId()).equals(event.getCreatorId())) {
-            throw new EventNotFoundException(id);
-        }
-        return event;
-    }
-
     // No hace falta antMatcher propio: cae bajo anyRequest().authenticated().
     // Si no sos el creador de este evento, EventNotFoundException (mismo 404
     // que el resto de la app): no hay nada para vos aca, ni siquiera un 403
@@ -445,7 +430,7 @@ public class ProfileController {
                                               @RequestParam(value = "rejected", required = false) final String rejectedParam,
                                               @RequestParam(value = "full", required = false) final String fullParam,
                                               @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final Event event = eventForOwner(id, currentUser);
+        final Event event = accessChecker.getOwnedEvent(id, currentUser);
 
         final ModelAndView mav = new ModelAndView("auth/inscriptos");
         mav.addObject("user", currentUser);
@@ -498,7 +483,7 @@ public class ProfileController {
                                     @RequestParam(value = "sent", required = false) final String sentParam,
                                     @RequestParam(value = "alreadyInvited", required = false) final String alreadyInvitedParam,
                                     @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final Event event = eventForOwner(id, currentUser);
+        final Event event = accessChecker.getOwnedEvent(id, currentUser);
         if (!event.isPrivate()) {
             throw new EventNotFoundException(id);
         }
@@ -508,14 +493,15 @@ public class ProfileController {
     @RequestMapping(value = "/perfil/eventos/{id}/invitar", method = RequestMethod.POST)
     public ModelAndView invite(@PathVariable final long id, @Valid final InviteForm form, final BindingResult errors,
                                 @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final Event event = eventForOwner(id, currentUser);
-        if (!event.isPrivate()) {
-            throw new EventNotFoundException(id);
-        }
+        final Event event = accessChecker.getOwnedEvent(id, currentUser);
         if (errors.hasErrors()) {
             return inviteFormView(event, currentUser, form, errors, false, false);
         }
+        // Que el evento sea privado (y de quien invita) ya lo valida el service: si no, NOT_ALLOWED.
         final EventInvitationResult result = eventInvitationService.invite(id, currentUser.getId(), form.getEmail());
+        if (result == EventInvitationResult.NOT_ALLOWED) {
+            return new ModelAndView("redirect:/perfil/eventos");
+        }
         final String param = result == EventInvitationResult.ALREADY_INVITED ? "alreadyInvited"
                 : result == EventInvitationResult.FULL ? "full"
                 : result == EventInvitationResult.SELF_INVITE ? "selfInvite" : "sent";

@@ -1,6 +1,7 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Image;
+import ar.edu.itba.paw.model.exception.InvalidImageException;
 import ar.edu.itba.paw.persistence.ImageDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -11,7 +12,7 @@ import java.util.Optional;
 @Service
 public class ImageServiceImpl implements ImageService {
 
-    // 5 MB. El web.xml permite hasta 6 MB a proposito: dejamos margen para que
+    // 5 MB. El web.xml permite hasta 15 MB por archivo a proposito: dejamos margen para que
     // salte esta validacion (con mensaje claro) antes que el muro del servidor.
     private static final int MAX_SIZE_BYTES = 5 * 1024 * 1024;
 
@@ -35,19 +36,19 @@ public class ImageServiceImpl implements ImageService {
     @Transactional
     public Image create(final byte[] data, final String contentType, final String fileName) {
         if (data == null || data.length == 0) {
-            throw new IllegalArgumentException("event.publish.imageEmpty");
+            throw new InvalidImageException("event.publish.imageEmpty");
         }
         if (data.length > MAX_SIZE_BYTES) {
-            throw new IllegalArgumentException("event.publish.imageTooLarge");
+            throw new InvalidImageException("event.publish.imageTooLarge");
         }
         if (contentType == null || !contentType.startsWith("image/")) {
-            throw new IllegalArgumentException("event.publish.imageNotAnImage");
+            throw new InvalidImageException("event.publish.imageNotAnImage");
         }
         // El tipo que se guarda (y que despues se manda como header al servirla)
         // es el que salio de mirar los bytes, nunca el que declaro el cliente.
         final String realType = detectType(data);
         if (realType == null) {
-            throw new IllegalArgumentException("event.publish.imageNotAnImage");
+            throw new InvalidImageException("event.publish.imageNotAnImage");
         }
 
         final Image image = new Image(data, realType, fileName, data.length);

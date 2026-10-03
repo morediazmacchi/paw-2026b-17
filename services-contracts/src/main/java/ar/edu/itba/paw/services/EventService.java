@@ -4,6 +4,7 @@ package ar.edu.itba.paw.services;
 import ar.edu.itba.paw.dto.EventDTO;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventSearchCriteria;
+import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -42,6 +43,9 @@ public interface EventService {
      * Si dto.getNewImages() viene vacio, se mantiene la galeria que el evento
      * ya tenia; si no, las nuevas imagenes se suben (dentro de esta misma
      * transaccion) y reemplazan toda la galeria vieja.
+     *
+     * @throws EventNotFoundException si el evento no existe o quien lo edita no
+     *         es su creador (mismo error en los dos casos: no se revela si existe).
      */
     @Transactional(rollbackFor = Exception.class)
     EventUpdateResult update(long eventId, EventDTO dto, long callerId);
@@ -49,6 +53,9 @@ public interface EventService {
     /**
      * Cancela (soft-delete) un evento existente y avisa por mail a cada
      * inscripto confirmado.
+     *
+     * @throws EventNotFoundException si el evento no existe o quien lo cancela no
+     *         es su creador (mismo error en los dos casos: no se revela si existe).
      */
     @Transactional(rollbackFor = Exception.class)
     EventCancelResult cancel(long eventId, long callerId);

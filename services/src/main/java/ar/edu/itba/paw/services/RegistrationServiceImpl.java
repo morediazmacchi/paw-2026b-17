@@ -6,6 +6,7 @@ import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.EventInvitationDao;
 import ar.edu.itba.paw.persistence.RegistrationDao;
@@ -67,7 +68,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         // controller a reintentar en una segunda transaccion (ver
         // EventRegistrationController.registerRetryingOnConflict()).
         final Event event = eventDao.findByIdForUpdate(eventId)
-                .orElseThrow(() -> new IllegalArgumentException("Evento inexistente: " + eventId));
+                .orElseThrow(() -> new EventNotFoundException(eventId));
 
         final Registration existing = registrationDao.findByEventAndUserId(eventId, user.getId()).orElse(null);
         if (existing != null) {
@@ -198,7 +199,7 @@ public class RegistrationServiceImpl implements RegistrationService {
     @Transactional(readOnly = true)
     public boolean isFull(final long eventId) {
         final Event event = eventDao.findById(eventId)
-                .orElseThrow(() -> new IllegalArgumentException("Evento inexistente: " + eventId));
+                .orElseThrow(() -> new EventNotFoundException(eventId));
         return isFull(event);
     }
 
@@ -206,7 +207,7 @@ public class RegistrationServiceImpl implements RegistrationService {
     @Transactional(readOnly = true)
     public boolean isFullFor(final long eventId, final long userId) {
         final Event event = eventDao.findById(eventId)
-                .orElseThrow(() -> new IllegalArgumentException("Evento inexistente: " + eventId));
+                .orElseThrow(() -> new EventNotFoundException(eventId));
         final boolean invited = invitationDao.findByEventAndUserId(eventId, userId).isPresent();
         return isFull(event, invited);
     }
@@ -246,7 +247,7 @@ public class RegistrationServiceImpl implements RegistrationService {
     @Transactional(readOnly = true)
     public Integer availableSpots(final long eventId) {
         final Event event = eventDao.findById(eventId)
-                .orElseThrow(() -> new IllegalArgumentException("Evento inexistente: " + eventId));
+                .orElseThrow(() -> new EventNotFoundException(eventId));
         if (event.getMaxCapacity() == null) {
             return null;
         }

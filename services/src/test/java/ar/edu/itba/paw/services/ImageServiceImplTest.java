@@ -1,6 +1,7 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Image;
+import ar.edu.itba.paw.model.exception.InvalidImageException;
 import ar.edu.itba.paw.persistence.ImageDao;
 import org.junit.Before;
 import org.junit.Test;
@@ -47,24 +48,24 @@ public class ImageServiceImplTest {
 
     // ---- create(): validaciones ----
 
-    @Test(expected = IllegalArgumentException.class)
-    public void testCreateWithNullDataThrowsIllegalArgumentException() {
+    @Test(expected = InvalidImageException.class)
+    public void testCreateWithNullDataThrowsInvalidImageException() {
         // Act
         imageService.create(null, "image/png", "foto.png");
 
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void testCreateWithEmptyDataThrowsIllegalArgumentException() {
+    @Test(expected = InvalidImageException.class)
+    public void testCreateWithEmptyDataThrowsInvalidImageException() {
         // Act
         imageService.create(new byte[0], "image/png", "foto.png");
 
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void testCreateWithDataTooLargeThrowsIllegalArgumentException() {
+    @Test(expected = InvalidImageException.class)
+    public void testCreateWithDataTooLargeThrowsInvalidImageException() {
         // Arrange
         // MAX_SIZE_BYTES en ImageServiceImpl es 5 * 1024 * 1024. Un byte de mas alcanza.
         final byte[] tooBig = new byte[5 * 1024 * 1024 + 1];
@@ -75,16 +76,16 @@ public class ImageServiceImplTest {
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void testCreateWithNullContentTypeThrowsIllegalArgumentException() {
+    @Test(expected = InvalidImageException.class)
+    public void testCreateWithNullContentTypeThrowsInvalidImageException() {
         // Act
         imageService.create(PNG_DATA, null, "foto.png");
 
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void testCreateWithNonImageContentTypeThrowsIllegalArgumentException() {
+    @Test(expected = InvalidImageException.class)
+    public void testCreateWithNonImageContentTypeThrowsInvalidImageException() {
         // Act
         imageService.create(PNG_DATA, "application/pdf", "foto.pdf");
 
@@ -121,32 +122,32 @@ public class ImageServiceImplTest {
         assertEquals(IMAGE_ID, result.getId());
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void testCreateWithTextDeclaredAsPngThrowsIllegalArgumentException() {
+    @Test(expected = InvalidImageException.class)
+    public void testCreateWithTextDeclaredAsPngThrowsInvalidImageException() {
         // Act: el header dice image/png, los bytes dicen otra cosa.
         imageService.create(NOT_AN_IMAGE, "image/png", "foto.png");
 
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void testCreateWithSvgThrowsIllegalArgumentException() {
+    @Test(expected = InvalidImageException.class)
+    public void testCreateWithSvgThrowsInvalidImageException() {
         // Act: un SVG puede traer <script>; no es un formato permitido.
         imageService.create(SVG_WITH_SCRIPT, "image/svg+xml", "logo.svg");
 
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void testCreateWithSvgDeclaredAsPngThrowsIllegalArgumentException() {
+    @Test(expected = InvalidImageException.class)
+    public void testCreateWithSvgDeclaredAsPngThrowsInvalidImageException() {
         // Act: mentir en el Content-Type no alcanza para colar un SVG.
         imageService.create(SVG_WITH_SCRIPT, "image/png", "foto.png");
 
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void testCreateWithDataShorterThanAnyImageSignatureThrowsIllegalArgumentException() {
+    @Test(expected = InvalidImageException.class)
+    public void testCreateWithDataShorterThanAnyImageSignatureThrowsInvalidImageException() {
         // Act: dos bytes de una firma JPEG, truncada.
         imageService.create(new byte[] {(byte) 0xFF, (byte) 0xD8}, "image/jpeg", "foto.jpg");
 

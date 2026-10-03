@@ -11,7 +11,7 @@ import ar.edu.itba.paw.services.RegistrationResult;
 import ar.edu.itba.paw.services.RegistrationService;
 import ar.edu.itba.paw.services.ReportResult;
 import ar.edu.itba.paw.services.UnregisterResult;
-import ar.edu.itba.paw.webapp.exception.EventNotFoundException;
+import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import ar.edu.itba.paw.webapp.form.ReportForm;
 import ar.edu.itba.paw.webapp.util.SafeRedirect;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -58,7 +58,7 @@ public class EventRegistrationController {
                               final RedirectAttributes redirectAttributes) {
         // Mismo chequeo que el detalle: el boton ya esta escondido en la UI si
         // no tenes acceso, pero un POST directo no se puede confiar solo en eso.
-        final Event event = findViewableEvent(id, currentUser);
+        final Event event = accessChecker.getViewableEvent(id, currentUser);
         // La UI ya esconde el boton en este caso (ver detail.jsp), pero un POST
         // directo igual no tiene que poder anotarte a algo que ya paso.
         if (event.isFinished()) {
@@ -153,7 +153,7 @@ public class EventRegistrationController {
         // Mismo chequeo que preguntar/rsvp: si no existe o no podes verlo, 404.
         // Sin el canView(), la diferencia entre "404" y "reporte recibido"
         // delataria que un id de evento privado existe.
-        findViewableEvent(id, currentUser);
+        accessChecker.getViewableEvent(id, currentUser);
         if (errors.hasErrors()) {
             redirectAttributes.addFlashAttribute("reportMessage", "INVALID");
         } else {
@@ -173,7 +173,7 @@ public class EventRegistrationController {
                                      @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         // Mismo chequeo de acceso que detail() y rsvp(): si no podes ver el evento,
         // tampoco podes guardarlo (si no, "Mis favoritos" mostraria sus datos).
-        findViewableEvent(id, currentUser);
+        accessChecker.getViewableEvent(id, currentUser);
         favoriteService.add(currentUser.getId(), id);
         return new ModelAndView("redirect:" + safeReturnTo(returnTo, id));
     }
@@ -185,24 +185,8 @@ public class EventRegistrationController {
         // A proposito sin canView(): quitar un favorito es siempre inofensivo, y
         // quien ya perdio el acceso al evento (ej. le revocaron la invitacion)
         // tiene que poder sacarlo igual de su lista.
-        if (!eventService.findById(id).isPresent()) {
-            throw new EventNotFoundException(id);
-        }
         favoriteService.remove(currentUser.getId(), id);
         return new ModelAndView("redirect:" + safeReturnTo(returnTo, id));
-    }
-
-    // El evento, o EventNotFoundException (404) si no existe o quien pide no puede
-    // verlo (ver EventAccessService): el mismo 404 en ambos casos, para no
-    // confirmar que un evento privado existe.
-    private Event findViewableEvent(final long id, final User currentUser) {
-        final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
-        final Optional<Registration> myRegistration =
-                registrationService.findByEventAndUserId(id, currentUser.getId());
-        if (!accessChecker.canView(event, currentUser, myRegistration)) {
-            throw new EventNotFoundException(id);
-        }
-        return event;
     }
 
     private static String safeReturnTo(final String returnTo, final long id) {

@@ -10,6 +10,8 @@ import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.model.exception.EventNotFoundException;
+import ar.edu.itba.paw.model.exception.InvalidEventException;
 import ar.edu.itba.paw.persistence.EventDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -72,8 +74,8 @@ public class EventServiceImpl implements EventService {
         try {
             created = eventDao.create(event);
         } catch (final DataIntegrityViolationException e) {
-            throw new IllegalArgumentException(categoryConstraintViolated(e)
-                    ? "La categoria elegida no existe" : "No se pudo guardar el evento: datos invalidos", e);
+            throw new InvalidEventException(categoryConstraintViolated(e)
+                    ? "event.publish.categoryNotFound" : "event.publish.invalidData", e);
         }
         final User creator = userService.findById(created.getCreatorId()).orElse(null);
         notificationService.notifyEventCreated(created, creator == null ? null : creator.getName());
@@ -113,7 +115,7 @@ public class EventServiceImpl implements EventService {
         // podia confirmarse entre el chequeo y el UPDATE y quedar mas gente que cupo.
         final Optional<Event> existing = eventDao.findByIdForUpdate(eventId);
         if (!existing.isPresent() || !Long.valueOf(callerId).equals(existing.get().getCreatorId())) {
-            return EventUpdateResult.NOT_FOUND;
+            throw new EventNotFoundException(eventId);
         }
         if (existing.get().isCancelled()) {
             return EventUpdateResult.CANCELLED;
@@ -158,7 +160,7 @@ public class EventServiceImpl implements EventService {
         // que ya se esta cancelando, sin que nadie le avise.
         final Optional<Event> existing = eventDao.findByIdForUpdate(eventId);
         if (!existing.isPresent() || !Long.valueOf(callerId).equals(existing.get().getCreatorId())) {
-            return EventCancelResult.NOT_FOUND;
+            throw new EventNotFoundException(eventId);
         }
         final Event event = existing.get();
         if (event.isCancelled()) {

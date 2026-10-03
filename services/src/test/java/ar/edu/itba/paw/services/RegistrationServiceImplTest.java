@@ -5,6 +5,7 @@ import ar.edu.itba.paw.model.EventInvitation;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.EventInvitationDao;
 import ar.edu.itba.paw.persistence.RegistrationDao;
@@ -120,8 +121,8 @@ public class RegistrationServiceImplTest {
         assertEquals(RegistrationResult.Status.ALREADY_REGISTERED, result.getStatus());
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void testRegisterWithNonexistentEventThrowsIllegalArgumentException() {
+    @Test(expected = EventNotFoundException.class)
+    public void testRegisterWithNonexistentEventThrowsEventNotFoundException() {
         // Arrange
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.empty());
 
@@ -505,8 +506,8 @@ public class RegistrationServiceImplTest {
         assertFalse(result);
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void testIsFullWithNonexistentEventThrowsIllegalArgumentException() {
+    @Test(expected = EventNotFoundException.class)
+    public void testIsFullWithNonexistentEventThrowsEventNotFoundException() {
         // Arrange
         when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.empty());
 

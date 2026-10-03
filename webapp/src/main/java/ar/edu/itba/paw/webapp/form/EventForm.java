@@ -173,7 +173,14 @@ public class EventForm {
     public void setParking(final boolean parking) { this.parking = parking; }
 
     public List<MultipartFile> getImages() { return images; }
-    public void setImages(final List<MultipartFile> images) { this.images = images; }
+    // El <input type="file" multiple> manda un MultipartFile por cada slot del picker, elegido o no:
+    // los vacios (el usuario abrio el dialogo y no eligio nada) se descartan al bindear, asi el form
+    // solo guarda archivos reales y nadie mas tiene que filtrarlos.
+    public void setImages(final List<MultipartFile> images) {
+        this.images = images == null
+                ? new ArrayList<>()
+                : images.stream().filter(f -> f != null && !f.isEmpty()).collect(Collectors.toList());
+    }
 
     // Arma el DTO que recibe EventService.create(). Solo se tiene que llamar
     // despues de que @Valid paso sin errores: todo parseo de aca asume que

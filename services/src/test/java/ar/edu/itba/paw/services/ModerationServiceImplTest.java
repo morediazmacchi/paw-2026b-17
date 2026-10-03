@@ -4,6 +4,7 @@ import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventReport;
 import ar.edu.itba.paw.model.ReportStatus;
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import ar.edu.itba.paw.persistence.EventReportDao;
 import org.junit.Before;
 import org.junit.Test;
@@ -138,8 +139,8 @@ public class ModerationServiceImplTest {
         assertEquals(ReportResult.ALREADY_REPORTED, result);
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void testReportOfAnEventThatDoesNotExistThrowsIllegalArgumentException() {
+    @Test(expected = EventNotFoundException.class)
+    public void testReportOfAnEventThatDoesNotExistThrowsEventNotFoundException() {
         // Arrange
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.empty());
 
