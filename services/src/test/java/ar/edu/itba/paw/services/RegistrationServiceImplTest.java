@@ -144,6 +144,8 @@ public class RegistrationServiceImplTest {
 
         // Assert
         assertEquals(RegistrationResult.Status.WAITLISTED, result.getStatus());
+        // Ya estaba lleno antes de esta inscripcion: no hay nada nuevo que anunciar.
+        assertFalse(result.isNotificationSent());
     }
 
     @Test
@@ -260,6 +262,8 @@ public class RegistrationServiceImplTest {
 
         // Assert
         assertEquals(RegistrationResult.Status.PENDING, result.getStatus());
+        // Queda pendiente de aprobacion: no ocupa lugar, asi que no se lleno nada.
+        assertFalse(result.isNotificationSent());
     }
 
     // Sin cupo, la lista de espera gana: no tiene sentido "esperando revision"
@@ -277,6 +281,8 @@ public class RegistrationServiceImplTest {
 
         // Assert
         assertEquals(RegistrationResult.Status.WAITLISTED, result.getStatus());
+        // Ya estaba lleno: va a la espera y no se vuelve a anunciar que se lleno.
+        assertFalse(result.isNotificationSent());
     }
 
     @Test
@@ -342,6 +348,8 @@ public class RegistrationServiceImplTest {
 
         // Assert
         assertEquals(RegistrationResult.Status.PENDING, result.getStatus());
+        // Pendiente no ocupa lugar: aunque haya mas pedidos que lugares, no se lleno nada.
+        assertFalse(result.isNotificationSent());
     }
 
     // ---- avisos en la bandeja ----
@@ -430,6 +438,8 @@ public class RegistrationServiceImplTest {
 
         // Assert
         assertEquals(RegistrationResult.Status.WAITLISTED, result.getStatus());
+        // El ultimo lugar lo tiene una invitacion: va a la espera, no completo el cupo.
+        assertFalse(result.isNotificationSent());
     }
 
     // La persona invitada usa el lugar que ya tenia reservado: para ella el evento
@@ -695,7 +705,9 @@ public class RegistrationServiceImplTest {
         final ApprovalResult result = registrationService.approve(5, CREATOR_ID);
 
         // Assert
-        assertEquals(ApprovalResult.APPROVED, result);
+        assertEquals(ApprovalResult.Status.APPROVED, result.getStatus());
+        // Sin tope de cupo el evento nunca se llena: no hay nada que anunciar.
+        assertFalse(result.isNotificationSent());
     }
 
     @Test
@@ -708,7 +720,7 @@ public class RegistrationServiceImplTest {
         final ApprovalResult result = registrationService.approve(5, OTHER_ID);
 
         // Assert
-        assertEquals(ApprovalResult.NOT_FOUND, result);
+        assertEquals(ApprovalResult.Status.NOT_FOUND, result.getStatus());
     }
 
     @Test
@@ -722,7 +734,7 @@ public class RegistrationServiceImplTest {
         final ApprovalResult result = registrationService.approve(5, CREATOR_ID);
 
         // Assert
-        assertEquals(ApprovalResult.NOT_FOUND, result);
+        assertEquals(ApprovalResult.Status.NOT_FOUND, result.getStatus());
     }
 
     @Test
@@ -734,7 +746,7 @@ public class RegistrationServiceImplTest {
         final ApprovalResult result = registrationService.approve(5, CREATOR_ID);
 
         // Assert
-        assertEquals(ApprovalResult.NOT_FOUND, result);
+        assertEquals(ApprovalResult.Status.NOT_FOUND, result.getStatus());
     }
 
     // El organizador acepta hasta que se llena el cupo, y ni un pedido mas.
@@ -750,7 +762,7 @@ public class RegistrationServiceImplTest {
         final ApprovalResult result = registrationService.approve(5, CREATOR_ID);
 
         // Assert
-        assertEquals(ApprovalResult.FULL, result);
+        assertEquals(ApprovalResult.Status.FULL, result.getStatus());
     }
 
     // Las invitaciones por mail tambien ocupan lugar: no se puede aceptar a nadie
@@ -768,7 +780,7 @@ public class RegistrationServiceImplTest {
         final ApprovalResult result = registrationService.approve(5, CREATOR_ID);
 
         // Assert
-        assertEquals(ApprovalResult.FULL, result);
+        assertEquals(ApprovalResult.Status.FULL, result.getStatus());
     }
 
     // Cuando esta aceptacion ocupa el ultimo lugar, el resto de los pendientes ya
@@ -790,7 +802,10 @@ public class RegistrationServiceImplTest {
         final ApprovalResult result = registrationService.approve(5, CREATOR_ID);
 
         // Assert
-        assertEquals(ApprovalResult.APPROVED, result);
+        assertEquals(ApprovalResult.Status.APPROVED, result.getStatus());
+        // Esta aceptacion ocupo el ultimo lugar: se disparo notifyEventFull().
+        // Sin verify(): se confirma por el valor de retorno, no espiando el mock.
+        assertTrue(result.isNotificationSent());
     }
 
     @Test
@@ -809,7 +824,9 @@ public class RegistrationServiceImplTest {
         final ApprovalResult result = registrationService.approve(5, CREATOR_ID);
 
         // Assert
-        assertEquals(ApprovalResult.APPROVED, result);
+        assertEquals(ApprovalResult.Status.APPROVED, result.getStatus());
+        // Quedan lugares (2 de 5): no se lleno, no se aviso.
+        assertFalse(result.isNotificationSent());
     }
 
     // ---- reject() ----
