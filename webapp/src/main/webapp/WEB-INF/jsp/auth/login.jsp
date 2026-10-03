@@ -69,9 +69,6 @@
                 <c:if test="${passwordSet}">
                     <p class="alert"><spring:message code="auth.login.passwordSetSuccess"/></p>
                 </c:if>
-                <c:if test="${verified}">
-                    <p class="alert"><spring:message code="auth.login.verifiedMessage"/></p>
-                </c:if>
                 <c:if test="${verifyError}">
                     <p class="alert"><spring:message code="auth.login.verifyErrorMessage"/></p>
                 </c:if>

@@ -83,7 +83,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional
     public UserRegistrationResult register(final String email, final String name, final String rawPassword,
                                            final String redirectAfterConfirm) {
         final String normalizedEmail = email.trim().toLowerCase();
