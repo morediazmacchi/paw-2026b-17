@@ -24,6 +24,20 @@ public interface EventService {
     @Transactional(readOnly = true)
     Optional<Event> findById(long id);
 
+    /**
+     * Atajo de findById() para quien prefiere un 404 directo en vez de manejar
+     * el Optional el mismo (ver EventController.detail(),
+     * EventRegistrationController.unregister()): la decision de que "no existe"
+     * es un 404 le corresponde al service, no a cada controller armando su
+     * propio orElseThrow().
+     *
+     * @throws EventNotFoundException si el evento no existe.
+     */
+    @Transactional(readOnly = true)
+    default Event findByIdOrThrow(final long id) {
+        return findById(id).orElseThrow(() -> new EventNotFoundException(id));
+    }
+
     // Una sola consulta para varios ids, para armar un mapa id->Event sin un
     // findById() por cada uno (ver AdminController.reportQueueView(),
     // EventController.addCreatorReputation()).
@@ -46,9 +60,13 @@ public interface EventService {
      *
      * @throws EventNotFoundException si el evento no existe o quien lo edita no
      *         es su creador (mismo error en los dos casos: no se revela si existe).
+     * @throws EventCancelledException si el evento ya esta cancelado (se cancelo justo
+     *         entre medio: quien llama ya deberia haber chequeado esto antes, ver
+     *         EventAccessService#getEditableEvent).
+     * @throws InvalidEventException si el cupo nuevo es menor a los lugares ya ocupados.
      */
     @Transactional(rollbackFor = Exception.class)
-    EventUpdateResult update(long eventId, EventDTO dto, long callerId);
+    void update(long eventId, EventDTO dto, long callerId);
 
     /**
      * Cancela (soft-delete) un evento existente y avisa por mail a cada

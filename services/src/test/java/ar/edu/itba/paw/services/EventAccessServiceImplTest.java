@@ -111,6 +111,24 @@ public class EventAccessServiceImplTest {
         assertFalse(result);
     }
 
+    // ---- requireViewable() ----
+
+    @Test
+    public void testRequireViewableDoesNotThrowWhenTheEventIsViewable() {
+        // Act
+        accessService.requireViewable(event(EventVisibility.PUBLIC), null, Optional.empty());
+
+        // Assert: si no tiro nada, el test ya paso.
+    }
+
+    @Test(expected = EventNotFoundException.class)
+    public void testRequireViewableThrowsEventNotFoundExceptionWhenItIsNot() {
+        // Act
+        accessService.requireViewable(event(EventVisibility.PRIVATE), user(OTHER_ID), Optional.empty());
+
+        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
+    }
+
     // ---- getViewableEvent() ----
 
     @Test

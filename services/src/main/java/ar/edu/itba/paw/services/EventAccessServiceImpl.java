@@ -4,6 +4,7 @@ package ar.edu.itba.paw.services;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.model.exception.EventCancelledException;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -41,6 +42,15 @@ public class EventAccessServiceImpl implements EventAccessService {
     }
 
     @Override
+    public void requireViewable(final Event event, final User user, final Optional<Registration> myRegistration) {
+        if (!canView(event, user, myRegistration)) {
+            // Mismo 404 que un id inexistente: no hay que revelar que el
+            // evento existe pero que no es para vos.
+            throw new EventNotFoundException(event.getId());
+        }
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public boolean canView(final Event event, final User user) {
         if (!event.isPrivate()) {
@@ -68,6 +78,16 @@ public class EventAccessServiceImpl implements EventAccessService {
         final Event event = eventService.findById(eventId).orElseThrow(() -> new EventNotFoundException(eventId));
         if (user == null || !Long.valueOf(user.getId()).equals(event.getCreatorId())) {
             throw new EventNotFoundException(eventId);
+        }
+        return event;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Event getEditableEvent(final long eventId, final User user) {
+        final Event event = getOwnedEvent(eventId, user);
+        if (event.isCancelled()) {
+            throw new EventCancelledException(eventId);
         }
         return event;
     }

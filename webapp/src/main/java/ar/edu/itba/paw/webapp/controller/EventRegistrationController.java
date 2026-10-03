@@ -11,7 +11,6 @@ import ar.edu.itba.paw.services.RegistrationResult;
 import ar.edu.itba.paw.services.RegistrationService;
 import ar.edu.itba.paw.services.ReportResult;
 import ar.edu.itba.paw.services.UnregisterResult;
-import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import ar.edu.itba.paw.webapp.form.ReportForm;
 import ar.edu.itba.paw.webapp.util.SafeRedirect;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -125,7 +124,7 @@ public class EventRegistrationController {
     public ModelAndView unregister(@PathVariable final long id,
                                    @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
                                    final RedirectAttributes redirectAttributes) {
-        final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
+        final Event event = eventService.findByIdOrThrow(id);
         // La UI ya esconde el boton en este caso (ver detail.jsp): un evento que
         // ya paso no se puede "des-anotar", ya sucedio.
         if (event.isFinished()) {

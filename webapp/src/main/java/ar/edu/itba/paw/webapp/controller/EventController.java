@@ -15,12 +15,10 @@ import ar.edu.itba.paw.services.CategoryService;
 import ar.edu.itba.paw.services.EventAccessService;
 import ar.edu.itba.paw.services.EventQuestionService;
 import ar.edu.itba.paw.services.EventService;
-import ar.edu.itba.paw.services.EventUpdateResult;
 import ar.edu.itba.paw.services.FavoriteService;
 import ar.edu.itba.paw.services.PageResult;
 import ar.edu.itba.paw.services.RegistrationService;
 import ar.edu.itba.paw.services.ReviewService;
-import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import ar.edu.itba.paw.model.exception.InvalidEventException;
 import ar.edu.itba.paw.model.exception.InvalidImageException;
 import ar.edu.itba.paw.webapp.form.EventForm;
@@ -147,9 +145,8 @@ public class EventController {
     public ModelAndView detail(@PathVariable final long id,
                                 @RequestParam(value = "preguntasPage", required = false) final String preguntasPage,
                                 @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final Event event = eventService.findById(id).orElseThrow(() -> new EventNotFoundException(id));
-        // Privado y sin sesion: todavia no sabemos quien sos. Al login, y de
-        // vuelta aca (WebAuthConfig.loginSuccessHandler) para chequear si estas invitado.
+        final Event event = eventService.findByIdOrThrow(id);
+        // Privado y sin sesion: todavia no sabemos quien sos.
         if (event.isPrivate() && currentUser == null) {
             return new ModelAndView("redirect:/login?redirect=/eventos/" + id);
         }
@@ -160,11 +157,7 @@ public class EventController {
         final Optional<Registration> myRegistration = currentUser == null
                 ? Optional.empty()
                 : registrationService.findByEventAndUserId(id, currentUser.getId());
-        if (!accessChecker.canView(event, currentUser, myRegistration)) {
-            // Mismo 404 que un id inexistente: no hay que revelar que el
-            // evento existe pero que no es para vos.
-            throw new EventNotFoundException(id);
-        }
+        accessChecker.requireViewable(event, currentUser, myRegistration);
 
         final ModelAndView mav = new ModelAndView("events/detail");
         mav.addObject("event", event);
@@ -187,9 +180,7 @@ public class EventController {
             mav.addObject("waitlisted", myStatus == RegistrationStatus.WAITLISTED);
             mav.addObject("pendingApproval", myStatus == RegistrationStatus.PENDING);
             mav.addObject("rejected", myStatus == RegistrationStatus.REJECTED);
-            // El creador no se anota a su propio evento (ver RegistrationServiceImpl.
-            // register()): la tarjeta de RSVP se lo dice en vez de ofrecerle un
-            // boton que el service le va a rechazar igual.
+            // El creador no se anota a su propio evento.
             mav.addObject("isOwner", Long.valueOf(currentUser.getId()).equals(event.getCreatorId()));
         }
         if (event.getCreatorId() != null) {
@@ -273,12 +264,7 @@ public class EventController {
                 : new ModelAndView("redirect:/eventos/" + created.getId());
     }
 
-    // Lee los bytes de cada archivo, sin guardar nada todavia: la persistencia
-    // (ImageService.create()) la hace el service, dentro de su propia
-    // transaccion junto con el evento (ver EventServiceImpl.create()/update())
-    // -- asi, si algo despues falla, no quedan imagenes huerfanas en la base.
-    // Mismo orden en que el usuario las eligio: ese orden es el de la galeria
-    // (ver Event.imageIds), la primera es la portada.
+    // Lee los bytes de cada archivo, sin guardar nada todavia.
     private static List<NewImageData> readImages(final List<MultipartFile> images) throws IOException {
         final List<NewImageData> result = new ArrayList<>();
         for (final MultipartFile image : images) {
@@ -296,9 +282,6 @@ public class EventController {
         mav.addObject("eventForm", form);
         mav.addObject("fieldErrors", fieldErrors);
         mav.addObject("categoriasError", firstCategoriasError(fieldErrors));
-        // "Demasiadas imagenes" ahora es un error de @Valid (ver EventForm.images),
-        // asi que cae en fieldErrors.images en vez de venir explicito por parametro,
-        // como los errores de la subida en si (que son una accion, no una validacion).
         mav.addObject("imageError", imageError != null ? imageError : fieldErrors.get("images"));
         return mav;
     }
@@ -325,11 +308,7 @@ public class EventController {
 
     @RequestMapping(value = "/eventos/{id}/editar", method = RequestMethod.GET)
     public ModelAndView editarForm(@PathVariable final long id, @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final Event event = accessChecker.getOwnedEvent(id, currentUser);
-        // Un evento cancelado ya no se edita: de vuelta a Mis eventos.
-        if (event.isCancelled()) {
-            return new ModelAndView("redirect:/perfil/eventos");
-        }
+        final Event event = accessChecker.getEditableEvent(id, currentUser);
         final List<Category> categories = categoryService.findAll();
         final ModelAndView mav = new ModelAndView("events/editar");
         mav.addObject("eventId", id);
@@ -340,29 +319,18 @@ public class EventController {
     }
 
     // Toda la validacion (fecha, barrio, categorias, cantidad de imagenes) ya
-    // corrio con @Valid, via los mismos validators custom de EventForm que usa
-    // publish() -- es el mismo form. Lo unico que no se puede prevenir mirando
-    // el form es lo que depende del estado actual del evento en la base
-    // (cupo ya ocupado, cancelado o borrado justo entre medio): eso solo lo
-    // sabe el service en el momento de escribir, por eso EventUpdateResult +
-    // switch siguen siendo necesarios aca (a diferencia de publish()).
+    // corrio con @Valid, (tiene validaciones con srvice).
     @RequestMapping(value = "/eventos/{id}/editar", method = RequestMethod.POST)
     public ModelAndView editar(@PathVariable final long id, @Valid final EventForm form, final BindingResult errors,
                                 @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        // Mismo chequeo que el GET: si no sos el dueño, ni siquiera llega a
-        // mirar el resto del form.
-        final Event existing = accessChecker.getOwnedEvent(id, currentUser);
-        if (existing.isCancelled()) {
-            return new ModelAndView("redirect:/perfil/eventos");
-        }
+        accessChecker.getEditableEvent(id, currentUser);
         if (errors.hasErrors()) {
             return editarFormWithErrors(id, form, errors, null);
         }
 
         // Si no se subio ninguna foto nueva (newImages vacio), eventService.update()
         // mantiene la galeria que el evento ya tenia; si se subio al menos una,
-        // las sube y reemplaza toda la galeria vieja -- todo eso pasa DENTRO de
-        // su misma transaccion (ver EventServiceImpl.update()), no mas aca.
+        // las sube y reemplaza toda la galeria vieja
         final List<NewImageData> newImages;
         try {
             newImages = readImages(form.getImages());
@@ -372,26 +340,18 @@ public class EventController {
 
         final EventDTO dto = form.toDTO();
         dto.setNewImages(newImages);
-        final EventUpdateResult result;
         try {
-            result = eventService.update(id, dto, currentUser.getId());
+            eventService.update(id, dto, currentUser.getId());
         } catch (final InvalidImageException e) {
             return editarFormWithErrors(id, form, errors, message(e.getMessageKey()));
         } catch (final InvalidEventException e) {
+            if (e.getField() != null) {
+                errors.rejectValue(e.getField(), e.getMessageKey());
+                return editarFormWithErrors(id, form, errors, null);
+            }
             return editarFormWithErrors(id, form, errors, message(e.getMessageKey()));
         }
-        switch (result) {
-            case CAPACITY_TOO_LOW:
-                errors.rejectValue("cupoMaximo", "cupo.muyBajo",
-                        "El cupo maximo no puede ser menor a los lugares ya ocupados");
-                return editarFormWithErrors(id, form, errors, null);
-            case CANCELLED:
-                // Se cancelo justo entre medio: no se guardo nada.
-                return new ModelAndView("redirect:/perfil/eventos");
-            case UPDATED:
-            default:
-                return new ModelAndView("redirect:/perfil/eventos");
-        }
+        return new ModelAndView("redirect:/perfil/eventos");
     }
 
     private ModelAndView editarFormWithErrors(final long id, final EventForm form, final BindingResult errors,
@@ -404,22 +364,13 @@ public class EventController {
         mav.addObject("eventForm", form);
         mav.addObject("fieldErrors", fieldErrors);
         mav.addObject("categoriasError", firstCategoriasError(fieldErrors));
-        // "Demasiadas imagenes" ahora es un error de @Valid (ver EventForm.images),
-        // asi que cae en fieldErrors.images en vez de venir explicito por parametro,
-        // como los errores de la subida en si (que son una accion, no una validacion).
         mav.addObject("imageError", imageError != null ? imageError : fieldErrors.get("images"));
         return mav;
     }
 
-    // No hace falta un eventForOwner() previo aca (a diferencia de editar()):
-    // no hay ningun dato del evento que usar, y EventService.cancel() lanza
-    // EventNotFoundException (404, ver ErrorAdvice) tanto si no existe como si
-    // no sos el dueño.
     @RequestMapping(value = "/eventos/{id}/cancelar", method = RequestMethod.POST)
     public ModelAndView cancelar(@PathVariable final long id, @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         eventService.cancel(id, currentUser.getId());
-        // ALREADY_CANCELLED redirige igual que CANCELLED: no es un error que
-        // el usuario tenga que ver, ya esta cancelado, que es justo lo que pidio.
         return new ModelAndView("redirect:/perfil/eventos");
     }
 }

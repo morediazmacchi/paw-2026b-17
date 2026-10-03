@@ -10,6 +10,7 @@ import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.model.exception.EventCancelledException;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import ar.edu.itba.paw.model.exception.InvalidEventException;
 import ar.edu.itba.paw.persistence.EventDao;
@@ -108,7 +109,7 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public EventUpdateResult update(final long eventId, final EventDTO dto, final long callerId) {
+    public void update(final long eventId, final EventDTO dto, final long callerId) {
         Objects.requireNonNull(dto, "dto");
         // Con lock (SELECT ... FOR UPDATE), igual que register(): mientras se
         // chequea y se cambia el cupo, nadie se puede anotar. Sin esto, alguien
@@ -118,12 +119,15 @@ public class EventServiceImpl implements EventService {
             throw new EventNotFoundException(eventId);
         }
         if (existing.get().isCancelled()) {
-            return EventUpdateResult.CANCELLED;
+            // Se cancelo justo entre medio: quien llama ya deberia haber chequeado
+            // esto antes (ver EventAccessService#getEditableEvent), esto es la
+            // defensa de la carrera, no el chequeo principal.
+            throw new EventCancelledException(eventId);
         }
         // No alcanza con los confirmados: una invitacion sin contestar o un
         // pedido pendiente tambien tienen su lugar guardado (ver occupiedSpots).
         if (dto.getMaxCapacity() != null && dto.getMaxCapacity() < registrationService.occupiedSpots(eventId)) {
-            return EventUpdateResult.CAPACITY_TOO_LOW;
+            throw new InvalidEventException("cupo.muyBajo", "maxCapacity");
         }
         // Si no se subio ninguna foto nueva, se mantiene la galeria que el
         // evento ya tenia; si se subio al menos una, las nuevas reemplazan toda
@@ -149,15 +153,12 @@ public class EventServiceImpl implements EventService {
         // Despues del aviso de cambios: a los que entran ahora les llega ya el mail
         // de que estan confirmados, no hace falta ademas contarles que el evento cambio.
         registrationService.promoteFromWaitlist(eventId);
-        return EventUpdateResult.UPDATED;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public EventCancelResult cancel(final long eventId, final long callerId) {
-        // Con lock, igual que update(): sin esto, un register() concurrente podia
-        // colarse entre el chequeo y el UPDATE y quedar confirmado en un evento
-        // que ya se esta cancelando, sin que nadie le avise.
+        // Con for update.
         final Optional<Event> existing = eventDao.findByIdForUpdate(eventId);
         if (!existing.isPresent() || !Long.valueOf(callerId).equals(existing.get().getCreatorId())) {
             throw new EventNotFoundException(eventId);

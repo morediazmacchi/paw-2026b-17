@@ -2,6 +2,7 @@ package ar.edu.itba.paw.webapp.controller;
 
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.UserService;
+import ar.edu.itba.paw.model.exception.EventCancelledException;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,6 +61,15 @@ public class ErrorAdvice {
     public ModelAndView eventNotFound(final EventNotFoundException e) {
         // No se loguea como error: que alguien escriba un id inexistente es normal.
         return new ModelAndView("errors/404");
+    }
+
+    // Un evento cancelado ya no se edita (chequeo anticipado en el controller, o
+    // detectado recien dentro de update() si se cancelo justo entre medio). No es
+    // un error de nadie, por eso sin @ResponseStatus: se redirige como si la
+    // edicion ya hubiese terminado, igual que imageTooLarge() mas abajo.
+    @ExceptionHandler(EventCancelledException.class)
+    public ModelAndView eventCancelled(final EventCancelledException e) {
+        return new ModelAndView("redirect:/perfil/eventos");
     }
 
     // Un @PathVariable numerico (ej. "long id") que llega con algo que no es

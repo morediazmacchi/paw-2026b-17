@@ -5,6 +5,7 @@ import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventCategoryInfo;
 import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.model.exception.EventCancelledException;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import ar.edu.itba.paw.model.exception.InvalidEventException;
 import ar.edu.itba.paw.persistence.EventDao;
@@ -28,6 +29,7 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -323,17 +325,16 @@ public class EventServiceImplTest {
     }
 
     @Test
-    public void testUpdateSucceedsAndReturnsUpdated() {
+    public void testUpdateSucceedsWithoutThrowing() {
         // Arrange
         updatable(5);
         final EventDTO dto = someDto();
         dto.setMaxCapacity(20);
 
         // Act
-        final EventUpdateResult result = eventService.update(EVENT_ID, dto, CREATOR_ID);
+        eventService.update(EVENT_ID, dto, CREATOR_ID);
 
-        // Assert
-        assertEquals(EventUpdateResult.UPDATED, result);
+        // Assert: si no tira nada, el test ya paso.
     }
 
     @Test
@@ -343,13 +344,12 @@ public class EventServiceImplTest {
         updatable(0);
         final EventDTO dto = someDto();
         dto.setMaxCapacity(20);
-        when(eventDao.update(argThat(updated -> updated.getId() == EVENT_ID))).thenReturn(true);
 
         // Act
-        final EventUpdateResult result = eventService.update(EVENT_ID, dto, CREATOR_ID);
+        eventService.update(EVENT_ID, dto, CREATOR_ID);
 
         // Assert
-        assertEquals(EventUpdateResult.UPDATED, result);
+        verify(eventDao).update(argThat(updated -> updated.getId() == EVENT_ID));
     }
 
     @Test(expected = EventNotFoundException.class)
@@ -374,30 +374,31 @@ public class EventServiceImplTest {
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
 
-    @Test
-    public void testUpdateWhenTheEventIsCancelledReturnsCancelled() {
+    @Test(expected = EventCancelledException.class)
+    public void testUpdateWhenTheEventIsCancelledThrowsEventCancelledException() {
         // Arrange
         existingForUpdate(cancelledEvent());
 
         // Act
-        final EventUpdateResult result = eventService.update(EVENT_ID, someDto(), CREATOR_ID);
+        eventService.update(EVENT_ID, someDto(), CREATOR_ID);
 
-        // Assert
-        assertEquals(EventUpdateResult.CANCELLED, result);
+        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
 
     @Test
-    public void testUpdateWhenNewCapacityIsBelowOccupiedReturnsCapacityTooLow() {
+    public void testUpdateWhenNewCapacityIsBelowOccupiedThrowsInvalidEventExceptionOnMaxCapacity() {
         // Arrange
         updatable(5);
         final EventDTO dto = someDto();
         dto.setMaxCapacity(3);
 
         // Act
-        final EventUpdateResult result = eventService.update(EVENT_ID, dto, CREATOR_ID);
+        final InvalidEventException thrown = assertThrows(InvalidEventException.class,
+                () -> eventService.update(EVENT_ID, dto, CREATOR_ID));
 
         // Assert
-        assertEquals(EventUpdateResult.CAPACITY_TOO_LOW, result);
+        assertEquals("cupo.muyBajo", thrown.getMessageKey());
+        assertEquals("maxCapacity", thrown.getField());
     }
 
     @Test
@@ -408,10 +409,9 @@ public class EventServiceImplTest {
         dto.setMaxCapacity(5);
 
         // Act
-        final EventUpdateResult result = eventService.update(EVENT_ID, dto, CREATOR_ID);
+        eventService.update(EVENT_ID, dto, CREATOR_ID);
 
-        // Assert
-        assertEquals(EventUpdateResult.UPDATED, result);
+        // Assert: si no tira nada, el test ya paso.
     }
 
     @Test
@@ -424,10 +424,9 @@ public class EventServiceImplTest {
         dto.setMaxCapacity(null);
 
         // Act
-        final EventUpdateResult result = eventService.update(EVENT_ID, dto, CREATOR_ID);
+        eventService.update(EVENT_ID, dto, CREATOR_ID);
 
-        // Assert
-        assertEquals(EventUpdateResult.UPDATED, result);
+        // Assert: si no tira nada, el test ya paso.
     }
 
     // Si el organizador sube el cupo, los primeros de la lista de espera entran ya.
@@ -437,13 +436,12 @@ public class EventServiceImplTest {
         updatable(0);
         final EventDTO dto = someDto();
         dto.setMaxCapacity(20);
-        when(registrationService.promoteFromWaitlist(EVENT_ID)).thenReturn(2);
 
         // Act
-        final EventUpdateResult result = eventService.update(EVENT_ID, dto, CREATOR_ID);
+        eventService.update(EVENT_ID, dto, CREATOR_ID);
 
         // Assert
-        assertEquals(EventUpdateResult.UPDATED, result);
+        verify(registrationService).promoteFromWaitlist(EVENT_ID);
     }
 
     // ---- cancel() ----

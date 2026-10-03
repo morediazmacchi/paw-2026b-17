@@ -4,6 +4,7 @@ package ar.edu.itba.paw.services;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.model.exception.EventCancelledException;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
 
 import java.util.Optional;
@@ -22,6 +23,17 @@ public interface EventAccessService {
      * como metodo privado de un solo controller.
      */
     boolean canView(Event event, User user, Optional<Registration> myRegistration);
+
+    /**
+     * Como {@link #canView(Event, User, Optional)}, pero tira EventNotFoundException en vez de
+     * devolver false. Para quien ya tiene el Event y el Optional&lt;Registration&gt; en mano (ver
+     * EventController.detail(), que los necesita de nuevo mas abajo para la tarjeta de RSVP) y
+     * no quiere armar el if/throw el mismo -- esa decision le corresponde al service, no al
+     * controller.
+     *
+     * @throws EventNotFoundException si no puede verlo. Mismo error que si no existiera.
+     */
+    void requireViewable(Event event, User user, Optional<Registration> myRegistration);
 
     /**
      * Igual que {@link #canView(Event, User, Optional)}, pero busca la inscripcion propia solo si hace
@@ -43,4 +55,14 @@ public interface EventAccessService {
      * @throws EventNotFoundException si no existe o {@code user} no es el creador (mismo error en los dos casos).
      */
     Event getOwnedEvent(long eventId, User user);
+
+    /**
+     * Como {@link #getOwnedEvent(long, User)}, pero ademas tira EventCancelledException si el
+     * evento ya esta cancelado: uno cancelado no se edita. Lo comparten el GET y el POST de
+     * EventController para editar (editarForm()/editar()): misma regla, mismo lugar.
+     *
+     * @throws EventNotFoundException si no existe o {@code user} no es el creador.
+     * @throws EventCancelledException si existe, es suyo, pero esta cancelado.
+     */
+    Event getEditableEvent(long eventId, User user);
 }
