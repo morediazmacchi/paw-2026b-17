@@ -55,12 +55,15 @@ public class EventServiceImplTest {
     private NotificationService notificationService;
     @Mock
     private InboxService inboxService;
+    @Mock
+    private ImageService imageService;
 
     private EventServiceImpl eventService;
 
     @Before
     public void setUp() {
-        eventService = new EventServiceImpl(eventDao, userService, notificationService, registrationService, inboxService);
+        eventService = new EventServiceImpl(eventDao, userService, notificationService, registrationService,
+                inboxService, imageService);
     }
 
     private static Event someEvent() {
@@ -304,12 +307,11 @@ public class EventServiceImplTest {
     public void testUpdateSucceedsAndReturnsUpdated() {
         // Arrange
         updatable(5);
-        final Event changes = someEvent();
-        changes.setMaxCapacity(20);
-        when(eventDao.update(changes)).thenReturn(true);
+        final EventDTO dto = someDto();
+        dto.setMaxCapacity(20);
 
         // Act
-        final EventUpdateResult result = eventService.update(EVENT_ID, changes, CREATOR_ID);
+        final EventUpdateResult result = eventService.update(EVENT_ID, dto, CREATOR_ID);
 
         // Assert
         assertEquals(EventUpdateResult.UPDATED, result);
@@ -317,15 +319,15 @@ public class EventServiceImplTest {
 
     @Test
     public void testUpdateStoresTheChangesUnderTheEventId() {
-        // Arrange
+        // Arrange: el Event que arma toEvent() a partir del dto llega sin id,
+        // el service se lo tiene que poner.
         updatable(0);
-        final Event changes = new Event(); // llega sin id: el service se lo pone
-        changes.setCreatorId(CREATOR_ID);
-        changes.setMaxCapacity(20);
+        final EventDTO dto = someDto();
+        dto.setMaxCapacity(20);
         when(eventDao.update(argThat(updated -> updated.getId() == EVENT_ID))).thenReturn(true);
 
         // Act
-        final EventUpdateResult result = eventService.update(EVENT_ID, changes, CREATOR_ID);
+        final EventUpdateResult result = eventService.update(EVENT_ID, dto, CREATOR_ID);
 
         // Assert
         assertEquals(EventUpdateResult.UPDATED, result);
@@ -337,7 +339,7 @@ public class EventServiceImplTest {
         existingForUpdate(someEvent());
 
         // Act
-        final EventUpdateResult result = eventService.update(EVENT_ID, someEvent(), OTHER_ID);
+        final EventUpdateResult result = eventService.update(EVENT_ID, someDto(), OTHER_ID);
 
         // Assert
         assertEquals(EventUpdateResult.NOT_FOUND, result);
@@ -349,7 +351,7 @@ public class EventServiceImplTest {
         when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
-        final EventUpdateResult result = eventService.update(EVENT_ID, someEvent(), CREATOR_ID);
+        final EventUpdateResult result = eventService.update(EVENT_ID, someDto(), CREATOR_ID);
 
         // Assert
         assertEquals(EventUpdateResult.NOT_FOUND, result);
@@ -361,7 +363,7 @@ public class EventServiceImplTest {
         existingForUpdate(cancelledEvent());
 
         // Act
-        final EventUpdateResult result = eventService.update(EVENT_ID, someEvent(), CREATOR_ID);
+        final EventUpdateResult result = eventService.update(EVENT_ID, someDto(), CREATOR_ID);
 
         // Assert
         assertEquals(EventUpdateResult.CANCELLED, result);
@@ -371,11 +373,11 @@ public class EventServiceImplTest {
     public void testUpdateWhenNewCapacityIsBelowOccupiedReturnsCapacityTooLow() {
         // Arrange
         updatable(5);
-        final Event changes = someEvent();
-        changes.setMaxCapacity(3);
+        final EventDTO dto = someDto();
+        dto.setMaxCapacity(3);
 
         // Act
-        final EventUpdateResult result = eventService.update(EVENT_ID, changes, CREATOR_ID);
+        final EventUpdateResult result = eventService.update(EVENT_ID, dto, CREATOR_ID);
 
         // Assert
         assertEquals(EventUpdateResult.CAPACITY_TOO_LOW, result);
@@ -385,12 +387,11 @@ public class EventServiceImplTest {
     public void testUpdateWhenNewCapacityEqualsOccupiedSucceeds() {
         // Arrange
         updatable(5);
-        final Event changes = someEvent();
-        changes.setMaxCapacity(5);
-        when(eventDao.update(changes)).thenReturn(true);
+        final EventDTO dto = someDto();
+        dto.setMaxCapacity(5);
 
         // Act
-        final EventUpdateResult result = eventService.update(EVENT_ID, changes, CREATOR_ID);
+        final EventUpdateResult result = eventService.update(EVENT_ID, dto, CREATOR_ID);
 
         // Assert
         assertEquals(EventUpdateResult.UPDATED, result);
@@ -402,12 +403,11 @@ public class EventServiceImplTest {
         // Sin cupo (ilimitado) no hay nada que comparar contra lo ocupado: tiene
         // que actualizar igual aunque haya lugares ocupados.
         existingForUpdate(someEvent());
-        final Event changes = someEvent();
-        changes.setMaxCapacity(null);
-        when(eventDao.update(changes)).thenReturn(true);
+        final EventDTO dto = someDto();
+        dto.setMaxCapacity(null);
 
         // Act
-        final EventUpdateResult result = eventService.update(EVENT_ID, changes, CREATOR_ID);
+        final EventUpdateResult result = eventService.update(EVENT_ID, dto, CREATOR_ID);
 
         // Assert
         assertEquals(EventUpdateResult.UPDATED, result);
@@ -418,12 +418,12 @@ public class EventServiceImplTest {
     public void testUpdatePromotesTheWaitlistSoRaisedCapacityIsFilled() {
         // Arrange
         updatable(0);
-        final Event changes = someEvent();
-        changes.setMaxCapacity(20);
+        final EventDTO dto = someDto();
+        dto.setMaxCapacity(20);
         when(registrationService.promoteFromWaitlist(EVENT_ID)).thenReturn(2);
 
         // Act
-        final EventUpdateResult result = eventService.update(EVENT_ID, changes, CREATOR_ID);
+        final EventUpdateResult result = eventService.update(EVENT_ID, dto, CREATOR_ID);
 
         // Assert
         assertEquals(EventUpdateResult.UPDATED, result);

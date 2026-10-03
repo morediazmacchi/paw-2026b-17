@@ -38,14 +38,13 @@ public interface EventService {
     List<Event> findByCreatorId(long creatorId);
 
     /**
-     * Edita un evento existente. No cambia quien lo creo ni cuando se creo
-     * (esos campos de "changes" se ignoran).
-     *
-     * @param changes los valores nuevos; su propio id se ignora, se usa el
-     *                eventId del primer parametro
+     * Edita un evento existente. No cambia quien lo creo ni cuando se creo.
+     * Si dto.getNewImages() viene vacio, se mantiene la galeria que el evento
+     * ya tenia; si no, las nuevas imagenes se suben (dentro de esta misma
+     * transaccion) y reemplazan toda la galeria vieja.
      */
     @Transactional(rollbackFor = Exception.class)
-    EventUpdateResult update(long eventId, Event changes, long callerId);
+    EventUpdateResult update(long eventId, EventDTO dto, long callerId);
 
     /**
      * Cancela (soft-delete) un evento existente y avisa por mail a cada

@@ -1,12 +1,12 @@
 package ar.edu.itba.paw.webapp.controller;
 
 import ar.edu.itba.paw.dto.EventDTO;
+import ar.edu.itba.paw.dto.NewImageData;
 import ar.edu.itba.paw.model.Barrio;
 import ar.edu.itba.paw.model.Category;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventQuestion;
 import ar.edu.itba.paw.model.EventSort;
-import ar.edu.itba.paw.model.Image;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.Review;
@@ -18,7 +18,6 @@ import ar.edu.itba.paw.services.EventQuestionService;
 import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.EventUpdateResult;
 import ar.edu.itba.paw.services.FavoriteService;
-import ar.edu.itba.paw.services.ImageService;
 import ar.edu.itba.paw.services.PageResult;
 import ar.edu.itba.paw.services.RegistrationService;
 import ar.edu.itba.paw.services.ReviewService;
@@ -61,7 +60,6 @@ public class EventController {
     private final EventService eventService;
     private final CategoryService categoryService;
     private final RegistrationService registrationService;
-    private final ImageService imageService;
     private final FavoriteService favoriteService;
     private final ReviewService reviewService;
     private final EventQuestionService eventQuestionService;
@@ -70,14 +68,13 @@ public class EventController {
 
     @Autowired
     public EventController(final EventService eventService, final CategoryService categoryService,
-                            final RegistrationService registrationService, final ImageService imageService,
+                            final RegistrationService registrationService,
                             final FavoriteService favoriteService, final ReviewService reviewService,
                             final EventQuestionService eventQuestionService, final EventAccessService accessChecker,
                             final MessageSource messageSource) {
         this.eventService = eventService;
         this.categoryService = categoryService;
         this.registrationService = registrationService;
-        this.imageService = imageService;
         this.favoriteService = favoriteService;
         this.reviewService = reviewService;
         this.eventQuestionService = eventQuestionService;
@@ -246,22 +243,28 @@ public class EventController {
             return publishFormWithErrors(form, errors, null);
         }
 
-        final List<Long> imageIds;
+        final List<NewImageData> newImages;
         try {
-            imageIds = uploadImages(nonEmptyImages(form.getImages()));
+            newImages = readImages(nonEmptyImages(form.getImages()));
         } catch (final IOException e) {
             return publishFormWithErrors(form, errors, message("event.publish.imageReadError"));
-        } catch (final IllegalArgumentException e) {
-            return publishFormWithErrors(form, errors, message(e.getMessage()));
         }
 
         final EventDTO dto = form.toDTO();
-        dto.setImageIds(imageIds);
+        dto.setNewImages(newImages);
         // El creador es quien esta logueado.
         dto.setCreatorId(currentUser.getId());
         dto.setCreatorEmail(currentUser.getEmail());
 
-        final Event created = eventService.create(dto);
+        // Subir las imagenes y crear el evento pasa todo DENTRO de la misma
+        // transaccion, adentro de eventService.create(): una imagen invalida
+        // o una categoria inexistente deshacen las dos cosas juntas.
+        final Event created;
+        try {
+            created = eventService.create(dto);
+        } catch (final IllegalArgumentException e) {
+            return publishFormWithErrors(form, errors, message(e.getMessage()));
+        }
         // Privado: a invitar. Publico: al detalle del evento.
         return created.isPrivate()
                 ? new ModelAndView("redirect:/perfil/eventos/" + created.getId() + "/invitar")
@@ -279,16 +282,18 @@ public class EventController {
         return images.stream().filter(f -> f != null && !f.isEmpty()).collect(Collectors.toList());
     }
 
-    // Sube cada archivo y devuelve sus ids, en el mismo orden en que el
-    // usuario los eligio: ese orden es el de la galeria (ver Event.imageIds),
-    // la primera es la portada.
-    private List<Long> uploadImages(final List<MultipartFile> images) throws IOException {
-        final List<Long> ids = new ArrayList<>();
+    // Lee los bytes de cada archivo, sin guardar nada todavia: la persistencia
+    // (ImageService.create()) la hace el service, dentro de su propia
+    // transaccion junto con el evento (ver EventServiceImpl.create()/update())
+    // -- asi, si algo despues falla, no quedan imagenes huerfanas en la base.
+    // Mismo orden en que el usuario las eligio: ese orden es el de la galeria
+    // (ver Event.imageIds), la primera es la portada.
+    private static List<NewImageData> readImages(final List<MultipartFile> images) throws IOException {
+        final List<NewImageData> result = new ArrayList<>();
         for (final MultipartFile image : images) {
-            final Image saved = imageService.create(image.getBytes(), image.getContentType(), image.getOriginalFilename());
-            ids.add(saved.getId());
+            result.add(new NewImageData(image.getBytes(), image.getContentType(), image.getOriginalFilename()));
         }
-        return ids;
+        return result;
     }
 
     private ModelAndView publishFormWithErrors(final EventForm form, final BindingResult errors,
@@ -375,26 +380,25 @@ public class EventController {
             return editarFormWithErrors(id, form, errors, null);
         }
 
-        // Si no se subio ninguna foto nueva, la galeria que ya tenia el evento
-        // se mantiene entera; si se subio al menos una, reemplaza toda la
-        // galeria vieja (no hay forma de sacar o agregar una foto suelta).
-        final List<MultipartFile> nonEmptyImages = nonEmptyImages(form.getImages());
-        List<Long> imageIds = existing.getImageIds();
-        if (!nonEmptyImages.isEmpty()) {
-            try {
-                imageIds = uploadImages(nonEmptyImages);
-            } catch (final IOException e) {
-                return editarFormWithErrors(id, form, errors, message("event.publish.imageReadError"));
-            } catch (final IllegalArgumentException e) {
-                return editarFormWithErrors(id, form, errors, message(e.getMessage()));
-            }
+        // Si no se subio ninguna foto nueva (newImages vacio), eventService.update()
+        // mantiene la galeria que el evento ya tenia; si se subio al menos una,
+        // las sube y reemplaza toda la galeria vieja -- todo eso pasa DENTRO de
+        // su misma transaccion (ver EventServiceImpl.update()), no mas aca.
+        final List<NewImageData> newImages;
+        try {
+            newImages = readImages(nonEmptyImages(form.getImages()));
+        } catch (final IOException e) {
+            return editarFormWithErrors(id, form, errors, message("event.publish.imageReadError"));
         }
 
         final EventDTO dto = form.toDTO();
-        dto.setImageIds(imageIds);
-        // Quien creo el evento no cambia al editarlo.
-        final Event changes = dto.toEvent(existing.getCreatorEmail());
-        final EventUpdateResult result = eventService.update(id, changes, currentUser.getId());
+        dto.setNewImages(newImages);
+        final EventUpdateResult result;
+        try {
+            result = eventService.update(id, dto, currentUser.getId());
+        } catch (final IllegalArgumentException e) {
+            return editarFormWithErrors(id, form, errors, message(e.getMessage()));
+        }
         switch (result) {
             case CAPACITY_TOO_LOW:
                 errors.rejectValue("cupoMaximo", "cupo.muyBajo",

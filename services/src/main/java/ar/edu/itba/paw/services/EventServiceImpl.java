@@ -2,8 +2,10 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.dto.EventDTO;
+import ar.edu.itba.paw.dto.NewImageData;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventSearchCriteria;
+import ar.edu.itba.paw.model.Image;
 import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationStatus;
@@ -14,6 +16,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -26,24 +29,43 @@ public class EventServiceImpl implements EventService {
     private final NotificationService notificationService;
     private final RegistrationService registrationService;
     private final InboxService inboxService;
+    private final ImageService imageService;
 
     @Autowired
     public EventServiceImpl(final EventDao eventDao, final UserService userService,
                             final NotificationService notificationService,
                             final RegistrationService registrationService,
-                            final InboxService inboxService) {
+                            final InboxService inboxService, final ImageService imageService) {
         this.eventDao = eventDao;
         this.userService = userService;
         this.notificationService = notificationService;
         this.registrationService = registrationService;
         this.inboxService = inboxService;
+        this.imageService = imageService;
+    }
+
+    // Sube cada imagen y devuelve sus ids, en el mismo orden en que se cargaron
+    // (ese orden es el de la galeria, ver Event.imageIds -- la primera es la
+    // portada). A proposito DENTRO de la transaccion de quien llama (create()/
+    // update()): si algo despues falla (otra imagen invalida, una categoria que
+    // no existe), Spring deshace esto tambien -- antes esto vivia en el
+    // controller, fuera de cualquier transaccion, y una imagen ya subida con
+    // exito podia quedar huerfana si el evento despues no se llegaba a crear.
+    private List<Long> uploadImages(final List<NewImageData> images) {
+        final List<Long> ids = new ArrayList<>();
+        for (final NewImageData image : images) {
+            final Image saved = imageService.create(image.getData(), image.getContentType(), image.getFileName());
+            ids.add(saved.getId());
+        }
+        return ids;
     }
 
     @Override
     @Transactional
     public Event create(final EventDTO dto) {
         Objects.requireNonNull(dto, "dto");
-        final Event event = dto.toEvent(dto.getCreatorEmail());
+        final List<Long> imageIds = uploadImages(dto.getNewImages());
+        final Event event = dto.toEvent(dto.getCreatorEmail(), imageIds);
         event.setCreatorId(dto.getCreatorId());
 
         final Event created;
@@ -84,8 +106,8 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public EventUpdateResult update(final long eventId, final Event changes, final long callerId) {
-        Objects.requireNonNull(changes, "changes");
+    public EventUpdateResult update(final long eventId, final EventDTO dto, final long callerId) {
+        Objects.requireNonNull(dto, "dto");
         // Con lock (SELECT ... FOR UPDATE), igual que register(): mientras se
         // chequea y se cambia el cupo, nadie se puede anotar. Sin esto, alguien
         // podia confirmarse entre el chequeo y el UPDATE y quedar mas gente que cupo.
@@ -98,9 +120,18 @@ public class EventServiceImpl implements EventService {
         }
         // No alcanza con los confirmados: una invitacion sin contestar o un
         // pedido pendiente tambien tienen su lugar guardado (ver occupiedSpots).
-        if (changes.getMaxCapacity() != null && changes.getMaxCapacity() < registrationService.occupiedSpots(eventId)) {
+        if (dto.getMaxCapacity() != null && dto.getMaxCapacity() < registrationService.occupiedSpots(eventId)) {
             return EventUpdateResult.CAPACITY_TOO_LOW;
         }
+        // Si no se subio ninguna foto nueva, se mantiene la galeria que el
+        // evento ya tenia; si se subio al menos una, las nuevas reemplazan toda
+        // la galeria vieja. Subirlas aca (no en el controller) las deja dentro
+        // de esta misma transaccion: si algo de abajo fallara, se deshacen
+        // tambien, no quedan huerfanas.
+        final List<Long> imageIds = dto.getNewImages().isEmpty()
+                ? existing.get().getImageIds()
+                : uploadImages(dto.getNewImages());
+        final Event changes = dto.toEvent(existing.get().getCreatorEmail(), imageIds);
         changes.setId(eventId);
         eventDao.update(changes);
         // Solo a los confirmados, mismo criterio que cancel(): a alguien

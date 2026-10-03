@@ -23,7 +23,13 @@ public class EventDTO {
     private String address;
     private String addressDetails;
     private Barrio neighborhood;
-    private List<Long> imageIds = new ArrayList<>();
+    // Bytes crudos, todavia sin guardar: quien arma el Event final (ver toEvent())
+    // necesita los ids ya resueltos, pero resolverlos (ImageService.create())
+    // es una accion con efecto secundario que tiene que pasar DENTRO de la misma
+    // transaccion que crea/actualiza el evento (ver EventServiceImpl), no antes,
+    // en el controller -- si no, una imagen subida con exito pero un evento que
+    // despues falla quedan huerfanas en la base, sin transaccion que las una.
+    private List<NewImageData> newImages = new ArrayList<>();
     private BigDecimal price;
     private Integer maxCapacity;
     private String creatorEmail;
@@ -54,9 +60,9 @@ public class EventDTO {
     public Barrio getNeighborhood() { return neighborhood; }
     public void setNeighborhood(final Barrio neighborhood) { this.neighborhood = neighborhood; }
 
-    public List<Long> getImageIds() { return imageIds; }
-    public void setImageIds(final List<Long> imageIds) {
-        this.imageIds = imageIds == null ? new ArrayList<>() : imageIds;
+    public List<NewImageData> getNewImages() { return newImages; }
+    public void setNewImages(final List<NewImageData> newImages) {
+        this.newImages = newImages == null ? new ArrayList<>() : newImages;
     }
 
     public BigDecimal getPrice() { return price; }
@@ -97,8 +103,10 @@ public class EventDTO {
     // Arma el Event final con estos datos. creatorEmail se pasa aparte (no
     // this.creatorEmail) porque en una edicion no cambia quien creo el evento:
     // EventController.editar() llama esto con el email que ya tenia el evento,
-    // no con el de quien lo esta editando.
-    public Event toEvent(final String creatorEmail) {
+    // no con el de quien lo esta editando. imageIds tambien se pasa aparte (no
+    // sale de newImages): lo resuelve el service, subiendolas dentro de su
+    // propia transaccion, antes de llamar a esto (ver EventServiceImpl).
+    public Event toEvent(final String creatorEmail, final List<Long> imageIds) {
         final Event event = new Event(title, description, eventDate, address, neighborhood, imageIds, price,
                 maxCapacity, creatorEmail, null);
         event.setCategories(categories);
