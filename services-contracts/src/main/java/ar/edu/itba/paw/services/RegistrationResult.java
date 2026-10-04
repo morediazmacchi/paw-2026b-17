@@ -21,7 +21,9 @@ public class RegistrationResult {
         /** Quien pide registrarse es el creador del evento: no se lo puede, no se creo nada. */
         OWN_EVENT,
         /** El creador cancelo el evento: no se puede anotar nadie, no se creo nada. */
-        CANCELLED
+        CANCELLED,
+        /** El evento ya paso: no se puede anotar nadie, no se creo nada. */
+        FINISHED
     }
 
     private final Status status;

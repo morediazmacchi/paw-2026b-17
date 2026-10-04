@@ -70,6 +70,13 @@ public class RegistrationServiceImpl implements RegistrationService {
         final Event event = eventDao.findByIdForUpdate(eventId)
                 .orElseThrow(() -> new EventNotFoundException(eventId));
 
+        // Un evento que ya paso no admite inscripciones. La pantalla esconde el
+        // boton (ver detail.jsp), pero un POST directo no tiene que poder anotar
+        // a nadie a algo que ya sucedio: es una regla de negocio, no de la web.
+        if (event.isFinished()) {
+            return RegistrationResult.of(RegistrationResult.Status.FINISHED);
+        }
+
         final Registration existing = registrationDao.findByEventAndUserId(eventId, user.getId()).orElse(null);
         if (existing != null) {
             return alreadyExistsResult(existing.getStatus());
@@ -278,6 +285,12 @@ public class RegistrationServiceImpl implements RegistrationService {
         final Registration cancelled = registrationDao.findById(registrationId).orElse(null);
         if (event == null || cancelled == null) {
             return UnregisterResult.NOT_FOUND;
+        }
+        // Un evento que ya paso no se "des-anota": ya sucedio (y la inscripcion
+        // es lo que habilita despues la resena). Va antes que el resto, igual que
+        // lo hacia el controller cuando esta regla vivia ahi.
+        if (event.isFinished()) {
+            return UnregisterResult.FINISHED;
         }
         // Una inscripcion rechazada o revocada es un estado terminal: la fila es
         // justamente lo que le impide volver a anotarse. Si pudiera "darse de baja"

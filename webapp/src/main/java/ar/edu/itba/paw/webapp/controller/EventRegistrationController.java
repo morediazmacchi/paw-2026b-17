@@ -1,6 +1,5 @@
 package ar.edu.itba.paw.webapp.controller;
 
-import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.EventAccessService;
@@ -57,13 +56,7 @@ public class EventRegistrationController {
                               final RedirectAttributes redirectAttributes) {
         // Mismo chequeo que el detalle: el boton ya esta escondido en la UI si
         // no tenes acceso, pero un POST directo no se puede confiar solo en eso.
-        final Event event = accessChecker.getViewableEvent(id, currentUser);
-        // La UI ya esconde el boton en este caso (ver detail.jsp), pero un POST
-        // directo igual no tiene que poder anotarte a algo que ya paso.
-        if (event.isFinished()) {
-            redirectAttributes.addFlashAttribute("rsvp", "finalizado");
-            return new ModelAndView("redirect:/eventos/" + id);
-        }
+        accessChecker.getViewableEvent(id, currentUser);
         // Ya no hace falta atrapar IllegalStateException: el service dejo de
         // lanzarla cuando el evento esta lleno, ahora devuelve WAITLISTED.
         // Dos clics simultaneos del mismo usuario se serializan dentro de register()
@@ -94,6 +87,8 @@ public class EventRegistrationController {
                 return "propio-evento";
             case CANCELLED:
                 return "cancelado";
+            case FINISHED:
+                return "finalizado";
             case CONFIRMED:
             default:
                 return "confirmed";
@@ -110,6 +105,8 @@ public class EventRegistrationController {
                 return "baja-waitlist";
             case CANCELLED_PENDING:
                 return "baja-pendiente";
+            case FINISHED:
+                return "finalizado";
             case NOT_FOUND:
             case CANCELLED:
             default:
@@ -124,13 +121,6 @@ public class EventRegistrationController {
     public ModelAndView unregister(@PathVariable final long id,
                                    @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
                                    final RedirectAttributes redirectAttributes) {
-        final Event event = eventService.findByIdOrThrow(id);
-        // La UI ya esconde el boton en este caso (ver detail.jsp): un evento que
-        // ya paso no se puede "des-anotar", ya sucedio.
-        if (event.isFinished()) {
-            redirectAttributes.addFlashAttribute("rsvp", "finalizado");
-            return new ModelAndView("redirect:/eventos/" + id);
-        }
         // El service ya sabe que estado tenia la inscripcion antes de borrarla
         // (ver UnregisterResult): no hace falta leerlo antes aca para despues
         // reconstruir que cartel corresponde.

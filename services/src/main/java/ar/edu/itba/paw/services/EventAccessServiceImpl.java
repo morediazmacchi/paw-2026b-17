@@ -84,6 +84,16 @@ public class EventAccessServiceImpl implements EventAccessService {
 
     @Override
     @Transactional(readOnly = true)
+    public Event getOwnedPrivateEvent(final long eventId, final User user) {
+        final Event event = getOwnedEvent(eventId, user);
+        if (!event.isPrivate()) {
+            throw new EventNotFoundException(eventId);
+        }
+        return event;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Event getEditableEvent(final long eventId, final User user) {
         final Event event = getOwnedEvent(eventId, user);
         if (event.isCancelled()) {

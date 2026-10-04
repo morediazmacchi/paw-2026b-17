@@ -17,5 +17,8 @@ public enum UnregisterResult {
     REJECTED,
 
     // No existe, o existe pero es de otro usuario.
-    NOT_FOUND
+    NOT_FOUND,
+
+    // El evento ya paso: no se puede "des-anotar" de algo que ya sucedio. No se borro nada.
+    FINISHED
 }

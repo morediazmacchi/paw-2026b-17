@@ -204,4 +204,52 @@ public class EventAccessServiceImplTest {
 
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
+
+    // ---- getOwnedPrivateEvent() ----
+
+    @Test
+    public void testGetOwnedPrivateEventReturnsThePrivateEventToItsCreator() {
+        // Arrange
+        final Event event = event(EventVisibility.PRIVATE);
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event));
+
+        // Act
+        final Event result = accessService.getOwnedPrivateEvent(EVENT_ID, user(CREATOR_ID));
+
+        // Assert
+        assertSame(event, result);
+    }
+
+    @Test(expected = EventNotFoundException.class)
+    public void testGetOwnedPrivateEventWhenTheEventIsPublicThrowsEventNotFoundException() {
+        // Arrange
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event(EventVisibility.PUBLIC)));
+
+        // Act
+        accessService.getOwnedPrivateEvent(EVENT_ID, user(CREATOR_ID));
+
+        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
+    }
+
+    @Test(expected = EventNotFoundException.class)
+    public void testGetOwnedPrivateEventWhenTheUserIsNotTheCreatorThrowsEventNotFoundException() {
+        // Arrange
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event(EventVisibility.PRIVATE)));
+
+        // Act
+        accessService.getOwnedPrivateEvent(EVENT_ID, user(OTHER_ID));
+
+        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
+    }
+
+    @Test(expected = EventNotFoundException.class)
+    public void testGetOwnedPrivateEventWhenTheEventDoesNotExistThrowsEventNotFoundException() {
+        // Arrange
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.empty());
+
+        // Act
+        accessService.getOwnedPrivateEvent(EVENT_ID, user(CREATOR_ID));
+
+        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
+    }
 }
