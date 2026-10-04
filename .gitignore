@@ -26,6 +26,11 @@ dist/
 # JetBrains IDE
 .idea/
 
+.vscode/
+.claude/launch.json
+
+Claude outputs/
+
 # Unit test reports
 TEST*.xml
 
