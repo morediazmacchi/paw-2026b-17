@@ -1,5 +1,6 @@
 package ar.edu.itba.paw.services;
 
+import ar.edu.itba.paw.dto.UserRegistrationDTO;
 import ar.edu.itba.paw.model.InboxMessage;
 import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.TokenPurpose;
@@ -70,6 +71,14 @@ public class UserServiceImplTest {
         final User user = new User(NORMALIZED_EMAIL, NAME);
         user.setId(USER_ID);
         return user;
+    }
+
+    private static UserRegistrationDTO registrationData() {
+        final UserRegistrationDTO data = new UserRegistrationDTO();
+        data.setEmail(EMAIL);
+        data.setName(NAME);
+        data.setRawPassword(RAW_PASSWORD);
+        return data;
     }
 
     // Un usuario que ya se registro de verdad: tiene password.
@@ -162,7 +171,7 @@ public class UserServiceImplTest {
         newUserFlow();
 
         // Act
-        final UserRegistrationResult result = userService.register(EMAIL, NAME, RAW_PASSWORD, null);
+        final UserRegistrationResult result = userService.register(registrationData());
 
         // Assert
         assertEquals(UserRegistrationResult.CREATED, result);
@@ -176,7 +185,7 @@ public class UserServiceImplTest {
         when(userDao.setPassword(USER_ID, HASHED_PASSWORD)).thenReturn(true);
 
         // Act
-        final UserRegistrationResult result = userService.register(EMAIL, NAME, RAW_PASSWORD, null);
+        final UserRegistrationResult result = userService.register(registrationData());
 
         // Assert
         assertEquals(UserRegistrationResult.CREATED, result);
@@ -189,7 +198,7 @@ public class UserServiceImplTest {
         when(userDao.addRole(USER_ID, "ROLE_USER")).thenReturn(true);
 
         // Act
-        final UserRegistrationResult result = userService.register(EMAIL, NAME, RAW_PASSWORD, null);
+        final UserRegistrationResult result = userService.register(registrationData());
 
         // Assert
         assertEquals(UserRegistrationResult.CREATED, result);
@@ -203,7 +212,7 @@ public class UserServiceImplTest {
         when(userDao.setVerified(USER_ID, false)).thenReturn(true);
 
         // Act
-        final UserRegistrationResult result = userService.register(EMAIL, NAME, RAW_PASSWORD, null);
+        final UserRegistrationResult result = userService.register(registrationData());
 
         // Assert
         assertEquals(UserRegistrationResult.CREATED, result);
@@ -218,7 +227,7 @@ public class UserServiceImplTest {
                 && token.getExpiresAt().after(new Date())))).thenReturn(tokenOf(TokenPurpose.VERIFY_EMAIL, inOneHour()));
 
         // Act
-        final UserRegistrationResult result = userService.register(EMAIL, NAME, RAW_PASSWORD, null);
+        final UserRegistrationResult result = userService.register(registrationData());
 
         // Assert
         assertEquals(UserRegistrationResult.CREATED, result);
@@ -232,7 +241,7 @@ public class UserServiceImplTest {
         when(invitationDao.linkUserId(NORMALIZED_EMAIL, USER_ID)).thenReturn(1);
 
         // Act
-        final UserRegistrationResult result = userService.register(EMAIL, NAME, RAW_PASSWORD, null);
+        final UserRegistrationResult result = userService.register(registrationData());
 
         // Assert
         assertEquals(UserRegistrationResult.CREATED, result);
@@ -246,7 +255,7 @@ public class UserServiceImplTest {
         when(inboxMessageDao.linkUserId(NORMALIZED_EMAIL, USER_ID)).thenReturn(2);
 
         // Act
-        final UserRegistrationResult result = userService.register(EMAIL, NAME, RAW_PASSWORD, null);
+        final UserRegistrationResult result = userService.register(registrationData());
 
         // Assert
         assertEquals(UserRegistrationResult.CREATED, result);
@@ -262,7 +271,7 @@ public class UserServiceImplTest {
         when(userDao.addRole(USER_ID, "ROLE_USER")).thenReturn(true);
 
         // Act
-        final UserRegistrationResult result = userService.register(EMAIL, NAME, RAW_PASSWORD, null);
+        final UserRegistrationResult result = userService.register(registrationData());
 
         // Assert
         assertEquals(UserRegistrationResult.CREATED, result);
@@ -279,7 +288,7 @@ public class UserServiceImplTest {
         LocaleContextHolder.setLocale(new Locale("en"));
         try {
             // Act
-            final UserRegistrationResult result = userService.register(EMAIL, NAME, RAW_PASSWORD, null);
+            final UserRegistrationResult result = userService.register(registrationData());
 
             // Assert
             assertEquals(UserRegistrationResult.CREATED, result);
@@ -294,7 +303,7 @@ public class UserServiceImplTest {
         when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(registeredUser()));
 
         // Act
-        final UserRegistrationResult result = userService.register(EMAIL, NAME, RAW_PASSWORD, null);
+        final UserRegistrationResult result = userService.register(registrationData());
 
         // Assert
         assertEquals(UserRegistrationResult.EMAIL_TAKEN, result);

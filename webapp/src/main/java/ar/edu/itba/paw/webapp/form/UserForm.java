@@ -1,6 +1,7 @@
 // Datos del formulario de registro, validados con JSR-303.
 package ar.edu.itba.paw.webapp.form;
 
+import ar.edu.itba.paw.dto.UserRegistrationDTO;
 import ar.edu.itba.paw.webapp.validation.PasswordsMatch;
 
 import javax.validation.constraints.Email;
@@ -42,4 +43,16 @@ public class UserForm {
 
     public String getConfirmarPassword() { return confirmarPassword; }
     public void setConfirmarPassword(final String confirmarPassword) { this.confirmarPassword = confirmarPassword; }
+
+    // redirectAfterConfirm se pasa aparte (no es un campo del form, viene del
+    // query param ?redirect de RegisterController): mismo motivo que
+    // EventForm.toEvent(creatorEmail, imageIds) recibe datos externos aparte.
+    public UserRegistrationDTO toDTO(final String redirectAfterConfirm) {
+        final UserRegistrationDTO dto = new UserRegistrationDTO();
+        dto.setEmail(email);
+        dto.setName(nombre);
+        dto.setRawPassword(password);
+        dto.setRedirectAfterConfirm(redirectAfterConfirm);
+        return dto;
+    }
 }

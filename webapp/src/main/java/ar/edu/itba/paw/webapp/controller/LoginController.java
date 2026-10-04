@@ -44,10 +44,6 @@ public class LoginController {
     }
 
     // El submit del login normal (POST /login) lo intercepta el filtro de Spring
-    // Security antes de llegar aca (ver WebAuthConfig): este metodo solo dibuja
-    // la pagina. error/logout los agrega Spring Security solo, como query params,
-    // al redirigir de vuelta a loginPage(). needsPassword+email los agrega
-    // LoginFailureHandler cuando detecta un usuario fantasma (sin password).
     @RequestMapping(value = "/login", method = RequestMethod.GET)
     public ModelAndView login(@RequestParam(value = "error", required = false) final String error,
                                @RequestParam(value = "logout", required = false) final String logout,
@@ -62,9 +58,6 @@ public class LoginController {
                                @RequestParam(value = "email", required = false) final String email,
                                @RequestParam(value = "redirect", required = false) final String redirect,
                                final Principal principal) {
-        // PAW20-78: si ya tenes sesion iniciada, esta pantalla no pinta nada
-        // (no tiene sentido volver a loguearse). El redirect (si vino, ej. un
-        // link viejo a "/login?redirect=/eventos/7") se sigue respetando.
         if (principal != null) {
             return new ModelAndView("redirect:" + (SafeRedirect.isSafe(redirect) ? redirect : "/eventos"));
         }
@@ -85,61 +78,41 @@ public class LoginController {
             mav.addObject("setPasswordForm", form);
         }
         // El email del intento fallido: precarga el mini-form de "reenviar
-        // confirmación" que se muestra junto al alert de cuenta sin confirmar.
+        // confirmación"
         if (unverified != null && email != null) {
             mav.addObject("unverifiedEmail", email);
         }
-        // Va como hidden en el form de login (auth/login.jsp): si el submit tiene
-        // exito, WebAuthConfig.loginSuccessHandler() te devuelve ahi en vez de al
-        // home. Solo rutas propias de la app, nunca una URL externa.
+
         if (SafeRedirect.isSafe(redirect)) {
             mav.addObject("redirectTo", redirect);
         }
         return mav;
     }
 
-    // GET porque es el link que llega por mail (se abre desde Gmail con un
-    // click, no hay forma de que sea un POST).
+    // GET porque es el link que llega por mail
     @RequestMapping(value = "/confirmar-cuenta", method = RequestMethod.GET)
     public ModelAndView confirmAccount(@RequestParam("token") final String token,
                                        @RequestParam(value = "redirect", required = false) final String redirect,
                                        final HttpServletRequest request) {
         final Optional<User> confirmed = userService.confirmEmail(token);
         if (!confirmed.isPresent()) {
-            // El redirect viene del link del mail (ver RegisterController): se
-            // vuelve a validar aca porque un link se puede armar a mano.
             final String suffix = SafeRedirect.isSafe(redirect)
                     ? "&redirect=" + URLEncoder.encode(redirect, StandardCharsets.UTF_8) : "";
             return new ModelAndView("redirect:/login?verifyError" + suffix);
         }
-        // PAW20-81: el link del mail ya demuestra que es dueno de esta cuenta
-        // (nadie mas pudo haberlo recibido), asi que la sesion arranca aca mismo:
-        // no tiene sentido mandarlo a /login a tipear la contraseña que recien
-        // eligio. Es sesion normal de ahi en mas (cookie de sesion de siempre,
-        // no "quedar logueado para siempre"): un logout la cierra igual que a
-        // cualquiera.
-        // Una cuenta que un admin suspendio antes de que confirmara el mail no
-        // entra por este atajo: tiene que ver el mismo aviso que en el login.
+        //confirmacion de cuenta y autologin.
         if (!autoLogin(confirmed.get(), request)) {
             return new ModelAndView("redirect:/login?suspended");
         }
         return new ModelAndView("redirect:" + (SafeRedirect.isSafe(redirect) ? redirect : "/eventos"));
     }
 
-    // Arma la Authentication a mano y la guarda en la sesion HTTP, el mismo
-    // resultado al que llega el filtro de formLogin (WebAuthConfig) despues de
-    // validar usuario+contraseña: aca no hay contraseña que validar, el token
-    // consumido en confirmEmail() ya cumplio ese rol.
-    // Devuelve false (y no inicia sesion) si la cuenta esta deshabilitada: es el
-    // mismo chequeo que hace el login normal, que aca habria que hacer a mano.
+    // Arma la Authentication a mano y la guarda en la sesion HTTP.
     private boolean autoLogin(final User user, final HttpServletRequest request) {
         final UserDetails userDetails = userDetailsService.loadUserByUsername(user.getEmail());
         if (!userDetails.isEnabled()) {
             return false;
         }
-        // Igual que el login normal de Spring: si ya habia una sesion, se le cambia
-        // el id al autenticarse. Sin esto, quien hubiera logrado fijarle a la victima
-        // un id de sesion conocido (session fixation) quedaria logueado como ella.
         if (request.getSession(false) != null) {
             request.changeSessionId();
         }
@@ -153,8 +126,6 @@ public class LoginController {
         return true;
     }
 
-    // Siempre redirige al mismo "resent", exista o no ese email y este o no ya
-    // confirmado: no tiene que servir para averiguar si un mail esta registrado.
     @RequestMapping(value = "/login/reenviar-confirmacion", method = RequestMethod.POST)
     public ModelAndView resendConfirmation(@RequestParam("email") final String email) {
         userService.resendVerificationEmail(email);
@@ -167,15 +138,9 @@ public class LoginController {
         if (errors.hasErrors()) {
             return setPasswordFormWithErrors(form, errors, redirect);
         }
+        final UserRegistrationResult result = userService.register(
+                form.toDTO(SafeRedirect.isSafe(redirect) ? redirect : null));
 
-        // register() se banca este caso: el email ya existe sin password (fantasma),
-        // le pone la que llego y listo. Si en el medio alguien ya la establecio
-        // (carrera rarisima), EMAIL_TAKEN cae al error generico de login.
-        final UserRegistrationResult result = userService.register(form.getEmail(), null, form.getPassword(),
-                SafeRedirect.isSafe(redirect) ? redirect : null);
-        // El redirect original (si vino) sigue viajando hasta aca: se lo pasamos
-        // al ultimo salto para que el form de login que sigue lo tenga de nuevo
-        // como hidden, y quien se loguee ahora si vuelva a donde estaba.
         final String suffix = SafeRedirect.isSafe(redirect)
                 ? "&redirect=" + URLEncoder.encode(redirect, StandardCharsets.UTF_8) : "";
         if (result == UserRegistrationResult.EMAIL_TAKEN) {

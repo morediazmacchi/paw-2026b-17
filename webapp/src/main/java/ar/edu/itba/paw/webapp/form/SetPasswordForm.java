@@ -2,6 +2,7 @@
 // loguearse), validados con JSR-303.
 package ar.edu.itba.paw.webapp.form;
 
+import ar.edu.itba.paw.dto.UserRegistrationDTO;
 import ar.edu.itba.paw.webapp.validation.PasswordsMatch;
 
 import javax.validation.constraints.Email;
@@ -38,4 +39,15 @@ public class SetPasswordForm {
 
     public String getConfirmarPassword() { return confirmarPassword; }
     public void setConfirmarPassword(final String confirmarPassword) { this.confirmarPassword = confirmarPassword; }
+
+    // Sin "nombre": este form es solo para un fantasma que ya existe (register()
+    // se lo banca, no lo pisa). redirectAfterConfirm se pasa aparte, no es un
+    // campo del form.
+    public UserRegistrationDTO toDTO(final String redirectAfterConfirm) {
+        final UserRegistrationDTO dto = new UserRegistrationDTO();
+        dto.setEmail(email);
+        dto.setRawPassword(password);
+        dto.setRedirectAfterConfirm(redirectAfterConfirm);
+        return dto;
+    }
 }

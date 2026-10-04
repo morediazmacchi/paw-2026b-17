@@ -1,6 +1,7 @@
 // Implementa el contrato UserService (modulo services-contracts).
 package ar.edu.itba.paw.services;
 
+import ar.edu.itba.paw.dto.UserRegistrationDTO;
 import ar.edu.itba.paw.model.InboxMessage;
 import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.TokenPurpose;
@@ -84,9 +85,8 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public UserRegistrationResult register(final String email, final String name, final String rawPassword,
-                                           final String redirectAfterConfirm) {
-        final String normalizedEmail = email.trim().toLowerCase();
+    public UserRegistrationResult register(final UserRegistrationDTO data) {
+        final String normalizedEmail = data.getEmail().trim().toLowerCase();
 
         final Optional<User> existing = userDao.findByEmail(normalizedEmail);
         final long userId;
@@ -100,7 +100,7 @@ public class UserServiceImpl implements UserService {
             userId = user.getId();
         } else {
             try {
-                userId = userDao.create(new User(normalizedEmail, name)).getId();
+                userId = userDao.create(new User(normalizedEmail, data.getName())).getId();
             } catch (final DataIntegrityViolationException e) {
                 // Dos registros al mismo tiempo con el mismo email nuevo: el
                 // findByEmail de arriba no vio nada, pero el otro ya inserto
@@ -118,7 +118,7 @@ public class UserServiceImpl implements UserService {
         inboxMessageDao.linkUserId(normalizedEmail, userId);
         // El hash recien aca, despues del chequeo de EMAIL_TAKEN: BCrypt es lento
         // a proposito y no tiene sentido pagarlo si el registro se rechaza.
-        userDao.setPassword(userId, passwordEncoder.encode(rawPassword));
+        userDao.setPassword(userId, passwordEncoder.encode(data.getRawPassword()));
         userDao.addRole(userId, ROLE_USER);
         // Toda cuenta nueva (o fantasma recien completada) tiene que confirmar
         // el mail antes de poder loguearse: ver UserDetailsServiceImpl.
@@ -131,7 +131,8 @@ public class UserServiceImpl implements UserService {
         if (!existing.map(User::getLocale).isPresent()) {
             userDao.setLocale(userId, LocaleContextHolder.getLocale().getLanguage());
         }
-        sendVerificationEmail(userDao.findById(userId).orElseThrow(IllegalStateException::new), redirectAfterConfirm);
+        sendVerificationEmail(userDao.findById(userId).orElseThrow(IllegalStateException::new),
+                data.getRedirectAfterConfirm());
         return UserRegistrationResult.CREATED;
     }
 

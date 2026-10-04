@@ -16,9 +16,7 @@ import org.springframework.web.servlet.ModelAndView;
 
 import javax.validation.Valid;
 
-// "Olvidé mi contraseña": pedir el link (recuperar) y despues elegir la nueva
-// contraseña con ese link (restablecer). Separado de LoginController porque
-// ese ya tiene bastante con el flujo de la cuenta fantasma.
+// "Olvidé mi contraseña".
 @Controller
 public class PasswordResetController {
 
@@ -39,9 +37,7 @@ public class PasswordResetController {
         return mav;
     }
 
-    // Siempre redirige a "sent", exista o no ese email: no tiene que servir
-    // para averiguar si un mail esta registrado (mismo motivo que
-    // LoginController.resendConfirmation).
+    // Siempre redirige a "sent".
     @RequestMapping(value = "/login/recuperar", method = RequestMethod.POST)
     public ModelAndView forgotPassword(@Valid final ForgotPasswordForm form, final BindingResult errors) {
         if (errors.hasErrors()) {
@@ -73,14 +69,10 @@ public class PasswordResetController {
         if (errors.hasErrors()) {
             return resetPasswordFormWithErrors(form, errors);
         }
-
         final PasswordResetResult result = userService.resetPassword(form.getToken(), form.getPassword());
         if (result == PasswordResetResult.INVALID_TOKEN) {
-            // El link se debe haber usado o vencido justo en el medio: no tiene
-            // sentido re-mostrar el mismo formulario, mandarlo a pedir uno nuevo.
             return new ModelAndView("redirect:/login/recuperar");
         }
-
         return new ModelAndView("redirect:/login?passwordReset");
     }
 

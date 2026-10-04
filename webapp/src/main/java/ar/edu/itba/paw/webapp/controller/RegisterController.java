@@ -33,9 +33,7 @@ public class RegisterController {
     }
 
     @RequestMapping(value = "/registro", method = RequestMethod.GET)
-    // redirect: a donde volver cuando termine (viene del login, por ejemplo desde
-    // un evento privado al que la invitaron). Viaja como hidden en el form y
-    // despues dentro del link del mail de confirmacion, hasta el login final.
+    // redirect: a donde volver cuando termine
     public ModelAndView registerForm(@RequestParam(value = "redirect", required = false) final String redirect,
                                       @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         if (currentUser != null) {
@@ -61,8 +59,7 @@ public class RegisterController {
             return registerFormWithErrors(form, errors, safeRedirect);
         }
 
-        final UserRegistrationResult result = userService.register(form.getEmail(), form.getNombre(),
-                form.getPassword(), safeRedirect);
+        final UserRegistrationResult result = userService.register(form.toDTO(safeRedirect));
         if (result == UserRegistrationResult.EMAIL_TAKEN) {
             errors.rejectValue("email", "email.taken", "Ese email ya está registrado");
             return registerFormWithErrors(form, errors, safeRedirect);

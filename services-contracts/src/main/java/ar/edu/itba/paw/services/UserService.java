@@ -1,6 +1,7 @@
 // Contrato de servicio para User. Implementacion: UserServiceImpl (modulo services).
 package ar.edu.itba.paw.services;
 
+import ar.edu.itba.paw.dto.UserRegistrationDTO;
 import ar.edu.itba.paw.model.User;
 
 import java.util.List;
@@ -31,12 +32,12 @@ public interface UserService {
      * La cuenta queda sin verificar (ver User.isVerified()) y se le manda un mail
      * con un link de confirmacion: no puede loguearse hasta que lo confirme.
      *
-     * @param redirectAfterConfirm a donde volver despues de confirmar y loguearse
-     *        (por ejemplo "/eventos/7" si venia de una invitacion). Puede ser null.
-     *        Viaja dentro del link del mail: se puede abrir en otro navegador o en
-     *        el celular, donde no hay nada guardado de antes.
+     * data.getRedirectAfterConfirm(): a donde volver despues de confirmar y
+     * loguearse (por ejemplo "/eventos/7" si venia de una invitacion). Puede ser
+     * null. Viaja dentro del link del mail: se puede abrir en otro navegador o en
+     * el celular, donde no hay nada guardado de antes.
      */
-    UserRegistrationResult register(String email, String name, String rawPassword, String redirectAfterConfirm);
+    UserRegistrationResult register(UserRegistrationDTO data);
 
     /**
      * Confirma el mail de una cuenta a partir del token del link que se mandó al
