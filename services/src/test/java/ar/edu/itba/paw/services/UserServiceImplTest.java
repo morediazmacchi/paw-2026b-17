@@ -392,6 +392,31 @@ public class UserServiceImplTest {
         assertFalse(result);
     }
 
+    @Test
+    public void testUpdateLocaleByEmailResolvesTheIdAndSavesTheLanguage() {
+        // Arrange
+        when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(someUser()));
+        when(userDao.setLocale(USER_ID, "en")).thenReturn(true);
+
+        // Act
+        final boolean result = userService.updateLocale(EMAIL, "en");
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    public void testUpdateLocaleByEmailReturnsFalseWhenThereIsNoSuchUser() {
+        // Arrange
+        when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.empty());
+
+        // Act
+        final boolean result = userService.updateLocale(EMAIL, "en");
+
+        // Assert
+        assertFalse(result);
+    }
+
     // ---- confirmEmail() ----
 
     @Test

@@ -21,6 +21,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 /**
@@ -48,12 +49,18 @@ public class EventQuestionServiceImplTest {
     private InboxService inboxService;
     @Mock
     private NotificationService notificationService;
+    @Mock
+    private EventAccessService accessChecker;
 
     private EventQuestionServiceImpl questionService;
 
     @Before
     public void setUp() {
-        questionService = new EventQuestionServiceImpl(questionDao, eventService, inboxService, notificationService);
+        questionService = new EventQuestionServiceImpl(
+                questionDao, eventService, inboxService, notificationService, accessChecker);
+        // Default para los tests que no son sobre el chequeo de acceso en si:
+        // "puede verlo", para que la unica rama en juego sea la que cada uno testea.
+        lenient().when(accessChecker.canView(any(Event.class), any(User.class))).thenReturn(true);
     }
 
     private static Event eventInHours(final long hours) {
@@ -142,6 +149,20 @@ public class EventQuestionServiceImplTest {
 
         // Assert
         assertEquals(QuestionResult.OWN_EVENT, result);
+    }
+
+    @Test
+    public void testCannotAskWhenTheAskerCannotViewTheEvent() {
+        // Arrange: mismo resultado que un evento inexistente -- no se revela
+        // cual de las dos paso.
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
+        when(accessChecker.canView(any(Event.class), any(User.class))).thenReturn(false);
+
+        // Act
+        final QuestionResult result = questionService.ask(EVENT_ID, asker(), "Hola?");
+
+        // Assert
+        assertEquals(QuestionResult.NOT_ALLOWED, result);
     }
 
     @Test

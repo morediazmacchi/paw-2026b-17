@@ -241,6 +241,14 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
+    public boolean updateLocale(final String email, final String locale) {
+        return userDao.findByEmail(email.trim().toLowerCase())
+                .map(user -> userDao.setLocale(user.getId(), locale))
+                .orElse(false);
+    }
+
+    @Override
+    @Transactional
     public boolean suspend(final long userId) {
         final boolean changed = userDao.setSuspended(userId, true);
         userDao.findById(userId).ifPresent(user -> {

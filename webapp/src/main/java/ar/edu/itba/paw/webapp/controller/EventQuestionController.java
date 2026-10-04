@@ -2,7 +2,6 @@ package ar.edu.itba.paw.webapp.controller;
 
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.AnswerResult;
-import ar.edu.itba.paw.services.EventAccessService;
 import ar.edu.itba.paw.services.EventQuestionService;
 import ar.edu.itba.paw.services.QuestionResult;
 import ar.edu.itba.paw.webapp.form.QuestionForm;
@@ -18,28 +17,28 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import javax.validation.Valid;
 
-// Preguntas y respuestas sobre un evento (desde el detalle).
+// Preguntas y respuestas sobre un evento (desde el detalle). El chequeo de
+// acceso (ask(): puede verlo; answer(): es el dueño) ya lo hacen
+// EventQuestionService.ask()/answer() ellos mismos -- no hace falta repetirlo
+// aca. Sin eso, con un form invalido se mostraria "invalido" en vez del
+// correspondiente "no encontrado"/"no permitido", pero el redirect que sigue
+// siempre cae en EventController.detail(), que vuelve a chequear acceso antes
+// de mostrar nada: ese cartel nunca llega a verse.
 @Controller
 public class EventQuestionController {
 
     private final EventQuestionService eventQuestionService;
-    private final EventAccessService accessChecker;
 
     @Autowired
-    public EventQuestionController(final EventQuestionService eventQuestionService, final EventAccessService accessChecker) {
+    public EventQuestionController(final EventQuestionService eventQuestionService) {
         this.eventQuestionService = eventQuestionService;
-        this.accessChecker = accessChecker;
     }
 
-    // Preguntar. No hace falta tocar WebAuthConfig: no esta en el permitAll, asi
-    // que ya exige estar logueado. El resultado vuelve como flash attribute
-    // "questionMessage" y detail.jsp elige el cartel con eso.
+    // Preguntar.
     @RequestMapping(value = "/eventos/{id}/preguntas", method = RequestMethod.POST)
     public ModelAndView ask(@PathVariable final long id, @Valid final QuestionForm form,
                             final BindingResult errors, @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
                             final RedirectAttributes redirectAttributes) {
-        // Mismo chequeo que el detalle: en un privado, solo quien puede verlo pregunta.
-        accessChecker.getViewableEvent(id, currentUser);
         if (errors.hasErrors()) {
             redirectAttributes.addFlashAttribute("questionMessage", "INVALID");
         } else {
@@ -49,7 +48,7 @@ public class EventQuestionController {
         return new ModelAndView("redirect:/eventos/" + id + "#preguntas");
     }
 
-    // Responder. Que quien responde sea el organizador lo chequea el service.
+    // Responder.
     @RequestMapping(value = "/eventos/{id}/preguntas/{questionId}/responder", method = RequestMethod.POST)
     public ModelAndView answer(@PathVariable final long id, @PathVariable final long questionId,
                                @Valid final QuestionForm form, final BindingResult errors,

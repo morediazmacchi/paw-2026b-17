@@ -21,15 +21,18 @@ public class EventQuestionServiceImpl implements EventQuestionService {
     private final EventService eventService;
     private final InboxService inboxService;
     private final NotificationService notificationService;
+    private final EventAccessService accessChecker;
 
     @Autowired
     public EventQuestionServiceImpl(final EventQuestionDao questionDao, final EventService eventService,
                                     final InboxService inboxService,
-                                    final NotificationService notificationService) {
+                                    final NotificationService notificationService,
+                                    final EventAccessService accessChecker) {
         this.questionDao = questionDao;
         this.eventService = eventService;
         this.inboxService = inboxService;
         this.notificationService = notificationService;
+        this.accessChecker = accessChecker;
     }
 
     @Override
@@ -37,6 +40,14 @@ public class EventQuestionServiceImpl implements EventQuestionService {
     public QuestionResult ask(final long eventId, final User asker, final String text) {
         final Event event = eventService.findById(eventId).orElse(null);
         if (event == null) {
+            return QuestionResult.NOT_ALLOWED;
+        }
+        // El controller ya chequea esto antes de llamar aca (EventQuestionController.ask()),
+        // para que un formulario invalido en un evento privado sin acceso siga dando el mismo
+        // "no existe" en vez de revelar que el evento existe por la rama de error de
+        // validacion. Esto de aca es la misma regla, para quien llame a este metodo
+        // directamente sin pasar por ese controller.
+        if (!accessChecker.canView(event, asker)) {
             return QuestionResult.NOT_ALLOWED;
         }
         if (Long.valueOf(asker.getId()).equals(event.getCreatorId())) {

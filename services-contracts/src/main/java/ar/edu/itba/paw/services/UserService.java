@@ -103,6 +103,15 @@ public interface UserService {
     boolean updateLocale(long userId, String locale);
 
     /**
+     * Como {@link #updateLocale(long, String)}, pero para quien solo tiene el email
+     * (el {@code Principal} autenticado, ver LocaleController): busca el id el mismo,
+     * para que el controller no tenga que resolverlo con un findByEmail() aparte antes
+     * de llamar a esto. Si no existe, no hace nada (no deberia pasar para alguien ya
+     * logueado, pero no corresponde que esto rompa el cambio de idioma de la pagina).
+     */
+    boolean updateLocale(String email, String locale);
+
+    /**
      * Suspende la cuenta (ver UserDetailsServiceImpl): no va a poder loguearse
      * hasta que un admin la reactive. Le avisa por mail y por la bandeja.
      */
