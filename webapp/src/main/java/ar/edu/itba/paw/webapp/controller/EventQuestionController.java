@@ -17,13 +17,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import javax.validation.Valid;
 
-// Preguntas y respuestas sobre un evento (desde el detalle). El chequeo de
-// acceso (ask(): puede verlo; answer(): es el dueño) ya lo hacen
-// EventQuestionService.ask()/answer() ellos mismos -- no hace falta repetirlo
-// aca. Sin eso, con un form invalido se mostraria "invalido" en vez del
-// correspondiente "no encontrado"/"no permitido", pero el redirect que sigue
-// siempre cae en EventController.detail(), que vuelve a chequear acceso antes
-// de mostrar nada: ese cartel nunca llega a verse.
+// Preguntas y respuestas sobre un evento (desde el detalle).
 @Controller
 public class EventQuestionController {
 
