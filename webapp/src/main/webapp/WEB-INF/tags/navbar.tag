@@ -57,7 +57,9 @@
              ES/EN siempre visibles -- visible pero discreto (ver mockup). --%>
         <spring:message code="common.nav.switchToSpanish" var="switchToSpanishLabel"/>
         <spring:message code="common.nav.switchToEnglish" var="switchToEnglishLabel"/>
-        <details class="navbar-dropdown">
+        <%-- name compartido: HTML nativo cierra los demas <details> del mismo
+             grupo al abrir uno (sin JS). --%>
+        <details class="navbar-dropdown" name="navbar-dropdown">
             <summary class="navbar-dropdown-trigger">
                 <paw:icon name="globe"/> <span class="navbar-dropdown-value">${fn:toUpperCase(currentLanguage)}</span> <paw:icon name="chevron-down"/>
             </summary>
@@ -80,7 +82,7 @@
                  ahora agrupados en el avatar: mismo criterio que el idioma de
                  arriba, visible pero discreto. --%>
             <spring:message code="common.nav.profile" var="profileLabel"/>
-            <details class="navbar-dropdown">
+            <details class="navbar-dropdown" name="navbar-dropdown">
                 <summary class="navbar-dropdown-trigger navbar-avatar-trigger" title="${profileLabel}">
                     <span class="navbar-avatar"><paw:icon name="user"/></span> <paw:icon name="chevron-down"/>
                 </summary>
