@@ -170,10 +170,6 @@ public class EventController {
         mav.addObject("availableSpots", registrationService.availableSpots(id));
         if (currentUser != null) {
             mav.addObject("favorite", favoriteService.isFavorite(currentUser.getId(), id));
-            // No alcanza con saber SI esta anotada: el boton dice "Darme de
-            // baja", "Salir de la lista de espera" o "Cancelar mi pedido"
-            // segun en que estado quedo. Un rechazo NO cuenta como "anotado":
-            // ese estado no tiene nada que cancelar, es terminal.
             final RegistrationStatus myStatus = myRegistration.map(Registration::getStatus).orElse(null);
             mav.addObject("registered", myRegistration.isPresent()
                     && myStatus != RegistrationStatus.REJECTED);
