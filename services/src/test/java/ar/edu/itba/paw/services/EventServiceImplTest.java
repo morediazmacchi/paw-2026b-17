@@ -228,6 +228,18 @@ public class EventServiceImplTest {
         assertEquals(events, result);
     }
 
+    @Test
+    public void testCountByCreatorIdReturnsWhatTheDaoReturns() {
+        // Arrange
+        when(eventDao.countByCreatorId(CREATOR_ID)).thenReturn(2L);
+
+        // Act
+        final long result = eventService.countByCreatorId(CREATOR_ID);
+
+        // Assert
+        assertEquals(2L, result);
+    }
+
     // ---- search() ----
 
     private static EventSearchCriteria criteria(final int page, final int pageSize) {

@@ -39,4 +39,7 @@ public interface EventInvitationService {
      * el de la sesion logueada.
      */
     List<EventInvitation> findByUser(long userId);
+
+    /** Para el badge de "Mis invitaciones" (ver ProfileController): sin traer las filas. */
+    long countByUser(long userId);
 }

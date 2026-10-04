@@ -9,6 +9,8 @@ import org.springframework.jdbc.core.simple.SimpleJdbcInsert;
 import org.springframework.stereotype.Repository;
 
 import javax.sql.DataSource;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -57,6 +59,18 @@ public class ReviewJdbcDao implements ReviewDao {
     public Optional<Review> findByEventAndUser(final long eventId, final long userId) {
         return jdbcTemplate.query("SELECT * FROM review WHERE event_id = ? AND user_id = ?",
                 ROW_MAPPER, eventId, userId).stream().findFirst();
+    }
+
+    @Override
+    public List<Review> findByEventsAndUser(final List<Long> eventIds, final long userId) {
+        if (eventIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        final List<Object> args = new ArrayList<>(eventIds);
+        args.add(userId);
+        return jdbcTemplate.query(
+                "SELECT * FROM review WHERE event_id IN (" + SqlPlaceholders.of(eventIds.size()) + ") AND user_id = ?",
+                ROW_MAPPER, args.toArray());
     }
 
     @Override

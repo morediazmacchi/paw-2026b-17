@@ -38,6 +38,9 @@ public interface EventInvitationDao {
     // logueado, y el id nunca queda desactualizado como el email podria.
     List<EventInvitation> findByUserId(long userId);
 
+    /** Para el badge de "Mis invitaciones" (ver ProfileController): sin traer las filas. */
+    long countByUserId(long userId);
+
     /**
      * Reconciliacion (ver UserServiceImpl.register()): alguien invitado sin
      * cuenta todavia acaba de crearse una. Completa el user_id de todas sus

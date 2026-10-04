@@ -95,6 +95,11 @@ public class EventServiceImpl implements EventService {
     }
     @Override
     @Transactional(readOnly = true)
+    public long countByCreatorId(final long creatorId) {
+        return eventDao.countByCreatorId(creatorId);
+    }
+    @Override
+    @Transactional(readOnly = true)
     public PageResult<Event> search(final EventSearchCriteria criteria) {
         final long totalElements = eventDao.countSearch(criteria);
         final int totalPages = criteria.getPageSize() <= 0 ? 0

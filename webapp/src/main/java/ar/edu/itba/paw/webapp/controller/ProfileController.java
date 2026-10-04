@@ -4,7 +4,6 @@ import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.InboxMessage;
 import ar.edu.itba.paw.model.EventInvitation;
 import ar.edu.itba.paw.model.Registration;
-import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.Review;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.ApprovalResult;
@@ -44,6 +43,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Controller
@@ -81,17 +81,12 @@ public class ProfileController {
         return FormErrors.of(errors, messageSource);
     }
 
-
-    // Para el badge de "Mis inscripciones" en accountSidebar.tag: se pide en
-    // todas las paginas de la cuenta, no solo en /perfil/inscripciones.
+    // Para el badge de "Mis inscripciones"
     private int registrationsCountFor(final User user) {
-        return registrationService.findByUserId(user.getId()).size();
+        return (int) registrationService.countByUserId(user.getId());
     }
 
-    // Mismo motivo que registrationsCountFor: el badge de "Favoritos" en el
-    // sidebar se pide en todas las paginas de la cuenta.
-    // Cuenta solo los que todavia puede ver (ver viewableFavorites()), para que el
-    // numero del badge coincida siempre con lo que muestra "Mis favoritos".
+    // el badge de "Favoritos"
     private int favoritesCountFor(final User user) {
         return viewableFavorites(user).size();
     }
@@ -126,20 +121,15 @@ public class ProfileController {
     // Mismo motivo que registrationsCountFor: el badge de "Mis eventos" en el
     // sidebar se pide en todas las paginas de la cuenta.
     private int eventsCountFor(final User user) {
-        return eventService.findByCreatorId(user.getId()).size();
+        return (int) eventService.countByCreatorId(user.getId());
     }
 
     // Mismo motivo que registrationsCountFor: el badge de "Mis invitaciones"
     // en el sidebar se pide en todas las paginas de la cuenta.
     private int invitationsCountFor(final User user) {
-        return eventInvitationService.findByUser(user.getId()).size();
+        return (int) eventInvitationService.countByUser(user.getId());
     }
 
-    // No hace falta antMatcher propio para /perfil ni /perfil/contrasena: no
-    // estan en el permitAll de WebAuthConfig, asi que ya caen bajo
-    // anyRequest().authenticated(). currentUser nunca es null aca (ver
-    // ErrorAdvice.currentUserFromPrincipal): sin sesion, Spring Security ya
-    // redirigio al login antes de que este metodo corra.
     @RequestMapping(value = "/perfil", method = RequestMethod.GET)
     public ModelAndView perfil(@RequestParam(value = "updated", required = false) final String updated,
                                 @RequestParam(value = "passwordChanged", required = false) final String passwordChanged,
@@ -163,10 +153,6 @@ public class ProfileController {
     @RequestMapping(value = "/perfil", method = RequestMethod.POST)
     public ModelAndView updateProfile(@Valid final ProfileForm form, final BindingResult errors,
                                        @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        if (!errors.hasErrors()) {
-            userService.updateProfile(currentUser.getId(), form.getNombre());
-        }
-
         if (errors.hasErrors()) {
             final ModelAndView mav = new ModelAndView("auth/perfil");
             mav.addObject("user", currentUser);
@@ -180,6 +166,7 @@ public class ProfileController {
             return mav;
         }
 
+        userService.updateProfile(currentUser.getId(), form.getNombre());
         return new ModelAndView("redirect:/perfil?updated");
     }
 
@@ -216,13 +203,11 @@ public class ProfileController {
     public ModelAndView misInscripciones(@ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final List<Registration> registrations = registrationService.findByUserId(currentUser.getId());
 
-        final Map<Long, Event> eventsById = new HashMap<>();
-        for (final Registration registration : registrations) {
-            eventService.findById(registration.getEventId()).ifPresent(event -> eventsById.put(event.getId(), event));
-        }
+        final List<Long> eventIds = registrations.stream()
+                .map(Registration::getEventId).collect(Collectors.toList());
+        final Map<Long, Event> eventsById = eventService.findByIds(eventIds).stream()
+                .collect(Collectors.toMap(Event::getId, event -> event));
 
-        // Division por fecha: un evento que ya paso no se puede cancelar, asi
-        // que ni siquiera le mostramos el boton (ver auth/inscripciones.jsp).
         final List<Registration> upcoming = new ArrayList<>();
         final List<Registration> past = new ArrayList<>();
         for (final Registration registration : registrations) {
@@ -233,13 +218,11 @@ public class ProfileController {
             (event.isFinished() ? past : upcoming).add(registration);
         }
 
-        // Reseña propia de cada evento finalizado (si ya la mando): decide si
-        // auth/inscripciones.jsp muestra el form de "Dejar reseña" o lo ya escrito.
-        final Map<Long, Review> myReviewsByEventId = new HashMap<>();
-        for (final Registration registration : past) {
-            reviewService.findByEventAndUser(registration.getEventId(), currentUser.getId())
-                    .ifPresent(review -> myReviewsByEventId.put(registration.getEventId(), review));
-        }
+        // Reseña propia de cada evento finalizado (si ya la mando)
+        final List<Long> pastEventIds = past.stream()
+                .map(Registration::getEventId).collect(Collectors.toList());
+        final Map<Long, Review> myReviewsByEventId = reviewService.findByEventsAndUser(pastEventIds, currentUser.getId())
+                .stream().collect(Collectors.toMap(Review::getEventId, review -> review));
 
         final ModelAndView mav = new ModelAndView("auth/inscripciones");
         mav.addObject("user", currentUser);
@@ -265,19 +248,17 @@ public class ProfileController {
                                              @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
                                              final RedirectAttributes redirectAttributes) {
         final UnregisterResult result = registrationService.cancel(id, currentUser.getId());
-        // NOT_FOUND (no existe, o es de otro usuario), REJECTED (estado terminal,
-        // no se puede cancelar) y FINISHED (el evento ya paso) no cancelaron nada: no corresponde mostrar el
-        // cartel de "cancelaste tu inscripcion" como si hubiera pasado algo.
-        final boolean cancelled = result != UnregisterResult.NOT_FOUND
-                && result != UnregisterResult.REJECTED
-                && result != UnregisterResult.FINISHED;
-        redirectAttributes.addFlashAttribute("cancelled", cancelled);
+        redirectAttributes.addFlashAttribute("cancelled", wasCancelled(result));
         return new ModelAndView("redirect:/perfil/inscripciones");
     }
 
-    // {id} es el id del EVENTO (no de la inscripcion): la reseña se identifica
-    // por evento+usuario, no hace falta el id de la inscripcion para nada.
-    // Los carteles van como flash attribute, igual que "cancelled" (ver arriba).
+    private static boolean wasCancelled(final UnregisterResult result) {
+        return switch (result) {
+            case CANCELLED, CANCELLED_WAITLISTED, CANCELLED_PENDING -> true;
+            case NOT_FOUND, REJECTED, FINISHED -> false;
+        };
+    }
+
     @RequestMapping(value = "/perfil/inscripciones/{id}/resena", method = RequestMethod.POST)
     public ModelAndView leaveReview(@PathVariable final long id, @Valid final ReviewForm form,
                                      final BindingResult errors,
@@ -292,8 +273,6 @@ public class ProfileController {
             case CREATED:
                 redirectAttributes.addFlashAttribute("reviewed", true);
                 return new ModelAndView("redirect:/perfil/inscripciones");
-            // Ya la habia dejado (doble click, o dos pestañas abiertas): cartel
-            // propio en vez del error generico.
             case ALREADY_REVIEWED:
                 redirectAttributes.addFlashAttribute("alreadyReviewed", true);
                 return new ModelAndView("redirect:/perfil/inscripciones");
@@ -317,13 +296,9 @@ public class ProfileController {
         return mav;
     }
 
-    // "Mis invitaciones": eventos privados a los que invitaron a esta usuaria,
-    // separado de la bandeja (que mezcla todos los tipos de notificacion) para
-    // acceder rapido justo a esto. Mismo patron que misFavoritos de arriba.
     @RequestMapping(value = "/perfil/invitaciones", method = RequestMethod.GET)
     public ModelAndView misInvitaciones(@ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final List<EventInvitation> invitations = eventInvitationService.findByUser(currentUser.getId());
-
         final List<Event> invitedEvents = new ArrayList<>();
         for (final EventInvitation invitation : invitations) {
             eventService.findById(invitation.getEventId()).ifPresent(invitedEvents::add);
@@ -339,21 +314,15 @@ public class ProfileController {
         return mav;
     }
 
-    // Bandeja de mensajes. Al abrirla se marcan todos como leidos, pero DESPUES
-    // de traer la pagina: los que llegaron desde la ultima vez se muestran como
-    // "nuevo" esta vez, y el numerito de la navbar ya sale en 0.
+    // Bandeja de mensajes. Al abrirla se marcan todos como leidos
     @RequestMapping(value = "/perfil/bandeja", method = RequestMethod.GET)
     public ModelAndView bandeja(@RequestParam(value = "page", required = false) final String page,
                                 @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final PageResult<InboxMessage> result = inboxService.findPage(currentUser.getId(), Paging.parsePage(page));
-
-        // El titulo de cada evento, para armar el texto ("Ana se anoto en <titulo>").
-        final Map<Long, Event> eventsById = new HashMap<>();
-        for (final InboxMessage message : result.getContent()) {
-            if (message.getEventId() != null && !eventsById.containsKey(message.getEventId())) {
-                eventService.findById(message.getEventId()).ifPresent(e -> eventsById.put(e.getId(), e));
-            }
-        }
+        final List<Long> eventIds = result.getContent().stream()
+                .map(InboxMessage::getEventId).filter(Objects::nonNull).collect(Collectors.toList());
+        final Map<Long, Event> eventsById = eventService.findByIds(eventIds).stream()
+                .collect(Collectors.toMap(Event::getId, event -> event));
         inboxService.markAllRead(currentUser.getId());
 
         final ModelAndView mav = new ModelAndView("auth/bandeja");
@@ -396,11 +365,11 @@ public class ProfileController {
         }
         // Badge "N pendientes" por evento en eventRow.tag: solo tiene sentido
         // para eventos con requiresApproval, no vale la pena consultar el resto.
-        final Map<Long, Integer> pendingCountsByEventId = new HashMap<>();
+        final Map<Long, Long> pendingCountsByEventId = new HashMap<>();
         for (final Event event : createdEvents) {
             if (event.isRequiresApproval()) {
                 pendingCountsByEventId.put(event.getId(),
-                        registrationService.findPendingByEvent(event.getId(), currentUser.getId()).size());
+                        registrationService.countPendingByEvent(event.getId(), currentUser.getId()));
             }
         }
         mav.addObject("pendingCountsByEventId", pendingCountsByEventId);
@@ -411,20 +380,13 @@ public class ProfileController {
         final Map<Long, Long> confirmedCountsByEventId = new HashMap<>();
         for (final Event event : createdEvents) {
             if (!event.isCancelled()) {
-                final long confirmed = registrationService.findByEventId(event.getId()).stream()
-                        .filter(r -> r.getStatus() == RegistrationStatus.CONFIRMED)
-                        .count();
-                confirmedCountsByEventId.put(event.getId(), confirmed);
+                confirmedCountsByEventId.put(event.getId(), registrationService.countConfirmed(event.getId()));
             }
         }
         mav.addObject("confirmedCountsByEventId", confirmedCountsByEventId);
         return mav;
     }
 
-    // No hace falta antMatcher propio: cae bajo anyRequest().authenticated().
-    // Si no sos el creador de este evento, EventNotFoundException (mismo 404
-    // que el resto de la app): no hay nada para vos aca, ni siquiera un 403
-    // que confirme que el evento existe.
     @RequestMapping(value = "/perfil/eventos/{id}/inscriptos", method = RequestMethod.GET)
     public ModelAndView pendingRegistrations(@PathVariable final long id,
                                               @RequestParam(value = "approved", required = false) final String approvedParam,
@@ -456,9 +418,18 @@ public class ProfileController {
     public ModelAndView approveRegistration(@PathVariable final long id, @PathVariable final long registrationId,
                                              @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final ApprovalResult result = registrationService.approve(registrationId, currentUser.getId());
-        final String param = result.getStatus() == ApprovalResult.Status.FULL ? "?full"
-                : result.getStatus() == ApprovalResult.Status.APPROVED ? "?approved" : "";
-        return new ModelAndView("redirect:/perfil/eventos/" + id + "/inscriptos" + param);
+        return new ModelAndView("redirect:/perfil/eventos/" + id + "/inscriptos" + approveParam(result.getStatus()));
+    }
+
+    // Switch expression sin default (mismo patron que wasCancelled() y que
+    // unregisterParam() en EventRegistrationController): si se agrega un valor
+    // a ApprovalResult.Status, esto deja de compilar hasta decidir que mostrar.
+    private static String approveParam(final ApprovalResult.Status status) {
+        return switch (status) {
+            case APPROVED -> "?approved";
+            case FULL -> "?full";
+            case NOT_FOUND -> "";
+        };
     }
 
     @RequestMapping(value = "/perfil/eventos/{id}/inscriptos/{registrationId}/rechazar", method = RequestMethod.POST)
@@ -500,10 +471,20 @@ public class ProfileController {
         if (result == EventInvitationResult.NOT_ALLOWED) {
             return new ModelAndView("redirect:/perfil/eventos");
         }
-        final String param = result == EventInvitationResult.ALREADY_INVITED ? "alreadyInvited"
-                : result == EventInvitationResult.FULL ? "full"
-                : result == EventInvitationResult.SELF_INVITE ? "selfInvite" : "sent";
-        return new ModelAndView("redirect:/perfil/eventos/" + id + "/invitar?" + param);
+        return new ModelAndView("redirect:/perfil/eventos/" + id + "/invitar?" + inviteParam(result));
+    }
+
+    // Switch expression sin default: si se agrega un valor a EventInvitationResult,
+    // esto deja de compilar hasta decidir que mostrar. NOT_ALLOWED ya se filtro
+    // arriba (va a una pagina distinta): llegar aca con ese valor séria un bug.
+    private static String inviteParam(final EventInvitationResult result) {
+        return switch (result) {
+            case SENT -> "sent";
+            case ALREADY_INVITED -> "alreadyInvited";
+            case FULL -> "full";
+            case SELF_INVITE -> "selfInvite";
+            case NOT_ALLOWED -> throw new IllegalStateException("NOT_ALLOWED ya se filtro antes de llegar aca");
+        };
     }
 
     private ModelAndView inviteFormView(final Event event, final User currentUser, final InviteForm form,

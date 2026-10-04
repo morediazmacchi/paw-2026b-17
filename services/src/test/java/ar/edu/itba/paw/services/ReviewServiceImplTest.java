@@ -115,6 +115,21 @@ public class ReviewServiceImplTest {
         assertEquals(Optional.empty(), result);
     }
 
+    // ---- findByEventsAndUser() ----
+
+    @Test
+    public void testFindByEventsAndUserReturnsWhatTheDaoReturns() {
+        // Arrange
+        final List<Review> reviews = Collections.singletonList(new Review(EVENT_ID, USER_ID, RATING, COMMENT));
+        when(reviewDao.findByEventsAndUser(Collections.singletonList(EVENT_ID), USER_ID)).thenReturn(reviews);
+
+        // Act
+        final List<Review> result = reviewService.findByEventsAndUser(Collections.singletonList(EVENT_ID), USER_ID);
+
+        // Assert
+        assertEquals(reviews, result);
+    }
+
     // ---- create() ----
 
     // Usuario que puede opinar: no opino todavia, el evento ya paso y estaba confirmado.

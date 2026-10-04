@@ -353,6 +353,13 @@ public class EventJdbcDao implements EventDao {
     }
 
     @Override
+    public long countByCreatorId(final long creatorId) {
+        final Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM event WHERE creator_id = ?", Long.class, creatorId);
+        return count == null ? 0 : count;
+    }
+
+    @Override
     public List<Event> search(final EventSearchCriteria criteria) {
         final WhereClause where = buildWhereClause(criteria);
         final EventSort sort = SORT_COLUMNS.containsKey(criteria.getSort()) ? criteria.getSort() : EventSort.FECHA_ASC;

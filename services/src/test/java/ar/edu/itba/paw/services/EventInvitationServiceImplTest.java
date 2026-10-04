@@ -314,4 +314,18 @@ public class EventInvitationServiceImplTest {
         // Assert
         assertEquals(invitations, result);
     }
+
+    // ---- countByUser() ----
+
+    @Test
+    public void testCountByUserReturnsWhatTheDaoReturns() {
+        // Arrange
+        when(mockInvitationDao.countByUserId(OTHER_ID)).thenReturn(1L);
+
+        // Act
+        final long result = invitationService.countByUser(OTHER_ID);
+
+        // Assert
+        assertEquals(1L, result);
+    }
 }

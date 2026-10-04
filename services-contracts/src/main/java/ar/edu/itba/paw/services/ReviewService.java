@@ -18,6 +18,13 @@ public interface ReviewService {
     Optional<Review> findByEventAndUser(long eventId, long userId);
 
     /**
+     * Como findByEventAndUser(), pero para varios eventos a la vez (ver
+     * ProfileController.misInscripciones()): evita un query por evento finalizado.
+     */
+    @Transactional(readOnly = true)
+    List<Review> findByEventsAndUser(List<Long> eventIds, long userId);
+
+    /**
      * Deja una reseña de un evento finalizado al que asistio. Si no se puede,
      * no crea nada y el resultado dice por que (ver ReviewResult).
      */
