@@ -320,12 +320,13 @@ public class RegistrationServiceImpl implements RegistrationService {
         final boolean organizerCares = wasConfirmed || wasPending;
 
         registrationDao.delete(registrationId);
-        // Si se libero un lugar de verdad, el primero de la lista de espera lo
-        // ocupa enseguida. Va en la misma transaccion: o pasan las dos cosas o no
-        // pasa ninguna. Devuelve a cuantos movio, para poder contarselo al
-        // organizador sin volver a consultar. Que se vaya alguien pendiente o de
-        // la lista de espera no libera nada: no ocupaban cupo.
-        final int promoted = wasConfirmed ? self.promoteFromWaitlist(eventId) : 0;
+        // Si se libero un lugar, el primero de la lista de espera lo ocupa enseguida.
+        // Va en la misma transaccion: o pasan las dos cosas o no pasa ninguna. Devuelve
+        // a cuantos movio, para poder contarselo al organizador sin volver a consultar.
+        // Se libera un lugar si se iba un confirmado, o un pendiente (que en un evento
+        // con aprobacion tenia un lugar reservado frente a la lista, ver reject()).
+        // Que se vaya alguien de la lista de espera no libera nada.
+        final int promoted = (wasConfirmed || wasPending) ? self.promoteFromWaitlist(eventId) : 0;
 
         // Solo se avisa si se libero un lugar de verdad. Que alguien salga de la
         // lista de espera no le cambia nada al organizador: el cupo disponible
@@ -451,7 +452,12 @@ public class RegistrationServiceImpl implements RegistrationService {
         registration.setStatus(RegistrationStatus.REJECTED);
         notificationService.notifyRegistrationRejected(event, registration);
         inboxService.add(registration.getEmail(), InboxMessageType.REQUEST_REJECTED, eventId, null, null);
-        // Un pedido pendiente no ocupaba cupo: rechazarlo no libera ningun lugar.
+        // Un pedido pendiente no ocupa cupo, pero en un evento con aprobacion si "tenia
+        // reservado" un lugar frente a la lista de espera (ver promoteFromWaitlist: los
+        // pendientes se descuentan de lo libre). Al rechazarlo, ese lugar vuelve a estar
+        // disponible y el primero de la lista de espera pasa a ser pendiente. Sin esto
+        // quedaba esperando con un lugar libre, y quien se anotara despues le pasaba por delante.
+        self.promoteFromWaitlist(eventId);
         return true;
     }
 
