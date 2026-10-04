@@ -61,12 +61,7 @@ public class RegistrationServiceImpl implements RegistrationService {
     @Transactional(rollbackFor = Exception.class)
     public RegistrationResult register(final long eventId, final User user) {
         // Bloquea la fila del evento ANTES de chequear si ya existe: dos clics
-        // simultaneos del mismo usuario ahora se serializan en este lock (el
-        // segundo espera a que el primero termine su transaccion), en vez de
-        // pasar los dos el chequeo de "existing" y recien chocar contra el
-        // UNIQUE(event_id, email) al insertar -- que era lo que obligaba al
-        // controller a reintentar en una segunda transaccion (ver
-        // EventRegistrationController.registerRetryingOnConflict()).
+        // simultaneos del mismo usuario ahora se serializan en este lock
         final Event event = eventDao.findByIdForUpdate(eventId)
                 .orElseThrow(() -> new EventNotFoundException(eventId));
 
@@ -75,53 +70,37 @@ public class RegistrationServiceImpl implements RegistrationService {
             return alreadyExistsResult(existing.getStatus());
         }
 
-        // El creador no se anota a su propio evento: no tiene sentido pedirse
-        // aprobacion a si mismo en uno con requiresApproval, ni "invitarse" a
-        // uno privado del que ya es dueño. Va antes de tocar la base: no se
-        // crea ninguna fila ni sale ningun mail.
+        // El creador no se anota a su propio evento
         if (Long.valueOf(user.getId()).equals(event.getCreatorId())) {
             return RegistrationResult.of(RegistrationResult.Status.OWN_EVENT);
         }
 
-        // Evento cancelado: la pantalla ya esconde el boton, pero un POST directo
-        // no tiene que poder anotar a nadie (ni mandar el mail de "confirmado").
+        final boolean invited = invitationDao.findByEventAndUserId(eventId, user.getId()).isPresent();
+        if (event.isPrivate() && !invited) {
+            throw new EventNotFoundException(eventId);
+        }
+
+        if (event.isFinished()) {
+            return RegistrationResult.of(RegistrationResult.Status.FINISHED);
+        }
+
+        // Evento cancelado
         if (event.isCancelled()) {
             return RegistrationResult.of(RegistrationResult.Status.CANCELLED);
         }
 
-        // Normalizado: "Test@mail.com" y "test@mail.com" son la misma persona.
-        // Ya no hace falta para buscar la invitacion (eso ahora es por user_id,
-        // ver mas abajo), pero si para las columnas email/name de la propia
-        // inscripcion y para los avisos de bandeja (inboxService.add()).
         final String normalizedEmail = user.getEmail().trim().toLowerCase();
 
-        // Que el evento este lleno ya no es un error: la persona entra a la lista
-        // de espera. El orden de la lista sale de registration.registered_at, que
-        // la base completa sola, asi que no hay ninguna posicion que guardar.
-        // Quien tiene una invitacion sin usar ya tiene su lugar reservado (esa
-        // invitacion esta contada en occupied()): para el, el evento no esta lleno
-        // y entra confirmado sin pasar por la aprobacion del organizador, que ya
-        // lo eligio al invitarlo.
-        final boolean invited = invitationDao.findByEventAndUserId(eventId, user.getId()).isPresent();
         final boolean full = isFull(event, invited);
         final RegistrationStatus status = registrationStatus(event, full, invited);
 
-        // El UNIQUE(event_id, email) sigue siendo la ultima red, pero ya no
-        // deberia dispararse en el camino normal: el lock de arriba serializa
-        // los clics simultaneos del mismo usuario antes de llegar aca.
         final Registration registration = new Registration(eventId, normalizedEmail, user.getName(), status);
-        // Quien se anota siempre esta logueado (el endpoint lo exige, ver
-        // EventController.rsvp()): a diferencia de antes, no hace falta
-        // userService.findOrCreate() para garantizar una fila en users, el
-        // Principal autenticado ya la implica y ya trae su id.
+
         registration.setUserId(user.getId());
         registrationDao.create(registration);
 
         // Tres avisos posibles, siempre en otro hilo: uno a la persona y otro al
-        // dueno del evento. Lo que cambia es el texto, no la logica. Sin este if,
-        // a quien quedo en lista de espera (o pendiente de revision) le llegaria
-        // un mail que dice "confirmamos tu lugar", que es justo lo que no paso.
-        // Y al lado de cada mail, su aviso en la bandeja (misma transaccion).
+        // dueno del evento.
         boolean eventJustFilled = false;
         if (full) {
             notificationService.notifyWaitlistJoined(event, registration);
@@ -140,22 +119,17 @@ public class RegistrationServiceImpl implements RegistrationService {
             inboxService.add(event.getCreatorEmail(), InboxMessageType.NEW_REGISTRATION, eventId,
                     registration.getDisplayName(), null);
 
-            // "Se lleno" es un CAMBIO de estado, no un estado: el aviso sale solo
-            // en el pedido que ocupo el ultimo lugar. Se vuelve a preguntar DESPUES
-            // del insert, porque recien ahora esta contado. Y va en esta rama
-            // unicamente: si arriba ya estaba lleno, no hay nada que anunciar.
+            // "Se lleno" es un CAMBIO de estado
             if (isFull(event, false)) {
                 notificationService.notifyEventFull(event);
-                eventJustFilled = true;
+                eventJustFilled = true; // para testear
             }
         }
 
         return new RegistrationResult(registrationResult(status), eventJustFilled);
     }
 
-    // Se distingue el caso porque el cartel no dice lo mismo: "ya estabas
-    // anotado" (tenes lugar) vs "ya estas en la lista de espera" vs "todavia
-    // estan revisando tu pedido" vs "ya te habian rechazado".
+    // Se distingue el caso porque el cartel no dice lo mismo
     private static RegistrationResult alreadyExistsResult(final RegistrationStatus status) {
         if (status == RegistrationStatus.WAITLISTED) {
             return RegistrationResult.of(RegistrationResult.Status.ALREADY_WAITLISTED);
@@ -169,11 +143,6 @@ public class RegistrationServiceImpl implements RegistrationService {
         return RegistrationResult.of(RegistrationResult.Status.ALREADY_REGISTERED);
     }
 
-    // Sin lugar (confirmados + invitaciones ya llenaron el cupo) -> lista de
-    // espera: gana siempre, no tiene sentido pedirle aprobacion al organizador
-    // para un lugar que no hay. Con lugar: quien tiene invitacion -> confirmed;
-    // el evento pide confirmacion -> pending (no ocupa cupo hasta que lo acepten);
-    // si no -> confirmed, como siempre.
     private static RegistrationStatus registrationStatus(final Event event, final boolean full,
                                                           final boolean invited) {
         if (full) {
@@ -228,10 +197,6 @@ public class RegistrationServiceImpl implements RegistrationService {
      * por mail a un evento privado cuya persona todavia no se anoto (cada una
      * tiene un lugar reservado; al anotarse pasa a ser su inscripcion y deja de
      * contarse aparte).
-     *
-     * Ni los pedidos PENDING (el organizador todavia no decidio: puede revisar
-     * todos y aceptar hasta que se llene) ni la lista de espera (WAITLISTED)
-     * ocupan cupo.
      */
     private long occupied(final long eventId) {
         return registrationDao.countConfirmed(eventId) + invitationDao.countOutstanding(eventId);
@@ -268,21 +233,19 @@ public class RegistrationServiceImpl implements RegistrationService {
             return UnregisterResult.NOT_FOUND;
         }
         final long eventId = unlocked.getEventId();
-        // REGLA DE ORDEN DE LOCKS (igual en register/approve/reject/revoke/cancel/
-        // promote): primero la fila del evento, despues las de registration. Si una
-        // operacion agarrara una inscripcion y recien despues pidiera el evento, otra
-        // que ya lo tiene y quiere esa misma inscripcion la esperaria: deadlock.
         final Event event = eventDao.findByIdForUpdate(eventId).orElse(null);
-        // Se vuelve a leer ya con el lock: mientras esperaba, el organizador pudo
-        // aceptarla, revocarla, etc.
-        final Registration cancelled = registrationDao.findById(registrationId).orElse(null);
-        if (event == null || cancelled == null) {
+        if (event == null) {
             return UnregisterResult.NOT_FOUND;
         }
-        // Una inscripcion rechazada o revocada es un estado terminal: la fila es
-        // justamente lo que le impide volver a anotarse. Si pudiera "darse de baja"
-        // la borraria y se saltearia el rechazo (ademas de reactivar la invitacion
-        // que hubiera tenido a un evento privado).
+        if (event.isFinished()) {
+            return UnregisterResult.FINISHED;
+        }
+
+        final Registration cancelled = registrationDao.findById(registrationId).orElse(null);
+        if (cancelled == null) {
+            return UnregisterResult.NOT_FOUND;
+        }
+        // Una inscripcion rechazada o revocada es un estado terminal. no te podes volver a anotar.
         if (cancelled.getStatus() == RegistrationStatus.REJECTED) {
             return UnregisterResult.REJECTED;
         }
@@ -294,16 +257,12 @@ public class RegistrationServiceImpl implements RegistrationService {
         final boolean organizerCares = wasConfirmed || wasPending;
 
         registrationDao.delete(registrationId);
-        // Si se libero un lugar de verdad, el primero de la lista de espera lo
-        // ocupa enseguida. Va en la misma transaccion: o pasan las dos cosas o no
-        // pasa ninguna. Devuelve a cuantos movio, para poder contarselo al
-        // organizador sin volver a consultar. Que se vaya alguien pendiente o de
+        // se libero un lugar, el primero de la lista de espera lo
+        // ocupa enseguida. Devuelve a cuantos movio,que se vaya alguien pendiente o de
         // la lista de espera no libera nada: no ocupaban cupo.
         final int promoted = wasConfirmed ? self.promoteFromWaitlist(eventId) : 0;
 
-        // Solo se avisa si se libero un lugar de verdad. Que alguien salga de la
-        // lista de espera no le cambia nada al organizador: el cupo disponible
-        // era el mismo antes y despues.
+        // Solo se avisa si se libero un lugar de verdad.
         if (wasConfirmed) {
             notificationService.notifyRegistrationCancelled(event, cancelled, promoted > 0);
         }
@@ -315,6 +274,18 @@ public class RegistrationServiceImpl implements RegistrationService {
             return UnregisterResult.CANCELLED;
         }
         return wasPending ? UnregisterResult.CANCELLED_PENDING : UnregisterResult.CANCELLED_WAITLISTED;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public UnregisterResult cancelOwnRegistration(final long eventId, final long userId) {
+        eventDao.findById(eventId).orElseThrow(() -> new EventNotFoundException(eventId));
+        // Via self: cancel() es @Transactional, una llamada directa (this
+        // implicito) no pasa por el proxy de Spring (mismo motivo que el
+        // campo self de mas arriba).
+        return registrationDao.findByEventAndUserId(eventId, userId)
+                .map(r -> self.cancel(r.getId(), userId))
+                .orElse(UnregisterResult.NOT_FOUND);
     }
 
     @Override
@@ -460,10 +431,7 @@ public class RegistrationServiceImpl implements RegistrationService {
             return 0;
         }
         // En un evento con confirmacion del organizador, quien sale de la lista de
-        // espera NO entra confirmado: pasa a PENDING, como cualquiera que se anota
-        // con lugar, y el organizador lo acepta o lo rechaza. Como los pendientes no
-        // ocupan cupo, se descuentan los que ya esperan una respuesta: un lugar libre
-        // ya "prometido" a un pedido pendiente no se le da tambien a la lista.
+        // espera NO entra confirmado: pasa a PENDING.
         final boolean toPending = event.isRequiresApproval();
         final long free = event.getMaxCapacity() == null
                 ? Integer.MAX_VALUE

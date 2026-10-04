@@ -1,6 +1,7 @@
 // Implementa el contrato FavoriteService (modulo services-contracts).
 package ar.edu.itba.paw.services;
 
+import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.persistence.FavoriteDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -12,16 +13,21 @@ import java.util.List;
 public class FavoriteServiceImpl implements FavoriteService {
 
     private final FavoriteDao favoriteDao;
+    private final EventAccessService accessChecker;
 
     @Autowired
-    public FavoriteServiceImpl(final FavoriteDao favoriteDao) {
+    public FavoriteServiceImpl(final FavoriteDao favoriteDao, final EventAccessService accessChecker) {
         this.favoriteDao = favoriteDao;
+        this.accessChecker = accessChecker;
     }
 
     @Override
     @Transactional
-    public boolean add(final long userId, final long eventId) {
-        return favoriteDao.add(userId, eventId);
+    public boolean add(final User user, final long eventId) {
+        // Mismo chequeo que el detalle: si no podes ver el evento, tampoco podes
+        // guardarlo
+        accessChecker.getViewableEvent(eventId, user);
+        return favoriteDao.add(user.getId(), eventId);
     }
 
     @Override

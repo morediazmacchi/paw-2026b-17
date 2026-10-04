@@ -17,5 +17,8 @@ public enum UnregisterResult {
     REJECTED,
 
     // No existe, o existe pero es de otro usuario.
-    NOT_FOUND
+    NOT_FOUND,
+
+    // El evento ya termino: no tiene sentido "darse de baja" de algo que ya paso.
+    FINISHED
 }

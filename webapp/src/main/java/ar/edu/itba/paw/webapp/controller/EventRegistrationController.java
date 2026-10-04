@@ -1,10 +1,7 @@
 package ar.edu.itba.paw.webapp.controller;
 
-import ar.edu.itba.paw.model.Event;
-import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.EventAccessService;
-import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.FavoriteService;
 import ar.edu.itba.paw.services.ModerationService;
 import ar.edu.itba.paw.services.RegistrationResult;
@@ -25,26 +22,20 @@ import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import javax.validation.Valid;
-import java.util.Optional;
 
-// Acciones que un visitante hace sobre un evento (no su organizador): RSVP,
-// favoritos, reportar. No comparte nada con el armado del evento en si
-// (EventController) salvo el chequeo de acceso a eventos privados
-// (EventAccessService).
+// Acciones que un visitante hace sobre un evento.
 @Controller
 public class EventRegistrationController {
 
-    private final EventService eventService;
     private final RegistrationService registrationService;
     private final FavoriteService favoriteService;
     private final ModerationService moderationService;
     private final EventAccessService accessChecker;
 
     @Autowired
-    public EventRegistrationController(final EventService eventService, final RegistrationService registrationService,
+    public EventRegistrationController(final RegistrationService registrationService,
                                         final FavoriteService favoriteService, final ModerationService moderationService,
                                         final EventAccessService accessChecker) {
-        this.eventService = eventService;
         this.registrationService = registrationService;
         this.favoriteService = favoriteService;
         this.moderationService = moderationService;
@@ -55,103 +46,51 @@ public class EventRegistrationController {
     public ModelAndView rsvp(@PathVariable final long id,
                               @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
                               final RedirectAttributes redirectAttributes) {
-        // Mismo chequeo que el detalle: el boton ya esta escondido en la UI si
-        // no tenes acceso, pero un POST directo no se puede confiar solo en eso.
-        final Event event = accessChecker.getViewableEvent(id, currentUser);
-        // La UI ya esconde el boton en este caso (ver detail.jsp), pero un POST
-        // directo igual no tiene que poder anotarte a algo que ya paso.
-        if (event.isFinished()) {
-            redirectAttributes.addFlashAttribute("rsvp", "finalizado");
-            return new ModelAndView("redirect:/eventos/" + id);
-        }
-        // Ya no hace falta atrapar IllegalStateException: el service dejo de
-        // lanzarla cuando el evento esta lleno, ahora devuelve WAITLISTED.
-        // Dos clics simultaneos del mismo usuario se serializan dentro de register()
-        // (lockea el evento antes de chequear si ya existe): no hace falta reintentar.
         final RegistrationResult result = registrationService.register(id, currentUser);
         redirectAttributes.addFlashAttribute("rsvp", rsvpParam(result));
         return new ModelAndView("redirect:/eventos/" + id);
     }
 
-    // Los finales posibles del RSVP viajan como flash attribute "rsvp"
-    // (POST-Redirect-GET) y detail.jsp elige el cartel a partir de esto. No en la
-    // URL: con un link viejo el cartel volvia a salir sin haber hecho nada.
+    // detail.jsp elige el cartel a partir de esto. No en la
     private static String rsvpParam(final RegistrationResult result) {
-        switch (result.getStatus()) {
-            case WAITLISTED:
-                return "waitlist";
-            case PENDING:
-                return "pendiente";
-            case ALREADY_REGISTERED:
-                return "ya-anotado";
-            case ALREADY_WAITLISTED:
-                return "ya-en-waitlist";
-            case ALREADY_PENDING:
-                return "ya-pendiente";
-            case REJECTED:
-                return "rechazado";
-            case OWN_EVENT:
-                return "propio-evento";
-            case CANCELLED:
-                return "cancelado";
-            case CONFIRMED:
-            default:
-                return "confirmed";
-        }
+        return switch (result.getStatus()) {
+            case WAITLISTED -> "waitlist";
+            case PENDING -> "pendiente";
+            case ALREADY_REGISTERED -> "ya-anotado";
+            case ALREADY_WAITLISTED -> "ya-en-waitlist";
+            case ALREADY_PENDING -> "ya-pendiente";
+            case REJECTED -> "rechazado";
+            case OWN_EVENT -> "propio-evento";
+            case CANCELLED -> "cancelado";
+            case FINISHED -> "finalizado";
+            case CONFIRMED -> "confirmed";
+        };
     }
 
-    // Mismo patron que rsvpParam(): detail.jsp elige el cartel a partir de este
-    // flash attribute "rsvp".
+    // Mismo patron que rsvpParam():
     private static String unregisterParam(final UnregisterResult result) {
-        switch (result) {
-            case REJECTED:
-                return "rechazado";
-            case CANCELLED_WAITLISTED:
-                return "baja-waitlist";
-            case CANCELLED_PENDING:
-                return "baja-pendiente";
-            case NOT_FOUND:
-            case CANCELLED:
-            default:
-                return "baja";
-        }
+        return switch (result) {
+            case REJECTED -> "rechazado";
+            case CANCELLED_WAITLISTED -> "baja-waitlist";
+            case CANCELLED_PENDING -> "baja-pendiente";
+            case FINISHED -> "finalizado";
+            case NOT_FOUND, CANCELLED -> "baja";
+        };
     }
 
-    // Mismo mecanismo que "Cancelar" en Mis inscripciones (ProfileController),
-    // pero desde el detalle: busca la inscripcion propia de este evento y la
-    // cancela, en vez de recibir el id de la inscripcion por parametro.
     @RequestMapping(value = "/eventos/{id}/darme-de-baja", method = RequestMethod.POST)
     public ModelAndView unregister(@PathVariable final long id,
                                    @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
                                    final RedirectAttributes redirectAttributes) {
-        final Event event = eventService.findByIdOrThrow(id);
-        // La UI ya esconde el boton en este caso (ver detail.jsp): un evento que
-        // ya paso no se puede "des-anotar", ya sucedio.
-        if (event.isFinished()) {
-            redirectAttributes.addFlashAttribute("rsvp", "finalizado");
-            return new ModelAndView("redirect:/eventos/" + id);
-        }
-        // El service ya sabe que estado tenia la inscripcion antes de borrarla
-        // (ver UnregisterResult): no hace falta leerlo antes aca para despues
-        // reconstruir que cartel corresponde.
-        final Optional<Registration> registration = registrationService.findByEventAndUserId(id, currentUser.getId());
-        final UnregisterResult result = registration
-                .map(r -> registrationService.cancel(r.getId(), currentUser.getId()))
-                .orElse(UnregisterResult.NOT_FOUND);
+        final UnregisterResult result = registrationService.cancelOwnRegistration(id, currentUser.getId());
         redirectAttributes.addFlashAttribute("rsvp", unregisterParam(result));
         return new ModelAndView("redirect:/eventos/" + id);
     }
 
-    // Reportar. No hace falta antMatcher propio: no esta en el permitAll, asi
-    // que ya cae bajo anyRequest().authenticated(). El resultado vuelve como
-    // flash attribute "reportMessage" y detail.jsp elige el cartel con eso.
     @RequestMapping(value = "/eventos/{id}/reportar", method = RequestMethod.POST)
     public ModelAndView reportar(@PathVariable final long id, @Valid final ReportForm form,
                                   final BindingResult errors, @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
                                   final RedirectAttributes redirectAttributes) {
-        // Mismo chequeo que preguntar/rsvp: si no existe o no podes verlo, 404.
-        // Sin el canView(), la diferencia entre "404" y "reporte recibido"
-        // delataria que un id de evento privado existe.
         accessChecker.getViewableEvent(id, currentUser);
         if (errors.hasErrors()) {
             redirectAttributes.addFlashAttribute("reportMessage", "INVALID");
@@ -162,18 +101,12 @@ public class EventRegistrationController {
         return new ModelAndView("redirect:/eventos/" + id);
     }
 
-    // returnTo viaja como hidden en el form del corazon (paw:card/detail.jsp):
-    // desde el listado tiene que volver al listado (con sus filtros), no
-    // siempre al detalle. Sin el, o si viene manipulado a una URL ajena
-    // (SafeRedirect), cae al detalle como default razonable.
     @RequestMapping(value = "/eventos/{id}/favorito", method = RequestMethod.POST)
     public ModelAndView addFavorite(@PathVariable final long id,
-                                     @RequestParam(value = "returnTo", required = false) final String returnTo,
-                                     @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        // Mismo chequeo de acceso que detail() y rsvp(): si no podes ver el evento,
-        // tampoco podes guardarlo (si no, "Mis favoritos" mostraria sus datos).
-        accessChecker.getViewableEvent(id, currentUser);
-        favoriteService.add(currentUser.getId(), id);
+                                    @RequestParam(value = "returnTo", required = false) final String returnTo,
+                                    @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
+        // El chequeo de acceso lo hace add
+        favoriteService.add(currentUser, id);
         return new ModelAndView("redirect:" + safeReturnTo(returnTo, id));
     }
 
@@ -181,9 +114,6 @@ public class EventRegistrationController {
     public ModelAndView removeFavorite(@PathVariable final long id,
                                         @RequestParam(value = "returnTo", required = false) final String returnTo,
                                         @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        // A proposito sin canView(): quitar un favorito es siempre inofensivo, y
-        // quien ya perdio el acceso al evento (ej. le revocaron la invitacion)
-        // tiene que poder sacarlo igual de su lista.
         favoriteService.remove(currentUser.getId(), id);
         return new ModelAndView("redirect:" + safeReturnTo(returnTo, id));
     }

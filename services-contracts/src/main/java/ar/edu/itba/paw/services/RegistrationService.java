@@ -73,6 +73,17 @@ public interface RegistrationService {
     UnregisterResult cancel(long registrationId, long userId);
 
     /**
+     * Como {@link #cancel(long, long)}, pero para quien no tiene el id de la
+     * inscripcion a mano, solo el del evento (ver EventRegistrationController.unregister(),
+     * que da de baja desde el detalle en vez de desde "Mis inscripciones"): busca la
+     * inscripcion propia de ese evento y la cancela.
+     *
+     * @throws EventNotFoundException si el evento no existe.
+     */
+    @Transactional(rollbackFor = Exception.class)
+    UnregisterResult cancelOwnRegistration(long eventId, long userId);
+
+    /**
      * Para el detalle de evento: si el usuario logueado ya esta anotado a
      * este evento, para mostrar "Darme de baja" en vez de "Inscribirme".
      */

@@ -2,6 +2,7 @@ package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventInvitation;
+import ar.edu.itba.paw.model.EventVisibility;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.User;
@@ -17,6 +18,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
@@ -84,6 +86,10 @@ public class RegistrationServiceImplTest {
         final Event event = new Event();
         event.setId(EVENT_ID);
         event.setMaxCapacity(maxCapacity);
+        // Futura por defecto: isFinished() no tiene chequeo de null (ver Event.isFinished()),
+        // asi que cualquier test que no sea especificamente sobre un evento finalizado
+        // necesita una fecha, aunque no la use para nada mas.
+        event.setEventDate(new Date(System.currentTimeMillis() + 86_400_000L));
         return event;
     }
 
@@ -207,6 +213,55 @@ public class RegistrationServiceImplTest {
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(null)));
 
         createdAs(RegistrationStatus.CONFIRMED);
+        // Act
+        final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
+
+        // Assert
+        assertEquals(RegistrationResult.Status.CONFIRMED, result.getStatus());
+    }
+
+    // ---- register(): el evento ya termino ----
+
+    @Test
+    public void testRegisterReturnsFinishedWhenTheEventAlreadyHappened() {
+        // Arrange: se chequea antes que "existing" (ni hace falta stubear
+        // findByEventAndUserId): mismo orden de prioridad que tenia el
+        // controller cuando chequeaba esto antes de llamar a register().
+        final Event finishedEvent = eventWithCapacity(10);
+        finishedEvent.setEventDate(new Date(System.currentTimeMillis() - 86_400_000L));
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(finishedEvent));
+
+        // Act
+        final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
+
+        // Assert
+        assertEquals(RegistrationResult.Status.FINISHED, result.getStatus());
+    }
+
+    // ---- register(): eventos privados ----
+
+    @Test(expected = EventNotFoundException.class)
+    public void testRegisterOnAPrivateEventWithoutAccessThrowsEventNotFoundException() {
+        // Arrange: mismo error que un id inexistente, no se revela que existe.
+        final Event privateEvent = eventWithCapacity(10);
+        privateEvent.setVisibility(EventVisibility.PRIVATE);
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent));
+
+        // Act
+        registrationService.register(EVENT_ID, someUser());
+
+        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
+    }
+
+    @Test
+    public void testRegisterOnAPrivateEventWithAnInvitationSucceeds() {
+        // Arrange
+        final Event privateEvent = eventWithCapacity(10);
+        privateEvent.setVisibility(EventVisibility.PRIVATE);
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent));
+        when(mockInvitationDao.findByEventAndUserId(EVENT_ID, USER_ID))
+                .thenReturn(Optional.of(new EventInvitation(EVENT_ID, NORMALIZED_EMAIL, CREATOR_EMAIL)));
+
         // Act
         final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
 
@@ -571,6 +626,25 @@ public class RegistrationServiceImplTest {
     }
 
     @Test
+    public void testCancelReturnsFinishedEvenIfTheRegistrationWasRejected() {
+        // Arrange: gana incluso sobre REJECTED -- mismo orden de prioridad que
+        // tenia el controller cuando chequeaba esto antes de buscar la inscripcion.
+        final Registration registration = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, RegistrationStatus.REJECTED);
+        registration.setId(5);
+        registration.setUserId(USER_ID);
+        when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
+        final Event finishedEvent = eventWithCreator(10);
+        finishedEvent.setEventDate(new Date(System.currentTimeMillis() - 86_400_000L));
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(finishedEvent));
+
+        // Act
+        final UnregisterResult result = registrationService.cancel(5, USER_ID);
+
+        // Assert
+        assertEquals(UnregisterResult.FINISHED, result);
+    }
+
+    @Test
     public void testCancelReturnsNotFoundWhenTheRegistrationDoesNotExist() {
         // Arrange
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.empty());
@@ -595,6 +669,50 @@ public class RegistrationServiceImplTest {
 
         // Assert
         assertEquals(UnregisterResult.NOT_FOUND, result);
+    }
+
+    // ---- cancelOwnRegistration() ----
+
+    @Test
+    public void testCancelOwnRegistrationFindsAndCancelsTheUsersRegistration() {
+        // Arrange
+        final Registration registration = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, RegistrationStatus.CONFIRMED);
+        registration.setId(5);
+        registration.setUserId(USER_ID);
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(10)));
+        when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.of(registration));
+        when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(10)));
+
+        // Act
+        final UnregisterResult result = registrationService.cancelOwnRegistration(EVENT_ID, USER_ID);
+
+        // Assert
+        assertEquals(UnregisterResult.CANCELLED, result);
+    }
+
+    @Test
+    public void testCancelOwnRegistrationReturnsNotFoundWhenNotRegistered() {
+        // Arrange
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(10)));
+        when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
+
+        // Act
+        final UnregisterResult result = registrationService.cancelOwnRegistration(EVENT_ID, USER_ID);
+
+        // Assert
+        assertEquals(UnregisterResult.NOT_FOUND, result);
+    }
+
+    @Test(expected = EventNotFoundException.class)
+    public void testCancelOwnRegistrationThrowsEventNotFoundExceptionWhenTheEventDoesNotExist() {
+        // Arrange
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.empty());
+
+        // Act
+        registrationService.cancelOwnRegistration(EVENT_ID, USER_ID);
+
+        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
 
     // ---- findByEventAndUserId() ----
