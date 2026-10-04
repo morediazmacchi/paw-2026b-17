@@ -611,6 +611,31 @@ public class RegistrationServiceImplTest {
 
     // Un rechazado / revocado no puede "darse de baja": si borrara su fila se saltearia
     // el rechazo (y podria volver a anotarse).
+    // Mismo caso que reject(): cancelar un pendiente en un evento con aprobacion libera el lugar
+    // que tenia reservado, y el primero de la lista de espera pasa a pendiente.
+    @Test
+    public void testCancelAPendingRegistrationPromotesTheFirstWaitlistedWhenTheEventRequiresApproval() {
+        // Arrange: cupo 2, 1 confirmado; quien se baja era el unico pendiente.
+        final Registration registration = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, RegistrationStatus.PENDING);
+        registration.setId(5);
+        registration.setUserId(USER_ID);
+        when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(2)));
+        when(mockRegistrationDao.delete(5)).thenReturn(true);
+        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(1L);
+        when(mockRegistrationDao.countPending(EVENT_ID)).thenReturn(0L);
+        final Registration waiting = new Registration(EVENT_ID, "espera@mail.com", "Beto", RegistrationStatus.WAITLISTED);
+        waiting.setId(8);
+        when(mockRegistrationDao.findNextWaitlisted(EVENT_ID, 1)).thenReturn(Collections.singletonList(waiting));
+        when(mockRegistrationDao.updateStatus(8, RegistrationStatus.PENDING)).thenReturn(true);
+
+        // Act
+        final UnregisterResult result = registrationService.cancel(5, USER_ID);
+
+        // Assert
+        assertEquals(UnregisterResult.CANCELLED_PENDING, result);
+    }
+
     @Test
     public void testCancelReturnsFinishedAndKeepsTheRowWhenTheEventAlreadyHappened() {
         // Arrange
@@ -985,18 +1010,27 @@ public class RegistrationServiceImplTest {
         assertTrue(result);
     }
 
-    // Un pedido pendiente no ocupaba cupo: rechazarlo no libera ningun lugar, asi
-    // que no hay nadie a quien promover desde la lista de espera.
+    // En un evento con aprobacion, un pendiente tiene "reservado" un lugar frente a la lista
+    // de espera. Al rechazarlo, ese lugar se libera y el primero de la lista pasa a pendiente.
+    // Los stubs de abajo (findNextWaitlisted y updateStatus a PENDING) son la expectativa:
+    // con MockitoJUnitRunner estricto, si reject() no promoviera a nadie quedarian sin usar
+    // y el test fallaria.
     @Test
-    public void testRejectDoesNotTouchTheWaitlistBecausePendingNeverHeldASpot() {
-        // Arrange
+    public void testRejectPromotesTheFirstWaitlistedToPendingWhenTheEventRequiresApproval() {
+        // Arrange: cupo 2, 1 confirmado; el rechazado era el unico pendiente.
         final Registration registration = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, RegistrationStatus.PENDING);
         registration.setId(5);
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(null)));
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(null)));
-
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(2)));
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(2)));
         when(mockRegistrationDao.updateStatus(5, RegistrationStatus.REJECTED)).thenReturn(true);
+        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(1L);
+        when(mockRegistrationDao.countPending(EVENT_ID)).thenReturn(0L);
+        final Registration waiting = new Registration(EVENT_ID, "espera@mail.com", "Beto", RegistrationStatus.WAITLISTED);
+        waiting.setId(8);
+        when(mockRegistrationDao.findNextWaitlisted(EVENT_ID, 1)).thenReturn(Collections.singletonList(waiting));
+        when(mockRegistrationDao.updateStatus(8, RegistrationStatus.PENDING)).thenReturn(true);
+
         // Act
         final boolean result = registrationService.reject(5, CREATOR_ID);
 
