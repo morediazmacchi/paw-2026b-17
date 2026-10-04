@@ -66,7 +66,7 @@ public interface EventService {
      * @throws InvalidEventException si el cupo nuevo es menor a los lugares ya ocupados.
      */
     @Transactional(rollbackFor = Exception.class)
-    void update(long eventId, EventDTO dto, long callerId);
+    EventUpdateOutcome update(long eventId, EventDTO dto, long callerId);
 
     /**
      * Cancela (soft-delete) un evento existente y avisa por mail a cada

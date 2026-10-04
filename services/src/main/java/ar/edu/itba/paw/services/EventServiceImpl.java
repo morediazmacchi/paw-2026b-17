@@ -109,7 +109,7 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void update(final long eventId, final EventDTO dto, final long callerId) {
+    public EventUpdateOutcome update(final long eventId, final EventDTO dto, final long callerId) {
         Objects.requireNonNull(dto, "dto");
         // Con lock (SELECT ... FOR UPDATE), igual que register(): mientras se
         // chequea y se cambia el cupo, nadie se puede anotar. Sin esto, alguien
@@ -152,7 +152,8 @@ public class EventServiceImpl implements EventService {
         // Si subio el cupo (o se lo saco), los primeros de la lista de espera entran.
         // Despues del aviso de cambios: a los que entran ahora les llega ya el mail
         // de que estan confirmados, no hace falta ademas contarles que el evento cambio.
-        registrationService.promoteFromWaitlist(eventId);
+        final int promoted = registrationService.promoteFromWaitlist(eventId);
+        return new EventUpdateOutcome(changes, promoted);
     }
 
     @Override

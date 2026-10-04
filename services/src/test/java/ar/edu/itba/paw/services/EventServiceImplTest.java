@@ -29,7 +29,6 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -346,10 +345,10 @@ public class EventServiceImplTest {
         dto.setMaxCapacity(20);
 
         // Act
-        eventService.update(EVENT_ID, dto, CREATOR_ID);
+        final EventUpdateOutcome result = eventService.update(EVENT_ID, dto, CREATOR_ID);
 
         // Assert
-        verify(eventDao).update(argThat(updated -> updated.getId() == EVENT_ID));
+        assertEquals(EVENT_ID, result.getEvent().getId());
     }
 
     @Test(expected = EventNotFoundException.class)
@@ -436,12 +435,13 @@ public class EventServiceImplTest {
         updatable(0);
         final EventDTO dto = someDto();
         dto.setMaxCapacity(20);
+        when(registrationService.promoteFromWaitlist(EVENT_ID)).thenReturn(2);
 
         // Act
-        eventService.update(EVENT_ID, dto, CREATOR_ID);
+        final EventUpdateOutcome result = eventService.update(EVENT_ID, dto, CREATOR_ID);
 
         // Assert
-        verify(registrationService).promoteFromWaitlist(EVENT_ID);
+        assertEquals(2, result.getPromotedFromWaitlist());
     }
 
     // ---- cancel() ----
