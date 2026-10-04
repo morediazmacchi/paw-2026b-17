@@ -23,6 +23,8 @@ public interface RegistrationService {
      * momento en que se anoto. Si no esta lleno y el evento pide confirmacion,
      * queda "pending" hasta que el creador la acepte. Quien tiene una invitacion
      * al evento privado entra directo confirmada: su lugar ya estaba reservado.
+     *
+     * Si el evento ya paso devuelve FINISHED y no crea nada.
      */
     @Transactional(rollbackFor = Exception.class)
     RegistrationResult register(long eventId, User user);
@@ -67,7 +69,8 @@ public interface RegistrationService {
     /**
      * Cancela una inscripcion propia. Devuelve NOT_FOUND (y no borra nada) si
      * no existe o si es de otro usuario: cancelar la inscripcion de otra
-     * persona conociendo solo su id no tiene que ser posible.
+     * persona conociendo solo su id no tiene que ser posible. Si el evento ya
+     * paso devuelve FINISHED y tampoco borra nada.
      */
     @Transactional(rollbackFor = Exception.class)
     UnregisterResult cancel(long registrationId, long userId);

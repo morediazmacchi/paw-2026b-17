@@ -19,6 +19,6 @@ public enum UnregisterResult {
     // No existe, o existe pero es de otro usuario.
     NOT_FOUND,
 
-    // El evento ya termino: no tiene sentido "darse de baja" de algo que ya paso.
+    // El evento ya paso: no se puede "des-anotar" de algo que ya sucedio. No se borro nada.
     FINISHED
 }

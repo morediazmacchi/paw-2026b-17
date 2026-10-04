@@ -47,6 +47,7 @@ public class RegistrationServiceImplTest {
     private static final long USER_ID = 10;
     private static final long CREATOR_ID = 20;
     private static final long OTHER_ID = 30;
+    private static final long ONE_DAY_MILLIS = 24L * 60 * 60 * 1000;
 
     @Mock
     private RegistrationDao mockRegistrationDao;
@@ -89,7 +90,13 @@ public class RegistrationServiceImplTest {
         // Futura por defecto: isFinished() no tiene chequeo de null (ver Event.isFinished()),
         // asi que cualquier test que no sea especificamente sobre un evento finalizado
         // necesita una fecha, aunque no la use para nada mas.
-        event.setEventDate(new Date(System.currentTimeMillis() + 86_400_000L));
+        event.setEventDate(new Date(System.currentTimeMillis() + ONE_DAY_MILLIS));
+        return event;
+    }
+
+    private static Event finishedEvent() {
+        final Event event = eventWithCapacity(null);
+        event.setEventDate(new Date(System.currentTimeMillis() - ONE_DAY_MILLIS));
         return event;
     }
 
@@ -136,6 +143,19 @@ public class RegistrationServiceImplTest {
         registrationService.register(EVENT_ID, someUser());
 
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
+    }
+
+    @Test
+    public void testRegisterWhenTheEventAlreadyHappenedReturnsFinished() {
+        // Arrange
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(finishedEvent()));
+
+        // Act
+        final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
+
+        // Assert: no se creo ninguna inscripcion (sin stub de create(), un create() devolveria null y romperia)
+        assertEquals(RegistrationResult.Status.FINISHED, result.getStatus());
+        assertFalse(result.isNotificationSent());
     }
 
     @Test
@@ -218,24 +238,6 @@ public class RegistrationServiceImplTest {
 
         // Assert
         assertEquals(RegistrationResult.Status.CONFIRMED, result.getStatus());
-    }
-
-    // ---- register(): el evento ya termino ----
-
-    @Test
-    public void testRegisterReturnsFinishedWhenTheEventAlreadyHappened() {
-        // Arrange: se chequea antes que "existing" (ni hace falta stubear
-        // findByEventAndUserId): mismo orden de prioridad que tenia el
-        // controller cuando chequeaba esto antes de llamar a register().
-        final Event finishedEvent = eventWithCapacity(10);
-        finishedEvent.setEventDate(new Date(System.currentTimeMillis() - 86_400_000L));
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(finishedEvent));
-
-        // Act
-        final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
-
-        // Assert
-        assertEquals(RegistrationResult.Status.FINISHED, result.getStatus());
     }
 
     // ---- register(): eventos privados ----
@@ -609,6 +611,22 @@ public class RegistrationServiceImplTest {
 
     // Un rechazado / revocado no puede "darse de baja": si borrara su fila se saltearia
     // el rechazo (y podria volver a anotarse).
+    @Test
+    public void testCancelReturnsFinishedAndKeepsTheRowWhenTheEventAlreadyHappened() {
+        // Arrange
+        final Registration registration = new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, RegistrationStatus.CONFIRMED);
+        registration.setId(5);
+        registration.setUserId(USER_ID);
+        when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(finishedEvent()));
+
+        // Act
+        final UnregisterResult result = registrationService.cancel(5, USER_ID);
+
+        // Assert: no se llamo a delete() (sin stub devolveria false y el resultado seria otro)
+        assertEquals(UnregisterResult.FINISHED, result);
+    }
+
     @Test
     public void testCancelReturnsRejectedAndKeepsTheRowWhenTheRegistrationWasRejected() {
         // Arrange

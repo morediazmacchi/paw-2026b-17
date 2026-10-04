@@ -57,6 +57,16 @@ public interface EventAccessService {
     Event getOwnedEvent(long eventId, User user);
 
     /**
+     * Como {@link #getOwnedEvent(long, User)}, pero ademas el evento tiene que ser privado: solo
+     * a esos se invita (uno publico ya tiene un link que se puede compartir). Lo comparten el GET
+     * y el POST de invitar de ProfileController.
+     *
+     * @throws EventNotFoundException si no existe, {@code user} no es el creador, o el evento no es
+     *                                privado (mismo error en los tres casos).
+     */
+    Event getOwnedPrivateEvent(long eventId, User user);
+
+    /**
      * Como {@link #getOwnedEvent(long, User)}, pero ademas tira EventCancelledException si el
      * evento ya esta cancelado: uno cancelado no se edita. Lo comparten el GET y el POST de
      * EventController para editar (editarForm()/editar()): misma regla, mismo lugar.

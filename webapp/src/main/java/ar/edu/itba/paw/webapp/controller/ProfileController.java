@@ -20,7 +20,6 @@ import ar.edu.itba.paw.services.ReviewResult;
 import ar.edu.itba.paw.services.ReviewService;
 import ar.edu.itba.paw.services.UnregisterResult;
 import ar.edu.itba.paw.services.UserService;
-import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import ar.edu.itba.paw.webapp.form.ChangePasswordForm;
 import ar.edu.itba.paw.webapp.form.InviteForm;
 import ar.edu.itba.paw.webapp.form.ProfileForm;
@@ -266,10 +265,12 @@ public class ProfileController {
                                              @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
                                              final RedirectAttributes redirectAttributes) {
         final UnregisterResult result = registrationService.cancel(id, currentUser.getId());
-        // NOT_FOUND (no existe, o es de otro usuario) y REJECTED (estado terminal,
-        // no se puede cancelar) no cancelaron nada: no corresponde mostrar el
+        // NOT_FOUND (no existe, o es de otro usuario), REJECTED (estado terminal,
+        // no se puede cancelar) y FINISHED (el evento ya paso) no cancelaron nada: no corresponde mostrar el
         // cartel de "cancelaste tu inscripcion" como si hubiera pasado algo.
-        final boolean cancelled = result != UnregisterResult.NOT_FOUND && result != UnregisterResult.REJECTED;
+        final boolean cancelled = result != UnregisterResult.NOT_FOUND
+                && result != UnregisterResult.REJECTED
+                && result != UnregisterResult.FINISHED;
         redirectAttributes.addFlashAttribute("cancelled", cancelled);
         return new ModelAndView("redirect:/perfil/inscripciones");
     }
@@ -443,7 +444,7 @@ public class ProfileController {
         // RegistrationService.approve()): la pantalla lo dice y deshabilita "Aceptar".
         final Integer availableSpots = registrationService.availableSpots(id);
         mav.addObject("availableSpots", availableSpots);
-        mav.addObject("noSpotsLeft", availableSpots != null && availableSpots <= 0);
+        mav.addObject("noSpotsLeft", registrationService.isFull(id));
         mav.addObject("registrationsCount", registrationsCountFor(currentUser));
         mav.addObject("favoritesCount", favoritesCountFor(currentUser));
         mav.addObject("eventsCount", eventsCountFor(currentUser));
@@ -483,17 +484,14 @@ public class ProfileController {
                                     @RequestParam(value = "sent", required = false) final String sentParam,
                                     @RequestParam(value = "alreadyInvited", required = false) final String alreadyInvitedParam,
                                     @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final Event event = accessChecker.getOwnedEvent(id, currentUser);
-        if (!event.isPrivate()) {
-            throw new EventNotFoundException(id);
-        }
+        final Event event = accessChecker.getOwnedPrivateEvent(id, currentUser);
         return inviteFormView(event, currentUser, new InviteForm(), null, sentParam != null, alreadyInvitedParam != null);
     }
 
     @RequestMapping(value = "/perfil/eventos/{id}/invitar", method = RequestMethod.POST)
     public ModelAndView invite(@PathVariable final long id, @Valid final InviteForm form, final BindingResult errors,
                                 @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final Event event = accessChecker.getOwnedEvent(id, currentUser);
+        final Event event = accessChecker.getOwnedPrivateEvent(id, currentUser);
         if (errors.hasErrors()) {
             return inviteFormView(event, currentUser, form, errors, false, false);
         }
