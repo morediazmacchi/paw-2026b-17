@@ -176,7 +176,10 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public EventCancelResult removeByAdmin(final long eventId, final String reason) {
-        final Optional<Event> existing = eventDao.findById(eventId);
+        // Con lock, igual que cancel(): si el creador cancelara el suyo justo en
+        // el medio, no tiene que pasar que esto lo pise y mande el aviso de
+        // "removido por un admin" sobre un evento que ya estaba cancelado.
+        final Optional<Event> existing = eventDao.findByIdForUpdate(eventId);
         if (!existing.isPresent()) {
             return EventCancelResult.NOT_FOUND;
         }

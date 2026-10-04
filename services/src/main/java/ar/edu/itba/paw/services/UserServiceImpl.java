@@ -6,6 +6,7 @@ import ar.edu.itba.paw.model.InboxMessage;
 import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.TokenPurpose;
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.model.exception.InvalidAdminActionException;
 import ar.edu.itba.paw.model.VerificationToken;
 import ar.edu.itba.paw.persistence.EventInvitationDao;
 import ar.edu.itba.paw.persistence.InboxMessageDao;
@@ -73,6 +74,12 @@ public class UserServiceImpl implements UserService {
     @Transactional(readOnly = true)
     public List<User> findAll() {
         return userDao.findAll();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResult<User> findPage(final int page, final int pageSize) {
+        return PageResult.of(userDao.findAll(), page, pageSize);
     }
 
     @Override
@@ -260,6 +267,21 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
+    public boolean suspendByAdmin(final long targetId, final User caller) {
+        if (targetId == caller.getId()) {
+            throw new InvalidAdminActionException(InvalidAdminActionException.Reason.SELF);
+        }
+        final boolean targetIsStaff = userDao.findById(targetId)
+                .map(target -> target.getRoles().contains("ROLE_ADMIN") || target.getRoles().contains("ROLE_SUPERADMIN"))
+                .orElse(false);
+        if (targetIsStaff && !caller.getRoles().contains("ROLE_SUPERADMIN")) {
+            throw new InvalidAdminActionException(InvalidAdminActionException.Reason.ADMIN_TARGET);
+        }
+        return suspend(targetId);
+    }
+
+    @Override
+    @Transactional
     public boolean reactivate(final long userId) {
         final boolean changed = userDao.setSuspended(userId, false);
         userDao.findById(userId).ifPresent(user -> {
@@ -277,8 +299,11 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public boolean revokeAdmin(final long userId) {
-        return userDao.removeRole(userId, ROLE_ADMIN);
+    public boolean revokeAdmin(final long targetId, final long callerId) {
+        if (targetId == callerId) {
+            throw new InvalidAdminActionException(InvalidAdminActionException.Reason.SELF);
+        }
+        return userDao.removeRole(targetId, ROLE_ADMIN);
     }
 
     // Igual que InboxServiceImpl.add(), pero sin pasar por ese service (evitaria
