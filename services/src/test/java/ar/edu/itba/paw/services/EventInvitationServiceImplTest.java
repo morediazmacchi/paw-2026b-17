@@ -299,20 +299,68 @@ public class EventInvitationServiceImplTest {
         assertEquals(EventInvitationResult.SENT, result);
     }
 
-    // ---- findByUser() ----
+    // ---- findPageByUser() ----
 
     @Test
-    public void testFindByUserReturnsTheInvitationsTheUserReceived() {
-        // Arrange
-        final List<EventInvitation> invitations = Collections.singletonList(
-                new EventInvitation(EVENT_ID, NORMALIZED_INVITEE_EMAIL, CREATOR_EMAIL));
-        when(mockInvitationDao.findByUserId(OTHER_ID)).thenReturn(invitations);
+    public void testFindPageByUserReturnsTheRequestedPageWithItsTotals() {
+        // Arrange: 25 en total, de a EventInvitationServiceImpl.PAGE_SIZE por pagina -> 3 paginas
+        final List<EventInvitation> pageTwo = Collections.singletonList(new EventInvitation(EVENT_ID, NORMALIZED_INVITEE_EMAIL, CREATOR_EMAIL));
+        when(mockInvitationDao.countByUserId(OTHER_ID)).thenReturn(25L);
+        when(mockInvitationDao.findByUserId(OTHER_ID, 2, EventInvitationServiceImpl.PAGE_SIZE)).thenReturn(pageTwo);
 
         // Act
-        final List<EventInvitation> result = invitationService.findByUser(OTHER_ID);
+        final PageResult<EventInvitation> result = invitationService.findPageByUser(OTHER_ID, 2);
 
         // Assert
-        assertEquals(invitations, result);
+        assertEquals(pageTwo, result.getContent());
+        assertEquals(2, result.getPage());
+        assertEquals(3, result.getTotalPages());
+        assertEquals(25L, result.getTotalElements());
+    }
+
+    @Test
+    public void testFindPageByUserShowsTheLastPageWhenThePageIsBeyondIt() {
+        // Arrange: 25 en total -> la ultima pagina es la 3
+        final List<EventInvitation> lastPage = Collections.singletonList(new EventInvitation(EVENT_ID, NORMALIZED_INVITEE_EMAIL, CREATOR_EMAIL));
+        when(mockInvitationDao.countByUserId(OTHER_ID)).thenReturn(25L);
+        when(mockInvitationDao.findByUserId(OTHER_ID, 3, EventInvitationServiceImpl.PAGE_SIZE)).thenReturn(lastPage);
+
+        // Act
+        final PageResult<EventInvitation> result = invitationService.findPageByUser(OTHER_ID, 99);
+
+        // Assert
+        assertEquals(3, result.getPage());
+        assertEquals(lastPage, result.getContent());
+    }
+
+    @Test
+    public void testFindPageByUserShowsTheFirstPageWhenThePageIsBelowOne() {
+        // Arrange
+        final List<EventInvitation> firstPage = Collections.singletonList(new EventInvitation(EVENT_ID, NORMALIZED_INVITEE_EMAIL, CREATOR_EMAIL));
+        when(mockInvitationDao.countByUserId(OTHER_ID)).thenReturn(25L);
+        when(mockInvitationDao.findByUserId(OTHER_ID, 1, EventInvitationServiceImpl.PAGE_SIZE)).thenReturn(firstPage);
+
+        // Act
+        final PageResult<EventInvitation> result = invitationService.findPageByUser(OTHER_ID, -3);
+
+        // Assert
+        assertEquals(1, result.getPage());
+        assertEquals(firstPage, result.getContent());
+    }
+
+    @Test
+    public void testFindPageByUserWithNoResultsReturnsAnEmptyFirstPage() {
+        // Arrange
+        when(mockInvitationDao.countByUserId(OTHER_ID)).thenReturn(0L);
+        when(mockInvitationDao.findByUserId(OTHER_ID, 1, EventInvitationServiceImpl.PAGE_SIZE)).thenReturn(Collections.emptyList());
+
+        // Act
+        final PageResult<EventInvitation> result = invitationService.findPageByUser(OTHER_ID, 5);
+
+        // Assert
+        assertEquals(1, result.getPage());
+        assertEquals(0, result.getTotalPages());
+        assertTrue(result.getContent().isEmpty());
     }
 
     // ---- countByUser() ----

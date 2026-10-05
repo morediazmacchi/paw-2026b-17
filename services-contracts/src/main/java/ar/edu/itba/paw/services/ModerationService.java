@@ -7,8 +7,6 @@ package ar.edu.itba.paw.services;
 import ar.edu.itba.paw.model.EventReport;
 import ar.edu.itba.paw.model.User;
 
-import java.util.List;
-
 public interface ModerationService {
 
     /**
@@ -19,15 +17,20 @@ public interface ModerationService {
      */
     ReportResult report(long eventId, User reporter, String reason);
 
-    /** Cola de moderacion: los reportes pendientes, mas viejo primero (FIFO). */
-    List<EventReport> listPending();
+    /**
+     * Cola de moderacion: los reportes pendientes, mas viejo primero (FIFO), de
+     * a una pagina. Una pagina mayor a la ultima devuelve la ultima, una menor
+     * a 1 la primera; sin reportes, la pagina 1 vacia.
+     */
+    PageResult<EventReport> findPendingPage(int page);
 
     /**
      * Panel de seguimiento: los reportes con cambios pedidos (ver
      * requestChanges()), esperando que un admin los revise de nuevo, mas
-     * viejo primero (FIFO).
+     * viejo primero (FIFO), de a una pagina (mismo criterio de pagina fuera de
+     * rango que findPendingPage()).
      */
-    List<EventReport> listChangesRequested();
+    PageResult<EventReport> findChangesRequestedPage(int page);
 
     /**
      * El admin le pide al creador que corrija algo en el evento, en vez de

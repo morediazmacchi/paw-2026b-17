@@ -38,6 +38,8 @@ public class RegistrationJdbcDaoTest {
     @Autowired
     private RegistrationDao registrationDao;
 
+    private static final long DAY = 86_400_000L;
+
     private JdbcTemplate jdbcTemplate;
     private long eventId;
     private long userId;
@@ -57,6 +59,17 @@ public class RegistrationJdbcDaoTest {
                 "INSERT INTO event (title, event_date, address, creator_email) VALUES (?, ?, ?, ?)",
                 "Recital", new Timestamp(System.currentTimeMillis()), "Corrientes 1234", "creador@mail.com");
         return jdbcTemplate.queryForObject("SELECT id FROM event ORDER BY id DESC LIMIT 1", Long.class);
+    }
+
+    private long insertEventAt(final long millisFromNow) {
+        jdbcTemplate.update(
+                "INSERT INTO event (title, event_date, address, creator_email) VALUES (?, ?, ?, ?)",
+                "Evento", new Timestamp(System.currentTimeMillis() + millisFromNow), "Corrientes 1234", "creador@mail.com");
+        return jdbcTemplate.queryForObject("SELECT id FROM event ORDER BY id DESC LIMIT 1", Long.class);
+    }
+
+    private long registerUserAtEvent(final long eventId) {
+        return insertRegistration(eventId, EMAIL + eventId, userId, NAME, RegistrationStatus.CONFIRMED);
     }
 
     // registration.user_id es una FK de verdad contra users.id: cada email
@@ -216,7 +229,7 @@ public class RegistrationJdbcDaoTest {
         insertRegistration(eventId, "otro@mail.com", otherUserId, "Otro", RegistrationStatus.CONFIRMED);
 
         // Act
-        final List<Registration> found = registrationDao.findByUserId(userId);
+        final List<Registration> found = registrationDao.findByUserId(userId, 1, 10);
 
         // Assert
         assertEquals(1, found.size());
@@ -228,10 +241,80 @@ public class RegistrationJdbcDaoTest {
         // Arrange: no se inserta ninguna inscripcion.
 
         // Act
-        final List<Registration> found = registrationDao.findByUserId(userId);
+        final List<Registration> found = registrationDao.findByUserId(userId, 1, 10);
 
         // Assert
         assertTrue(found.isEmpty());
+    }
+
+    @Test
+    public void testFindByUserIdListsUpcomingEventsBeforePastOnes() {
+        // Arrange: a proposito la del evento pasado se inserta primero
+        final long pastEvent = insertEventAt(-2 * DAY);
+        final long upcomingEvent = insertEventAt(2 * DAY);
+        registerUserAtEvent(pastEvent);
+        registerUserAtEvent(upcomingEvent);
+
+        // Act
+        final List<Registration> found = registrationDao.findByUserId(userId, 1, 10);
+
+        // Assert
+        assertEquals(2, found.size());
+        assertEquals(upcomingEvent, found.get(0).getEventId());
+        assertEquals(pastEvent, found.get(1).getEventId());
+    }
+
+    @Test
+    public void testFindByUserIdOrdersUpcomingNearestFirstAndPastMostRecentFirst() {
+        // Arrange
+        final long upcomingFar = insertEventAt(3 * DAY);
+        final long pastOld = insertEventAt(-5 * DAY);
+        final long upcomingNear = insertEventAt(1 * DAY);
+        final long pastRecent = insertEventAt(-1 * DAY);
+        registerUserAtEvent(upcomingFar);
+        registerUserAtEvent(pastOld);
+        registerUserAtEvent(upcomingNear);
+        registerUserAtEvent(pastRecent);
+
+        // Act
+        final List<Registration> found = registrationDao.findByUserId(userId, 1, 10);
+
+        // Assert
+        assertEquals(4, found.size());
+        assertEquals(upcomingNear, found.get(0).getEventId());
+        assertEquals(upcomingFar, found.get(1).getEventId());
+        assertEquals(pastRecent, found.get(2).getEventId());
+        assertEquals(pastOld, found.get(3).getEventId());
+    }
+
+    @Test
+    public void testFindByUserIdReturnsTheSecondPage() {
+        // Arrange: 3 inscripciones de a 2 por pagina -> la pagina 2 es solo la ultima del orden
+        final long first = insertEventAt(1 * DAY);
+        final long second = insertEventAt(2 * DAY);
+        final long third = insertEventAt(3 * DAY);
+        registerUserAtEvent(third);
+        registerUserAtEvent(first);
+        registerUserAtEvent(second);
+
+        // Act
+        final List<Registration> page = registrationDao.findByUserId(userId, 2, 2);
+
+        // Assert
+        assertEquals(1, page.size());
+        assertEquals(third, page.get(0).getEventId());
+    }
+
+    @Test
+    public void testFindByUserIdReturnsNothingForAPageBeyondTheLast() {
+        // Arrange
+        registerUserAtEvent(insertEventAt(DAY));
+
+        // Act
+        final List<Registration> page = registrationDao.findByUserId(userId, 5, 2);
+
+        // Assert
+        assertTrue(page.isEmpty());
     }
 
     // ---- countByUserId() (badge de "Mis inscripciones") ----

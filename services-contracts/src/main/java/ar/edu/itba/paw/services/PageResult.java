@@ -26,6 +26,15 @@ public class PageResult<T> {
         return pageSize <= 0 ? 0 : (int) Math.ceil((double) totalElements / pageSize);
     }
 
+    // Pagina efectiva a pedirle a la base: la pedida si existe, la ultima con
+    // resultados si es mayor al total, la 1 si es menor a 1 o si no hay nada.
+    // Para quien pagina con SQL (LIMIT/OFFSET): primero cuenta el total
+    // (COUNT), despues llama a esto y recien ahi trae las filas de esa pagina.
+    public static int clampPage(final int page, final long totalElements, final int pageSize) {
+        final int totalPages = pageSize <= 0 ? 0 : (int) Math.ceil((double) totalElements / pageSize);
+        return totalPages == 0 ? 1 : Math.min(Math.max(page, 1), totalPages);
+    }
+
     // Para quien no pagina con SQL (LIMIT/OFFSET) sino que ya tiene la lista
     // completa en memoria (ver UserServiceImpl.findPage()): corta el pedazo que
     // corresponde y arma el PageResult, con el mismo criterio que

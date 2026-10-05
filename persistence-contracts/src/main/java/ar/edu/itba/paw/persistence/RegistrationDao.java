@@ -21,8 +21,10 @@ public interface RegistrationDao {
      *  CONFIRMED a REJECTED (el creador revoca). */
     boolean updateStatus(long id, RegistrationStatus status);
 
-    // "Mis inscripciones": mas recientes primero.
-    List<Registration> findByUserId(long userId);
+    // "Mis inscripciones", de a una pagina (page empieza en 1). Primero las de
+    // eventos que todavia no pasaron (el mas proximo primero) y despues las de
+    // eventos pasados (el mas reciente primero); el orden y el corte se hacen en SQL.
+    List<Registration> findByUserId(long userId, int page, int pageSize);
 
     /** Para el badge de "Mis inscripciones" (ver ProfileController): sin traer las filas. */
     long countByUserId(long userId);

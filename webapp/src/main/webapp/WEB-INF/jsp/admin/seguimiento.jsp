@@ -109,6 +109,7 @@
                         </tbody>
                     </table>
                 </div>
+                <paw:pager baseUrl="/admin/reportes/seguimiento" currentPage="${currentPage}" totalPages="${totalPages}"/>
 
                 <c:forEach var="report" items="${reports}">
                     <div class="modal-overlay" id="removeModal-${report.id}" hidden>

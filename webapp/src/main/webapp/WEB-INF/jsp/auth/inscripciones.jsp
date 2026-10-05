@@ -135,6 +135,8 @@
                         </c:forEach>
                     </div>
                 </c:if>
+
+                <paw:pager baseUrl="/perfil/inscripciones" currentPage="${currentPage}" totalPages="${totalPages}"/>
             </c:otherwise>
         </c:choose>
     </main>

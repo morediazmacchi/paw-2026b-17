@@ -34,11 +34,13 @@ public interface EventInvitationService {
 
     /**
      * "Mis invitaciones": los eventos privados a los que invitaron a este
-     * usuario, mas recientes primero. No hace falta ningun chequeo de dueño
-     * (a diferencia de findByEvent de arriba): es siempre tu propio userId,
-     * el de la sesion logueada.
+     * usuario, mas recientes primero, de a una pagina. No hace falta ningun
+     * chequeo de dueño (a diferencia de findByEvent de arriba): es siempre tu
+     * propio userId, el de la sesion logueada. Una pagina mayor a la ultima
+     * devuelve la ultima, una menor a 1 la primera; sin invitaciones, la
+     * pagina 1 vacia.
      */
-    List<EventInvitation> findByUser(long userId);
+    PageResult<EventInvitation> findPageByUser(long userId, int page);
 
     /** Para el badge de "Mis invitaciones" (ver ProfileController): sin traer las filas. */
     long countByUser(long userId);

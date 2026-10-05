@@ -39,7 +39,6 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import javax.validation.Valid;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -86,36 +85,9 @@ public class ProfileController {
         return (int) registrationService.countByUserId(user.getId());
     }
 
-    // el badge de "Favoritos"
+    // el badge de "Favoritos" (solo los que todavia puede ver: ver FavoriteService.countViewable)
     private int favoritesCountFor(final User user) {
-        return viewableFavorites(user).size();
-    }
-
-    // Los favoritos de la cuenta, mas recientes primero, SIN los de un evento
-    // privado al que ya no tiene acceso (ej. le revocaron la invitacion): sin este
-    // filtro "Mis favoritos" seguiria mostrando su titulo y direccion. El favorito
-    // no se borra, solo deja de mostrarse; si recupera el acceso, vuelve a aparecer.
-    // Una sola consulta para todos los eventos (findByIds) en vez de una por favorito.
-    private List<Event> viewableFavorites(final User user) {
-        final List<Long> favoriteEventIds = favoriteService.findEventIdsByUser(user.getId());
-        if (favoriteEventIds.isEmpty()) {
-            return Collections.emptyList();
-        }
-        final Map<Long, Event> eventsById = eventService.findByIds(favoriteEventIds).stream()
-                .collect(Collectors.toMap(Event::getId, event -> event));
-        final List<Event> viewable = new ArrayList<>();
-        for (final Long eventId : favoriteEventIds) {
-            final Event event = eventsById.get(eventId);
-            if (event != null && canStillView(event, user)) {
-                viewable.add(event);
-            }
-        }
-        return viewable;
-    }
-
-    // El evento publico lo ve cualquiera: el service ni busca la inscripcion.
-    private boolean canStillView(final Event event, final User user) {
-        return accessChecker.canView(event, user);
+        return (int) favoriteService.countViewable(user);
     }
 
     // Mismo motivo que registrationsCountFor: el badge de "Mis eventos" en el
@@ -200,8 +172,10 @@ public class ProfileController {
     }
 
     @RequestMapping(value = "/perfil/inscripciones", method = RequestMethod.GET)
-    public ModelAndView misInscripciones(@ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final List<Registration> registrations = registrationService.findByUserId(currentUser.getId());
+    public ModelAndView misInscripciones(@RequestParam(value = "page", required = false) final String page,
+                                         @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
+        final PageResult<Registration> result = registrationService.findPageByUserId(currentUser.getId(), Paging.parsePage(page));
+        final List<Registration> registrations = result.getContent();
 
         final List<Long> eventIds = registrations.stream()
                 .map(Registration::getEventId).collect(Collectors.toList());
@@ -230,7 +204,9 @@ public class ProfileController {
         mav.addObject("pastRegistrations", past);
         mav.addObject("eventsById", eventsById);
         mav.addObject("myReviewsByEventId", myReviewsByEventId);
-        mav.addObject("registrationsCount", registrations.size());
+        mav.addObject("currentPage", result.getPage());
+        mav.addObject("totalPages", result.getTotalPages());
+        mav.addObject("registrationsCount", (int) result.getTotalElements());
         mav.addObject("favoritesCount", favoritesCountFor(currentUser));
         mav.addObject("eventsCount", eventsCountFor(currentUser));
         mav.addObject("invitationsCount", invitationsCountFor(currentUser));
@@ -283,34 +259,40 @@ public class ProfileController {
     }
 
     @RequestMapping(value = "/perfil/favoritos", method = RequestMethod.GET)
-    public ModelAndView misFavoritos(@ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final List<Event> favoriteEvents = viewableFavorites(currentUser);
+    public ModelAndView misFavoritos(@RequestParam(value = "page", required = false) final String page,
+                                     @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
+        final PageResult<Event> result = favoriteService.findViewablePage(currentUser, Paging.parsePage(page));
 
         final ModelAndView mav = new ModelAndView("auth/favoritos");
         mav.addObject("user", currentUser);
-        mav.addObject("favoriteEvents", favoriteEvents);
+        mav.addObject("favoriteEvents", result.getContent());
+        mav.addObject("currentPage", result.getPage());
+        mav.addObject("totalPages", result.getTotalPages());
         mav.addObject("registrationsCount", registrationsCountFor(currentUser));
-        mav.addObject("favoritesCount", favoriteEvents.size());
+        mav.addObject("favoritesCount", (int) result.getTotalElements());
         mav.addObject("eventsCount", eventsCountFor(currentUser));
         mav.addObject("invitationsCount", invitationsCountFor(currentUser));
         return mav;
     }
 
     @RequestMapping(value = "/perfil/invitaciones", method = RequestMethod.GET)
-    public ModelAndView misInvitaciones(@ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final List<EventInvitation> invitations = eventInvitationService.findByUser(currentUser.getId());
+    public ModelAndView misInvitaciones(@RequestParam(value = "page", required = false) final String page,
+                                        @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
+        final PageResult<EventInvitation> result = eventInvitationService.findPageByUser(currentUser.getId(), Paging.parsePage(page));
         final List<Event> invitedEvents = new ArrayList<>();
-        for (final EventInvitation invitation : invitations) {
+        for (final EventInvitation invitation : result.getContent()) {
             eventService.findById(invitation.getEventId()).ifPresent(invitedEvents::add);
         }
 
         final ModelAndView mav = new ModelAndView("auth/invitaciones");
         mav.addObject("user", currentUser);
         mav.addObject("invitedEvents", invitedEvents);
+        mav.addObject("currentPage", result.getPage());
+        mav.addObject("totalPages", result.getTotalPages());
         mav.addObject("registrationsCount", registrationsCountFor(currentUser));
         mav.addObject("favoritesCount", favoritesCountFor(currentUser));
         mav.addObject("eventsCount", eventsCountFor(currentUser));
-        mav.addObject("invitationsCount", invitedEvents.size());
+        mav.addObject("invitationsCount", (int) result.getTotalElements());
         return mav;
     }
 
@@ -339,16 +321,20 @@ public class ProfileController {
     }
 
     @RequestMapping(value = "/perfil/eventos", method = RequestMethod.GET)
-    public ModelAndView misEventos(@ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final List<Event> createdEvents = eventService.findByCreatorId(currentUser.getId());
+    public ModelAndView misEventos(@RequestParam(value = "page", required = false) final String page,
+                                   @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
+        final PageResult<Event> result = eventService.findPageByCreatorId(currentUser.getId(), Paging.parsePage(page));
+        final List<Event> createdEvents = result.getContent();
         final List<Review> myReviews = reviewService.findByCreatorId(currentUser.getId());
 
         final ModelAndView mav = new ModelAndView("auth/eventos");
         mav.addObject("user", currentUser);
         mav.addObject("createdEvents", createdEvents);
+        mav.addObject("currentPage", result.getPage());
+        mav.addObject("totalPages", result.getTotalPages());
         mav.addObject("registrationsCount", registrationsCountFor(currentUser));
         mav.addObject("favoritesCount", favoritesCountFor(currentUser));
-        mav.addObject("eventsCount", createdEvents.size());
+        mav.addObject("eventsCount", (int) result.getTotalElements());
         mav.addObject("invitationsCount", invitationsCountFor(currentUser));
         mav.addObject("creatorAverageRating", reviewService.findCreatorAverageRating(currentUser.getId()));
         mav.addObject("creatorReviewCount", myReviews.size());

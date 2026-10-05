@@ -345,9 +345,19 @@ public class EventJdbcDao implements EventDao {
     }
 
     @Override
-    public List<Event> findByCreatorId(final long creatorId) {
-        final List<Event> events = jdbcTemplate.query(SELECT_BASE + " WHERE e.creator_id = ? ORDER BY e.event_date DESC",
-                ROW_MAPPER, creatorId);
+    public List<Event> findByCreatorId(final long creatorId, final int page, final int pageSize) {
+        // Primero los que todavia no pasaron (el mas proximo primero), despues los
+        // pasados (el mas reciente primero). Cada CASE ordena un solo grupo: en las
+        // filas del otro grupo da NULL, y como el primer criterio ya las separo en
+        // dos bloques, ese NULL no cambia el orden dentro de cada bloque.
+        final Timestamp now = new Timestamp(System.currentTimeMillis());
+        final List<Event> events = jdbcTemplate.query(
+                SELECT_BASE + " WHERE e.creator_id = ? ORDER BY "
+                        + "CASE WHEN e.event_date >= ? THEN 0 ELSE 1 END ASC, "
+                        + "CASE WHEN e.event_date >= ? THEN e.event_date END ASC, "
+                        + "CASE WHEN e.event_date < ? THEN e.event_date END DESC, "
+                        + "e.id ASC LIMIT ? OFFSET ?",
+                ROW_MAPPER, creatorId, now, now, now, pageSize, (page - 1) * pageSize);
         attachRelated(events);
         return events;
     }

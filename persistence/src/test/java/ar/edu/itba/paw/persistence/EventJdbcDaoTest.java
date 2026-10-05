@@ -86,6 +86,12 @@ public class EventJdbcDaoTest {
         return jdbcTemplate.queryForObject("SELECT id FROM image ORDER BY id DESC LIMIT 1", Long.class);
     }
 
+    private static final long DAY = 86_400_000L;
+
+    private static Timestamp fromNow(final long millis) {
+        return new Timestamp(System.currentTimeMillis() + millis);
+    }
+
     private static Map<String, Object> cols(final Object... kv) {
         final Map<String, Object> map = new LinkedHashMap<>();
         for (int i = 0; i < kv.length; i += 2) {
@@ -810,7 +816,7 @@ public class EventJdbcDaoTest {
         insertEvent(cols("address", "Direccion B", "creator_email", "otro@mail.com", "creator_id", otherCreatorId));
 
         // Act
-        final List<Event> result = eventDao.findByCreatorId(creatorId);
+        final List<Event> result = eventDao.findByCreatorId(creatorId, 1, 10);
 
         // Assert
         assertEquals(1, result.size());
@@ -818,21 +824,64 @@ public class EventJdbcDaoTest {
     }
 
     @Test
-    public void testFindByCreatorIdOrdersMostRecentEventDateFirst() {
-        // Arrange
-        final Timestamp earlierDate = new Timestamp(1_000_000_000_000L);
-        final Timestamp laterDate = new Timestamp(2_000_000_000_000L);
-        // A proposito insertados en orden "incorrecto".
-        insertEvent(cols("address", "Direccion A", "event_date", earlierDate, "creator_id", creatorId));
-        insertEvent(cols("address", "Direccion B", "event_date", laterDate, "creator_id", creatorId));
+    public void testFindByCreatorIdListsUpcomingEventsBeforePastOnes() {
+        // Arrange: a proposito el pasado se inserta primero
+        insertEvent(cols("address", "Pasado", "event_date", fromNow(-2 * DAY), "creator_id", creatorId));
+        insertEvent(cols("address", "Proximo", "event_date", fromNow(2 * DAY), "creator_id", creatorId));
 
         // Act
-        final List<Event> result = eventDao.findByCreatorId(creatorId);
+        final List<Event> result = eventDao.findByCreatorId(creatorId, 1, 10);
 
         // Assert
         assertEquals(2, result.size());
-        assertEquals("Direccion B", result.get(0).getAddress());
-        assertEquals("Direccion A", result.get(1).getAddress());
+        assertEquals("Proximo", result.get(0).getAddress());
+        assertEquals("Pasado", result.get(1).getAddress());
+    }
+
+    @Test
+    public void testFindByCreatorIdOrdersUpcomingNearestFirstAndPastMostRecentFirst() {
+        // Arrange
+        insertEvent(cols("address", "Proximo lejano", "event_date", fromNow(3 * DAY), "creator_id", creatorId));
+        insertEvent(cols("address", "Pasado viejo", "event_date", fromNow(-5 * DAY), "creator_id", creatorId));
+        insertEvent(cols("address", "Proximo cercano", "event_date", fromNow(1 * DAY), "creator_id", creatorId));
+        insertEvent(cols("address", "Pasado reciente", "event_date", fromNow(-1 * DAY), "creator_id", creatorId));
+
+        // Act
+        final List<Event> result = eventDao.findByCreatorId(creatorId, 1, 10);
+
+        // Assert
+        assertEquals(4, result.size());
+        assertEquals("Proximo cercano", result.get(0).getAddress());
+        assertEquals("Proximo lejano", result.get(1).getAddress());
+        assertEquals("Pasado reciente", result.get(2).getAddress());
+        assertEquals("Pasado viejo", result.get(3).getAddress());
+    }
+
+    @Test
+    public void testFindByCreatorIdReturnsTheSecondPage() {
+        // Arrange: 3 eventos de a 2 por pagina -> la pagina 2 es solo el ultimo del orden
+        insertEvent(cols("address", "Tercero", "event_date", fromNow(3 * DAY), "creator_id", creatorId));
+        insertEvent(cols("address", "Primero", "event_date", fromNow(1 * DAY), "creator_id", creatorId));
+        insertEvent(cols("address", "Segundo", "event_date", fromNow(2 * DAY), "creator_id", creatorId));
+
+        // Act
+        final List<Event> page = eventDao.findByCreatorId(creatorId, 2, 2);
+
+        // Assert
+        assertEquals(1, page.size());
+        assertEquals("Tercero", page.get(0).getAddress());
+    }
+
+    @Test
+    public void testFindByCreatorIdReturnsNothingForAPageBeyondTheLast() {
+        // Arrange
+        insertEvent(cols("creator_id", creatorId));
+
+        // Act
+        final List<Event> page = eventDao.findByCreatorId(creatorId, 5, 2);
+
+        // Assert
+        assertTrue(page.isEmpty());
     }
 
     @Test
@@ -840,7 +889,7 @@ public class EventJdbcDaoTest {
         // Arrange: no se inserta ningun evento de este creador.
 
         // Act
-        final List<Event> result = eventDao.findByCreatorId(creatorId);
+        final List<Event> result = eventDao.findByCreatorId(creatorId, 1, 10);
 
         // Assert
         assertTrue(result.isEmpty());
@@ -854,7 +903,7 @@ public class EventJdbcDaoTest {
         insertEvent(cols("creator_id", creatorId, "visibility", EventVisibility.PRIVATE.name()));
 
         // Act
-        final List<Event> result = eventDao.findByCreatorId(creatorId);
+        final List<Event> result = eventDao.findByCreatorId(creatorId, 1, 10);
 
         // Assert
         assertEquals(1, result.size());
@@ -866,7 +915,7 @@ public class EventJdbcDaoTest {
         insertEvent(cols("creator_id", creatorId, "cancelled_at", new Timestamp(System.currentTimeMillis())));
 
         // Act
-        final List<Event> result = eventDao.findByCreatorId(creatorId);
+        final List<Event> result = eventDao.findByCreatorId(creatorId, 1, 10);
 
         // Assert
         assertEquals(1, result.size());

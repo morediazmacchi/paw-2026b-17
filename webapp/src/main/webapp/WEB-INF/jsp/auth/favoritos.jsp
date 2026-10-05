@@ -46,6 +46,7 @@
                         </paw:eventRow>
                     </c:forEach>
                 </div>
+                <paw:pager baseUrl="/perfil/favoritos" currentPage="${currentPage}" totalPages="${totalPages}"/>
             </c:otherwise>
         </c:choose>
     </main>

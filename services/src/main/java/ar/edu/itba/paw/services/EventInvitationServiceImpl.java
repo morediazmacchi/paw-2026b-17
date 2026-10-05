@@ -17,6 +17,8 @@ import java.util.List;
 @Service
 public class EventInvitationServiceImpl implements EventInvitationService {
 
+    static final int PAGE_SIZE = 10;
+
     private final EventInvitationDao invitationDao;
     private final EventDao eventDao;
     private final RegistrationDao registrationDao;
@@ -95,8 +97,11 @@ public class EventInvitationServiceImpl implements EventInvitationService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<EventInvitation> findByUser(final long userId) {
-        return invitationDao.findByUserId(userId);
+    public PageResult<EventInvitation> findPageByUser(final long userId, final int page) {
+        final long total = invitationDao.countByUserId(userId);
+        final int effectivePage = PageResult.clampPage(page, total, PAGE_SIZE);
+        return new PageResult<>(invitationDao.findByUserId(userId, effectivePage, PAGE_SIZE),
+                total, effectivePage, PAGE_SIZE);
     }
 
     @Override

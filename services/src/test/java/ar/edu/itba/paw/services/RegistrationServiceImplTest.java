@@ -574,20 +574,68 @@ public class RegistrationServiceImplTest {
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
 
-    // ---- findByUserId() ----
+    // ---- findPageByUserId() ----
 
     @Test
-    public void testFindByUserIdDelegatesToTheDao() {
-        // Arrange
-        final List<Registration> registrations = Collections.singletonList(
-                new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, RegistrationStatus.CONFIRMED));
-        when(mockRegistrationDao.findByUserId(USER_ID)).thenReturn(registrations);
+    public void testFindPageByUserIdReturnsTheRequestedPageWithItsTotals() {
+        // Arrange: 25 en total, de a RegistrationServiceImpl.PAGE_SIZE por pagina -> 3 paginas
+        final List<Registration> pageTwo = Collections.singletonList(new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, RegistrationStatus.CONFIRMED));
+        when(mockRegistrationDao.countByUserId(USER_ID)).thenReturn(25L);
+        when(mockRegistrationDao.findByUserId(USER_ID, 2, RegistrationServiceImpl.PAGE_SIZE)).thenReturn(pageTwo);
 
         // Act
-        final List<Registration> result = registrationService.findByUserId(USER_ID);
+        final PageResult<Registration> result = registrationService.findPageByUserId(USER_ID, 2);
 
         // Assert
-        assertEquals(registrations, result);
+        assertEquals(pageTwo, result.getContent());
+        assertEquals(2, result.getPage());
+        assertEquals(3, result.getTotalPages());
+        assertEquals(25L, result.getTotalElements());
+    }
+
+    @Test
+    public void testFindPageByUserIdShowsTheLastPageWhenThePageIsBeyondIt() {
+        // Arrange: 25 en total -> la ultima pagina es la 3
+        final List<Registration> lastPage = Collections.singletonList(new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, RegistrationStatus.CONFIRMED));
+        when(mockRegistrationDao.countByUserId(USER_ID)).thenReturn(25L);
+        when(mockRegistrationDao.findByUserId(USER_ID, 3, RegistrationServiceImpl.PAGE_SIZE)).thenReturn(lastPage);
+
+        // Act
+        final PageResult<Registration> result = registrationService.findPageByUserId(USER_ID, 99);
+
+        // Assert
+        assertEquals(3, result.getPage());
+        assertEquals(lastPage, result.getContent());
+    }
+
+    @Test
+    public void testFindPageByUserIdShowsTheFirstPageWhenThePageIsBelowOne() {
+        // Arrange
+        final List<Registration> firstPage = Collections.singletonList(new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, RegistrationStatus.CONFIRMED));
+        when(mockRegistrationDao.countByUserId(USER_ID)).thenReturn(25L);
+        when(mockRegistrationDao.findByUserId(USER_ID, 1, RegistrationServiceImpl.PAGE_SIZE)).thenReturn(firstPage);
+
+        // Act
+        final PageResult<Registration> result = registrationService.findPageByUserId(USER_ID, -3);
+
+        // Assert
+        assertEquals(1, result.getPage());
+        assertEquals(firstPage, result.getContent());
+    }
+
+    @Test
+    public void testFindPageByUserIdWithNoResultsReturnsAnEmptyFirstPage() {
+        // Arrange
+        when(mockRegistrationDao.countByUserId(USER_ID)).thenReturn(0L);
+        when(mockRegistrationDao.findByUserId(USER_ID, 1, RegistrationServiceImpl.PAGE_SIZE)).thenReturn(Collections.emptyList());
+
+        // Act
+        final PageResult<Registration> result = registrationService.findPageByUserId(USER_ID, 5);
+
+        // Assert
+        assertEquals(1, result.getPage());
+        assertEquals(0, result.getTotalPages());
+        assertTrue(result.getContent().isEmpty());
     }
 
     // ---- countByUserId() ----
