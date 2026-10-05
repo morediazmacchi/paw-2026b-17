@@ -11,6 +11,8 @@ import ar.edu.itba.paw.model.EventSort;
 import ar.edu.itba.paw.webapp.util.Paging;
 
 import java.math.BigDecimal;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
@@ -125,6 +127,38 @@ public class EventSearchForm {
         criteria.setSort(getParsedSort());
         criteria.setPage(Paging.parsePage(page));
         return criteria;
+    }
+
+    // Query string de los filtros para los links de paginacion (sin "page"). Solo
+    // entran los valores con contenido y el sort si no es el default, asi la URL
+    // queda limpia en vez de llena de "precioMin=&precioMax=&...". Si hay algun
+    // filtro, termina en "&" para que el JSP pueda agregar "page=N" al final.
+    public String toFilterQuery() {
+        final StringBuilder query = new StringBuilder();
+        if (categoria != null) {
+            categoria.forEach(c -> appendParam(query, "categoria", c));
+        }
+        if (barrio != null) {
+            barrio.forEach(b -> appendParam(query, "barrio", b));
+        }
+        appendParam(query, "precioMin", precioMin);
+        appendParam(query, "precioMax", precioMax);
+        appendParam(query, "fechaDesde", fechaDesde);
+        appendParam(query, "fechaHasta", fechaHasta);
+        appendParam(query, "puntajeMin", puntajeMin);
+        appendParam(query, "pocosCupos", pocosCupos);
+        appendParam(query, "agotados", agotados);
+        if (getParsedSort() != EventSort.FECHA_ASC) {
+            appendParam(query, "sort", getParsedSort().name());
+        }
+        return query.toString();
+    }
+
+    private static void appendParam(final StringBuilder query, final String name, final String value) {
+        if (notBlank(value)) {
+            query.append(name).append('=')
+                    .append(URLEncoder.encode(value, StandardCharsets.UTF_8)).append('&');
+        }
     }
 
     private static boolean notBlank(final String value) {

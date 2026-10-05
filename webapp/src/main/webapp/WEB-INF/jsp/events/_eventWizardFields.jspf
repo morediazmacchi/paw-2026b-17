@@ -306,11 +306,13 @@
             <spring:message code="event.publish.tooManyImagesError" var="tooManyImagesMsg"/>
             <spring:message code="event.publish.imageTooLarge" var="tooLargeImageMsg"/>
             <spring:message code="event.publish.coverLabel" var="coverLabelMsg"/>
+            <spring:message code="event.publish.notImageFileError" var="notImageFileMsg"/>
             <spring:message code="event.publish.removeImage" var="removeImageMsg"/>
             <input type="file" id="images" name="images" accept="image/*" multiple="multiple"
                    class="wizard-dropzone-input"
                    data-max-message="<c:out value='${tooManyImagesMsg}'/>"
                    data-too-large-message="<c:out value='${tooLargeImageMsg}'/>"
+                   data-not-image-message="<c:out value='${notImageFileMsg}'/>"
                    data-cover-label="<c:out value='${coverLabelMsg}'/>"
                    data-remove-label="<c:out value='${removeImageMsg}'/>"/>
             <%-- Solo editar.jsp declara currentImageHintLabel: ahi las fotos son

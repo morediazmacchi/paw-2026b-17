@@ -30,6 +30,18 @@ document.addEventListener("DOMContentLoaded", function () {
     input.parentNode.insertBefore(list, input.nextSibling);
     input.parentNode.insertBefore(message, list);
 
+    // Filtro de UX, no de seguridad: un archivo se acepta si su tipo es image/* o
+    // si la extension es de imagen (algunos sistemas no le asignan tipo a un WebP).
+    // Lo que sea un falso positivo lo rechaza el servidor mirando los bytes
+    // (ImageServiceImpl.detectType), asi que no hace falta que este filtro sea perfecto.
+    var IMAGE_EXTENSION = /\.(jpe?g|png|gif|webp)$/i;
+    function looksLikeImage(file) {
+        if (file.type && file.type.indexOf("image/") === 0) {
+            return true;
+        }
+        return IMAGE_EXTENSION.test(file.name);
+    }
+
     function key(file) {
         return file.name + "|" + file.size + "|" + file.lastModified;
     }
@@ -42,8 +54,10 @@ document.addEventListener("DOMContentLoaded", function () {
     function add(files) {
         var tooMany = false;
         var tooLarge = false;
+        var notImage = false;
         Array.prototype.forEach.call(files, function (file) {
-            if (file.type.indexOf("image/") !== 0) {
+            if (!looksLikeImage(file)) {
+                notImage = true;
                 return;
             }
             if (selected.some(function (s) { return key(s) === key(file); })) {
@@ -61,6 +75,8 @@ document.addEventListener("DOMContentLoaded", function () {
         });
         if (tooLarge) {
             showMessage(input.getAttribute("data-too-large-message") || "");
+        } else if (notImage) {
+            showMessage(input.getAttribute("data-not-image-message") || "");
         } else if (tooMany) {
             showMessage(input.getAttribute("data-max-message") || "");
         } else {

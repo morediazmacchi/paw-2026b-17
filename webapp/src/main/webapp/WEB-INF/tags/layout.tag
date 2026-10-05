@@ -23,6 +23,7 @@
     <link rel="icon" type="image/svg+xml" href="${pageContext.request.contextPath}/favicon.svg">
     <link rel="stylesheet" href="${pageContext.request.contextPath}/css/style.css">
     <jsp:invoke fragment="head"/>
+    <script src="${pageContext.request.contextPath}/js/char-counter.js" defer></script>
 </head>
 <body>
 

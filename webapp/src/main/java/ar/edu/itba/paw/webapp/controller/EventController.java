@@ -132,6 +132,7 @@ public class EventController {
         mav.addObject("agotados", filters.getAgotados());
         mav.addObject("hasActiveFilters", filters.hasActiveFilters());
         mav.addObject("sort", filters.getParsedSort().name());
+        mav.addObject("filterQuery", filters.toFilterQuery());
         mav.addObject("sortOptions", EventSort.values());
         mav.addObject("filterErrors", filterErrors);
         // Anonimo no ve el corazon de favorito.

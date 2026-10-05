@@ -386,19 +386,7 @@
                 <nav class="pager">
                     <c:if test="${currentPage > 1}">
                         <a class="pager-arrow"
-                           href="<c:url value='/eventos'>
-                                   <c:forEach var="cid" items="${selectedCategorias}"><c:param name='categoria' value='${cid}'/></c:forEach>
-                                   <c:forEach var="bar" items="${selectedBarrios}"><c:param name='barrio' value='${bar}'/></c:forEach>
-                                   <c:param name='precioMin' value='${precioMin}'/>
-                                   <c:param name='precioMax' value='${precioMax}'/>
-                                   <c:param name='fechaDesde' value='${fechaDesde}'/>
-                                   <c:param name='fechaHasta' value='${fechaHasta}'/>
-                                   <c:param name='puntajeMin' value='${puntajeMin}'/>
-                                   <c:param name='pocosCupos' value='${pocosCupos}'/>
-                                   <c:param name='agotados' value='${agotados}'/>
-                                   <c:param name='sort' value='${sort}'/>
-                                   <c:param name='page' value='${currentPage - 1}'/>
-                                 </c:url>"><c:out value="${prevPageLabel}"/></a>
+                           href="<c:url value='/eventos'/>?${fn:escapeXml(filterQuery)}page=${currentPage - 1}"><c:out value="${prevPageLabel}"/></a>
                     </c:if>
 
                     <c:forEach var="p" items="${pageNumbers}">
@@ -411,38 +399,14 @@
                             </c:when>
                             <c:otherwise>
                                 <a class="pager-number"
-                                   href="<c:url value='/eventos'>
-                                           <c:forEach var="cid" items="${selectedCategorias}"><c:param name='categoria' value='${cid}'/></c:forEach>
-                                           <c:forEach var="bar" items="${selectedBarrios}"><c:param name='barrio' value='${bar}'/></c:forEach>
-                                           <c:param name='precioMin' value='${precioMin}'/>
-                                           <c:param name='precioMax' value='${precioMax}'/>
-                                           <c:param name='fechaDesde' value='${fechaDesde}'/>
-                                           <c:param name='fechaHasta' value='${fechaHasta}'/>
-                                           <c:param name='puntajeMin' value='${puntajeMin}'/>
-                                   <c:param name='pocosCupos' value='${pocosCupos}'/>
-                                   <c:param name='agotados' value='${agotados}'/>
-                                           <c:param name='sort' value='${sort}'/>
-                                           <c:param name='page' value='${p}'/>
-                                         </c:url>"><c:out value="${p}"/></a>
+                                   href="<c:url value='/eventos'/>?${fn:escapeXml(filterQuery)}page=${p}"><c:out value="${p}"/></a>
                             </c:otherwise>
                         </c:choose>
                     </c:forEach>
 
                     <c:if test="${currentPage < totalPages}">
                         <a class="pager-arrow"
-                           href="<c:url value='/eventos'>
-                                   <c:forEach var="cid" items="${selectedCategorias}"><c:param name='categoria' value='${cid}'/></c:forEach>
-                                   <c:forEach var="bar" items="${selectedBarrios}"><c:param name='barrio' value='${bar}'/></c:forEach>
-                                   <c:param name='precioMin' value='${precioMin}'/>
-                                   <c:param name='precioMax' value='${precioMax}'/>
-                                   <c:param name='fechaDesde' value='${fechaDesde}'/>
-                                   <c:param name='fechaHasta' value='${fechaHasta}'/>
-                                   <c:param name='puntajeMin' value='${puntajeMin}'/>
-                                   <c:param name='pocosCupos' value='${pocosCupos}'/>
-                                   <c:param name='agotados' value='${agotados}'/>
-                                   <c:param name='sort' value='${sort}'/>
-                                   <c:param name='page' value='${currentPage + 1}'/>
-                                 </c:url>"><c:out value="${nextPageLabel}"/></a>
+                           href="<c:url value='/eventos'/>?${fn:escapeXml(filterQuery)}page=${currentPage + 1}"><c:out value="${nextPageLabel}"/></a>
                     </c:if>
                 </nav>
             </c:if>

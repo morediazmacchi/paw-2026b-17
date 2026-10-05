@@ -127,11 +127,12 @@ public class EventAccessServiceImplTest {
     // ---- requireViewable() ----
 
     @Test
-    public void testRequireViewableDoesNotThrowWhenTheEventIsViewable() {
+    public void testCanViewWithoutRegistrationIsTrueForAPublicEvent() {
         // Act
-        accessService.requireViewable(event(EventVisibility.PUBLIC), null, Optional.empty());
+        final boolean result = accessService.canView(event(EventVisibility.PUBLIC), null, Optional.empty());
 
-        // Assert: si no tiro nada, el test ya paso.
+        // Assert
+        assertTrue(result);
     }
 
     @Test(expected = EventNotFoundException.class)
