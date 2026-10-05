@@ -144,12 +144,11 @@ public class AdminController {
     }
 
     // Tamaño de pagina para "Usuarios"
-    private static final int USERS_PAGE_SIZE = 20;
 
     @RequestMapping(value = "/usuarios", method = RequestMethod.GET)
     public ModelAndView usuarios(@RequestParam(value = "page", required = false) final String page,
                                   @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final PageResult<User> result = userService.findPage(Paging.parsePage(page), USERS_PAGE_SIZE);
+        final PageResult<User> result = userService.findPage(Paging.parsePage(page));
 
         final ModelAndView mav = new ModelAndView("admin/usuarios");
         mav.addObject("users", result.getContent());

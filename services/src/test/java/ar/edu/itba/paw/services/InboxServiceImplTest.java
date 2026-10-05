@@ -131,6 +131,21 @@ public class InboxServiceImplTest {
     }
 
     @Test
+    public void testFindPageBeyondTheLastFallsBackToTheLastPage() {
+        // Arrange: 42 mensajes, de a 20 por pagina -> la ultima pagina valida es la 3.
+        final List<InboxMessage> lastPage = Arrays.asList(anyMessage(), anyMessage());
+        when(inboxDao.findByRecipientUserId(USER_ID, 3, InboxServiceImpl.PAGE_SIZE)).thenReturn(lastPage);
+        when(inboxDao.countByUserId(USER_ID)).thenReturn(42L);
+
+        // Act
+        final PageResult<InboxMessage> result = inboxService.findPage(USER_ID, 99);
+
+        // Assert
+        assertEquals(3, result.getPage());
+        assertEquals(lastPage, result.getContent());
+    }
+
+    @Test
     public void testFindPageCalculatesTotalPages() {
         // Arrange
         when(inboxDao.findByRecipientUserId(USER_ID, 2, InboxServiceImpl.PAGE_SIZE))

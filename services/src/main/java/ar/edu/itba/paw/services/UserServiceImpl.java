@@ -28,6 +28,8 @@ import java.util.UUID;
 @Service
 public class UserServiceImpl implements UserService {
 
+    static final int PAGE_SIZE = 20;
+
     private static final String ROLE_USER = "ROLE_USER";
     private static final String ROLE_ADMIN = "ROLE_ADMIN";
 
@@ -78,8 +80,12 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(readOnly = true)
-    public PageResult<User> findPage(final int page, final int pageSize) {
-        return PageResult.of(userDao.findAll(), page, pageSize);
+    public PageResult<User> findPage(final int page) {
+        final long totalElements = userDao.countAll();
+        final int totalPages = (int) Math.ceil((double) totalElements / PAGE_SIZE);
+        final int effectivePage = totalPages == 0 ? 1 : Math.min(Math.max(page, 1), totalPages);
+        final List<User> content = userDao.findPage(PAGE_SIZE, (effectivePage - 1) * PAGE_SIZE);
+        return new PageResult<>(content, totalElements, effectivePage, PAGE_SIZE);
     }
 
     @Override

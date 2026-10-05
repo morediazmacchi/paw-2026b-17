@@ -45,9 +45,11 @@ public class InboxServiceImpl implements InboxService {
     @Override
     @Transactional(readOnly = true)
     public PageResult<InboxMessage> findPage(final long userId, final int page) {
-        final int safePage = Math.max(page, 1);
-        return new PageResult<>(inboxMessageDao.findByRecipientUserId(userId, safePage, PAGE_SIZE),
-                inboxMessageDao.countByUserId(userId), safePage, PAGE_SIZE);
+        final long totalElements = inboxMessageDao.countByUserId(userId);
+        final int totalPages = (int) Math.ceil((double) totalElements / PAGE_SIZE);
+        final int effectivePage = totalPages == 0 ? 1 : Math.min(Math.max(page, 1), totalPages);
+        return new PageResult<>(inboxMessageDao.findByRecipientUserId(userId, effectivePage, PAGE_SIZE),
+                totalElements, effectivePage, PAGE_SIZE);
     }
 
     @Override

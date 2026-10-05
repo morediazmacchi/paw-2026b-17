@@ -93,9 +93,11 @@ public class EventQuestionServiceImpl implements EventQuestionService {
     @Override
     @Transactional(readOnly = true)
     public PageResult<EventQuestion> findPage(final long eventId, final int page) {
-        final int safePage = Math.max(page, 1);
-        return new PageResult<>(questionDao.findByEvent(eventId, safePage, PAGE_SIZE),
-                questionDao.countByEvent(eventId), safePage, PAGE_SIZE);
+        final long totalElements = questionDao.countByEvent(eventId);
+        final int totalPages = (int) Math.ceil((double) totalElements / PAGE_SIZE);
+        final int effectivePage = totalPages == 0 ? 1 : Math.min(Math.max(page, 1), totalPages);
+        return new PageResult<>(questionDao.findByEvent(eventId, effectivePage, PAGE_SIZE),
+                totalElements, effectivePage, PAGE_SIZE);
     }
 
     @Override

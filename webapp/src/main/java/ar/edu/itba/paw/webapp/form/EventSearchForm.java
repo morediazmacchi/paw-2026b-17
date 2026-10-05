@@ -104,7 +104,7 @@ public class EventSearchForm {
                 || notBlank(puntajeMin) || notBlank(pocosCupos) || notBlank(agotados);
     }
 
-    public EventSearchCriteria toCriteria(final int pageSize) {
+    public EventSearchCriteria toCriteria() {
         final EventSearchCriteria criteria = new EventSearchCriteria();
         criteria.setCategoryIds(getSelectedCategoryIds());
         criteria.setBarrios(getSelectedBarrios());
@@ -124,7 +124,6 @@ public class EventSearchForm {
         criteria.setOnlySoldOut(notBlank(agotados));
         criteria.setSort(getParsedSort());
         criteria.setPage(Paging.parsePage(page));
-        criteria.setPageSize(pageSize);
         return criteria;
     }
 

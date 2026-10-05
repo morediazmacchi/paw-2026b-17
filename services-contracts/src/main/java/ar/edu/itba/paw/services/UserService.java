@@ -18,11 +18,10 @@ public interface UserService {
     List<User> findAll();
 
     /**
-     * Como {@link #findAll()}, pero ya paginado (ver PageResult#of): no hay
-     * filtro que justifique una consulta SQL propia con LIMIT/OFFSET, asi que
-     * se pagina en memoria sobre el resultado de findAll().
+     * Como {@link #findAll()}, pero ya paginado en SQL: la pagina pedida se
+     * ajusta a la ultima con usuarios (igual que la busqueda de eventos).
      */
-    PageResult<User> findPage(int page, int pageSize);
+    PageResult<User> findPage(int page);
 
     /**
      * Para autenticacion: el User que devuelve ya trae password y roles

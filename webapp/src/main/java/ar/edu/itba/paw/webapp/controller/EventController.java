@@ -51,7 +51,6 @@ import java.util.stream.Collectors;
 @Controller
 public class EventController {
 
-    private static final int PAGE_SIZE = 12;
     private static final int FEATURED_COUNT = 5;
     public static final int MAX_IMAGES = 5;
 
@@ -106,7 +105,7 @@ public class EventController {
             filterErrors.put("fechaHasta", message("event.list.dateRangeInvalid"));
         }
 
-        final PageResult<Event> result = eventService.search(filters.toCriteria(PAGE_SIZE));
+        final PageResult<Event> result = eventService.search(filters.toCriteria());
 
         // Banner destacado
         final List<Event> featured = eventService.findFeatured(FEATURED_COUNT);
