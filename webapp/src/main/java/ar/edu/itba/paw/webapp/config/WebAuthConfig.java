@@ -167,8 +167,7 @@ public class WebAuthConfig {
                         // esta desactivado en toda la app (ver mas abajo).
                         .logoutRequestMatcher(new AntPathRequestMatcher("/logout", "GET"))
                         .permitAll())
-                // Desactivado a proposito: la catedra lo pidio asi hasta ver
-                // seguridad web (CLAUDE.md, seccion 11).
+                // Desactivado a proposito.
                 .csrf().disable();
         return http.build();
     }

@@ -675,7 +675,7 @@ public class RegistrationServiceImplTest {
     // el rechazo (y podria volver a anotarse).
     // Cancelar un pendiente tambien libera su lugar "reservado" frente a la lista de
     // espera (ver reject()/promoteFromWaitlist()) -- pero esa promocion en si ya la
-    // prueba su propia seccion; aca solo nos importa el contrato de cancel() mismo.
+    // prueba su propia sección; aca solo nos importa el contrato de cancel() mismo.
     @Test
     public void testCancelAPendingRegistrationReturnsCancelledPending() {
         // Arrange
@@ -1124,7 +1124,7 @@ public class RegistrationServiceImplTest {
 
     // En un evento con aprobacion, un pendiente tiene "reservado" un lugar frente a la lista
     // de espera. Al rechazarlo, ese lugar se libera y promueve al primero de la lista -- pero
-    // esa promocion en si ya la prueba su propia seccion; aca solo nos importa el contrato
+    // esa promocion en si ya la prueba su propia sección; aca solo nos importa el contrato
     // de reject() mismo (que la fila en cuestion haya pasado a REJECTED).
     @Test
     public void testRejectReturnsTrueWhenTheEventRequiresApproval() {

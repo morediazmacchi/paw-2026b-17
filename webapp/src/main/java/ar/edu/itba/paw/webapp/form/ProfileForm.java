@@ -6,8 +6,8 @@ import javax.validation.constraints.Size;
 
 public class ProfileForm {
 
-    @NotBlank(message = "El nombre es obligatorio")
-    @Size(max = 150, message = "El nombre no puede superar los 150 caracteres")
+    @NotBlank
+    @Size(max = 150)
     private String nombre;
 
     public ProfileForm() {

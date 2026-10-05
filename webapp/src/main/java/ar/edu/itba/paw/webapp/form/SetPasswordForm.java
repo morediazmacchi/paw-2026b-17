@@ -16,16 +16,16 @@ public class SetPasswordForm {
 
     // Viaja oculto en el form (login.jsp ya lo sabe: vino del redirect de
     // LoginFailureHandler). No se re-tipea a mano.
-    @NotBlank(message = "El email es obligatorio")
-    @Email(message = "El email no tiene un formato valido")
-    @Size(max = 150, message = "El email no puede superar los 150 caracteres")
+    @NotBlank
+    @Email
+    @Size(max = 150)
     private String email;
 
-    @NotBlank(message = "La contraseña es obligatoria")
-    @Size(min = 8, max = 72, message = "La contraseña tiene que tener entre 8 y 72 caracteres")
+    @NotBlank
+    @Size(min = 8, max = 72)
     private String password;
 
-    @NotBlank(message = "Tenes que confirmar la contraseña")
+    @NotBlank
     @Size(max = 72)
     private String confirmarPassword;
 

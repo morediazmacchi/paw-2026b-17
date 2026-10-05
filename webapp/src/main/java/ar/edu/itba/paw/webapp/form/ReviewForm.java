@@ -9,12 +9,12 @@ import javax.validation.constraints.Size;
 
 public class ReviewForm {
 
-    @NotNull(message = "Elegí una calificación")
-    @Min(value = 0, message = "La calificación tiene que ser entre 0 y 5")
-    @Max(value = 5, message = "La calificación tiene que ser entre 0 y 5")
+    @NotNull
+    @Min(value = 0)
+    @Max(value = 5)
     private Integer rating;
 
-    @Size(max = 100, message = "El comentario no puede superar los 100 caracteres")
+    @Size(max = 100)
     private String comment;
 
     public ReviewForm() {

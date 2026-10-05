@@ -12,15 +12,15 @@ import javax.validation.constraints.Size;
 @PasswordsMatch(password = "newPassword")
 public class ChangePasswordForm {
 
-    @NotBlank(message = "La contraseña actual es obligatoria")
+    @NotBlank
     @Size(max = 72)
     private String currentPassword;
 
-    @NotBlank(message = "La contraseña es obligatoria")
-    @Size(min = 8, max = 72, message = "La contraseña tiene que tener entre 8 y 72 caracteres")
+    @NotBlank
+    @Size(min = 8, max = 72)
     private String newPassword;
 
-    @NotBlank(message = "Tenes que confirmar la contraseña")
+    @NotBlank
     @Size(max = 72)
     private String confirmarPassword;
 

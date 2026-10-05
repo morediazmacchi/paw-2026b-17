@@ -478,7 +478,7 @@ public class NotificationServiceImpl implements NotificationService {
             variables.put("personName", displayName(null, event.getCreatorEmail()));
             variables.put("askerName", displayName(question.getAskerName(), question.getAskerEmail()));
             variables.put("questionText", question.getText());
-            // Directo a la seccion de preguntas del detalle.
+            // Directo a la sección de preguntas del detalle.
             variables.put("eventUrl", baseUrl + "/eventos/" + event.getId() + "#preguntas");
 
             mailService.send(event.getCreatorEmail(),

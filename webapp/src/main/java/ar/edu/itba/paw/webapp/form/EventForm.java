@@ -30,11 +30,11 @@ import java.util.stream.Collectors;
 
 public class EventForm {
 
-    @NotBlank(message = "El titulo es obligatorio")
-    @Size(max = 150, message = "El titulo no puede superar los 150 caracteres")
+    @NotBlank
+    @Size(max = 150)
     private String title;
 
-    @Size(max = 1000, message = "La descripcion no puede superar los 1000 caracteres")
+    @Size(max = 1000)
     private String description;
 
     // Una entrada por cada categoria existente (ver EventController), en vez
@@ -44,22 +44,22 @@ public class EventForm {
     @ValidCategorias
     private List<CategoriaSeleccionForm> categories = new ArrayList<>();
 
-    @NotBlank(message = "La fecha y horario son obligatorios")
-    @Pattern(regexp = "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}$", message = "La fecha y horario no tienen un formato valido")
+    @NotBlank
+    @Pattern(regexp = "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}$")
     @ValidEventDate
     private String eventDate;
 
-    @NotBlank(message = "La direccion es obligatoria")
-    @Size(max = 200, message = "La direccion no puede superar los 200 caracteres")
+    @NotBlank
+    @Size(max = 200)
     private String address;
 
     // Info de la direccion que Nominatim no geocodifica (piso, depto,
     // referencias): texto libre y opcional, nunca se manda a buscar en el mapa.
-    @Size(max = 300, message = "El detalle de la direccion no puede superar los 300 caracteres")
+    @Size(max = 300)
     private String addressDetails;
 
-    @NotBlank(message = "Elegí un barrio")
-    @Size(max = 80, message = "El barrio no puede superar los 80 caracteres")
+    @NotBlank
+    @Size(max = 80)
     @ValidBarrio
     private String neighborhood;
 
@@ -88,17 +88,17 @@ public class EventForm {
     // recien al insertar, que EventServiceImpl.create() interpreta como
     // "la categoria no existe" -- un error total mente enganoso para quien
     // solo escribio un precio de mas.
-    @NotBlank(message = "El precio es obligatorio (0 si es evento gratuito)")
-    @Pattern(regexp = "^[0-9]+(\\.[0-9]{1,2})?$", message = "El precio tiene que ser un numero valido, ej: 0 o 1500.50")
-    @Digits(integer = 8, fraction = 2, message = "El precio no puede tener mas de 8 digitos enteros")
+    @NotBlank
+    @Pattern(regexp = "^[0-9]+(\\.[0-9]{1,2})?$")
+    @Digits(integer = 8, fraction = 2)
     private String price;
 
     // Mismo motivo que el @Digits de price: sin cota, un cupo mas grande que
     // Integer.MAX_VALUE hace que Integer.valueOf() explote con
     // NumberFormatException sin capturar en el controller.
-    @NotBlank(message = "El cupo maximo es obligatorio (0 si no hay limite)")
-    @Pattern(regexp = "^[0-9]+$", message = "El cupo maximo tiene que ser un numero entero")
-    @Digits(integer = 9, fraction = 0, message = "El cupo maximo no puede tener mas de 9 digitos")
+    @NotBlank
+    @Pattern(regexp = "^[0-9]+$")
+    @Digits(integer = 9, fraction = 0)
     private String maxCapacity;
 
     // Checkbox comun (sin JSR-303: ausente en el request = false, no hay nada

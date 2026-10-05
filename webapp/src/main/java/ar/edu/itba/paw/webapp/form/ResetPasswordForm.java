@@ -17,11 +17,11 @@ public class ResetPasswordForm {
     @Size(max = 64)
     private String token;
 
-    @NotBlank(message = "La contraseña es obligatoria")
-    @Size(min = 8, max = 72, message = "La contraseña tiene que tener entre 8 y 72 caracteres")
+    @NotBlank
+    @Size(min = 8, max = 72)
     private String password;
 
-    @NotBlank(message = "Tenes que confirmar la contraseña")
+    @NotBlank
     @Size(max = 72)
     private String confirmarPassword;
 

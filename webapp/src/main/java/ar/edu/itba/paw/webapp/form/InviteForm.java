@@ -7,9 +7,9 @@ import javax.validation.constraints.Size;
 
 public class InviteForm {
 
-    @NotBlank(message = "El email es obligatorio")
-    @Email(message = "El email no tiene un formato valido")
-    @Size(max = 150, message = "El email no puede superar los 150 caracteres")
+    @NotBlank
+    @Email
+    @Size(max = 150)
     private String email;
 
     public InviteForm() {
