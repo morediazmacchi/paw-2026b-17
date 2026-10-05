@@ -26,10 +26,10 @@
         <p class="auth-subheading"><spring:message code="auth.registrations.subheading"/></p>
 
         <c:if test="${cancelled}">
-            <p class="alert"><spring:message code="auth.registrations.cancelledMessage"/></p>
+            <p class="alert alert-success"><spring:message code="auth.registrations.cancelledMessage"/></p>
         </c:if>
         <c:if test="${reviewed}">
-            <p class="alert"><spring:message code="auth.registrations.reviewedMessage"/></p>
+            <p class="alert alert-success"><spring:message code="auth.registrations.reviewedMessage"/></p>
         </c:if>
         <c:if test="${reviewError}">
             <p class="alert"><spring:message code="auth.registrations.reviewErrorMessage"/></p>

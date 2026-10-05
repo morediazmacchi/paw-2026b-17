@@ -26,7 +26,7 @@
         <p class="auth-subheading"><spring:message code="auth.invite.subheading" arguments="${event.title}" htmlEscape="true"/></p>
 
         <c:if test="${sent}">
-            <p class="alert"><spring:message code="auth.invite.sentMessage"/></p>
+            <p class="alert alert-success"><spring:message code="auth.invite.sentMessage"/></p>
         </c:if>
         <c:if test="${alreadyInvited}">
             <p class="alert"><spring:message code="auth.invite.alreadyInvitedMessage"/></p>

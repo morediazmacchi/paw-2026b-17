@@ -61,22 +61,22 @@
                     <p class="alert"><spring:message code="auth.login.error"/></p>
                 </c:if>
                 <c:if test="${loggedOut}">
-                    <p class="alert"><spring:message code="auth.login.loggedOut"/></p>
+                    <p class="alert alert-success"><spring:message code="auth.login.loggedOut"/></p>
                 </c:if>
                 <c:if test="${justRegistered}">
-                    <p class="alert"><spring:message code="auth.register.success"/></p>
+                    <p class="alert alert-success"><spring:message code="auth.register.success"/></p>
                 </c:if>
                 <c:if test="${passwordSet}">
-                    <p class="alert"><spring:message code="auth.login.passwordSetSuccess"/></p>
+                    <p class="alert alert-success"><spring:message code="auth.login.passwordSetSuccess"/></p>
                 </c:if>
                 <c:if test="${verifyError}">
                     <p class="alert"><spring:message code="auth.login.verifyErrorMessage"/></p>
                 </c:if>
                 <c:if test="${passwordReset}">
-                    <p class="alert"><spring:message code="auth.login.passwordResetMessage"/></p>
+                    <p class="alert alert-success"><spring:message code="auth.login.passwordResetMessage"/></p>
                 </c:if>
                 <c:if test="${resent}">
-                    <p class="alert"><spring:message code="auth.login.resentMessage"/></p>
+                    <p class="alert alert-success"><spring:message code="auth.login.resentMessage"/></p>
                 </c:if>
                 <c:if test="${unverified}">
                     <p class="alert"><spring:message code="auth.login.unverifiedMessage"/></p>

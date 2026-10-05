@@ -154,25 +154,25 @@
     <c:if test="${not empty rsvp}">
         <c:choose>
             <c:when test="${rsvp == 'confirmed'}">
-                <p class="alert detail-alert"><spring:message code="event.rsvp.confirmed"/></p>
+                <p class="alert alert-success detail-alert"><spring:message code="event.rsvp.confirmed"/></p>
             </c:when>
             <c:when test="${rsvp == 'ya-anotado'}">
                 <p class="alert detail-alert"><spring:message code="event.rsvp.alreadyRegistered"/></p>
             </c:when>
             <c:when test="${rsvp == 'waitlist'}">
-                <p class="alert detail-alert"><spring:message code="event.rsvp.waitlisted"/></p>
+                <p class="alert alert-success detail-alert"><spring:message code="event.rsvp.waitlisted"/></p>
             </c:when>
             <c:when test="${rsvp == 'ya-en-waitlist'}">
                 <p class="alert detail-alert"><spring:message code="event.rsvp.alreadyWaitlisted"/></p>
             </c:when>
             <c:when test="${rsvp == 'baja'}">
-                <p class="alert detail-alert"><spring:message code="event.rsvp.unregistered"/></p>
+                <p class="alert alert-success detail-alert"><spring:message code="event.rsvp.unregistered"/></p>
             </c:when>
             <c:when test="${rsvp == 'baja-waitlist'}">
-                <p class="alert detail-alert"><spring:message code="event.rsvp.leftWaitlist"/></p>
+                <p class="alert alert-success detail-alert"><spring:message code="event.rsvp.leftWaitlist"/></p>
             </c:when>
             <c:when test="${rsvp == 'pendiente'}">
-                <p class="alert detail-alert"><spring:message code="event.rsvp.pending"/></p>
+                <p class="alert alert-success detail-alert"><spring:message code="event.rsvp.pending"/></p>
             </c:when>
             <c:when test="${rsvp == 'ya-pendiente'}">
                 <p class="alert detail-alert"><spring:message code="event.rsvp.alreadyPending"/></p>
@@ -181,7 +181,7 @@
                 <p class="alert detail-alert"><spring:message code="event.rsvp.rejected"/></p>
             </c:when>
             <c:when test="${rsvp == 'baja-pendiente'}">
-                <p class="alert detail-alert"><spring:message code="event.rsvp.leftPending"/></p>
+                <p class="alert alert-success detail-alert"><spring:message code="event.rsvp.leftPending"/></p>
             </c:when>
             <c:when test="${rsvp == 'finalizado'}">
                 <p class="alert detail-alert"><spring:message code="event.detail.eventFinished"/></p>
@@ -198,7 +198,7 @@
     <%-- Resultado de reportar el evento (ver EventController.reportar()): mismo
          mecanismo POST-Redirect-GET que "rsvp"/"questionMessage" de aca arriba. --%>
     <c:if test="${not empty reportMessage}">
-        <p class="alert detail-alert"><spring:message code="event.detail.reportFlash.${reportMessage}"/></p>
+        <p class="alert<c:if test="${reportMessage == 'CREATED'}"> alert-success</c:if> detail-alert"><spring:message code="event.detail.reportFlash.${reportMessage}"/></p>
     </c:if>
 
     <div class="detail-meta-strip">
@@ -329,7 +329,7 @@
 
             <h2 class="detail-section-heading" id="preguntas"><spring:message code="event.questions.heading"/></h2>
             <c:if test="${not empty questionMessage}">
-                <p class="alert"><spring:message code="event.questions.flash.${questionMessage}"/></p>
+                <p class="alert<c:if test="${questionMessage == 'CREATED' or questionMessage == 'ANSWERED'}"> alert-success</c:if>"><spring:message code="event.questions.flash.${questionMessage}"/></p>
             </c:if>
 
             <%-- Preguntar: logueado, no organizador, evento abierto. Anonimo: link al login
