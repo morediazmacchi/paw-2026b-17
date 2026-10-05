@@ -341,7 +341,7 @@
     <c:if test="${not empty rsvp}">
         <c:choose>
             <c:when test="${rsvp == 'confirmed'}">
-                <p class="alert"><spring:message code="event.rsvp.confirmed"/></p>
+                <p class="alert alert-success"><spring:message code="event.rsvp.confirmed"/></p>
             </c:when>
             <c:when test="${rsvp == 'ya-anotado'}">
                 <p class="alert"><spring:message code="event.rsvp.alreadyRegistered"/></p>

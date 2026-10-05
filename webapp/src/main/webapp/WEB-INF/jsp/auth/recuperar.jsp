@@ -24,7 +24,7 @@
 
         <c:choose>
             <c:when test="${sent}">
-                <p class="alert"><spring:message code="auth.forgotPassword.sentMessage"/></p>
+                <p class="alert alert-success"><spring:message code="auth.forgotPassword.sentMessage"/></p>
             </c:when>
             <c:otherwise>
                 <spring:message code="auth.forgotPassword.emailLabel" var="emailLabel"/>

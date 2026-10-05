@@ -33,7 +33,7 @@
         </div>
 
         <c:if test="${profileUpdated}">
-            <p class="alert"><spring:message code="auth.profile.updated"/></p>
+            <p class="alert alert-success"><spring:message code="auth.profile.updated"/></p>
         </c:if>
 
         <spring:message code="auth.profile.nameLabel" var="nameLabel"/>
@@ -56,7 +56,7 @@
         <hr class="profile-divider"/>
 
         <c:if test="${passwordChanged}">
-            <p class="alert"><spring:message code="auth.profile.passwordChanged"/></p>
+            <p class="alert alert-success"><spring:message code="auth.profile.passwordChanged"/></p>
         </c:if>
 
         <h2 class="profile-section-title"><spring:message code="auth.profile.passwordHeading"/></h2>

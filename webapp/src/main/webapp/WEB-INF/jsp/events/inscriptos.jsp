@@ -25,7 +25,7 @@
     </p>
 
     <c:if test="${param.revoked != null}">
-        <p class="alert"><spring:message code="event.attendees.revoked"/></p>
+        <p class="alert alert-success"><spring:message code="event.attendees.revoked"/></p>
     </c:if>
 
     <spring:message code="event.attendees.revokeButton" var="revokeButtonLabel"/>

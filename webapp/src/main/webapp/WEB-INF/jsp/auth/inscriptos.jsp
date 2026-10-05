@@ -26,10 +26,10 @@
         <p class="auth-subheading"><spring:message code="auth.pendingRegistrations.subheading" arguments="${event.title}" htmlEscape="true"/></p>
 
         <c:if test="${approved}">
-            <p class="alert"><spring:message code="auth.pendingRegistrations.approved"/></p>
+            <p class="alert alert-success"><spring:message code="auth.pendingRegistrations.approved"/></p>
         </c:if>
         <c:if test="${rejected}">
-            <p class="alert"><spring:message code="auth.pendingRegistrations.rejected"/></p>
+            <p class="alert alert-success"><spring:message code="auth.pendingRegistrations.rejected"/></p>
         </c:if>
         <c:if test="${fullNotice}">
             <p class="alert"><spring:message code="auth.pendingRegistrations.full"/></p>

@@ -8,6 +8,8 @@
     --accent-text: #101a00;
     --danger-bg: #2e1616;
     --danger-border: #5c2626;
+    --success-bg: #14291a;
+    --success-border: #2a6b3a;
 }
 
 * {
@@ -233,6 +235,12 @@ a {
     border: 1px solid var(--danger-border);
     color: var(--text);
     margin-bottom: 20px;
+}
+
+/* Variante verde de .alert: avisos de que algo salio bien (solo cambia el color). */
+.alert-success {
+    background: var(--success-bg);
+    border-color: var(--success-border);
 }
 
 /* Cards */
