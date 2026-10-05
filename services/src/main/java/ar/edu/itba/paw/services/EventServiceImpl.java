@@ -92,8 +92,11 @@ public class EventServiceImpl implements EventService {
     public List<Event> findByIds(final List<Long> ids) { return eventDao.findByIds(ids); }
     @Override
     @Transactional(readOnly = true)
-    public List<Event> findByCreatorId(final long creatorId) {
-        return eventDao.findByCreatorId(creatorId);
+    public PageResult<Event> findPageByCreatorId(final long creatorId, final int page) {
+        final long total = eventDao.countByCreatorId(creatorId);
+        final int effectivePage = PageResult.clampPage(page, total, PAGE_SIZE);
+        return new PageResult<>(eventDao.findByCreatorId(creatorId, effectivePage, PAGE_SIZE),
+                total, effectivePage, PAGE_SIZE);
     }
     @Override
     @Transactional(readOnly = true)

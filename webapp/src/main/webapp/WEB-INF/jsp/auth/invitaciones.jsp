@@ -36,6 +36,7 @@
                                       imagenId="${event.imageId}" cancelado="${event.cancelled}"/>
                     </c:forEach>
                 </div>
+                <paw:pager baseUrl="/perfil/invitaciones" currentPage="${currentPage}" totalPages="${totalPages}"/>
             </c:otherwise>
         </c:choose>
     </main>

@@ -38,9 +38,11 @@ public interface EventDao {
     // se ignoran en silencio; el orden del resultado no esta garantizado.
     List<Event> findByIds(List<Long> ids);
 
-    // "Mis eventos": todos los del creador (pasados y cancelados incluidos, a
-    // diferencia de search()), mas recientes primero.
-    List<Event> findByCreatorId(long creatorId);
+    // "Mis eventos": los del creador (pasados y cancelados incluidos, a
+    // diferencia de search()), de a una pagina (page empieza en 1). Primero los
+    // que todavia no pasaron (el mas proximo primero) y despues los pasados (el
+    // mas reciente primero); el orden y el corte se hacen en SQL.
+    List<Event> findByCreatorId(long creatorId, int page, int pageSize);
 
     /** Para el badge de "Mis eventos" (ver ProfileController): sin traer las filas. */
     long countByCreatorId(long creatorId);

@@ -182,12 +182,57 @@ public class EventReportJdbcDaoTest {
         insertResolvedReport(eventId, reporterId, "ya resuelto", ReportStatus.DISMISSED, reporterId);
 
         // Act
-        final List<EventReport> pending = eventReportDao.findPending();
+        final List<EventReport> pending = eventReportDao.findPending(1, 10);
 
         // Assert
         assertEquals(2, pending.size());
         assertEquals(first, pending.get(0).getId());
         assertEquals(second, pending.get(1).getId());
+    }
+
+    @Test
+    public void testFindPendingReturnsTheSecondPageOldestFirst() {
+        // Arrange: 3 pendientes de a 2 por pagina -> la pagina 2 es solo el mas nuevo
+        final long now = System.currentTimeMillis();
+        insertPendingReportAt(eventId, reporterId, "primero", new Timestamp(now - 3000));
+        insertPendingReportAt(eventId, insertUser("r2@mail.com"), "segundo", new Timestamp(now - 2000));
+        final long third = insertPendingReportAt(eventId, insertUser("r3@mail.com"), "tercero", new Timestamp(now - 1000));
+
+        // Act
+        final List<EventReport> page = eventReportDao.findPending(2, 2);
+
+        // Assert
+        assertEquals(1, page.size());
+        assertEquals(third, page.get(0).getId());
+    }
+
+    @Test
+    public void testFindPendingReturnsNothingForAPageBeyondTheLast() {
+        // Arrange
+        insertPendingReport(eventId, reporterId, REASON);
+
+        // Act
+        final List<EventReport> page = eventReportDao.findPending(5, 2);
+
+        // Assert
+        assertTrue(page.isEmpty());
+    }
+
+    // ---- countPending() ----
+
+    @Test
+    public void testCountPendingCountsOnlyPendingReports() {
+        // Arrange
+        insertPendingReport(eventId, reporterId, REASON);
+        insertPendingReport(eventId, insertUser("r2@mail.com"), REASON);
+        insertResolvedReport(eventId, reporterId, "ya resuelto", ReportStatus.DISMISSED, reporterId);
+        insertChangesRequestedReport(eventId, insertUser("r3@mail.com"), REASON, "corregi", reporterId);
+
+        // Act
+        final long count = eventReportDao.countPending();
+
+        // Assert
+        assertEquals(2, count);
     }
 
     // ---- existsPendingByEventAndReporter() ----
@@ -280,7 +325,7 @@ public class EventReportJdbcDaoTest {
         insertPendingReport(eventId, reporterId, "un pendiente comun");
 
         // Act
-        final List<EventReport> found = eventReportDao.findChangesRequested();
+        final List<EventReport> found = eventReportDao.findChangesRequested(1, 10);
 
         // Assert
         assertEquals(2, found.size());
@@ -289,12 +334,59 @@ public class EventReportJdbcDaoTest {
     }
 
     @Test
+    public void testFindChangesRequestedReturnsTheSecondPageOldestFirst() {
+        // Arrange: 3 con cambios pedidos de a 2 por pagina -> la pagina 2 es solo el mas nuevo
+        final long admin = insertUser("admin-page@mail.com");
+        final long now = System.currentTimeMillis();
+        insertChangesRequestedReportAt(eventId, reporterId, "primero", "m1", admin, new Timestamp(now - 3000));
+        insertChangesRequestedReportAt(eventId, insertUser("c2@mail.com"), "segundo", "m2", admin, new Timestamp(now - 2000));
+        final long third = insertChangesRequestedReportAt(eventId, insertUser("c3@mail.com"), "tercero", "m3", admin,
+                new Timestamp(now - 1000));
+
+        // Act
+        final List<EventReport> page = eventReportDao.findChangesRequested(2, 2);
+
+        // Assert
+        assertEquals(1, page.size());
+        assertEquals(third, page.get(0).getId());
+    }
+
+    @Test
+    public void testFindChangesRequestedReturnsNothingForAPageBeyondTheLast() {
+        // Arrange
+        insertChangesRequestedReport(eventId, reporterId, REASON, "corregi", insertUser("admin-beyond@mail.com"));
+
+        // Act
+        final List<EventReport> page = eventReportDao.findChangesRequested(5, 2);
+
+        // Assert
+        assertTrue(page.isEmpty());
+    }
+
+    // ---- countChangesRequested() ----
+
+    @Test
+    public void testCountChangesRequestedCountsOnlyChangesRequestedReports() {
+        // Arrange
+        final long admin = insertUser("admin-count@mail.com");
+        insertChangesRequestedReport(eventId, reporterId, "uno", "m1", admin);
+        insertChangesRequestedReport(eventId, insertUser("c2@mail.com"), "dos", "m2", admin);
+        insertPendingReport(eventId, insertUser("p1@mail.com"), "un pendiente comun");
+
+        // Act
+        final long count = eventReportDao.countChangesRequested();
+
+        // Assert
+        assertEquals(2, count);
+    }
+
+    @Test
     public void testFindChangesRequestedDoesNotIncludePlainPendingReports() {
         // Arrange
         insertPendingReport(eventId, reporterId, REASON);
 
         // Act
-        final List<EventReport> found = eventReportDao.findChangesRequested();
+        final List<EventReport> found = eventReportDao.findChangesRequested(1, 10);
 
         // Assert
         assertTrue(found.isEmpty());

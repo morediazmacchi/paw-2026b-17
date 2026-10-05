@@ -53,17 +53,17 @@ public class AdminController {
     }
 
     @RequestMapping(value = "/reportes", method = RequestMethod.GET)
-    public ModelAndView reportes() {
-        return reportQueueView("admin/reportes", moderationService.listPending());
+    public ModelAndView reportes(@RequestParam(value = "page", required = false) final String page) {
+        return reportQueueView("admin/reportes", moderationService.findPendingPage(Paging.parsePage(page)));
     }
 
     // Panel de seguimiento: reportes
     // donde ya se le pidieron cambios al creador
     @RequestMapping(value = "/reportes/seguimiento", method = RequestMethod.GET)
-    public ModelAndView seguimiento() {
-        final List<EventReport> reports = moderationService.listChangesRequested();
-        final ModelAndView mav = reportQueueView("admin/seguimiento", reports);
-        final List<Long> requestedByIds = reports.stream()
+    public ModelAndView seguimiento(@RequestParam(value = "page", required = false) final String page) {
+        final PageResult<EventReport> result = moderationService.findChangesRequestedPage(Paging.parsePage(page));
+        final ModelAndView mav = reportQueueView("admin/seguimiento", result);
+        final List<Long> requestedByIds = result.getContent().stream()
                 .map(EventReport::getChangesRequestedByUserId)
                 .filter(Objects::nonNull)
                 .distinct()
@@ -75,7 +75,8 @@ public class AdminController {
     }
 
     // trae los reports con los datos para mostrarlos en el jsp.
-    private ModelAndView reportQueueView(final String viewName, final List<EventReport> reports) {
+    private ModelAndView reportQueueView(final String viewName, final PageResult<EventReport> result) {
+        final List<EventReport> reports = result.getContent();
         final List<Long> eventIds = reports.stream().map(EventReport::getEventId).distinct().collect(Collectors.toList());
         final List<Long> reporterIds = reports.stream().map(EventReport::getReporterUserId).distinct().collect(Collectors.toList());
         final Map<Long, Event> eventsById = eventService.findByIds(eventIds).stream()
@@ -84,6 +85,8 @@ public class AdminController {
                 .collect(Collectors.toMap(User::getId, u -> u));
         final ModelAndView mav = new ModelAndView(viewName);
         mav.addObject("reports", reports);
+        mav.addObject("currentPage", result.getPage());
+        mav.addObject("totalPages", result.getTotalPages());
         mav.addObject("eventsById", eventsById);
         mav.addObject("reportersById", reportersById);
         return mav;

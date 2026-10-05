@@ -86,10 +86,11 @@ public class EventInvitationJdbcDao implements EventInvitationDao {
     }
 
     @Override
-    public List<EventInvitation> findByUserId(final long userId) {
+    public List<EventInvitation> findByUserId(final long userId, final int page, final int pageSize) {
         return jdbcTemplate.query(
-                "SELECT * FROM event_invitation WHERE user_id = ? ORDER BY created_at DESC",
-                ROW_MAPPER, userId);
+                "SELECT * FROM event_invitation WHERE user_id = ? "
+                        + "ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?",
+                ROW_MAPPER, userId, pageSize, (page - 1) * pageSize);
     }
 
     @Override

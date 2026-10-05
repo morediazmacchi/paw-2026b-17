@@ -10,6 +10,7 @@ import org.springframework.jdbc.core.simple.SimpleJdbcInsert;
 import org.springframework.stereotype.Repository;
 
 import javax.sql.DataSource;
+import java.sql.Timestamp;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -78,10 +79,19 @@ public class RegistrationJdbcDao implements RegistrationDao {
     }
 
     @Override
-    public List<Registration> findByUserId(final long userId) {
+    public List<Registration> findByUserId(final long userId, final int page, final int pageSize) {
+        // Mismo criterio de orden que EventJdbcDao.findByCreatorId(): primero los
+        // eventos que todavia no pasaron (el mas proximo primero), despues los
+        // pasados (el mas reciente primero). Un solo JOIN con event para poder
+        // ordenar y cortar la pagina en SQL.
+        final Timestamp now = new Timestamp(System.currentTimeMillis());
         return jdbcTemplate.query(
-                "SELECT * FROM registration WHERE user_id = ? ORDER BY registered_at DESC",
-                ROW_MAPPER, userId);
+                "SELECT r.* FROM registration r JOIN event e ON e.id = r.event_id WHERE r.user_id = ? ORDER BY "
+                        + "CASE WHEN e.event_date >= ? THEN 0 ELSE 1 END ASC, "
+                        + "CASE WHEN e.event_date >= ? THEN e.event_date END ASC, "
+                        + "CASE WHEN e.event_date < ? THEN e.event_date END DESC, "
+                        + "r.id ASC LIMIT ? OFFSET ?",
+                ROW_MAPPER, userId, now, now, now, pageSize, (page - 1) * pageSize);
     }
 
     @Override

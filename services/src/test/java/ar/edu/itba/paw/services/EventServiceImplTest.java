@@ -217,16 +217,65 @@ public class EventServiceImplTest {
     }
 
     @Test
-    public void testFindByCreatorIdReturnsTheEventsOfThatCreator() {
-        // Arrange
-        final List<Event> events = Collections.singletonList(eventWith(1, CATEGORY_ID, CREATOR_ID));
-        when(eventDao.findByCreatorId(CREATOR_ID)).thenReturn(events);
+    public void testFindPageByCreatorIdReturnsTheRequestedPageWithItsTotals() {
+        // Arrange: 25 en total, de a EventServiceImpl.PAGE_SIZE por pagina -> 3 paginas
+        final List<Event> pageTwo = Collections.singletonList(eventWith(1, CATEGORY_ID, CREATOR_ID));
+        when(eventDao.countByCreatorId(CREATOR_ID)).thenReturn(25L);
+        when(eventDao.findByCreatorId(CREATOR_ID, 2, EventServiceImpl.PAGE_SIZE)).thenReturn(pageTwo);
 
         // Act
-        final List<Event> result = eventService.findByCreatorId(CREATOR_ID);
+        final PageResult<Event> result = eventService.findPageByCreatorId(CREATOR_ID, 2);
 
         // Assert
-        assertEquals(events, result);
+        assertEquals(pageTwo, result.getContent());
+        assertEquals(2, result.getPage());
+        assertEquals(3, result.getTotalPages());
+        assertEquals(25L, result.getTotalElements());
+    }
+
+    @Test
+    public void testFindPageByCreatorIdShowsTheLastPageWhenThePageIsBeyondIt() {
+        // Arrange: 25 en total -> la ultima pagina es la 3
+        final List<Event> lastPage = Collections.singletonList(eventWith(1, CATEGORY_ID, CREATOR_ID));
+        when(eventDao.countByCreatorId(CREATOR_ID)).thenReturn(25L);
+        when(eventDao.findByCreatorId(CREATOR_ID, 3, EventServiceImpl.PAGE_SIZE)).thenReturn(lastPage);
+
+        // Act
+        final PageResult<Event> result = eventService.findPageByCreatorId(CREATOR_ID, 99);
+
+        // Assert
+        assertEquals(3, result.getPage());
+        assertEquals(lastPage, result.getContent());
+    }
+
+    @Test
+    public void testFindPageByCreatorIdShowsTheFirstPageWhenThePageIsBelowOne() {
+        // Arrange
+        final List<Event> firstPage = Collections.singletonList(eventWith(1, CATEGORY_ID, CREATOR_ID));
+        when(eventDao.countByCreatorId(CREATOR_ID)).thenReturn(25L);
+        when(eventDao.findByCreatorId(CREATOR_ID, 1, EventServiceImpl.PAGE_SIZE)).thenReturn(firstPage);
+
+        // Act
+        final PageResult<Event> result = eventService.findPageByCreatorId(CREATOR_ID, -3);
+
+        // Assert
+        assertEquals(1, result.getPage());
+        assertEquals(firstPage, result.getContent());
+    }
+
+    @Test
+    public void testFindPageByCreatorIdWithNoResultsReturnsAnEmptyFirstPage() {
+        // Arrange
+        when(eventDao.countByCreatorId(CREATOR_ID)).thenReturn(0L);
+        when(eventDao.findByCreatorId(CREATOR_ID, 1, EventServiceImpl.PAGE_SIZE)).thenReturn(Collections.emptyList());
+
+        // Act
+        final PageResult<Event> result = eventService.findPageByCreatorId(CREATOR_ID, 5);
+
+        // Assert
+        assertEquals(1, result.getPage());
+        assertEquals(0, result.getTotalPages());
+        assertTrue(result.getContent().isEmpty());
     }
 
     @Test

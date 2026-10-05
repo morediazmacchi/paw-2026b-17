@@ -18,6 +18,8 @@ import java.util.Optional;
 @Service
 public class ModerationServiceImpl implements ModerationService {
 
+    static final int PAGE_SIZE = 10;
+
     private final EventReportDao eventReportDao;
     private final EventService eventService;
     private final UserService userService;
@@ -55,14 +57,19 @@ public class ModerationServiceImpl implements ModerationService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<EventReport> listPending() {
-        return eventReportDao.findPending();
+    public PageResult<EventReport> findPendingPage(final int page) {
+        final long total = eventReportDao.countPending();
+        final int effectivePage = PageResult.clampPage(page, total, PAGE_SIZE);
+        return new PageResult<>(eventReportDao.findPending(effectivePage, PAGE_SIZE), total, effectivePage, PAGE_SIZE);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<EventReport> listChangesRequested() {
-        return eventReportDao.findChangesRequested();
+    public PageResult<EventReport> findChangesRequestedPage(final int page) {
+        final long total = eventReportDao.countChangesRequested();
+        final int effectivePage = PageResult.clampPage(page, total, PAGE_SIZE);
+        return new PageResult<>(eventReportDao.findChangesRequested(effectivePage, PAGE_SIZE),
+                total, effectivePage, PAGE_SIZE);
     }
 
     @Override

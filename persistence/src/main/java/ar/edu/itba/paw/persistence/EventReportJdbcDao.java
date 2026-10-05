@@ -68,17 +68,35 @@ public class EventReportJdbcDao implements EventReportDao {
     }
 
     @Override
-    public List<EventReport> findPending() {
+    public List<EventReport> findPending(final int page, final int pageSize) {
+        // id como desempate: sin el, dos reportes con la misma fecha podrian
+        // cambiar de lugar entre una pagina y la siguiente.
         return jdbcTemplate.query(
-                "SELECT * FROM event_report WHERE status = ? ORDER BY created_at ASC",
-                ROW_MAPPER, ReportStatus.PENDING.name());
+                "SELECT * FROM event_report WHERE status = ? ORDER BY created_at ASC, id ASC LIMIT ? OFFSET ?",
+                ROW_MAPPER, ReportStatus.PENDING.name(), pageSize, (page - 1) * pageSize);
     }
 
     @Override
-    public List<EventReport> findChangesRequested() {
+    public long countPending() {
+        return countByStatus(ReportStatus.PENDING);
+    }
+
+    @Override
+    public List<EventReport> findChangesRequested(final int page, final int pageSize) {
         return jdbcTemplate.query(
-                "SELECT * FROM event_report WHERE status = ? ORDER BY changes_requested_at ASC",
-                ROW_MAPPER, ReportStatus.CHANGES_REQUESTED.name());
+                "SELECT * FROM event_report WHERE status = ? ORDER BY changes_requested_at ASC, id ASC LIMIT ? OFFSET ?",
+                ROW_MAPPER, ReportStatus.CHANGES_REQUESTED.name(), pageSize, (page - 1) * pageSize);
+    }
+
+    @Override
+    public long countChangesRequested() {
+        return countByStatus(ReportStatus.CHANGES_REQUESTED);
+    }
+
+    private long countByStatus(final ReportStatus status) {
+        final Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM event_report WHERE status = ?", Long.class, status.name());
+        return count == null ? 0 : count;
     }
 
     @Override

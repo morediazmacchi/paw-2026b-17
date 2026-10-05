@@ -61,10 +61,14 @@ public interface RegistrationService {
     long occupiedSpots(long eventId);
 
     /**
-     * "Mis inscripciones": las de ese usuario, mas recientes primero.
+     * "Mis inscripciones": las de ese usuario, de a una pagina. Primero las de
+     * eventos que todavia no pasaron (el mas proximo primero) y despues las de
+     * eventos pasados (el mas reciente primero). Una pagina mayor a la ultima
+     * devuelve la ultima, una menor a 1 la primera; sin inscripciones, la
+     * pagina 1 vacia.
      */
     @Transactional(readOnly = true)
-    List<Registration> findByUserId(long userId);
+    PageResult<Registration> findPageByUserId(long userId, int page);
 
     /** Para el badge de "Mis inscripciones" (ver ProfileController): sin traer las filas. */
     @Transactional(readOnly = true)

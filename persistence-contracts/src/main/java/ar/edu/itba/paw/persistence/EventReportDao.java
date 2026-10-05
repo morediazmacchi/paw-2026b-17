@@ -13,11 +13,16 @@ public interface EventReportDao {
     Optional<EventReport> findById(long id);
 
     // Cola de moderacion: los PENDING, mas viejo primero (ver AdminController).
-    List<EventReport> findPending();
+    // Una pagina (page empieza en 1); countPending() es el total para armar el paginador.
+    List<EventReport> findPending(int page, int pageSize);
+
+    long countPending();
 
     // Panel de seguimiento: los CHANGES_REQUESTED, mas viejo primero (mismo
-    // criterio FIFO que findPending()).
-    List<EventReport> findChangesRequested();
+    // criterio FIFO que findPending()). Una pagina, igual que findPending().
+    List<EventReport> findChangesRequested(int page, int pageSize);
+
+    long countChangesRequested();
 
     // "Abierto" = PENDING o CHANGES_REQUESTED (ver EventReport.isOpen()): un
     // reporte con cambios pedidos tambien bloquea un reporte nuevo de la misma

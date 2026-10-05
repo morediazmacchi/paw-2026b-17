@@ -34,9 +34,10 @@ public interface EventInvitationDao {
     List<EventInvitation> findByEvent(long eventId);
 
     // "Mis invitaciones" de quien las RECIBE (no del creador), mas recientes
-    // primero. Por user_id, no por email: solo tiene sentido para alguien ya
-    // logueado, y el id nunca queda desactualizado como el email podria.
-    List<EventInvitation> findByUserId(long userId);
+    // primero, de a una pagina (page empieza en 1). Por user_id, no por email:
+    // solo tiene sentido para alguien ya logueado, y el id nunca queda
+    // desactualizado como el email podria.
+    List<EventInvitation> findByUserId(long userId, int page, int pageSize);
 
     /** Para el badge de "Mis invitaciones" (ver ProfileController): sin traer las filas. */
     long countByUserId(long userId);

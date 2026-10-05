@@ -23,6 +23,8 @@ import java.util.Optional;
 @Service
 public class RegistrationServiceImpl implements RegistrationService {
 
+    static final int PAGE_SIZE = 10;
+
     private final RegistrationDao registrationDao;
     private final EventDao eventDao;
     private final NotificationService notificationService;
@@ -272,8 +274,11 @@ public class RegistrationServiceImpl implements RegistrationService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<Registration> findByUserId(final long userId) {
-        return registrationDao.findByUserId(userId);
+    public PageResult<Registration> findPageByUserId(final long userId, final int page) {
+        final long total = registrationDao.countByUserId(userId);
+        final int effectivePage = PageResult.clampPage(page, total, PAGE_SIZE);
+        return new PageResult<>(registrationDao.findByUserId(userId, effectivePage, PAGE_SIZE),
+                total, effectivePage, PAGE_SIZE);
     }
 
     @Override

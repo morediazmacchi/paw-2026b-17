@@ -48,9 +48,12 @@ public interface EventService {
     @Transactional(readOnly = true)
     PageResult<Event> search(EventSearchCriteria criteria);
 
-    // "Mis eventos": todos los creados por este usuario, mas recientes primero.
+    // "Mis eventos": los creados por este usuario, de a una pagina. Primero los
+    // que todavia no pasaron (el mas proximo primero) y despues los pasados (el
+    // mas reciente primero). Una pagina mayor a la ultima devuelve la ultima,
+    // una menor a 1 la primera; sin eventos, la pagina 1 vacia.
     @Transactional(readOnly = true)
-    List<Event> findByCreatorId(long creatorId);
+    PageResult<Event> findPageByCreatorId(long creatorId, int page);
 
     /** Para el badge de "Mis eventos" (ver ProfileController): sin traer las filas. */
     @Transactional(readOnly = true)
