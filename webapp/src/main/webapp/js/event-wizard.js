@@ -155,7 +155,7 @@ document.addEventListener("DOMContentLoaded", function () {
         return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
     }
 
-    var calendarModal = document.getElementById("fechaCalendarModal");
+    var calendarModal = document.getElementById("eventDateCalendarModal");
     var calendarMonthLabel = document.querySelector("[data-calendar-month-label]");
     var calendarDaysEl = document.querySelector("[data-calendar-days]");
     var calendarPrevBtn = document.querySelector("[data-calendar-prev]");

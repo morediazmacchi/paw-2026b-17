@@ -13,15 +13,27 @@ Todo usuario que se registra arranca con permisos de usuario común (`ROLE_USER`
 
 ## Cómo levantar el proyecto en local
 
-### Necesitás tener instalado
-- Java 21
-- Maven (o el wrapper `./mvnw` que ya viene en el repo, no hace falta instalar nada aparte)
-- PostgreSQL 16, con permisos y credenciales adecuadas
+Necesitás Java 21, Maven y PostgreSQL 16.
 
-### Generar el WAR
+```bash
+# 1. Base local (una vez)
+sudo -u postgres psql -c "CREATE USER paw WITH PASSWORD 'paw';"
+sudo -u postgres psql -c "CREATE DATABASE paw2026b OWNER paw;"
 
-Desde la raíz del repo:
+# 2. Compilar (repetir si cambia model, persistence o services)
+mvn clean install -DskipTests
+
+# 3. Levantar
+mvn -pl webapp jetty:run -Ddb.url=jdbc:postgresql://localhost/paw2026b -Ddb.username=paw -Ddb.password=paw
+```
+
+La app queda en **http://localhost:8080/**. Las tablas y los datos iniciales se crean solos al arrancar.
+
+> `db.properties` apunta por defecto a la base de **Pampero**: sin los `-D...` del paso 3 la app escribe ahí.
+
+## Generar el WAR
+
 ```bash
 mvn clean package
 ```
-Esto genera `webapp/target/app.war`, listo para deployar en un Application Container con PostgreSQL ya configurado.
+Genera `webapp/target/app.war`, listo para deployar en un Application Container con PostgreSQL ya configurado.
