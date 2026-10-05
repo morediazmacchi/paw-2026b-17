@@ -40,7 +40,7 @@
         <spring:message code="auth.login.emailLabel" var="emailLabel"/>
         <spring:message code="auth.profile.saveButton" var="saveButtonLabel"/>
         <form class="account-fields-form" action="<c:url value='/perfil'/>" method="post" novalidate="novalidate">
-            <paw:input name="nombre" label="${nameLabel}" type="text"
+            <paw:input name="nombre" maxLength="150" label="${nameLabel}" type="text"
                        value="${profileForm.nombre}" errorMessage="${profileFieldErrors.nombre}"/>
             <%-- El email no se puede cambiar: se muestra deshabilitado (gris) y, como
                  los campos disabled no viajan en el POST, el servidor tampoco lo recibe. --%>
@@ -66,11 +66,11 @@
         <spring:message code="auth.register.confirmPasswordLabel" var="confirmPasswordLabel"/>
         <spring:message code="auth.profile.changePasswordButton" var="changePasswordButtonLabel"/>
         <form class="account-fields-form account-fields-form-single" action="<c:url value='/perfil/contrasena'/>" method="post" novalidate="novalidate">
-            <paw:input name="currentPassword" label="${currentPasswordLabel}" type="password"
+            <paw:input name="currentPassword" maxLength="72" label="${currentPasswordLabel}" type="password"
                        errorMessage="${passwordFieldErrors.currentPassword}"/>
-            <paw:input name="newPassword" label="${newPasswordLabel}" type="password"
+            <paw:input name="newPassword" maxLength="72" label="${newPasswordLabel}" type="password"
                        errorMessage="${passwordFieldErrors.newPassword}"/>
-            <paw:input name="confirmarPassword" label="${confirmPasswordLabel}" type="password"
+            <paw:input name="confirmarPassword" maxLength="72" label="${confirmPasswordLabel}" type="password"
                        errorMessage="${passwordFieldErrors.confirmarPassword}"/>
             <%-- La revalida el server tambien; esto solo evita el viaje al back
                  cuando el error es obvio (no coinciden). Arranca oculto: JS lo

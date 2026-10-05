@@ -47,9 +47,9 @@
             <h2><spring:message code="event.publish.step1Heading"/></h2>
             <p><spring:message code="event.publish.step1Subheading"/></p>
         </div>
-        <paw:input name="title" label="${titleLabel}" type="text"
+        <paw:input name="title" maxLength="150" label="${titleLabel}" type="text"
                    value="${eventForm.title}" errorMessage="${fieldErrors.title}" />
-        <paw:input name="description" label="${descriptionLabel}" type="text" required="${false}"
+        <paw:input name="description" maxLength="1000" label="${descriptionLabel}" type="text" required="${false}"
                    value="${eventForm.description}" errorMessage="${fieldErrors.description}" />
     </div>
 
@@ -183,10 +183,10 @@
             <h2><spring:message code="event.publish.step3Heading"/></h2>
             <p><spring:message code="event.publish.step3Subheading"/></p>
         </div>
-        <paw:input name="address" label="${addressLabel}" type="text"
+        <paw:input name="address" maxLength="200" label="${addressLabel}" type="text"
                    value="${eventForm.address}" errorMessage="${fieldErrors.address}" />
         <spring:message code="event.publish.addressDetailsLabel" var="addressDetailsLabel"/>
-        <paw:input name="addressDetails" label="${addressDetailsLabel}" type="text" required="${false}"
+        <paw:input name="addressDetails" maxLength="300" label="${addressDetailsLabel}" type="text" required="${false}"
                    value="${eventForm.addressDetails}" errorMessage="${fieldErrors.addressDetails}" />
 
         <%-- Elegis EXPLICITAMENTE entre geocodificar la direccion contra

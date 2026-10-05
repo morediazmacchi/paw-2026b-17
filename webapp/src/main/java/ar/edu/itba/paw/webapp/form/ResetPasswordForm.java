@@ -14,13 +14,15 @@ public class ResetPasswordForm {
 
     // Viaja oculto en el form: identifica el link, no se re-tipea a mano.
     @NotBlank
+    @Size(max = 64)
     private String token;
 
     @NotBlank(message = "La contraseña es obligatoria")
-    @Size(min = 8, max = 100, message = "La contraseña tiene que tener entre 8 y 100 caracteres")
+    @Size(min = 8, max = 72, message = "La contraseña tiene que tener entre 8 y 72 caracteres")
     private String password;
 
     @NotBlank(message = "Tenes que confirmar la contraseña")
+    @Size(max = 72)
     private String confirmarPassword;
 
     public ResetPasswordForm() {

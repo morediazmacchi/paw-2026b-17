@@ -30,7 +30,7 @@
                 <spring:message code="auth.forgotPassword.emailLabel" var="emailLabel"/>
                 <spring:message code="auth.forgotPassword.submitButton" var="submitButtonLabel"/>
                 <form action="<c:url value='/login/recuperar'/>" method="post" novalidate="novalidate">
-                    <paw:input name="email" label="${emailLabel}" type="email"
+                    <paw:input name="email" maxLength="150" label="${emailLabel}" type="email"
                                value="${forgotPasswordForm.email}" errorMessage="${fieldErrors.email}"/>
                     <paw:button text="${submitButtonLabel}" cssClass="btn-accent"/>
                 </form>

@@ -13,13 +13,15 @@ import javax.validation.constraints.Size;
 public class ChangePasswordForm {
 
     @NotBlank(message = "La contraseña actual es obligatoria")
+    @Size(max = 72)
     private String currentPassword;
 
     @NotBlank(message = "La contraseña es obligatoria")
-    @Size(min = 8, max = 100, message = "La contraseña tiene que tener entre 8 y 100 caracteres")
+    @Size(min = 8, max = 72, message = "La contraseña tiene que tener entre 8 y 72 caracteres")
     private String newPassword;
 
     @NotBlank(message = "Tenes que confirmar la contraseña")
+    @Size(max = 72)
     private String confirmarPassword;
 
     public ChangePasswordForm() {

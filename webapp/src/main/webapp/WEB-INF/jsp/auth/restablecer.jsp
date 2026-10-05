@@ -29,9 +29,9 @@
                 <spring:message code="auth.resetPassword.submitButton" var="submitButtonLabel"/>
                 <form action="<c:url value='/login/restablecer'/>" method="post" novalidate="novalidate">
                     <input type="hidden" name="token" value="${resetPasswordForm.token}"/>
-                    <paw:input name="password" label="${newPasswordLabel}" type="password"
+                    <paw:input name="password" maxLength="72" label="${newPasswordLabel}" type="password"
                                errorMessage="${fieldErrors.password}"/>
-                    <paw:input name="confirmarPassword" label="${confirmPasswordLabel}" type="password"
+                    <paw:input name="confirmarPassword" maxLength="72" label="${confirmPasswordLabel}" type="password"
                                errorMessage="${fieldErrors.confirmarPassword}"/>
                     <paw:button text="${submitButtonLabel}" cssClass="btn-accent"/>
                 </form>

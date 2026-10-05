@@ -6,6 +6,7 @@
 <%@ attribute name="required" required="false" type="java.lang.Boolean" %>
 <%@ attribute name="min" required="false" %>
 <%@ attribute name="value" required="false" %>
+<%@ attribute name="maxLength" required="false" %>
 <%-- Texto de un atajo opcional al lado de la etiqueta (ej: "Gratis", "Sin limite").
      Si no se pasa, no se dibuja ningun boton y el campo queda como siempre. --%>
 <%@ attribute name="toggleText" required="false" %>
@@ -32,7 +33,7 @@
         <c:when test="${inputType == 'email'}">
             <input type="email" id="${name}" name="${name}" value="${fn:escapeXml(value)}"
                    <c:if test="${isRequired}">required="required"</c:if>
-                   pattern="[^@\s]+@[^@\s]+\.[^@\s]+" />
+                   pattern="[^@\s]+@[^@\s]+\.[^@\s]+" <c:if test="${not empty maxLength}">maxlength="${maxLength}"</c:if> />
         </c:when>
         <c:when test="${inputType == 'number'}">
             <input type="number" id="${name}" name="${name}" value="${fn:escapeXml(value)}"
@@ -42,7 +43,7 @@
         <c:when test="${inputType == 'password'}">
             <spring:message code="common.showPassword" var="showPasswordLabel"/>
             <div class="password-field">
-                <input type="password" id="${name}" name="${name}" <c:if test="${isRequired}">required="required"</c:if> minlength="8" />
+                <input type="password" id="${name}" name="${name}" <c:if test="${isRequired}">required="required"</c:if> minlength="8" <c:if test="${not empty maxLength}">maxlength="${maxLength}"</c:if> />
                 <button type="button" class="password-toggle" data-toggle-password="${name}" aria-label="${showPasswordLabel}">
                     <span class="password-icon-show"><paw:icon name="eye"/></span>
                     <span class="password-icon-hide" hidden><paw:icon name="eye-off"/></span>
@@ -63,7 +64,7 @@
         </c:when>
         <c:otherwise>
             <input type="text" id="${name}" name="${name}" value="${fn:escapeXml(value)}"
-                   <c:if test="${isRequired}">required="required"</c:if> />
+                   <c:if test="${isRequired}">required="required"</c:if> <c:if test="${not empty maxLength}">maxlength="${maxLength}"</c:if> />
         </c:otherwise>
     </c:choose>
 

@@ -46,9 +46,9 @@
                     <c:if test="${not empty redirectTo}">
                         <input type="hidden" name="redirect" value="${fn:escapeXml(redirectTo)}"/>
                     </c:if>
-                    <paw:input name="password" label="${newPasswordLabel}" type="password"
+                    <paw:input name="password" maxLength="72" label="${newPasswordLabel}" type="password"
                                errorMessage="${fieldErrors.password}"/>
-                    <paw:input name="confirmarPassword" label="${confirmPasswordLabel}" type="password"
+                    <paw:input name="confirmarPassword" maxLength="72" label="${confirmPasswordLabel}" type="password"
                                errorMessage="${fieldErrors.confirmarPassword}"/>
                     <paw:button text="${setPasswordButtonLabel}" cssClass="btn-accent"/>
                 </form>
@@ -97,8 +97,8 @@
                     <c:if test="${not empty redirectTo}">
                         <input type="hidden" name="redirect" value="${fn:escapeXml(redirectTo)}"/>
                     </c:if>
-                    <paw:input name="email" label="${emailLabel}" type="email"/>
-                    <paw:input name="password" label="${passwordLabel}" type="password"/>
+                    <paw:input name="email" maxLength="150" label="${emailLabel}" type="email"/>
+                    <paw:input name="password" maxLength="72" label="${passwordLabel}" type="password"/>
                     <p class="auth-forgot-password">
                         <spring:message code="auth.login.forgotPasswordLink" var="forgotPasswordLabel"/>
                         <a href="<c:url value='/login/recuperar'/>"><c:out value="${forgotPasswordLabel}"/></a>

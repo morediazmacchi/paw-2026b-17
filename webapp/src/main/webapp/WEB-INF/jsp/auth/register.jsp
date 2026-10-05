@@ -43,13 +43,13 @@
             <c:if test="${not empty redirectTo}">
                 <input type="hidden" name="redirect" value="<c:out value='${redirectTo}'/>"/>
             </c:if>
-            <paw:input name="nombre" label="${nameLabel}" type="text"
+            <paw:input name="nombre" maxLength="150" label="${nameLabel}" type="text"
                        value="${userForm.nombre}" errorMessage="${fieldErrors.nombre}"/>
-            <paw:input name="email" label="${emailLabel}" type="email"
+            <paw:input name="email" maxLength="150" label="${emailLabel}" type="email"
                        value="${userForm.email}" errorMessage="${fieldErrors.email}"/>
-            <paw:input name="password" label="${passwordLabel}" type="password"
+            <paw:input name="password" maxLength="72" label="${passwordLabel}" type="password"
                        errorMessage="${fieldErrors.password}"/>
-            <paw:input name="confirmarPassword" label="${confirmPasswordLabel}" type="password"
+            <paw:input name="confirmarPassword" maxLength="72" label="${confirmPasswordLabel}" type="password"
                        errorMessage="${fieldErrors.confirmarPassword}"/>
             <paw:button text="${submitButtonLabel}" cssClass="btn-accent"/>
         </form>
