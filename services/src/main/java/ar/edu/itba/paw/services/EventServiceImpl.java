@@ -27,6 +27,8 @@ import java.util.Optional;
 @Service
 public class EventServiceImpl implements EventService {
 
+    static final int PAGE_SIZE = 12;
+
     private final EventDao eventDao;
     private final UserService userService;
     private final NotificationService notificationService;
@@ -101,6 +103,7 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional(readOnly = true)
     public PageResult<Event> search(final EventSearchCriteria criteria) {
+        criteria.setPageSize(PAGE_SIZE);
         final long totalElements = eventDao.countSearch(criteria);
         final int totalPages = criteria.getPageSize() <= 0 ? 0
                 : (int) Math.ceil((double) totalElements / criteria.getPageSize());

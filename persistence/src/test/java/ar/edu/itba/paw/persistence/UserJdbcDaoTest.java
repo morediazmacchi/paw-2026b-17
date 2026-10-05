@@ -415,6 +415,58 @@ public class UserJdbcDaoTest {
         assertFalse(suspended);
     }
 
+    // ---- countAll() / findPage() ----
+
+    @Test
+    public void testCountAllCountsEveryUserNotEveryRole() {
+        // Arrange
+        final long first = insertUser(EMAIL, NAME);
+        insertRole(first, "ROLE_USER");
+        insertRole(first, "ROLE_ADMIN");
+        insertUser("otro@mail.com", "Beto");
+
+        // Act
+        final long count = userDao.countAll();
+
+        // Assert
+        assertEquals(2, count);
+    }
+
+    @Test
+    public void testFindPageReturnsTheRequestedSliceOrderedById() {
+        // Arrange
+        final long first = insertUser(EMAIL, NAME);
+        final long second = insertUser("otro@mail.com", "Beto");
+        final long third = insertUser("tercero@mail.com", "Carla");
+
+        // Act
+        final List<User> page = userDao.findPage(2, 1);
+
+        // Assert
+        assertEquals(2, page.size());
+        assertEquals(second, page.get(0).getId());
+        assertEquals(third, page.get(1).getId());
+        assertTrue(page.stream().noneMatch(u -> u.getId() == first));
+    }
+
+    @Test
+    public void testFindPageCountsAUserWithTwoRolesAsOneRowOfTheLimit() {
+        // Arrange: el primero tiene dos roles (dos filas en el JOIN); el limite es de usuarios, no de filas.
+        final long first = insertUser(EMAIL, NAME);
+        insertRole(first, "ROLE_USER");
+        insertRole(first, "ROLE_ADMIN");
+        final long second = insertUser("otro@mail.com", "Beto");
+
+        // Act
+        final List<User> page = userDao.findPage(2, 0);
+
+        // Assert
+        assertEquals(2, page.size());
+        assertEquals(first, page.get(0).getId());
+        assertEquals(2, page.get(0).getRoles().size());
+        assertEquals(second, page.get(1).getId());
+    }
+
     // ---- findAll() ----
 
     @Test

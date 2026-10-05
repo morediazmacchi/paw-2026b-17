@@ -101,6 +101,24 @@ public class UserJdbcDao implements UserDao {
     }
 
     @Override
+    public List<User> findPage(final int limit, final int offset) {
+        final Map<Long, User> byId = new LinkedHashMap<>();
+        jdbcTemplate.query(
+                "SELECT u.id, u.email, u.name, u.password, u.verified, u.preferred_locale, u.suspended, ur.role "
+                        + "FROM (SELECT * FROM users ORDER BY id LIMIT ? OFFSET ?) u "
+                        + "LEFT JOIN user_role ur ON ur.user_id = u.id ORDER BY u.id",
+                (RowCallbackHandler) rs -> pivotRow(rs, byId),
+                limit, offset);
+        return new ArrayList<>(byId.values());
+    }
+
+    @Override
+    public long countAll() {
+        final Long count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM users", Long.class);
+        return count == null ? 0 : count;
+    }
+
+    @Override
     public List<User> findAll() {
         // LinkedHashMap: conserva el orden del ORDER BY mientras pivotRow() pliega
         // las filas (una por rol) en un solo User por id.

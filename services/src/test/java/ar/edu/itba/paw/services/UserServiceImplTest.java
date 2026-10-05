@@ -961,29 +961,31 @@ public class UserServiceImplTest {
 
     @Test
     public void testFindPageReturnsOnlyThatPagesUsers() {
-        // Arrange: 5 usuarios, pagina 2 de a 2 -> el tercero y el cuarto.
-        when(userDao.findAll()).thenReturn(usersWithIds(1, 2, 3, 4, 5));
+        // Arrange: 45 usuarios, de a 20 por pagina -> la pagina 2 pide 20 desde el offset 20.
+        when(userDao.countAll()).thenReturn(45L);
+        when(userDao.findPage(UserServiceImpl.PAGE_SIZE, 20)).thenReturn(usersWithIds(21, 22));
 
         // Act
-        final PageResult<User> result = userService.findPage(2, 2);
+        final PageResult<User> result = userService.findPage(2);
 
         // Assert
-        assertEquals(Arrays.asList(3L, 4L),
+        assertEquals(Arrays.asList(21L, 22L),
                 result.getContent().stream().map(User::getId).collect(Collectors.toList()));
         assertEquals(3, result.getTotalPages());
     }
 
     @Test
     public void testFindPageBeyondTheLastFallsBackToTheLastPage() {
-        // Arrange: 5 usuarios, de a 2 por pagina -> ultima pagina valida es la 3 (un solo usuario).
-        when(userDao.findAll()).thenReturn(usersWithIds(1, 2, 3, 4, 5));
+        // Arrange: 45 usuarios, de a 20 por pagina -> la ultima pagina valida es la 3 (offset 40).
+        when(userDao.countAll()).thenReturn(45L);
+        when(userDao.findPage(UserServiceImpl.PAGE_SIZE, 40)).thenReturn(usersWithIds(41, 42, 43, 44, 45));
 
         // Act
-        final PageResult<User> result = userService.findPage(99, 2);
+        final PageResult<User> result = userService.findPage(99);
 
         // Assert
         assertEquals(3, result.getPage());
-        assertEquals(Collections.singletonList(5L),
+        assertEquals(Arrays.asList(41L, 42L, 43L, 44L, 45L),
                 result.getContent().stream().map(User::getId).collect(Collectors.toList()));
     }
 

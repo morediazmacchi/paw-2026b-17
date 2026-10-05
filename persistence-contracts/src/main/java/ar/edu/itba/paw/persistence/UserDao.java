@@ -18,6 +18,13 @@ public interface UserDao {
     // roles ya cargados, ordenados por id.
     List<User> findAll();
 
+    // Pagina sobre la tabla users (no sobre las filas del JOIN con roles: un usuario
+    // con dos roles son dos filas). Mismo orden que findAll(). countAll() es el total
+    // para calcular las paginas.
+    List<User> findPage(int limit, int offset);
+
+    long countAll();
+
     // Una sola consulta para varios ids (WHERE id IN (...)), para armar un mapa
     // id->User sin un findById() por cada uno (ver AdminController.seguimiento()/
     // reportQueueView()). Mismos ids repetidos o inexistentes se ignoran en

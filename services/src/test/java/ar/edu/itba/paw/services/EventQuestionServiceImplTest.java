@@ -320,6 +320,21 @@ public class EventQuestionServiceImplTest {
     }
 
     @Test
+    public void testFindPageBeyondTheLastFallsBackToTheLastPage() {
+        // Arrange: 12 preguntas, de a 10 por pagina -> la ultima pagina valida es la 2.
+        final List<EventQuestion> lastPage = Arrays.asList(questionWithId(1, EVENT_ID), questionWithId(2, EVENT_ID));
+        when(questionDao.findByEvent(EVENT_ID, 2, EventQuestionServiceImpl.PAGE_SIZE)).thenReturn(lastPage);
+        when(questionDao.countByEvent(EVENT_ID)).thenReturn(12L);
+
+        // Act
+        final PageResult<EventQuestion> result = questionService.findPage(EVENT_ID, 99);
+
+        // Assert
+        assertEquals(2, result.getPage());
+        assertEquals(lastPage, result.getContent());
+    }
+
+    @Test
     public void testFindPageWithAPageBelowOneReturnsTheFirstPage() {
         // Arrange
         final List<EventQuestion> firstPage = Arrays.asList(questionWithId(1, EVENT_ID));
