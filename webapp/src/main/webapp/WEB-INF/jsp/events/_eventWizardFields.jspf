@@ -320,10 +320,10 @@
                 <p class="wizard-field-hint"><c:out value="${currentImageHintLabel}"/></p>
             </c:if>
         </div>
-        <paw:input name="price" label="${priceLabel}" type="number" min="0"
+        <paw:input name="price" label="${priceLabel}" digitsOnly="${true}" maxLength="8" placeholder="10000"
                    value="${eventForm.price}" errorMessage="${fieldErrors.price}"
                    toggleText="${freeOptionLabel}" />
-        <paw:input name="maxCapacity" label="${capacityLabel}" type="number" min="0"
+        <paw:input name="maxCapacity" label="${capacityLabel}" digitsOnly="${true}" maxLength="9" placeholder="100"
                    value="${eventForm.maxCapacity}" errorMessage="${fieldErrors.maxCapacity}"
                    toggleText="${noLimitOptionLabel}" />
         <div class="form-group">

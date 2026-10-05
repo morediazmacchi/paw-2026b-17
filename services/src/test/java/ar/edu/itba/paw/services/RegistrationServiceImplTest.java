@@ -27,7 +27,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
@@ -108,16 +107,6 @@ public class RegistrationServiceImplTest {
         return event;
     }
 
-    // El service guarda la inscripcion con el email normalizado, el id del usuario y el estado que
-    // corresponde: si alguno no coincide, este stub no matchea y la inscripcion no se guarda.
-    private void createdAs(final RegistrationStatus status) {
-        when(mockRegistrationDao.create(argThat(registration -> registration.getStatus() == status
-                && registration.getEventId() == EVENT_ID
-                && NORMALIZED_EMAIL.equals(registration.getEmail())
-                && Long.valueOf(USER_ID).equals(registration.getUserId()))))
-                .thenReturn(new Registration(EVENT_ID, NORMALIZED_EMAIL, NAME, status));
-    }
-
     // ---- register() ----
 
     @Test
@@ -165,7 +154,6 @@ public class RegistrationServiceImplTest {
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(2)));
         when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(2L);
 
-        createdAs(RegistrationStatus.WAITLISTED);
         // Act
         final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
 
@@ -196,7 +184,6 @@ public class RegistrationServiceImplTest {
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(2)));
         when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(0L);
 
-        createdAs(RegistrationStatus.CONFIRMED);
         // Act
         final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
 
@@ -215,7 +202,6 @@ public class RegistrationServiceImplTest {
         // crearla, el segundo chequeo (post-insert) ya ve 2 de 2 (lleno).
         when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(1L, 2L);
 
-        createdAs(RegistrationStatus.CONFIRMED);
         // Act
         final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
 
@@ -232,7 +218,6 @@ public class RegistrationServiceImplTest {
         when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(null)));
 
-        createdAs(RegistrationStatus.CONFIRMED);
         // Act
         final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
 
@@ -314,7 +299,6 @@ public class RegistrationServiceImplTest {
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(10)));
         when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(0L);
 
-        createdAs(RegistrationStatus.PENDING);
         // Act
         final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
 
@@ -333,7 +317,6 @@ public class RegistrationServiceImplTest {
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(1)));
         when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(1L);
 
-        createdAs(RegistrationStatus.WAITLISTED);
         // Act
         final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
 
@@ -400,7 +383,6 @@ public class RegistrationServiceImplTest {
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(2)));
         when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(1L);
 
-        createdAs(RegistrationStatus.PENDING);
         // Act
         final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
 

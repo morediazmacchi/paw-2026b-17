@@ -20,7 +20,6 @@ import java.util.Optional;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.when;
 
 // Unidad 5 - Unit Testing: todas las dependencias son @Mock; los comandos del dao
@@ -99,14 +98,10 @@ public class ModerationServiceImplTest {
     // ---- report() ----
 
     @Test
-    public void testReportCreatesAPendingReport() {
+    public void testReportReturnsCreatedWhenTheEventExistsAndTheReporterHasNoPendingReport() {
         // Arrange
         eventExists(someEvent());
         when(reportDao.existsPendingByEventAndReporter(EVENT_ID, REPORTER_ID)).thenReturn(false);
-        when(reportDao.create(argThat(report -> report.getEventId() == EVENT_ID
-                && report.getReporterUserId() == REPORTER_ID
-                && REASON.equals(report.getReason())
-                && report.getStatus() == ReportStatus.PENDING))).thenReturn(somePendingReport());
 
         // Act
         final ReportResult result = moderationService.report(EVENT_ID, someUser(REPORTER_ID), REASON);

@@ -7,6 +7,12 @@
 <%@ attribute name="min" required="false" %>
 <%@ attribute name="value" required="false" %>
 <%@ attribute name="maxLength" required="false" %>
+<%-- Texto gris de ejemplo que se ve mientras el campo esta vacio (ej: "10000"). --%>
+<%@ attribute name="placeholder" required="false" %>
+<%-- true = solo digitos (cupo, precio en pesos enteros): ver js/digits-only.js.
+     Se dibuja como texto y no como type="number" porque el navegador deja
+     escribir "1.000" o "1e3" en un campo numerico y recien el servidor lo rechaza. --%>
+<%@ attribute name="digitsOnly" required="false" type="java.lang.Boolean" %>
 <%-- Texto de un atajo opcional al lado de la etiqueta (ej: "Gratis", "Sin limite").
      Si no se pasa, no se dibuja ningun boton y el campo queda como siempre. --%>
 <%@ attribute name="toggleText" required="false" %>
@@ -30,6 +36,13 @@
     </div>
 
     <c:choose>
+        <c:when test="${digitsOnly}">
+            <input type="text" id="${name}" name="${name}" value="${fn:escapeXml(value)}"
+                   inputmode="numeric" autocomplete="off" data-digits-only="true"
+                   <c:if test="${isRequired}">required="required"</c:if>
+                   <c:if test="${not empty maxLength}">maxlength="${maxLength}"</c:if>
+                   <c:if test="${not empty placeholder}">placeholder="${fn:escapeXml(placeholder)}"</c:if> />
+        </c:when>
         <c:when test="${inputType == 'email'}">
             <input type="email" id="${name}" name="${name}" value="${fn:escapeXml(value)}"
                    <c:if test="${isRequired}">required="required"</c:if>

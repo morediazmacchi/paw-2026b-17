@@ -10,6 +10,7 @@
             integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script src="<c:url value='/js/disable-on-submit.js'/>"></script>
     <script src="<c:url value='/js/quick-options.js'/>"></script>
+    <script src="<c:url value='/js/digits-only.js'/>"></script>
     <script src="<c:url value='/js/event-location-map.js'/>"></script>
     <script src="<c:url value='/js/image-picker.js'/>"></script>
     <%-- data-open-modal/data-close-modal del almanaque de fecha (ver event-wizard.js). --%>

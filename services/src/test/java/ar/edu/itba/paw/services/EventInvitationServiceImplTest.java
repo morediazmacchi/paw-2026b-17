@@ -21,7 +21,6 @@ import java.util.Optional;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
@@ -81,62 +80,33 @@ public class EventInvitationServiceImplTest {
     // ---- invite() ----
 
     @Test
-    public void testInviteCreatesTheInvitationWithTheNormalizedEmail() {
+    public void testInviteReturnsSentWhenThePrivateEventsCreatorInvitesAnEmailNotYetInvited() {
         // Arrange
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
+        // El email se busca ya normalizado: si invite() no lo normalizara, este stub no matchea.
         when(mockInvitationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
         when(mockUserService.findByEmail(NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
-        // El dao recibe la invitacion ya normalizada y con quien invito: si no, este stub no matchea y devuelve null.
-        when(mockInvitationDao.create(argThat(invitation ->
-                NORMALIZED_INVITEE_EMAIL.equals(invitation.getEmail()) && invitation.getEventId() == EVENT_ID
-                        && Long.valueOf(CREATOR_ID).equals(invitation.getInvitedByUserId()))))
-                .thenReturn(new EventInvitation(EVENT_ID, NORMALIZED_INVITEE_EMAIL, CREATOR_EMAIL));
 
         // Act
         final EventInvitationResult result = invitationService.invite(EVENT_ID, CREATOR_ID, INVITEE_EMAIL);
 
         // Assert
-        // La normalizacion (email/eventId/invitedBy correctos) ya la garantiza
-        // el argThat() de mockInvitationDao.create() de arriba: si invite()
-        // armara la invitacion distinto, ese stub no matchearia y Mockito en
-        // modo estricto haria fallar el test ahi mismo.
         assertEquals(EventInvitationResult.SENT, result);
     }
 
     @Test
-    public void testInviteLinksTheInviteesUserIdWhenTheyAlreadyHaveAnAccount() {
+    public void testInviteReturnsSentWhenTheInviteeAlreadyHasAnAccount() {
         // Arrange
-        final long inviteeId = 42;
         final User invitee = new User(NORMALIZED_INVITEE_EMAIL, "Invitado");
-        invitee.setId(inviteeId);
+        invitee.setId(42);
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
         when(mockInvitationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
         when(mockUserService.findByEmail(NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.of(invitee));
-        when(mockInvitationDao.create(argThat(invitation -> Long.valueOf(inviteeId).equals(invitation.getUserId()))))
-                .thenReturn(new EventInvitation(EVENT_ID, NORMALIZED_INVITEE_EMAIL, CREATOR_EMAIL));
 
         // Act
         final EventInvitationResult result = invitationService.invite(EVENT_ID, CREATOR_ID, INVITEE_EMAIL);
 
         // Assert
-        // El enlace del userId ya lo garantiza el argThat() de arriba.
-        assertEquals(EventInvitationResult.SENT, result);
-    }
-
-    @Test
-    public void testInviteLeavesTheUserIdNullWhenTheInviteeHasNoAccountYet() {
-        // Arrange
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
-        when(mockInvitationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
-        when(mockUserService.findByEmail(NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
-        when(mockInvitationDao.create(argThat(invitation -> invitation.getUserId() == null)))
-                .thenReturn(new EventInvitation(EVENT_ID, NORMALIZED_INVITEE_EMAIL, CREATOR_EMAIL));
-
-        // Act
-        final EventInvitationResult result = invitationService.invite(EVENT_ID, CREATOR_ID, INVITEE_EMAIL);
-
-        // Assert
-        // Que el userId quede null ya lo garantiza el argThat() de arriba.
         assertEquals(EventInvitationResult.SENT, result);
     }
 

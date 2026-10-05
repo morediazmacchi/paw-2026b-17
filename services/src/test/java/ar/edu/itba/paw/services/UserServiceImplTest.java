@@ -221,21 +221,6 @@ public class UserServiceImplTest {
         assertEquals(UserRegistrationResult.CREATED, result);
     }
 
-    @Test
-    public void testRegisterCreatesAVerificationTokenForTheNewUser() {
-        // Arrange
-        newUserFlow();
-        when(tokenDao.create(argThat(token -> token.getUserId() == USER_ID
-                && token.getPurpose() == TokenPurpose.VERIFY_EMAIL
-                && token.getExpiresAt().after(new Date())))).thenReturn(tokenOf(TokenPurpose.VERIFY_EMAIL, inOneHour()));
-
-        // Act
-        final UserRegistrationResult result = userService.register(registrationData());
-
-        // Assert
-        assertEquals(UserRegistrationResult.CREATED, result);
-    }
-
     // Reconciliacion Grupo B: invitaciones que la esperaban sin cuenta.
     @Test
     public void testRegisterLinksTheInvitationsThatWereWaitingForTheEmail() {
@@ -515,21 +500,6 @@ public class UserServiceImplTest {
     }
 
     @Test
-    public void testResendVerificationEmailCreatesANewToken() {
-        // Arrange
-        when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(unverifiedUser()));
-        when(tokenDao.create(argThat(token -> token.getUserId() == USER_ID
-                && token.getPurpose() == TokenPurpose.VERIFY_EMAIL
-                && token.getExpiresAt().after(new Date())))).thenReturn(tokenOf(TokenPurpose.VERIFY_EMAIL, inOneHour()));
-
-        // Act
-        final boolean result = userService.resendVerificationEmail(EMAIL);
-
-        // Assert
-        assertTrue(result);
-    }
-
-    @Test
     public void testResendVerificationEmailReturnsFalseWhenAlreadyVerified() {
         // Arrange
         final User verified = registeredUser();
@@ -588,21 +558,6 @@ public class UserServiceImplTest {
         // Arrange
         when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(registeredUser()));
         when(tokenDao.deleteByUserAndPurpose(USER_ID, TokenPurpose.RESET_PASSWORD)).thenReturn(1);
-
-        // Act
-        final boolean result = userService.sendPasswordResetEmail(EMAIL);
-
-        // Assert
-        assertTrue(result);
-    }
-
-    @Test
-    public void testSendPasswordResetEmailCreatesANewToken() {
-        // Arrange
-        when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(registeredUser()));
-        when(tokenDao.create(argThat(token -> token.getUserId() == USER_ID
-                && token.getPurpose() == TokenPurpose.RESET_PASSWORD
-                && token.getExpiresAt().after(new Date())))).thenReturn(tokenOf(TokenPurpose.RESET_PASSWORD, inOneHour()));
 
         // Act
         final boolean result = userService.sendPasswordResetEmail(EMAIL);

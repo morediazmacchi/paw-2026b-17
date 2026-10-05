@@ -829,6 +829,12 @@ input[type=number] {
     -moz-appearance: textfield;
 }
 
+/* Texto de ejemplo (ej: "10000" en precio): gris, mas suave que un valor real. */
+input::placeholder, textarea::placeholder {
+    color: var(--text-muted);
+    opacity: 1;
+}
+
 input:focus, select:focus, textarea:focus {
     outline: none;
     border-color: var(--accent);

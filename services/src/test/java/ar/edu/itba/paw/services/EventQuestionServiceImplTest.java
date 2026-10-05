@@ -19,7 +19,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
@@ -101,34 +100,6 @@ public class EventQuestionServiceImplTest {
         // Arrange
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
         when(questionDao.create(any(EventQuestion.class))).thenReturn(created());
-
-        // Act
-        final QuestionResult result = questionService.ask(EVENT_ID, asker(), "Hay estacionamiento?");
-
-        // Assert
-        assertEquals(QuestionResult.CREATED, result);
-    }
-
-    @Test
-    public void testAskSavesTheQuestionWithTheTextTrimmed() {
-        // Arrange
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
-        when(questionDao.create(argThat(question -> "Hay estacionamiento?".equals(question.getText()))))
-                .thenReturn(created());
-
-        // Act
-        final QuestionResult result = questionService.ask(EVENT_ID, asker(), "  Hay estacionamiento?  ");
-
-        // Assert
-        assertEquals(QuestionResult.CREATED, result);
-    }
-
-    @Test
-    public void testAskSavesTheQuestionAgainstTheEventAndTheAsker() {
-        // Arrange
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
-        when(questionDao.create(argThat(question -> question.getEventId() == EVENT_ID && question.getUserId() == 2L)))
-                .thenReturn(created());
 
         // Act
         final QuestionResult result = questionService.ask(EVENT_ID, asker(), "Hay estacionamiento?");

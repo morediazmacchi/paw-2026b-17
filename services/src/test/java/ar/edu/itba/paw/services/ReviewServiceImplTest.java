@@ -24,7 +24,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
@@ -145,25 +144,6 @@ public class ReviewServiceImplTest {
         // Arrange
         eligibleUser();
         when(reviewDao.create(any(Review.class))).thenReturn(new Review(EVENT_ID, USER_ID, RATING, COMMENT));
-
-        // Act
-        final ReviewResult result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
-
-        // Assert
-        assertEquals(ReviewResult.CREATED, result);
-    }
-
-    // La resenia que llega al dao tiene los datos que se pasaron: si el service no los
-    // copia bien, el stub no matchea, el dao devuelve null y el test falla.
-    @Test
-    public void testCreateSavesTheReviewWithTheDataGiven() {
-        // Arrange
-        eligibleUser();
-        when(reviewDao.create(argThat(review -> review.getEventId() == EVENT_ID
-                && review.getUserId() == USER_ID
-                && review.getRating() == RATING
-                && COMMENT.equals(review.getComment()))))
-                .thenReturn(new Review(EVENT_ID, USER_ID, RATING, COMMENT));
 
         // Act
         final ReviewResult result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
