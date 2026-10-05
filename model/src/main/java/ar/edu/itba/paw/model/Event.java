@@ -8,6 +8,8 @@ import java.util.stream.Collectors;
 
 public class Event {
 
+    public static final int MAX_IMAGES = 5;
+
     private long id;
     private String title;
     private String description;

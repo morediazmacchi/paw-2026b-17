@@ -10,7 +10,7 @@ import java.lang.annotation.Target;
 // Valida que no se suban mas de "max" imagenes. Las "vacias" (el picker manda
 // un MultipartFile por cada slot del dropzone, tildado o no) no cuentan. Ver
 // ImageCountValidator. El default esta atado al calculo de multipart-config en
-// web.xml (ver el comentario de EventController.MAX_IMAGES).
+// web.xml (ver el comentario de Event.MAX_IMAGES).
 @Target(ElementType.FIELD)
 @Retention(RetentionPolicy.RUNTIME)
 @Constraint(validatedBy = ImageCountValidator.class)

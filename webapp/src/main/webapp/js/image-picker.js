@@ -14,6 +14,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     var MAX_IMAGES = 5;
+    var MAX_IMAGE_BYTES = 5 * 1024 * 1024;
     var selected = [];
     var urls = [];
 
@@ -40,11 +41,16 @@ document.addEventListener("DOMContentLoaded", function () {
 
     function add(files) {
         var tooMany = false;
+        var tooLarge = false;
         Array.prototype.forEach.call(files, function (file) {
             if (file.type.indexOf("image/") !== 0) {
                 return;
             }
             if (selected.some(function (s) { return key(s) === key(file); })) {
+                return;
+            }
+            if (file.size > MAX_IMAGE_BYTES) {
+                tooLarge = true;
                 return;
             }
             if (selected.length >= MAX_IMAGES) {
@@ -53,7 +59,13 @@ document.addEventListener("DOMContentLoaded", function () {
             }
             selected.push(file);
         });
-        showMessage(tooMany ? (input.getAttribute("data-max-message") || "") : "");
+        if (tooLarge) {
+            showMessage(input.getAttribute("data-too-large-message") || "");
+        } else if (tooMany) {
+            showMessage(input.getAttribute("data-max-message") || "");
+        } else {
+            showMessage("");
+        }
         sync();
     }
 

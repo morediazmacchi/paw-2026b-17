@@ -7,7 +7,6 @@ import ar.edu.itba.paw.model.Category;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventCategoryInfo;
 import ar.edu.itba.paw.model.EventVisibility;
-import ar.edu.itba.paw.webapp.controller.EventController;
 import ar.edu.itba.paw.webapp.validation.ValidBarrio;
 import ar.edu.itba.paw.webapp.validation.ValidCategorias;
 import ar.edu.itba.paw.webapp.validation.ValidEventDate;
@@ -121,7 +120,7 @@ public class EventForm {
     // del <input type="file" name="images" multiple> directo a esta propiedad,
     // por nombre, igual que bindea cualquier otro campo del form. @ValidImageCount
     // reemplaza el chequeo manual de MAX_IMAGES que antes hacia el controller.
-    @ValidImageCount(max = EventController.MAX_IMAGES)
+    @ValidImageCount(max = Event.MAX_IMAGES)
     private List<MultipartFile> images = new ArrayList<>();
 
     public EventForm() {

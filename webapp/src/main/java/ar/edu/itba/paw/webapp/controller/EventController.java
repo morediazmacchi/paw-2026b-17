@@ -52,7 +52,6 @@ import java.util.stream.Collectors;
 public class EventController {
 
     private static final int FEATURED_COUNT = 5;
-    public static final int MAX_IMAGES = 5;
 
     private final EventService eventService;
     private final CategoryService categoryService;
