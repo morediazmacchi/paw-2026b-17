@@ -25,6 +25,7 @@ import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
@@ -324,16 +325,17 @@ public class EventServiceImplTest {
     }
 
     @Test
-    public void testUpdateSucceedsWithoutThrowing() {
+    public void testUpdateReturnsTheEventWithTheNewCapacity() {
         // Arrange
         updatable(5);
         final EventDTO dto = someDto();
         dto.setMaxCapacity(20);
 
         // Act
-        eventService.update(EVENT_ID, dto, CREATOR_ID);
+        final EventUpdateOutcome result = eventService.update(EVENT_ID, dto, CREATOR_ID);
 
-        // Assert: si no tira nada, el test ya paso.
+        // Assert
+        assertEquals(Integer.valueOf(20), result.getEvent().getMaxCapacity());
     }
 
     @Test
@@ -408,9 +410,10 @@ public class EventServiceImplTest {
         dto.setMaxCapacity(5);
 
         // Act
-        eventService.update(EVENT_ID, dto, CREATOR_ID);
+        final EventUpdateOutcome result = eventService.update(EVENT_ID, dto, CREATOR_ID);
 
-        // Assert: si no tira nada, el test ya paso.
+        // Assert: el limite exacto (cupo == ocupados) es valido y el cupo nuevo queda guardado.
+        assertEquals(Integer.valueOf(5), result.getEvent().getMaxCapacity());
     }
 
     @Test
@@ -423,9 +426,10 @@ public class EventServiceImplTest {
         dto.setMaxCapacity(null);
 
         // Act
-        eventService.update(EVENT_ID, dto, CREATOR_ID);
+        final EventUpdateOutcome result = eventService.update(EVENT_ID, dto, CREATOR_ID);
 
-        // Assert: si no tira nada, el test ya paso.
+        // Assert: se guarda sin cupo (ilimitado).
+        assertNull(result.getEvent().getMaxCapacity());
     }
 
     // Si el organizador sube el cupo, los primeros de la lista de espera entran ya.

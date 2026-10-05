@@ -89,6 +89,11 @@ public class WebConfig implements WebMvcConfigurer {
         // Relee los .properties cada 5 segundos en vez de una sola vez al arrancar:
         // conviene en desarrollo, y el costo en produccion es insignificante.
         ms.setCacheSeconds(5);
+        // messages_es.properties esta vacio a proposito (el espanol vive en
+        // messages.properties). Sin esto, ante una clave que falta en el idioma
+        // pedido Spring probaria primero el idioma del sistema operativo del
+        // servidor (en pampero puede ser ingles) antes de caer al archivo base.
+        ms.setFallbackToSystemLocale(false);
         return ms;
     }
 
