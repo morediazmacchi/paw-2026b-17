@@ -35,11 +35,9 @@ public class PageResult<T> {
         return totalPages == 0 ? 1 : Math.min(Math.max(page, 1), totalPages);
     }
 
-    // Para quien no pagina con SQL (LIMIT/OFFSET) sino que ya tiene la lista
-    // completa en memoria (ver UserServiceImpl.findPage()): corta el pedazo que
-    // corresponde y arma el PageResult, con el mismo criterio que
-    // EventServiceImpl.search() para una pagina pedida que no existe (cae a la
-    // ultima con resultados, nunca vacia por eso).
+    // Para quien ya tiene la lista completa en memoria (ver FavoriteServiceImpl.findViewablePage(),
+    // que filtra por visibilidad antes de cortar): corta el pedazo que corresponde y arma el
+    // PageResult, con el mismo criterio que EventServiceImpl.search().
     public static <T> PageResult<T> of(final List<T> all, final int page, final int pageSize) {
         final int totalElements = all.size();
         final int totalPages = pageSize <= 0 ? 0 : (int) Math.ceil((double) totalElements / pageSize);
