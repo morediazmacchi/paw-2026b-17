@@ -35,6 +35,9 @@ public class EventAccessServiceImpl implements EventAccessService {
         if (user != null && Long.valueOf(user.getId()).equals(event.getCreatorId())) {
             return true;
         }
+        if (user != null && user.getRoles().contains("ROLE_ADMIN")) {
+            return true;
+        }
         if (myRegistration.isPresent()) {
             return true;
         }

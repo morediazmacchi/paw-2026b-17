@@ -65,6 +65,19 @@ public class EventAccessServiceImplTest {
     }
 
     @Test
+    public void testCanViewAPrivateEventIsTrueForAnAdminWhoIsNotInvited() {
+        // Arrange
+        final User admin = user(7);
+        admin.getRoles().add("ROLE_ADMIN");
+
+        // Act
+        final boolean result = accessService.canView(event(EventVisibility.PRIVATE), admin);
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
     public void testCanViewAPrivateEventWithoutSessionIsFalse() {
         // Act
         final boolean result = accessService.canView(event(EventVisibility.PRIVATE), null);
