@@ -14,7 +14,7 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Constraint(validatedBy = CategoriasValidator.class)
 public @interface ValidCategorias {
-    String message() default "Elegí al menos una categoría";
+    String message() default "{ValidCategorias.none}";
     Class<?>[] groups() default {};
     Class<? extends Payload>[] payload() default {};
 }

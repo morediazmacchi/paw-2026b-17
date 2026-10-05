@@ -61,7 +61,7 @@ public class RegisterController {
 
         final UserRegistrationResult result = userService.register(form.toDTO(safeRedirect));
         if (result == UserRegistrationResult.EMAIL_TAKEN) {
-            errors.rejectValue("email", "email.taken", "Ese email ya está registrado");
+            errors.rejectValue("email", "email.taken");
             return registerFormWithErrors(form, errors, safeRedirect);
         }
 

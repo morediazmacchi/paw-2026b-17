@@ -27,6 +27,8 @@ import org.springframework.web.multipart.MultipartResolver;
 import org.springframework.web.multipart.support.StandardServletMultipartResolver;
 import org.springframework.web.servlet.LocaleResolver;
 import org.springframework.web.servlet.ViewResolver;
+import org.springframework.validation.Validator;
+import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
@@ -174,6 +176,24 @@ public class WebConfig implements WebMvcConfigurer {
     @Autowired
     @Lazy
     private UserService userService;
+
+    // Validador de los forms (@Valid) conectado al messageSource de arriba: asi los
+    // mensajes de los validadores propios (webapp/validation), que son claves del
+    // estilo "{ValidEventDate.past}", salen en el idioma del pedido y no con un texto
+    // fijo. Es un bean (y no un new suelto en getValidator()) para que Spring le
+    // inyecte las dependencias a los validadores (CategoriasValidator usa
+    // CategoryService con @Autowired).
+    @Bean
+    public LocalValidatorFactoryBean validator() {
+        final LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
+        validator.setValidationMessageSource(messageSource());
+        return validator;
+    }
+
+    @Override
+    public Validator getValidator() {
+        return validator();
+    }
 
     // El numerito de la bandeja en la navbar de todas las paginas (ver UnreadInboxInterceptor)
     // y el corte de sesion de las cuentas suspendidas (ver SuspendedUserInterceptor).

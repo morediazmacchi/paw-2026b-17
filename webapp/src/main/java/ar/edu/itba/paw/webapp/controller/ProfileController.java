@@ -148,7 +148,7 @@ public class ProfileController {
         if (!errors.hasErrors()) {
             final boolean ok = userService.changePassword(currentUser.getId(), form.getCurrentPassword(), form.getNewPassword());
             if (!ok) {
-                errors.rejectValue("currentPassword", "wrongCurrentPassword", "La contraseña actual no es correcta");
+                errors.rejectValue("currentPassword", "wrongCurrentPassword");
             }
         }
 

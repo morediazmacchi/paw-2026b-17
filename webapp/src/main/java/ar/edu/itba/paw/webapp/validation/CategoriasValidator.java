@@ -29,14 +29,14 @@ public class CategoriasValidator implements ConstraintValidator<ValidCategorias,
                 .filter(CategoriaSeleccionForm::isSeleccionada)
                 .collect(Collectors.toList());
         if (selected.isEmpty()) {
-            return fail(context, "Elegí al menos una categoría");
+            return fail(context, "{ValidCategorias.none}");
         }
         final Set<Long> existingIds = categoryService.findAll().stream()
                 .map(Category::getId)
                 .collect(Collectors.toSet());
         final boolean allExist = selected.stream().allMatch(c -> existingIds.contains(c.getCategoryId()));
         if (!allExist) {
-            return fail(context, "Elegí una categoría válida");
+            return fail(context, "{ValidCategorias.invalid}");
         }
         return true;
     }

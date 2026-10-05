@@ -16,7 +16,7 @@ import java.lang.annotation.Target;
 @Constraint(validatedBy = ImageCountValidator.class)
 public @interface ValidImageCount {
     int max() default 5;
-    String message() default "Podés subir hasta 5 fotos por evento.";
+    String message() default "{ValidImageCount.message}";
     Class<?>[] groups() default {};
     Class<? extends Payload>[] payload() default {};
 }

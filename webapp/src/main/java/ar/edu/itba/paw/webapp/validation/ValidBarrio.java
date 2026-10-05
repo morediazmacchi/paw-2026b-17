@@ -12,7 +12,7 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Constraint(validatedBy = BarrioValidator.class)
 public @interface ValidBarrio {
-    String message() default "Elegí un barrio de la lista";
+    String message() default "{ValidBarrio.message}";
     Class<?>[] groups() default {};
     Class<? extends Payload>[] payload() default {};
 }

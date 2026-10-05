@@ -28,13 +28,13 @@ public class EventDateValidator implements ConstraintValidator<ValidEventDate, S
         try {
             parsed = format.parse(value);
         } catch (final ParseException e) {
-            return fail(context, "La fecha y horario no tienen un formato válido");
+            return fail(context, "{ValidEventDate.format}");
         }
         if (parsed.before(new Date())) {
-            return fail(context, "La fecha del evento tiene que ser futura");
+            return fail(context, "{ValidEventDate.past}");
         }
         if (parsed.after(maxEventDate())) {
-            return fail(context, "La fecha del evento no puede ser de más de 2 años a partir de hoy");
+            return fail(context, "{ValidEventDate.tooFar}");
         }
         return true;
     }

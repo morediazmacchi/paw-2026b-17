@@ -16,7 +16,7 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Constraint(validatedBy = EventDateValidator.class)
 public @interface ValidEventDate {
-    String message() default "La fecha y horario no tienen un formato válido";
+    String message() default "{ValidEventDate.format}";
     Class<?>[] groups() default {};
     Class<? extends Payload>[] payload() default {};
 }
