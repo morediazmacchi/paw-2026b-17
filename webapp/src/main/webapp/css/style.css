@@ -352,6 +352,17 @@ a {
     margin: 0;
 }
 
+/* Texto que escribe la gente (direccion, ubicacion de la tarjeta, comentarios,
+   titulos de evento en las reseñas): puede venir sin espacios y desbordar el
+   contenedor. Mismo criterio que .detail-descripcion: corta en vez de salirse. */
+.detail-address-line,
+.detail-address-sub,
+.card-meta,
+.review-comment,
+.creator-review-event-title {
+    overflow-wrap: anywhere;
+}
+
 /* Detail page */
 
 .detail-page {
@@ -1544,6 +1555,116 @@ button.btn-accent {
 .geocode-suggestion:hover {
     border-color: var(--accent);
 }
+
+/* Tarjeta de ubicacion del paso 3 (ver _eventWizardFields.jspf). Los radios de
+   modo quedan en el DOM, invisibles, porque event-location-map.js los lee. */
+.location-card {
+    position: relative;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px;
+    margin-bottom: 16px;
+}
+
+.location-accordion {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--bg-elevated);
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
+}
+
+.location-accordion:hover {
+    border-color: var(--accent);
+}
+
+/* Cada panel va debajo de su encabezado. El de "Escribir ubicacion" se oculta
+   con aria-expanded (lo abre su encabezado); el de busqueda ademas usa [hidden]. */
+.location-option {
+    margin-top: 10px;
+}
+
+.location-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 16px 0;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+.location-divider::before,
+.location-divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+}
+
+.location-option-body {
+    padding: 10px 2px 0;
+}
+
+.location-accordion[aria-expanded="false"] + .location-option-body {
+    display: none;
+}
+
+#geo-search-panel .btn {
+    margin-top: 4px;
+}
+
+.location-accordion-chevron {
+    display: inline-flex;
+    transition: transform 0.15s ease;
+}
+
+.location-accordion[aria-expanded="true"] .location-accordion-chevron {
+    transform: rotate(90deg);
+}
+
+.location-mode-radios {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+/* Barrio deducido: caja de solo lectura, con el texto guia cuando esta vacia. */
+.location-barrio-box {
+    margin: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg-elevated);
+    color: var(--text);
+    min-height: 1.2em;
+}
+
+.location-barrio-box:empty::before {
+    content: attr(data-placeholder);
+    color: var(--text-muted);
+}
+
+.geocode-suggestion-main {
+    display: block;
+    font-weight: 600;
+}
+
+.geocode-suggestion-sub {
+    display: block;
+    margin-top: 2px;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+
 
 .wizard-dropzone {
     display: flex;

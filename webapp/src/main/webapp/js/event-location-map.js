@@ -45,6 +45,7 @@ document.addEventListener("DOMContentLoaded", function () {
     var barrioSelect = document.getElementById("neighborhood");
     var barrioDisplay = document.getElementById("neighborhood-display");
     var geoSearchPanel = document.getElementById("geo-search-panel");
+    var manualPanel = document.getElementById("manual-panel");
     var mapHintGeo = document.getElementById("map-hint-geo");
     var mapHintManual = document.getElementById("map-hint-manual");
     var modeGeoRadio = document.getElementById("modo-direccion-geo");
@@ -105,6 +106,16 @@ document.addEventListener("DOMContentLoaded", function () {
         if (geoSearchPanel) {
             geoSearchPanel.hidden = isManual;
         }
+        if (manualPanel) {
+            manualPanel.hidden = !isManual;
+        }
+        // El campo de direccion es uno solo: vive en el desplegable abierto
+        // ("Buscar" o "Escribir"). Mover el nodo no toca su name ni su valor.
+        var panel = isManual ? manualPanel : geoSearchPanel;
+        var addressWrap = addressInput ? addressInput.closest(".form-group") : null;
+        if (panel && addressWrap) {
+            panel.insertBefore(addressWrap, panel.firstChild);
+        }
         if (barrioDisplay) {
             barrioDisplay.hidden = isManual;
         }
@@ -130,6 +141,37 @@ document.addEventListener("DOMContentLoaded", function () {
                 applyMode(true);
             }
         });
+    }
+
+    // Los dos encabezados ("Buscar ubicacion" / "Escribir ubicacion", ver
+    // _eventWizardFields.jspf) no son modos nuevos: solo eligen el radio de
+    // arriba y disparan el mismo "change" que usan los listeners de modo.
+    var geoToggle = document.getElementById("geo-mode-toggle");
+    var manualToggle = document.getElementById("manual-mode-toggle");
+    function syncModeToggles() {
+        if (geoToggle && modeGeoRadio) {
+            geoToggle.setAttribute("aria-expanded", modeGeoRadio.checked ? "true" : "false");
+        }
+        if (manualToggle && modeManualRadio) {
+            manualToggle.setAttribute("aria-expanded", modeManualRadio.checked ? "true" : "false");
+        }
+    }
+    function chooseMode(radio) {
+        radio.checked = true;
+        (radio === modeGeoRadio ? modeManualRadio : modeGeoRadio).checked = false;
+        radio.dispatchEvent(new Event("change"));
+        syncModeToggles();
+    }
+    if (geoToggle && modeGeoRadio && modeManualRadio) {
+        geoToggle.addEventListener("click", function () { chooseMode(modeGeoRadio); });
+    }
+    if (manualToggle && geoToggle && modeGeoRadio && modeManualRadio) {
+        manualToggle.addEventListener("click", function () { chooseMode(modeManualRadio); });
+        syncModeToggles();
+    }
+
+    if (modeGeoRadio && modeManualRadio) {
+        applyMode(modeManualRadio.checked);
     }
 
     if (searchButton && addressInput && barrioSelect) {
@@ -277,7 +319,14 @@ function setUpAddressSearch(refs) {
             var button = document.createElement("button");
             button.type = "button";
             button.className = "geocode-suggestion";
-            button.textContent = formatCleanAddress(result.address || {}, result.display_name);
+            var main = document.createElement("span");
+            main.className = "geocode-suggestion-main";
+            main.textContent = formatCleanAddress(result.address || {}, result.display_name);
+            var sub = document.createElement("span");
+            sub.className = "geocode-suggestion-sub";
+            sub.textContent = refs.suggestionsEl.getAttribute("data-sub-label") || "";
+            button.appendChild(main);
+            button.appendChild(sub);
             button.addEventListener("click", function () { selectSuggestion(result); });
             item.appendChild(button);
             refs.suggestionsEl.appendChild(item);

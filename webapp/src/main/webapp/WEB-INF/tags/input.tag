@@ -77,7 +77,8 @@
         </c:when>
         <c:otherwise>
             <input type="text" id="${name}" name="${name}" value="${fn:escapeXml(value)}"
-                   <c:if test="${isRequired}">required="required"</c:if> <c:if test="${not empty maxLength}">maxlength="${maxLength}"</c:if> />
+                   <c:if test="${isRequired}">required="required"</c:if> <c:if test="${not empty maxLength}">maxlength="${maxLength}"</c:if>
+                   <c:if test="${not empty placeholder}">placeholder="${fn:escapeXml(placeholder)}"</c:if> />
         </c:otherwise>
     </c:choose>
 

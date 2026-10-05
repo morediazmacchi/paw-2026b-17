@@ -183,12 +183,24 @@
             <h2><spring:message code="event.publish.step3Heading"/></h2>
             <p><spring:message code="event.publish.step3Subheading"/></p>
         </div>
-        <paw:input name="address" maxLength="200" label="${addressLabel}" type="text"
-                   value="${eventForm.address}" errorMessage="${fieldErrors.address}" />
-        <spring:message code="event.publish.addressDetailsLabel" var="addressDetailsLabel"/>
-        <paw:input name="addressDetails" maxLength="300" label="${addressDetailsLabel}" type="text" required="${false}"
-                   value="${eventForm.addressDetails}" errorMessage="${fieldErrors.addressDetails}" />
+        <spring:message code="event.publish.addressPlaceholder" var="addressPlaceholderLabel"/>
+        <spring:message code="event.publish.addressCardHelper" var="addressHelperLabel"/>
+        <spring:message code="event.publish.geocodeButton" var="geoToggleLabel"/>
+        <spring:message code="event.publish.geocodeAction" var="geocodeActionLabel"/>
+        <spring:message code="event.publish.manualModeToggle" var="manualToggleLabel"/>
+        <spring:message code="event.publish.manualModeHelper" var="manualHelperLabel"/>
+        <spring:message code="event.publish.barrioAutoPlaceholder" var="barrioAutoLabel"/>
+        <spring:message code="event.publish.suggestionSubLabel" var="suggestionSubLabel"/>
+        <spring:message code="event.publish.geocodeSearching" var="geocodeSearchingLabel"/>
+        <spring:message code="event.publish.geocodeNotFound" var="geocodeNotFoundLabel"/>
+        <spring:message code="event.publish.geocodeError" var="geocodeErrorLabel"/>
+        <spring:message code="event.publish.geocodeNoBarrio" var="geocodeNoBarrioLabel"/>
+        <spring:message code="event.publish.suggestionsHeading" var="suggestionsHeadingLabel"/>
 
+        <%-- Tarjeta de ubicacion: direccion + "Buscar" en una fila, resultados
+             debajo, y el modo manual como acordeon. Los ids y los radios
+             (modo-direccion-*) son los mismos de siempre: event-location-map.js
+             no sabe que cambio el diseno. El acordeon solo cambia el radio. --%>
         <%-- Elegis EXPLICITAMENTE entre geocodificar la direccion contra
              Nominatim (mapa de solo lectura, barrio deducido) o cargarla
              vos a mano (select de barrio + click en el mapa). Nunca pasa
@@ -198,69 +210,87 @@
              eventForm ya traia un pin cargado, arranca en el modo con el
              que se habia puesto la ultima vez. --%>
         <c:set var="modoManual" value="${eventForm.locationManual == 'true'}"/>
-        <div class="form-group">
-            <label><spring:message code="event.publish.addressModeLabel"/></label>
-            <div class="address-mode-toggle">
-                <label class="filter-checkbox">
-                    <input type="radio" id="modo-direccion-geo" name="modo-direccion" value="geo"
-                           ${modoManual ? '' : 'checked="checked"'}/>
-                    <spring:message code="event.publish.addressModeGeo"/>
-                </label>
-                <label class="filter-checkbox">
-                    <input type="radio" id="modo-direccion-manual" name="modo-direccion" value="manual"
-                           ${modoManual ? 'checked="checked"' : ''}/>
-                    <spring:message code="event.publish.addressModeManual"/>
-                </label>
-            </div>
-        </div>
-
-        <%-- Modo "con geolocalizacion". Los data-* son los textos de estado
-             en el idioma actual, porque event-location-map.js es JS estatico
-             y no puede usar spring:message (mismo criterio que
-             favorite-toggle.js). --%>
-        <spring:message code="event.publish.geocodeButton" var="geocodeButtonLabel"/>
-        <spring:message code="event.publish.geocodeSearching" var="geocodeSearchingLabel"/>
-        <spring:message code="event.publish.geocodeNotFound" var="geocodeNotFoundLabel"/>
-        <spring:message code="event.publish.geocodeError" var="geocodeErrorLabel"/>
-        <spring:message code="event.publish.geocodeNoBarrio" var="geocodeNoBarrioLabel"/>
-        <spring:message code="event.publish.suggestionsHeading" var="suggestionsHeadingLabel"/>
-        <div id="geo-search-panel" ${modoManual ? 'hidden' : ''}>
-            <button type="button" id="geocode-address" class="btn btn-medium"
-                    data-searching-label="${geocodeSearchingLabel}"
-                    data-not-found-label="${geocodeNotFoundLabel}"
-                    data-error-label="${geocodeErrorLabel}"
-                    data-no-barrio-label="${geocodeNoBarrioLabel}"
-                    data-suggestions-heading="${suggestionsHeadingLabel}">
-                <c:out value="${geocodeButtonLabel}"/>
-            </button>
-            <p id="geocode-status" class="wizard-field-hint" role="status" hidden></p>
-            <ul id="geocode-suggestions" class="geocode-suggestions" hidden></ul>
-        </div>
-
-        <%-- Barrio: en modo geo es solo texto (deducido, no se toca); en
-             modo manual es el <select> de siempre. Los dos comparten esta
-             misma columna del form (name="neighborhood"), asi que da igual cual
-             de los dos esta oculto -- el que este visible es el que la
-             persona uso. --%>
         <c:set var="currentBarrioDisplay" value=""/>
         <c:forEach var="b" items="${barrios}">
             <c:if test="${b.name() == eventForm.neighborhood}"><c:set var="currentBarrioDisplay" value="${b.displayName}"/></c:if>
         </c:forEach>
-        <div class="form-group">
-            <label><c:out value="${neighborhoodLabel}"/></label>
-            <p id="neighborhood-display" class="wizard-field-hint" ${modoManual ? 'hidden' : ''}><c:out value="${currentBarrioDisplay}"/></p>
-            <select id="neighborhood" name="neighborhood" required="required" ${modoManual ? '' : 'hidden'}>
-                <option value="" disabled="disabled" ${empty eventForm.neighborhood ? 'selected="selected"' : ''}></option>
-                <c:forEach var="b" items="${barrios}">
-                    <option value="${b}" ${b.name() == eventForm.neighborhood ? 'selected' : ''}>
-                        <c:out value="${b.displayName}"/>
-                    </option>
-                </c:forEach>
-            </select>
-            <c:if test="${not empty fieldErrors.neighborhood}">
-                <span class="error-message"><c:out value="${fieldErrors.neighborhood}"/></span>
-            </c:if>
+        <%-- Dos desplegables, uno abierto a la vez (ver event-location-map.js):
+             "Buscar direccion" (Nominatim: busca, elegis un resultado y se completan
+             barrio y pin) y "Escribir direccion" (texto plano: escribis la direccion
+             y elegis el barrio a mano, y el pin se pone con click en el mapa).
+             El campo de direccion es uno solo: el JS lo mueve al desplegable abierto.
+             Los ids y los radios (modo-direccion-*) son los de siempre. --%>
+        <div class="location-card">
+            <div class="location-option">
+                <p class="location-helper"><c:out value="${addressHelperLabel}"/></p>
+                <button type="button" id="geo-mode-toggle" class="location-accordion"
+                        aria-expanded="${modoManual ? 'false' : 'true'}">
+                    <span><c:out value="${geoToggleLabel}"/></span>
+                    <span class="location-accordion-chevron" aria-hidden="true"><paw:icon name="chevron-right"/></span>
+                </button>
+                <%-- Los data-* son los textos de estado en el idioma actual, porque
+                     event-location-map.js es JS estatico (mismo criterio que
+                     favorite-toggle.js). Cerrado en modo manual (ver applyMode). --%>
+                <div id="geo-search-panel" class="location-option-body" ${modoManual ? 'hidden' : ''}>
+                    <paw:input name="address" maxLength="200" label="${addressLabel}" type="text"
+                               placeholder="${addressPlaceholderLabel}"
+                               value="${eventForm.address}" errorMessage="${fieldErrors.address}" />
+                    <button type="button" id="geocode-address" class="btn btn-medium"
+                            data-searching-label="${geocodeSearchingLabel}"
+                            data-not-found-label="${geocodeNotFoundLabel}"
+                            data-error-label="${geocodeErrorLabel}"
+                            data-no-barrio-label="${geocodeNoBarrioLabel}"
+                            data-suggestions-heading="${suggestionsHeadingLabel}">
+                        <c:out value="${geocodeActionLabel}"/>
+                    </button>
+                    <p id="geocode-status" class="wizard-field-hint" role="status" hidden></p>
+                    <ul id="geocode-suggestions" class="geocode-suggestions" data-sub-label="${suggestionSubLabel}" hidden></ul>
+                    <div class="form-group">
+                        <label><c:out value="${neighborhoodLabel}"/></label>
+                        <p id="neighborhood-display" class="location-barrio-box" data-placeholder="${barrioAutoLabel}" ${modoManual ? 'hidden' : ''}><c:out value="${currentBarrioDisplay}"/></p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="location-divider"><span><spring:message code="event.publish.orLabel"/></span></div>
+
+            <div class="location-option">
+                <p class="location-helper"><c:out value="${manualHelperLabel}"/></p>
+                <button type="button" id="manual-mode-toggle" class="location-accordion"
+                        aria-expanded="${modoManual ? 'true' : 'false'}">
+                    <span><c:out value="${manualToggleLabel}"/></span>
+                    <span class="location-accordion-chevron" aria-hidden="true"><paw:icon name="chevron-right"/></span>
+                </button>
+                <div id="manual-panel" class="location-option-body" ${modoManual ? '' : 'hidden'}>
+                    <div class="form-group">
+                        <label><c:out value="${neighborhoodLabel}"/></label>
+                        <select id="neighborhood" name="neighborhood" required="required" ${modoManual ? '' : 'hidden'}>
+                            <option value="" disabled="disabled" ${empty eventForm.neighborhood ? 'selected="selected"' : ''}></option>
+                            <c:forEach var="b" items="${barrios}">
+                                <option value="${b}" ${b.name() == eventForm.neighborhood ? 'selected' : ''}>
+                                    <c:out value="${b.displayName}"/>
+                                </option>
+                            </c:forEach>
+                        </select>
+                        <c:if test="${not empty fieldErrors.neighborhood}">
+                            <span class="error-message"><c:out value="${fieldErrors.neighborhood}"/></span>
+                        </c:if>
+                    </div>
+                </div>
+            </div>
+
+            <div class="address-mode-toggle location-mode-radios">
+                <input type="radio" id="modo-direccion-geo" name="modo-direccion" value="geo"
+                       ${modoManual ? '' : 'checked="checked"'}/>
+                <input type="radio" id="modo-direccion-manual" name="modo-direccion" value="manual"
+                       ${modoManual ? 'checked="checked"' : ''}/>
+            </div>
         </div>
+        <spring:message code="event.publish.addressDetailsLabel" var="addressDetailsLabel"/>
+        <paw:input name="addressDetails" maxLength="300" label="${addressDetailsLabel}" type="text" required="${false}"
+                   value="${eventForm.addressDetails}" errorMessage="${fieldErrors.addressDetails}" />
+
+
         <%-- De los 48 barrios (nombre de enum -> nombre para mostrar), para que
              event-location-map.js pueda deducir el barrio del "suburb" que
              devuelve Nominatim sin tener una segunda lista hardcodeada en JS:
