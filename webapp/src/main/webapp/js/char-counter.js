@@ -9,6 +9,9 @@
 //  - password: el contador de una contrasena no aporta nada y rompe el boton
 //    de mostrar/ocultar.
 //  - digits-only (cupo y precio, data-digits-only): son numeros, no texto.
+//  - la textarea espejo de las categorias (data-category-extra-hidden): la
+//    llena event-wizard.js con las respuestas de las preguntas, nunca la escribe
+//    la persona, asi que un contador ahi quedaria en 0 para siempre.
 // Sin JavaScript el campo funciona igual, solo que sin contador.
 (function () {
     "use strict";
@@ -38,7 +41,7 @@
     function init() {
         var fields = document.querySelectorAll(
             "input[maxlength]:not([type=password]):not([data-digits-only]), " +
-            "textarea[maxlength]");
+            "textarea[maxlength]:not([data-category-extra-hidden])");
         for (var i = 0; i < fields.length; i++) {
             setUp(fields[i]);
         }
