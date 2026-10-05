@@ -277,6 +277,12 @@ public class RegistrationServiceImpl implements RegistrationService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public long countByUserId(final long userId) {
+        return registrationDao.countByUserId(userId);
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public UnregisterResult cancel(final long registrationId, final long userId) {
         final Registration unlocked = registrationDao.findById(registrationId).orElse(null);
@@ -370,11 +376,26 @@ public class RegistrationServiceImpl implements RegistrationService {
 
     @Override
     @Transactional(readOnly = true)
+    public long countConfirmed(final long eventId) {
+        return registrationDao.countConfirmed(eventId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<Registration> findPendingByEvent(final long eventId, final long creatorId) {
         if (!ownsEvent(eventId, creatorId)) {
             return Collections.emptyList();
         }
         return registrationDao.findPendingByEvent(eventId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countPendingByEvent(final long eventId, final long creatorId) {
+        if (!ownsEvent(eventId, creatorId)) {
+            return 0;
+        }
+        return registrationDao.countPending(eventId);
     }
 
     @Override

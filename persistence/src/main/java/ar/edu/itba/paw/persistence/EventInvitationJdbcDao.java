@@ -93,6 +93,13 @@ public class EventInvitationJdbcDao implements EventInvitationDao {
     }
 
     @Override
+    public long countByUserId(final long userId) {
+        final Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM event_invitation WHERE user_id = ?", Long.class, userId);
+        return count == null ? 0 : count;
+    }
+
+    @Override
     public int linkUserId(final String email, final long userId) {
         return jdbcTemplate.update(
                 "UPDATE event_invitation SET user_id = ? WHERE email = ? AND user_id IS NULL",

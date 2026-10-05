@@ -66,6 +66,10 @@ public interface RegistrationService {
     @Transactional(readOnly = true)
     List<Registration> findByUserId(long userId);
 
+    /** Para el badge de "Mis inscripciones" (ver ProfileController): sin traer las filas. */
+    @Transactional(readOnly = true)
+    long countByUserId(long userId);
+
     /**
      * Cancela una inscripcion propia. Devuelve NOT_FOUND (y no borra nada) si
      * no existe o si es de otro usuario: cancelar la inscripcion de otra
@@ -108,6 +112,13 @@ public interface RegistrationService {
     List<Registration> findByEventId(long eventId);
 
     /**
+     * Como findByEventId(), pero solo cuenta confirmados (ver "Mis eventos" en
+     * ProfileController): mismo OJO de arriba, no valida quien pregunta.
+     */
+    @Transactional(readOnly = true)
+    long countConfirmed(long eventId);
+
+    /**
      * Pantalla de "aceptar o rechazar inscriptos" del creador: las pendientes
      * de este evento, de la que espera hace mas tiempo a la mas reciente.
      * Devuelve vacio si el evento no existe o no es de ese creador (no revela
@@ -115,6 +126,14 @@ public interface RegistrationService {
      */
     @Transactional(readOnly = true)
     List<Registration> findPendingByEvent(long eventId, long creatorId);
+
+    /**
+     * Como findPendingByEvent(), pero solo el conteo (badge de "N pendientes"
+     * en "Mis eventos", ver ProfileController): mismo chequeo de dueño, 0 en
+     * vez de lista vacia si el evento no existe o no es de ese creador.
+     */
+    @Transactional(readOnly = true)
+    long countPendingByEvent(long eventId, long creatorId);
 
     /**
      * El creador acepta una inscripcion pendiente: pasa a "confirmed" y se le

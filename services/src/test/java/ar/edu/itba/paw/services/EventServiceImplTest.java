@@ -229,6 +229,18 @@ public class EventServiceImplTest {
         assertEquals(events, result);
     }
 
+    @Test
+    public void testCountByCreatorIdReturnsWhatTheDaoReturns() {
+        // Arrange
+        when(eventDao.countByCreatorId(CREATOR_ID)).thenReturn(2L);
+
+        // Act
+        final long result = eventService.countByCreatorId(CREATOR_ID);
+
+        // Assert
+        assertEquals(2L, result);
+    }
+
     // ---- search() ----
 
     private static EventSearchCriteria criteria(final int page, final int pageSize) {
@@ -504,7 +516,7 @@ public class EventServiceImplTest {
         // Arrange
         // removeByAdmin() y cancel() devuelven el mismo CANCELLED: lo que los distingue es el
         // comando del dao que ejecutan (removeByAdmin guarda la marca "retirado por un admin" y el motivo).
-        existing(someEvent());
+        existingForUpdate(someEvent());
         when(eventDao.removeByAdmin(EVENT_ID, "Contenido inapropiado")).thenReturn(true);
 
         // Act
@@ -517,7 +529,7 @@ public class EventServiceImplTest {
     @Test
     public void testRemoveByAdminWhenTheEventDoesNotExistReturnsNotFound() {
         // Arrange
-        when(eventDao.findById(EVENT_ID)).thenReturn(Optional.empty());
+        when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
         final EventCancelResult result = eventService.removeByAdmin(EVENT_ID, "motivo");
@@ -529,7 +541,7 @@ public class EventServiceImplTest {
     @Test
     public void testRemoveByAdminWhenAlreadyCancelledReturnsAlreadyCancelled() {
         // Arrange
-        existing(cancelledEvent());
+        existingForUpdate(cancelledEvent());
 
         // Act
         final EventCancelResult result = eventService.removeByAdmin(EVENT_ID, "motivo");

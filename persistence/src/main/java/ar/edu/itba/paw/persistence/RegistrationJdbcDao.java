@@ -85,6 +85,13 @@ public class RegistrationJdbcDao implements RegistrationDao {
     }
 
     @Override
+    public long countByUserId(final long userId) {
+        final Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM registration WHERE user_id = ?", Long.class, userId);
+        return count == null ? 0 : count;
+    }
+
+    @Override
     public List<Registration> findByEventId(final long eventId) {
         return jdbcTemplate.query(
                 "SELECT * FROM registration WHERE event_id = ? ORDER BY registered_at ASC",

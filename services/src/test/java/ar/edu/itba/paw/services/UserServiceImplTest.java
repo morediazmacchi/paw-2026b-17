@@ -6,6 +6,7 @@ import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.TokenPurpose;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.VerificationToken;
+import ar.edu.itba.paw.model.exception.InvalidAdminActionException;
 import ar.edu.itba.paw.persistence.EventInvitationDao;
 import ar.edu.itba.paw.persistence.InboxMessageDao;
 import ar.edu.itba.paw.persistence.UserDao;
@@ -18,11 +19,15 @@ import org.mockito.junit.MockitoJUnitRunner;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -767,6 +772,66 @@ public class UserServiceImplTest {
         assertTrue(result);
     }
 
+    // ---- suspendByAdmin() ----
+
+    private static User adminWithId(final long id, final String... roles) {
+        final User admin = new User("admin@mail.com", "Admin");
+        admin.setId(id);
+        admin.setRoles(new HashSet<>(Arrays.asList(roles)));
+        return admin;
+    }
+
+    @Test(expected = InvalidAdminActionException.class)
+    public void testSuspendByAdminThrowsWhenTargetIsTheCallerThemselves() {
+        // Arrange
+        final User caller = adminWithId(USER_ID, "ROLE_ADMIN");
+
+        // Act
+        userService.suspendByAdmin(USER_ID, caller);
+
+        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
+    }
+
+    @Test(expected = InvalidAdminActionException.class)
+    public void testSuspendByAdminThrowsWhenTargetIsAdminAndCallerIsNotSuperadmin() {
+        // Arrange: USER_ID es el admin objetivo, el caller es otro admin comun.
+        when(userDao.findById(USER_ID)).thenReturn(Optional.of(adminWithId(USER_ID, "ROLE_ADMIN")));
+        final User caller = adminWithId(2L, "ROLE_ADMIN");
+
+        // Act
+        userService.suspendByAdmin(USER_ID, caller);
+
+        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
+    }
+
+    @Test
+    public void testSuspendByAdminSucceedsWhenCallerIsSuperadminAndTargetIsAdmin() {
+        // Arrange
+        when(userDao.findById(USER_ID)).thenReturn(Optional.of(adminWithId(USER_ID, "ROLE_ADMIN")));
+        when(userDao.setSuspended(USER_ID, true)).thenReturn(true);
+        final User caller = adminWithId(2L, "ROLE_ADMIN", "ROLE_SUPERADMIN");
+
+        // Act
+        final boolean result = userService.suspendByAdmin(USER_ID, caller);
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    public void testSuspendByAdminSucceedsForANormalUser() {
+        // Arrange: USER_ID no es staff, el caller es un admin comun.
+        when(userDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
+        when(userDao.setSuspended(USER_ID, true)).thenReturn(true);
+        final User caller = adminWithId(2L, "ROLE_ADMIN");
+
+        // Act
+        final boolean result = userService.suspendByAdmin(USER_ID, caller);
+
+        // Assert
+        assertTrue(result);
+    }
+
     @Test
     public void testReactivateReturnsTrueWhenTheUserWasMarkedNotSuspended() {
         // Arrange
@@ -841,7 +906,7 @@ public class UserServiceImplTest {
         when(userDao.removeRole(USER_ID, "ROLE_ADMIN")).thenReturn(true);
 
         // Act
-        final boolean result = userService.revokeAdmin(USER_ID);
+        final boolean result = userService.revokeAdmin(USER_ID, 2L);
 
         // Assert
         assertTrue(result);
@@ -853,10 +918,18 @@ public class UserServiceImplTest {
         when(userDao.removeRole(USER_ID, "ROLE_ADMIN")).thenReturn(false);
 
         // Act
-        final boolean result = userService.revokeAdmin(USER_ID);
+        final boolean result = userService.revokeAdmin(USER_ID, 2L);
 
         // Assert
         assertFalse(result);
+    }
+
+    @Test(expected = InvalidAdminActionException.class)
+    public void testRevokeAdminThrowsWhenTargetIsTheCallerThemselves() {
+        // Act
+        userService.revokeAdmin(USER_ID, USER_ID);
+
+        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
 
     // ---- findAll() ----
@@ -872,6 +945,46 @@ public class UserServiceImplTest {
 
         // Assert
         assertEquals(users, all);
+    }
+
+    // ---- findPage() ----
+
+    private static List<User> usersWithIds(final long... ids) {
+        final List<User> users = new ArrayList<>();
+        for (final long id : ids) {
+            final User user = someUser();
+            user.setId(id);
+            users.add(user);
+        }
+        return users;
+    }
+
+    @Test
+    public void testFindPageReturnsOnlyThatPagesUsers() {
+        // Arrange: 5 usuarios, pagina 2 de a 2 -> el tercero y el cuarto.
+        when(userDao.findAll()).thenReturn(usersWithIds(1, 2, 3, 4, 5));
+
+        // Act
+        final PageResult<User> result = userService.findPage(2, 2);
+
+        // Assert
+        assertEquals(Arrays.asList(3L, 4L),
+                result.getContent().stream().map(User::getId).collect(Collectors.toList()));
+        assertEquals(3, result.getTotalPages());
+    }
+
+    @Test
+    public void testFindPageBeyondTheLastFallsBackToTheLastPage() {
+        // Arrange: 5 usuarios, de a 2 por pagina -> ultima pagina valida es la 3 (un solo usuario).
+        when(userDao.findAll()).thenReturn(usersWithIds(1, 2, 3, 4, 5));
+
+        // Act
+        final PageResult<User> result = userService.findPage(99, 2);
+
+        // Assert
+        assertEquals(3, result.getPage());
+        assertEquals(Collections.singletonList(5L),
+                result.getContent().stream().map(User::getId).collect(Collectors.toList()));
     }
 
     // ---- findByIds() ----

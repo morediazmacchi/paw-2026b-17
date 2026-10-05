@@ -52,6 +52,10 @@ public interface EventService {
     @Transactional(readOnly = true)
     List<Event> findByCreatorId(long creatorId);
 
+    /** Para el badge de "Mis eventos" (ver ProfileController): sin traer las filas. */
+    @Transactional(readOnly = true)
+    long countByCreatorId(long creatorId);
+
     /**
      * Edita un evento existente. No cambia quien lo creo ni cuando se creo.
      * Si dto.getNewImages() viene vacio, se mantiene la galeria que el evento

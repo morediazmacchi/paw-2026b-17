@@ -98,4 +98,10 @@ public class EventInvitationServiceImpl implements EventInvitationService {
     public List<EventInvitation> findByUser(final long userId) {
         return invitationDao.findByUserId(userId);
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countByUser(final long userId) {
+        return invitationDao.countByUserId(userId);
+    }
 }

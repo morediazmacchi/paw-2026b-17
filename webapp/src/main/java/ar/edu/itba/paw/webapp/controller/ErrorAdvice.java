@@ -4,6 +4,7 @@ import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.UserService;
 import ar.edu.itba.paw.model.exception.EventCancelledException;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
+import ar.edu.itba.paw.model.exception.InvalidAdminActionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.servlet.ModelAndView;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.security.Principal;
 
@@ -54,6 +56,16 @@ public class ErrorAdvice {
     @ExceptionHandler(EventCancelledException.class)
     public ModelAndView eventCancelled(final EventCancelledException e) {
         return new ModelAndView("redirect:/perfil/eventos");
+    }
+
+    // La UI ya esconde el boton en todos los casos (ver UserServiceImpl.suspendByAdmin()/
+    // revokeAdmin()): esto solo se llega con un POST armado a mano. adminError es el
+    // mismo flash attribute que ya leia admin/usuarios.jsp cuando el chequeo vivia en
+    // cada controller por separado.
+    @ExceptionHandler(InvalidAdminActionException.class)
+    public ModelAndView invalidAdminAction(final InvalidAdminActionException e, final RedirectAttributes redirectAttributes) {
+        redirectAttributes.addFlashAttribute("adminError", e.getReason().name());
+        return new ModelAndView("redirect:/admin/usuarios");
     }
 
     // Un @PathVariable numerico (ej. "long id") que llega con algo que no es

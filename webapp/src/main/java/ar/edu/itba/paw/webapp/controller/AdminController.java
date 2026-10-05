@@ -6,6 +6,7 @@ import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.EventQuestionService;
 import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.ModerationService;
+import ar.edu.itba.paw.services.PageResult;
 import ar.edu.itba.paw.services.ReportResolutionResult;
 import ar.edu.itba.paw.services.UserService;
 import ar.edu.itba.paw.webapp.form.RequestChangesForm;
@@ -27,11 +28,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-// Panel de administracion (PAW20-67): cola de reportes y gestion de usuarios.
-// Todo bajo /admin/**, ya protegido por WebAuthConfig: hasRole("ADMIN") para
-// todo lo de aca, y hasRole("SUPERADMIN") especificamente para promover/
-// revocar admin (ver los antMatchers, van ANTES del general). Esta clase no
-// vuelve a chequear el rol: si llego hasta aca, ya esta autorizado.
+// Panel de administracion
 @Controller
 @RequestMapping("/admin")
 public class AdminController {
@@ -60,10 +57,8 @@ public class AdminController {
         return reportQueueView("admin/reportes", moderationService.listPending());
     }
 
-    // Panel de seguimiento (ver ModerationService.requestChanges()): reportes
-    // donde ya se le pidieron cambios al creador, esperando que un admin los
-    // revise de nuevo (mismo template de fila que la cola de pendientes, con
-    // el mensaje pedido y quien lo pidio ademas del reporte original).
+    // Panel de seguimiento: reportes
+    // donde ya se le pidieron cambios al creador
     @RequestMapping(value = "/reportes/seguimiento", method = RequestMethod.GET)
     public ModelAndView seguimiento() {
         final List<EventReport> reports = moderationService.listChangesRequested();
@@ -79,10 +74,7 @@ public class AdminController {
         return mav;
     }
 
-    // Una sola consulta por relacion (findByIds(), ver EventService/UserService)
-    // en vez de un findById() por cada reporte de la lista. Compartido por
-    // reportes() y seguimiento(): las dos pantallas muestran filas de
-    // EventReport con el mismo evento/reportero.
+    // trae los reports con los datos para mostrarlos en el jsp.
     private ModelAndView reportQueueView(final String viewName, final List<EventReport> reports) {
         final List<Long> eventIds = reports.stream().map(EventReport::getEventId).distinct().collect(Collectors.toList());
         final List<Long> reporterIds = reports.stream().map(EventReport::getReporterUserId).distinct().collect(Collectors.toList());
@@ -97,9 +89,7 @@ public class AdminController {
         return mav;
     }
 
-    // descartar/dar-de-baja se usan desde las dos pantallas (la cola de
-    // pendientes y el panel de seguimiento): "origen" (hidden en el form) dice
-    // a cual volver, para no sacar de la pantalla que el admin estaba mirando.
+    // descartar/dar-de-baja
     private static ModelAndView redirectToOrigin(final String origen) {
         return new ModelAndView("seguimiento".equals(origen)
                 ? "redirect:/admin/reportes/seguimiento" : "redirect:/admin/reportes");
@@ -113,8 +103,7 @@ public class AdminController {
         final ReportResolutionResult result = moderationService.dismiss(id, currentUser.getId());
         // NOT_FOUND: otro admin ya lo resolvio mientras este lo tenia abierto.
         // OWN_EVENT: el reporte es sobre un evento propio (conflicto de
-        // intereses). En los dos casos se avisa en vez de redirigir en
-        // silencio como si hubiera funcionado.
+        // intereses).
         if (result != ReportResolutionResult.RESOLVED) {
             redirectAttributes.addFlashAttribute("adminReportError", result.name());
         }
@@ -151,55 +140,26 @@ public class AdminController {
         return new ModelAndView("redirect:/admin/reportes");
     }
 
-    // Tamaño de pagina para "Usuarios": findAll() no tiene version paginada en
-    // la base (ver UserDao), asi que se pagina aca mismo sobre la lista entera.
-    // Nada grave: a esta pantalla solo entran admins, y el panel no se usa
-    // tan seguido como para que paginar en memoria sea un problema real.
+    // Tamaño de pagina para "Usuarios"
     private static final int USERS_PAGE_SIZE = 20;
 
     @RequestMapping(value = "/usuarios", method = RequestMethod.GET)
     public ModelAndView usuarios(@RequestParam(value = "page", required = false) final String page,
                                   @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final List<User> allUsers = userService.findAll();
-        final int totalPages = Math.max(1, (int) Math.ceil(allUsers.size() / (double) USERS_PAGE_SIZE));
-        // Un page mas alla del total (ultima pagina se vacio desde otra
-        // pestaña, o el numero vino escrito a mano en la URL) cae a la ultima
-        // pagina valida en vez de mostrar una lista vacia con paginador roto.
-        final int currentPage = Math.min(Paging.parsePage(page), totalPages);
-        final int fromIndex = Math.min((currentPage - 1) * USERS_PAGE_SIZE, allUsers.size());
-        final int toIndex = Math.min(fromIndex + USERS_PAGE_SIZE, allUsers.size());
+        final PageResult<User> result = userService.findPage(Paging.parsePage(page), USERS_PAGE_SIZE);
 
         final ModelAndView mav = new ModelAndView("admin/usuarios");
-        mav.addObject("users", allUsers.subList(fromIndex, toIndex));
-        mav.addObject("currentPage", currentPage);
-        mav.addObject("totalPages", totalPages);
+        mav.addObject("users", result.getContent());
+        mav.addObject("currentPage", result.getPage());
+        mav.addObject("totalPages", result.getTotalPages());
         mav.addObject("currentUserId", currentUser.getId());
         mav.addObject("isSuperadmin", currentUser.getRoles().contains("ROLE_SUPERADMIN"));
         return mav;
     }
 
     @RequestMapping(value = "/usuarios/{id}/suspender", method = RequestMethod.POST)
-    public ModelAndView suspender(@PathVariable final long id, @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
-                                   final RedirectAttributes redirectAttributes) {
-        // Nadie se suspende a si mismo: te dejaria sin poder loguearte de nuevo
-        // para deshacerlo (la UI ya esconde el boton para tu propia fila, esto
-        // es el mismo chequeo por si el POST se manda directo).
-        if (id == currentUser.getId()) {
-            redirectAttributes.addFlashAttribute("adminError", "SELF");
-            return new ModelAndView("redirect:/admin/usuarios");
-        }
-        // Un admin comun no suspende a otro admin ni al superadmin: /admin/**
-        // lo deja entrar a cualquier admin, asi que sin esto uno podria dejar
-        // afuera a los demas. Solo un superadmin puede (como con promover/revocar).
-        // La UI ya no ofrece el boton en ese caso; esto cubre el POST directo.
-        final boolean targetIsStaff = userService.findById(id)
-                .map(target -> target.getRoles().contains("ROLE_ADMIN") || target.getRoles().contains("ROLE_SUPERADMIN"))
-                .orElse(false);
-        if (targetIsStaff && !currentUser.getRoles().contains("ROLE_SUPERADMIN")) {
-            redirectAttributes.addFlashAttribute("adminError", "ADMIN_TARGET");
-            return new ModelAndView("redirect:/admin/usuarios");
-        }
-        userService.suspend(id);
+    public ModelAndView suspender(@PathVariable final long id, @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
+        userService.suspendByAdmin(id, currentUser);
         return new ModelAndView("redirect:/admin/usuarios");
     }
 
@@ -216,22 +176,12 @@ public class AdminController {
     }
 
     @RequestMapping(value = "/usuarios/{id}/revocar", method = RequestMethod.POST)
-    public ModelAndView revocar(@PathVariable final long id, @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
-                                 final RedirectAttributes redirectAttributes) {
-        // Un superadmin no puede sacarse ROLE_ADMIN a si mismo: /admin/** exige
-        // ese rol especificamente (ver WebAuthConfig), asi que hacerlo lo dejaria
-        // afuera del panel sin ninguna forma de deshacerlo el mismo.
-        if (id == currentUser.getId()) {
-            redirectAttributes.addFlashAttribute("adminError", "SELF");
-            return new ModelAndView("redirect:/admin/usuarios");
-        }
-        userService.revokeAdmin(id);
+    public ModelAndView revocar(@PathVariable final long id, @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
+        userService.revokeAdmin(id, currentUser.getId());
         return new ModelAndView("redirect:/admin/usuarios");
     }
 
-    // Banner de /eventos (ver EventController.eventos()). Vive aca y no en
-    // EventController porque es una accion de admin: bajo /admin/** ya exige
-    // ROLE_ADMIN (ver WebAuthConfig), sin repetir el chequeo a mano.
+    // Banner
     @RequestMapping(value = "/eventos/{id}/destacar", method = RequestMethod.POST)
     public ModelAndView destacar(@PathVariable final long id) {
         eventService.setFeatured(id, true);
@@ -244,10 +194,8 @@ public class AdminController {
         return new ModelAndView("redirect:/eventos/" + id);
     }
 
-    // Moderacion de preguntas (ver EventQuestionService.deleteByAdmin()):
-    // borra la pregunta con su respuesta si tenia. eventId viaja en el form
-    // (hidden) para poder volver al detalle del evento: la pregunta ya no
-    // existe despues de esto, no hay de donde mas sacarlo.
+    // Moderacion de preguntas
+    // borra la pregunta con su respuesta si tenia.
     @RequestMapping(value = "/preguntas/{id}/eliminar", method = RequestMethod.POST)
     public ModelAndView eliminarPregunta(@PathVariable final long id, @RequestParam("eventId") final long eventId) {
         eventQuestionService.deleteByAdmin(id);

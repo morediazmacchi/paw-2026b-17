@@ -42,6 +42,9 @@ public interface EventDao {
     // diferencia de search()), mas recientes primero.
     List<Event> findByCreatorId(long creatorId);
 
+    /** Para el badge de "Mis eventos" (ver ProfileController): sin traer las filas. */
+    long countByCreatorId(long creatorId);
+
     // Combina todos los filtros con AND (un campo en null en criteria significa "sin filtrar por
     // esto"); solo eventos futuros y no cancelados; ordenado y paginado segun criteria.
     List<Event> search(EventSearchCriteria criteria);

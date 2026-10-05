@@ -590,6 +590,20 @@ public class RegistrationServiceImplTest {
         assertEquals(registrations, result);
     }
 
+    // ---- countByUserId() ----
+
+    @Test
+    public void testCountByUserIdDelegatesToTheDao() {
+        // Arrange
+        when(mockRegistrationDao.countByUserId(USER_ID)).thenReturn(3L);
+
+        // Act
+        final long result = registrationService.countByUserId(USER_ID);
+
+        // Assert
+        assertEquals(3L, result);
+    }
+
     // ---- cancel() ----
 
     @Test
@@ -796,6 +810,20 @@ public class RegistrationServiceImplTest {
         assertEquals(registrations, result);
     }
 
+    // ---- countConfirmed() ----
+
+    @Test
+    public void testCountConfirmedDelegatesToTheDao() {
+        // Arrange
+        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(3L);
+
+        // Act
+        final long result = registrationService.countConfirmed(EVENT_ID);
+
+        // Assert
+        assertEquals(3L, result);
+    }
+
     // ---- findPendingByEvent() ----
 
     @Test
@@ -839,6 +867,48 @@ public class RegistrationServiceImplTest {
 
         // Assert
         assertTrue(result.isEmpty());
+    }
+
+    // ---- countPendingByEvent() ----
+
+    @Test
+    public void testCountPendingByEventDelegatesToTheDaoWhenTheCreatorAsks() {
+        // Arrange
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(null)));
+        when(mockRegistrationDao.countPending(EVENT_ID)).thenReturn(2L);
+
+        // Act
+        final long result = registrationService.countPendingByEvent(EVENT_ID, CREATOR_ID);
+
+        // Assert
+        assertEquals(2L, result);
+    }
+
+    @Test
+    public void testCountPendingByEventReturnsZeroWhenAskedBySomeoneElse() {
+        // Arrange
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(null)));
+        // El dao SI tiene un pendiente: si el service lo consultara para cualquiera,
+        // el resultado no seria cero.
+        lenient().when(mockRegistrationDao.countPending(EVENT_ID)).thenReturn(1L);
+
+        // Act
+        final long result = registrationService.countPendingByEvent(EVENT_ID, OTHER_ID);
+
+        // Assert
+        assertEquals(0L, result);
+    }
+
+    @Test
+    public void testCountPendingByEventReturnsZeroWhenTheEventDoesNotExist() {
+        // Arrange
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.empty());
+
+        // Act
+        final long result = registrationService.countPendingByEvent(EVENT_ID, CREATOR_ID);
+
+        // Assert
+        assertEquals(0L, result);
     }
 
     // ---- approve() ----

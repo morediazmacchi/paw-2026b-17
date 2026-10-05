@@ -14,6 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import javax.sql.DataSource;
 import java.sql.Timestamp;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -154,6 +156,36 @@ public class ReviewJdbcDaoTest {
 
         // Assert
         assertFalse(found.isPresent());
+    }
+
+    // ---- findByEventsAndUser() ----
+
+    @Test
+    public void testFindByEventsAndUserReturnsOnlyThatUsersReviewsOfThoseEvents() {
+        // Arrange
+        final long otherEventId = insertEvent("Torneo", CREATOR_EMAIL, creatorId);
+        final long otherUserId = insertUser("otro@mail.com", "Otro");
+        insertReview(eventId, userId, 4, "Muy bueno");
+        insertReview(otherEventId, otherUserId, 2, "No era mio");
+
+        // Act
+        final List<Review> found = reviewDao.findByEventsAndUser(Arrays.asList(eventId, otherEventId), userId);
+
+        // Assert
+        assertEquals(1, found.size());
+        assertEquals(eventId, found.get(0).getEventId());
+    }
+
+    @Test
+    public void testFindByEventsAndUserReturnsEmptyWhenTheListOfEventsIsEmpty() {
+        // Arrange
+        insertReview(eventId, userId, 4, "Muy bueno");
+
+        // Act
+        final List<Review> found = reviewDao.findByEventsAndUser(Collections.emptyList(), userId);
+
+        // Assert
+        assertTrue(found.isEmpty());
     }
 
     // ---- findByCreatorId() ----

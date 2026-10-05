@@ -42,6 +42,12 @@ public class ReviewServiceImpl implements ReviewService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<Review> findByEventsAndUser(final List<Long> eventIds, final long userId) {
+        return reviewDao.findByEventsAndUser(eventIds, userId);
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public ReviewResult create(final long eventId, final User user, final int rating, final String comment) {
         Objects.requireNonNull(user, "user");

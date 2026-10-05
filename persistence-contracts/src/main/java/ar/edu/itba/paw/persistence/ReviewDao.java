@@ -12,6 +12,11 @@ public interface ReviewDao {
     // Para "Mis inscripciones": este usuario ya reseño este evento?
     Optional<Review> findByEventAndUser(long eventId, long userId);
 
+    // Como findByEventAndUser(), pero para varios eventos a la vez (ver
+    // ProfileController.misInscripciones()): una sola consulta para todas las
+    // reseñas propias en vez de un findByEventAndUser() por evento finalizado.
+    List<Review> findByEventsAndUser(List<Long> eventIds, long userId);
+
     // Para el promedio del promotor y el popup "Ver reseñas de este promotor":
     // todas las reseñas de todos los eventos que creo ese usuario.
     List<Review> findByCreatorId(long creatorId);

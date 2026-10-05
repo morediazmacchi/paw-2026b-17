@@ -378,6 +378,36 @@ public class EventInvitationJdbcDaoTest {
         assertTrue(found.isEmpty());
     }
 
+    // ---- countByUserId() ----
+
+    @Test
+    public void testCountByUserIdCountsOnlyTheInvitationsOfThatUser() {
+        // Arrange
+        final long inviteeId = insertUser(INVITEE_EMAIL);
+        final long otherUserId = insertUser("otro@mail.com");
+        insertInvitation(eventId, INVITEE_EMAIL, inviteeId);
+        insertInvitation(eventId, "otro@mail.com", otherUserId);
+
+        // Act
+        final long count = invitationDao.countByUserId(inviteeId);
+
+        // Assert
+        assertEquals(1, count);
+    }
+
+    @Test
+    public void testCountByUserIdIgnoresInvitationsNotLinkedToAnAccountYet() {
+        // Arrange
+        final long inviteeId = insertUser(INVITEE_EMAIL);
+        insertInvitation(eventId, INVITEE_EMAIL, null);
+
+        // Act
+        final long count = invitationDao.countByUserId(inviteeId);
+
+        // Assert
+        assertEquals(0, count);
+    }
+
     @Test
     public void testLinkUserIdReturnsHowManyInvitationsWereLinked() {
         // Arrange

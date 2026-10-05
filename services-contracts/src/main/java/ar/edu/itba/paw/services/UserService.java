@@ -18,6 +18,13 @@ public interface UserService {
     List<User> findAll();
 
     /**
+     * Como {@link #findAll()}, pero ya paginado (ver PageResult#of): no hay
+     * filtro que justifique una consulta SQL propia con LIMIT/OFFSET, asi que
+     * se pagina en memoria sobre el resultado de findAll().
+     */
+    PageResult<User> findPage(int page, int pageSize);
+
+    /**
      * Para autenticacion: el User que devuelve ya trae password y roles
      * (ver UserDao). Nunca es null "porque no tiene roles": eso es un Set vacio,
      * no ausencia de Optional.
@@ -117,6 +124,18 @@ public interface UserService {
      */
     boolean suspend(long userId);
 
+    /**
+     * Como {@link #suspend(long)}, pero valida primero que {@code caller} pueda
+     * suspender a {@code targetId} (ver AdminController.suspender()): nadie se
+     * suspende a si mismo, y un admin comun no puede suspender a otro admin ni
+     * al superadmin (a diferencia de promover/revocar, esto depende de QUIEN es
+     * el objetivo puntual, no solo de que rol tiene quien llama -- eso no lo
+     * puede expresar un antMatcher de WebAuthConfig).
+     *
+     * @throws InvalidAdminActionException si la suspension no esta permitida.
+     */
+    boolean suspendByAdmin(long targetId, User caller);
+
     /** Levanta una suspension. Le avisa por mail y por la bandeja. */
     boolean reactivate(long userId);
 
@@ -127,6 +146,14 @@ public interface UserService {
      */
     boolean grantAdmin(long userId);
 
-    /** Le saca ROLE_ADMIN a un usuario (no toca ROLE_SUPERADMIN). */
-    boolean revokeAdmin(long userId);
+    /**
+     * Le saca ROLE_ADMIN a un usuario (no toca ROLE_SUPERADMIN). Quien puede
+     * invocar esto lo controla la seguridad HTTP, igual que grantAdmin() --
+     * salvo una cosa que un antMatcher no puede expresar: un superadmin no se
+     * puede sacar ROLE_ADMIN a si mismo (ver AdminController.revocar()), porque
+     * lo dejaria afuera de /admin/** sin ninguna forma de deshacerlo el mismo.
+     *
+     * @throws InvalidAdminActionException si targetId es el propio callerId.
+     */
+    boolean revokeAdmin(long targetId, long callerId);
 }

@@ -873,6 +873,35 @@ public class EventJdbcDaoTest {
     }
 
     // ==================================================================
+    // countByCreatorId(): badge de "Mis eventos"
+    // ==================================================================
+
+    @Test
+    public void testCountByCreatorIdCountsOnlyEventsOfThatCreator() {
+        // Arrange
+        final long otherCreatorId = insertUser("otro@mail.com");
+        insertEvent(cols("address", "Direccion A", "creator_email", CREATOR_EMAIL, "creator_id", creatorId));
+        insertEvent(cols("address", "Direccion B", "creator_email", "otro@mail.com", "creator_id", otherCreatorId));
+
+        // Act
+        final long count = eventDao.countByCreatorId(creatorId);
+
+        // Assert
+        assertEquals(1, count);
+    }
+
+    @Test
+    public void testCountByCreatorIdReturnsZeroWhenNoEvents() {
+        // Arrange: no se inserta ningun evento de este creador.
+
+        // Act
+        final long count = eventDao.countByCreatorId(creatorId);
+
+        // Assert
+        assertEquals(0, count);
+    }
+
+    // ==================================================================
     // search(): filtro "quedan pocos cupos"
     // ==================================================================
 

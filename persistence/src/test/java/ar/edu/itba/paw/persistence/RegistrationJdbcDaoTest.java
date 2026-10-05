@@ -234,6 +234,33 @@ public class RegistrationJdbcDaoTest {
         assertTrue(found.isEmpty());
     }
 
+    // ---- countByUserId() (badge de "Mis inscripciones") ----
+
+    @Test
+    public void testCountByUserIdCountsOnlyThatUsersRegistrations() {
+        // Arrange
+        insertRegistration(eventId, EMAIL, userId, NAME, RegistrationStatus.CONFIRMED);
+        final long otherUserId = insertUser("otro@mail.com", "Otro");
+        insertRegistration(eventId, "otro@mail.com", otherUserId, "Otro", RegistrationStatus.CONFIRMED);
+
+        // Act
+        final long count = registrationDao.countByUserId(userId);
+
+        // Assert
+        assertEquals(1, count);
+    }
+
+    @Test
+    public void testCountByUserIdReturnsZeroWhenNeverRegistered() {
+        // Arrange: no se inserta ninguna inscripcion.
+
+        // Act
+        final long count = registrationDao.countByUserId(userId);
+
+        // Assert
+        assertEquals(0, count);
+    }
+
     // ---- findByEventId() ("Ver inscriptos" del organizador) ----
 
     @Test

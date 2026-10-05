@@ -24,6 +24,9 @@ public interface RegistrationDao {
     // "Mis inscripciones": mas recientes primero.
     List<Registration> findByUserId(long userId);
 
+    /** Para el badge de "Mis inscripciones" (ver ProfileController): sin traer las filas. */
+    long countByUserId(long userId);
+
     // "Ver inscriptos" del organizador: todos los de un evento, en orden de
     // llegada (mas antiguos primero) -- al reves que findByEmail a proposito,
     // aca lo que importa es quien se anoto primero, no lo mas reciente.
