@@ -18,6 +18,7 @@ import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
@@ -180,7 +181,7 @@ public class InboxServiceImplTest {
     @Test
     public void testMarkAllReadReturnsHowManyMessagesWereMarked() {
         // Arrange
-        when(inboxDao.markAllReadByUserId(eq(USER_ID), argThat(date -> date != null))).thenReturn(2);
+        when(inboxDao.markAllReadByUserId(eq(USER_ID), any(Date.class))).thenReturn(2);
 
         // Act
         final int result = inboxService.markAllRead(USER_ID);

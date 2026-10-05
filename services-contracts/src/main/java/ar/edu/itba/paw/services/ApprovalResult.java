@@ -11,7 +11,7 @@ public class ApprovalResult {
          * no se acepta a nadie mas. La inscripcion no se toca.
          */
         FULL,
-        /** No existe, no esta pendiente, o el evento no es de quien pide aceptar. */
+        /** No existe, no esta pendiente, el evento esta cancelado o ya paso, o no es de quien pide aceptar. */
         NOT_FOUND
     }
 

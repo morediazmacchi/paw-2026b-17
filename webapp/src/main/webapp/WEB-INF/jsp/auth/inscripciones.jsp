@@ -2,21 +2,13 @@
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
 <%@ taglib prefix="paw" tagdir="/WEB-INF/tags" %>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Plancito &middot; <spring:message code="auth.registrations.title"/></title>
-    <link rel="icon" type="image/svg+xml" href="${pageContext.request.contextPath}/favicon.svg">
-    <link rel="stylesheet" href="${pageContext.request.contextPath}/css/style.css">
+<paw:layout titleCode="auth.registrations.title">
+<jsp:attribute name="head">
     <script src="<c:url value='/js/disable-on-submit.js'/>"></script>
     <script src="<c:url value='/js/modal.js'/>"></script>
-</head>
-<body>
-
-<paw:navbar>
-    <spring:message code="common.nav.backToEvents" var="backToEventsLabel"/>
-    <a class="btn btn-medium" href="<c:url value='/eventos'/>"><c:out value="${backToEventsLabel}"/></a>
-</paw:navbar>
+</jsp:attribute>
+<jsp:body>
+<paw:navbar backToEvents="true"/>
 
 <div class="account-layout">
     <paw:accountSidebar active="registrations" registrationsCount="${registrationsCount}" favoritesCount="${favoritesCount}" eventsCount="${eventsCount}" invitationsCount="${invitationsCount}"/>
@@ -141,6 +133,5 @@
         </c:choose>
     </main>
 </div>
-
-</body>
-</html>
+</jsp:body>
+</paw:layout>

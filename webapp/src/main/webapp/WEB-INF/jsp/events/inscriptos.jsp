@@ -4,15 +4,7 @@
 <%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions" %>
 <%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
 <%@ taglib prefix="paw" tagdir="/WEB-INF/tags" %>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Plancito &middot; <spring:message code="event.attendees.title"/></title>
-    <link rel="icon" type="image/svg+xml" href="${pageContext.request.contextPath}/favicon.svg">
-    <link rel="stylesheet" href="${pageContext.request.contextPath}/css/style.css">
-</head>
-<body>
-
+<paw:layout titleCode="event.attendees.title">
 <paw:navbar>
     <spring:message code="event.attendees.backButton" var="backLabel"/>
     <a class="btn btn-medium" href="<c:url value='/perfil/eventos'/>"><c:out value="${backLabel}"/></a>
@@ -89,6 +81,4 @@
         </c:otherwise>
     </c:choose>
 </main>
-
-</body>
-</html>
+</paw:layout>

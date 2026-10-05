@@ -3,20 +3,12 @@
 <%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions" %>
 <%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
 <%@ taglib prefix="paw" tagdir="/WEB-INF/tags" %>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Plancito &middot; <spring:message code="admin.users.title"/></title>
-    <link rel="icon" type="image/svg+xml" href="${pageContext.request.contextPath}/favicon.svg">
-    <link rel="stylesheet" href="${pageContext.request.contextPath}/css/style.css">
+<paw:layout titleCode="admin.users.title">
+<jsp:attribute name="head">
     <script src="<c:url value='/js/disable-on-submit.js'/>"></script>
-</head>
-<body>
-
-<paw:navbar>
-    <spring:message code="common.nav.backToEvents" var="backToEventsLabel"/>
-    <a class="btn btn-medium" href="<c:url value='/eventos'/>"><c:out value="${backToEventsLabel}"/></a>
-</paw:navbar>
+</jsp:attribute>
+<jsp:body>
+<paw:navbar backToEvents="true"/>
 
 <main class="page">
     <h1><spring:message code="admin.users.heading"/></h1>
@@ -128,26 +120,9 @@
                 </table>
             </div>
 
-            <c:if test="${totalPages > 1}">
-                <spring:message code="event.list.prevPage" var="prevPageLabel"/>
-                <spring:message code="event.list.nextPage" var="nextPageLabel"/>
-                <nav class="pager">
-                    <c:if test="${currentPage > 1}">
-                        <a class="pager-arrow" href="<c:url value='/admin/usuarios'><c:param name='page' value='${currentPage - 1}'/></c:url>">
-                            <c:out value="${prevPageLabel}"/>
-                        </a>
-                    </c:if>
-                    <span class="pager-number pager-number-active"><c:out value="${currentPage}"/> / <c:out value="${totalPages}"/></span>
-                    <c:if test="${currentPage < totalPages}">
-                        <a class="pager-arrow" href="<c:url value='/admin/usuarios'><c:param name='page' value='${currentPage + 1}'/></c:url>">
-                            <c:out value="${nextPageLabel}"/>
-                        </a>
-                    </c:if>
-                </nav>
-            </c:if>
+            <paw:pager baseUrl="/admin/usuarios" currentPage="${currentPage}" totalPages="${totalPages}"/>
         </c:otherwise>
     </c:choose>
 </main>
-
-</body>
-</html>
+</jsp:body>
+</paw:layout>

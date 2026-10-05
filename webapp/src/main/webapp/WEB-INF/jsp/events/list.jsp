@@ -4,21 +4,16 @@
 <%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions" %>
 <%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
 <%@ taglib prefix="paw" tagdir="/WEB-INF/tags" %>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Plancito &middot; <spring:message code="event.list.title"/></title>
-    <link rel="icon" type="image/svg+xml" href="${pageContext.request.contextPath}/favicon.svg">
-    <link rel="stylesheet" href="${pageContext.request.contextPath}/css/style.css">
+<paw:layout titleCode="event.list.title">
+<jsp:attribute name="head">
     <script src="<c:url value='/js/hero-carousel.js'/>"></script>
     <script src="<c:url value='/js/favorite-toggle.js'/>"></script>
     <%-- data-open-modal/data-close-modal de los almanaques "Desde"/"Hasta". --%>
     <script src="<c:url value='/js/modal.js'/>"></script>
     <script src="<c:url value='/js/date-filter-calendar.js'/>"></script>
     <script src="<c:url value='/js/price-range.js'/>"></script>
-</head>
-<body>
-
+</jsp:attribute>
+<jsp:body>
 <%-- Adonde vuelve el corazon de favorito despues de togglear: esta misma
      pagina con los filtros que tenga puestos, no siempre /eventos pelado.
      OJO: pageContext.request.requestURI aca adentro da la ruta del forward
@@ -338,20 +333,6 @@
         </c:if>
     </div>
 
-    <c:if test="${not empty rsvp}">
-        <c:choose>
-            <c:when test="${rsvp == 'confirmed'}">
-                <p class="alert alert-success"><spring:message code="event.rsvp.confirmed"/></p>
-            </c:when>
-            <c:when test="${rsvp == 'ya-anotado'}">
-                <p class="alert"><spring:message code="event.rsvp.alreadyRegistered"/></p>
-            </c:when>
-            <c:when test="${rsvp == 'lleno'}">
-                <p class="alert"><spring:message code="event.rsvp.full"/></p>
-            </c:when>
-        </c:choose>
-    </c:if>
-
     <%-- Ordenar, aparte de los filtros: un <select> comun que dispara el mismo
          GET apenas se elige una opcion (sin esperar a "Filtrar"). Sigue adentro
          de este form para viajar junto con los filtros ya puestos; solo cambia
@@ -468,6 +449,5 @@
         </c:otherwise>
     </c:choose>
 </main>
-
-</body>
-</html>
+</jsp:body>
+</paw:layout>

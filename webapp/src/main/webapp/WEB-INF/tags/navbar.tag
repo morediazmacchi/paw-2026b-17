@@ -1,4 +1,5 @@
 <%@ tag language="java" pageEncoding="UTF-8" %>
+<%@ attribute name="backToEvents" required="false" type="java.lang.Boolean" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions" %>
 <%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
@@ -35,6 +36,12 @@
 <header class="navbar">
     <a class="logo" href="<c:url value='/eventos'/>">p<span class="logo-dot">.</span> plancito</a>
     <div class="navbar-actions">
+        <%-- backToEvents="true": el boton "Volver a eventos" que casi todas las vistas
+             llevaban a mano. Va antes del body, igual que antes. --%>
+        <c:if test="${backToEvents}">
+            <spring:message code="common.nav.backToEvents" var="backToEventsLabel"/>
+            <a class="btn btn-medium" href="<c:url value='/eventos'/>"><c:out value="${backToEventsLabel}"/></a>
+        </c:if>
         <jsp:doBody/>
         <sec:authorize access="isAuthenticated()">
             <%-- unreadInboxCount lo pone UnreadInboxInterceptor en todas las paginas. --%>

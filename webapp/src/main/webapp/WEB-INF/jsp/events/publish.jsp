@@ -2,12 +2,8 @@
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
 <%@ taglib prefix="paw" tagdir="/WEB-INF/tags" %>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Plancito &middot; <spring:message code="event.publish.title"/></title>
-    <link rel="icon" type="image/svg+xml" href="${pageContext.request.contextPath}/favicon.svg">
-    <link rel="stylesheet" href="${pageContext.request.contextPath}/css/style.css">
+<paw:layout titleCode="event.publish.title">
+<jsp:attribute name="head">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
           integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
@@ -19,13 +15,9 @@
     <%-- data-open-modal/data-close-modal del almanaque de fecha (ver event-wizard.js). --%>
     <script src="<c:url value='/js/modal.js'/>"></script>
     <script src="<c:url value='/js/event-wizard.js'/>"></script>
-</head>
-<body>
-
-<paw:navbar>
-    <spring:message code="common.nav.backToEvents" var="backToEventsLabel"/>
-    <a class="btn btn-medium" href="<c:url value='/eventos'/>"><c:out value="${backToEventsLabel}"/></a>
-</paw:navbar>
+</jsp:attribute>
+<jsp:body>
+<paw:navbar backToEvents="true"/>
 
 <main class="page page-narrow">
     <div class="wizard-card">
@@ -38,6 +30,5 @@
         <%@ include file="_eventWizardFields.jspf" %>
     </div>
 </main>
-
-</body>
-</html>
+</jsp:body>
+</paw:layout>

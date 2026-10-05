@@ -13,6 +13,7 @@ import ar.edu.itba.paw.model.Review;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.CategoryService;
 import ar.edu.itba.paw.services.EventAccessService;
+import ar.edu.itba.paw.services.EventInvitationService;
 import ar.edu.itba.paw.services.EventQuestionService;
 import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.FavoriteService;
@@ -60,6 +61,7 @@ public class EventController {
     private final ReviewService reviewService;
     private final EventQuestionService eventQuestionService;
     private final EventAccessService accessChecker;
+    private final EventInvitationService eventInvitationService;
     private final MessageSource messageSource;
 
     @Autowired
@@ -67,6 +69,7 @@ public class EventController {
                             final RegistrationService registrationService,
                             final FavoriteService favoriteService, final ReviewService reviewService,
                             final EventQuestionService eventQuestionService, final EventAccessService accessChecker,
+                            final EventInvitationService eventInvitationService,
                             final MessageSource messageSource) {
         this.eventService = eventService;
         this.categoryService = categoryService;
@@ -75,6 +78,7 @@ public class EventController {
         this.reviewService = reviewService;
         this.eventQuestionService = eventQuestionService;
         this.accessChecker = accessChecker;
+        this.eventInvitationService = eventInvitationService;
         this.messageSource = messageSource;
     }
 
@@ -94,7 +98,6 @@ public class EventController {
     // viven en EventSearchForm.
     @RequestMapping(value = "/eventos", method = RequestMethod.GET)
     public ModelAndView list(final EventSearchForm filters,
-                              @RequestParam(value = "rsvp", required = false) final String rsvp,
                               @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final Map<String, String> filterErrors = new HashMap<>();
         if (filters.isPriceRangeInvalid()) {
@@ -131,7 +134,6 @@ public class EventController {
         mav.addObject("sort", filters.getParsedSort().name());
         mav.addObject("sortOptions", EventSort.values());
         mav.addObject("filterErrors", filterErrors);
-        mav.addObject("rsvp", rsvp);
         // Anonimo no ve el corazon de favorito.
         if (currentUser != null) {
             mav.addObject("favoriteEventIds", new HashSet<>(favoriteService.findEventIdsByUser(currentUser.getId())));
@@ -175,7 +177,13 @@ public class EventController {
             mav.addObject("pendingApproval", myStatus == RegistrationStatus.PENDING);
             mav.addObject("rejected", myStatus == RegistrationStatus.REJECTED);
             // El creador no se anota a su propio evento.
-            mav.addObject("isOwner", Long.valueOf(currentUser.getId()).equals(event.getCreatorId()));
+            final boolean isOwner = Long.valueOf(currentUser.getId()).equals(event.getCreatorId());
+            mav.addObject("isOwner", isOwner);
+            // Un admin puede VER un evento privado para moderarlo (ver EventAccessService.canView()),
+            // pero no inscribirse si nadie lo invito: register() lo trata como un id inexistente.
+            // La pantalla no le ofrece un boton que terminaria en un 404.
+            mav.addObject("viewOnly", event.isPrivate() && !isOwner && !myRegistration.isPresent()
+                    && !eventInvitationService.isInvited(id, currentUser.getId()));
         }
         if (event.getCreatorId() != null) {
             addCreatorReputation(mav, event.getCreatorId());

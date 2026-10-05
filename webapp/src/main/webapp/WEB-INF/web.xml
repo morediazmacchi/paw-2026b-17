@@ -53,7 +53,7 @@
     <load-on-startup>1</load-on-startup>
     <multipart-config>
       <!-- Muro duro del servidor. La regla que se le muestra al usuario (5 MB
-           por foto, hasta 5 fotos, ver ImageServiceImpl y EventController.
+           por foto, hasta 5 fotos, ver ImageServiceImpl y Event.
            MAX_IMAGES) esta mas abajo: dejamos bastante margen aca (15 MB por
            archivo, 35 MB por pedido, bien por encima del total legitimo de
            25 MB de 5 fotos de 5 MB) para que practicamente cualquier foto

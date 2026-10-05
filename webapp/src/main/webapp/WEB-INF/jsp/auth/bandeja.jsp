@@ -3,19 +3,8 @@
 <%@ taglib prefix="fmt" uri="http://java.sun.com/jsp/jstl/fmt" %>
 <%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
 <%@ taglib prefix="paw" tagdir="/WEB-INF/tags" %>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Plancito &middot; <spring:message code="inbox.title"/></title>
-    <link rel="icon" type="image/svg+xml" href="${pageContext.request.contextPath}/favicon.svg">
-    <link rel="stylesheet" href="${pageContext.request.contextPath}/css/style.css">
-</head>
-<body>
-
-<paw:navbar>
-    <spring:message code="common.nav.backToEvents" var="backToEventsLabel"/>
-    <a class="btn btn-medium" href="<c:url value='/eventos'/>"><c:out value="${backToEventsLabel}"/></a>
-</paw:navbar>
+<paw:layout titleCode="inbox.title">
+<paw:navbar backToEvents="true"/>
 
 <div class="account-layout">
     <paw:accountSidebar active="inbox" registrationsCount="${registrationsCount}" favoritesCount="${favoritesCount}" eventsCount="${eventsCount}" invitationsCount="${invitationsCount}"/>
@@ -70,25 +59,9 @@
                     </c:forEach>
                 </ul>
 
-                <c:if test="${totalPages > 1}">
-                    <nav class="pager">
-                        <c:if test="${currentPage > 1}">
-                            <a class="pager-arrow" href="<c:url value='/perfil/bandeja'><c:param name='page' value='${currentPage - 1}'/></c:url>">
-                                <spring:message code="event.list.prevPage"/>
-                            </a>
-                        </c:if>
-                        <span class="pager-number pager-number-active"><c:out value="${currentPage}"/> / <c:out value="${totalPages}"/></span>
-                        <c:if test="${currentPage < totalPages}">
-                            <a class="pager-arrow" href="<c:url value='/perfil/bandeja'><c:param name='page' value='${currentPage + 1}'/></c:url>">
-                                <spring:message code="event.list.nextPage"/>
-                            </a>
-                        </c:if>
-                    </nav>
-                </c:if>
+                <paw:pager baseUrl="/perfil/bandeja" currentPage="${currentPage}" totalPages="${totalPages}"/>
             </c:otherwise>
         </c:choose>
     </main>
 </div>
-
-</body>
-</html>
+</paw:layout>

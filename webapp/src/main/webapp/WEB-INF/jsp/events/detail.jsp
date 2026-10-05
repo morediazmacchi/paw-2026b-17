@@ -5,12 +5,8 @@
 <%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
 <%@ taglib prefix="sec" uri="http://www.springframework.org/security/tags" %>
 <%@ taglib prefix="paw" tagdir="/WEB-INF/tags" %>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Plancito &middot; <c:out value="${event.title}"/></title>
-    <link rel="icon" type="image/svg+xml" href="${pageContext.request.contextPath}/favicon.svg">
-    <link rel="stylesheet" href="${pageContext.request.contextPath}/css/style.css">
+<paw:layout title="${event.title}">
+<jsp:attribute name="head">
     <c:if test="${event.locationPinned}">
         <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
               integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
@@ -21,9 +17,8 @@
     <script src="<c:url value='/js/event-gallery.js'/>"></script>
     <script src="<c:url value='/js/favorite-toggle.js'/>"></script>
     <script src="<c:url value='/js/modal.js'/>"></script>
-</head>
-<body>
-
+</jsp:attribute>
+<jsp:body>
 <paw:navbar/>
 
 <spring:message code="event.detail.backButton" var="backLabel"/>
@@ -506,6 +501,11 @@
                             </a>
                         </c:if>
                     </c:when>
+                    <%-- Admin mirando un evento privado al que no fue invitado: puede verlo
+                         (moderacion) pero no anotarse, asi que no se le ofrece el boton. --%>
+                    <c:when test="${viewOnly}">
+                        <p class="alert"><spring:message code="event.detail.adminViewOnlyNote"/></p>
+                    </c:when>
                     <%-- Cancelado gana sobre todo lo demas: ni siquiera importa si
                          estaba finalizado o si alguien seguia anotado, no hay ninguna
                          accion valida que ofrecer (mismo lugar donde se esconde el
@@ -679,6 +679,5 @@
         </div>
     </div>
 </c:if>
-
-</body>
-</html>
+</jsp:body>
+</paw:layout>

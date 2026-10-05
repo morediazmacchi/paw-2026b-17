@@ -29,6 +29,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.when;
 
@@ -134,7 +135,7 @@ public class EventServiceImplTest {
     @Test
     public void testCreateWithInvalidCategoryThrowsInvalidEventExceptionWithCategoryKey() {
         // Arrange
-        when(eventDao.create(argThat(event -> true)))
+        when(eventDao.create(any(Event.class)))
                 .thenThrow(new DataIntegrityViolationException("violates foreign key constraint event_category_category_id_fkey"));
 
         // Act
@@ -148,7 +149,7 @@ public class EventServiceImplTest {
     @Test
     public void testCreateWithAnyOtherConstraintViolationThrowsInvalidEventExceptionWithGenericKey() {
         // Arrange
-        when(eventDao.create(argThat(event -> true)))
+        when(eventDao.create(any(Event.class)))
                 .thenThrow(new DataIntegrityViolationException("value too long for column title"));
 
         // Act
@@ -166,7 +167,7 @@ public class EventServiceImplTest {
         // solo puede pasar si esa fila desapareciera justo entre medio. No
         // tiene que romper la creacion del evento, solo el nombre del mail.
         final Event persisted = someEvent();
-        when(eventDao.create(argThat(event -> true))).thenReturn(persisted);
+        when(eventDao.create(any(Event.class))).thenReturn(persisted);
         when(userService.findById(CREATOR_ID)).thenReturn(Optional.empty());
 
         // Act

@@ -997,6 +997,40 @@ public class RegistrationServiceImplTest {
         assertEquals(ApprovalResult.Status.NOT_FOUND, result.getStatus());
     }
 
+    // Con el evento cancelado no se acepta a nadie (ni sale el mail de "confirmado").
+    @Test
+    public void testApproveReturnsNotFoundWhenTheEventIsCancelled() {
+        // Arrange
+        final Event cancelled = eventRequiringApproval(null);
+        cancelled.setCancelledAt(new Date());
+        when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(pendingRegistration(5, NORMALIZED_EMAIL)));
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(cancelled));
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(cancelled));
+
+        // Act
+        final ApprovalResult result = registrationService.approve(5, CREATOR_ID);
+
+        // Assert
+        assertEquals(ApprovalResult.Status.NOT_FOUND, result.getStatus());
+    }
+
+    // Idem: un evento que ya paso tampoco acepta a nadie.
+    @Test
+    public void testApproveReturnsNotFoundWhenTheEventAlreadyHappened() {
+        // Arrange
+        final Event past = eventRequiringApproval(null);
+        past.setEventDate(new Date(System.currentTimeMillis() - ONE_DAY_MILLIS));
+        when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(pendingRegistration(5, NORMALIZED_EMAIL)));
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(past));
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(past));
+
+        // Act
+        final ApprovalResult result = registrationService.approve(5, CREATOR_ID);
+
+        // Assert
+        assertEquals(ApprovalResult.Status.NOT_FOUND, result.getStatus());
+    }
+
     @Test
     public void testApproveReturnsNotFoundWhenTheRegistrationIsNotPending() {
         // Arrange
@@ -1158,6 +1192,39 @@ public class RegistrationServiceImplTest {
         assertFalse(result);
     }
 
+    // Idem approve(): con el evento cancelado no se rechaza a nadie.
+    @Test
+    public void testRejectReturnsFalseWhenTheEventIsCancelled() {
+        // Arrange
+        final Event cancelled = eventRequiringApproval(null);
+        cancelled.setCancelledAt(new Date());
+        when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(pendingRegistration(5, NORMALIZED_EMAIL)));
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(cancelled));
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(cancelled));
+
+        // Act
+        final boolean result = registrationService.reject(5, CREATOR_ID);
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    public void testRejectReturnsFalseWhenTheEventAlreadyHappened() {
+        // Arrange
+        final Event past = eventRequiringApproval(null);
+        past.setEventDate(new Date(System.currentTimeMillis() - ONE_DAY_MILLIS));
+        when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(pendingRegistration(5, NORMALIZED_EMAIL)));
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(past));
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(past));
+
+        // Act
+        final boolean result = registrationService.reject(5, CREATOR_ID);
+
+        // Assert
+        assertFalse(result);
+    }
+
     @Test
     public void testRejectReturnsFalseWhenTheRegistrationIsNotPending() {
         // Arrange
@@ -1198,6 +1265,37 @@ public class RegistrationServiceImplTest {
     public void testRevokeReturnsFalseWhenTheRegistrationIsNotConfirmed() {
         // Arrange
         when(mockRegistrationDao.findById(7)).thenReturn(Optional.of(pendingRegistration(7, NORMALIZED_EMAIL)));
+
+        // Act
+        final boolean result = registrationService.revoke(7, CREATOR_ID);
+
+        // Assert
+        assertFalse(result);
+    }
+
+    // Idem approve(): con el evento cancelado no se revoca a nadie.
+    @Test
+    public void testRevokeReturnsFalseWhenTheEventIsCancelled() {
+        // Arrange
+        final Event cancelled = eventWithCreator(10);
+        cancelled.setCancelledAt(new Date());
+        when(mockRegistrationDao.findById(7)).thenReturn(Optional.of(confirmedRegistration(7, NORMALIZED_EMAIL)));
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(cancelled));
+
+        // Act
+        final boolean result = registrationService.revoke(7, CREATOR_ID);
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    public void testRevokeReturnsFalseWhenTheEventAlreadyHappened() {
+        // Arrange
+        final Event past = eventWithCreator(10);
+        past.setEventDate(new Date(System.currentTimeMillis() - ONE_DAY_MILLIS));
+        when(mockRegistrationDao.findById(7)).thenReturn(Optional.of(confirmedRegistration(7, NORMALIZED_EMAIL)));
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(past));
 
         // Act
         final boolean result = registrationService.revoke(7, CREATOR_ID);

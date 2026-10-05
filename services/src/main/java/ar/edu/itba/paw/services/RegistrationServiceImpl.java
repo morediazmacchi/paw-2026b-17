@@ -85,7 +85,8 @@ public class RegistrationServiceImpl implements RegistrationService {
             return RegistrationResult.of(RegistrationResult.Status.OWN_EVENT);
         }
 
-        // Mismo chequeo que EventAccessService.canView(): quien ya tenia
+        // Mismo chequeo que EventAccessService.canView(), salvo el bypass de admin (un
+        // admin puede VER un privado para moderarlo, pero no anotarse): quien ya tenia
         // inscripcion o es el creador ya salio por los ifs de arriba, asi que lo
         // unico que falta es la invitacion. Mismo error que un id inexistente:
         // a quien no tiene acceso no se le revela ni que el evento existe, ni si
@@ -412,7 +413,9 @@ public class RegistrationServiceImpl implements RegistrationService {
         }
         // Bloquea el evento: dos aceptaciones simultaneas no pueden pasarse del cupo.
         final Event event = eventDao.findByIdForUpdate(unlocked.getEventId()).orElse(null);
-        if (event == null) {
+        // Un evento cancelado o que ya paso no acepta a nadie: no se confirma el pedido ni
+        // sale el mail de "confirmado" de algo que no se va a hacer (o que ya sucedio).
+        if (event == null || event.isCancelled() || event.isFinished()) {
             return ApprovalResult.of(ApprovalResult.Status.NOT_FOUND);
         }
         // Se vuelve a leer ya con el lock: mientras esperaba, otra aceptacion o un
@@ -465,7 +468,8 @@ public class RegistrationServiceImpl implements RegistrationService {
         // simultanea del mismo pedido.
         final long eventId = unlocked.getEventId();
         final Event event = eventDao.findByIdForUpdate(eventId).orElse(null);
-        if (event == null) {
+        // Idem approve(): con el evento cancelado o ya pasado no se rechaza a nadie ni se manda el mail.
+        if (event == null || event.isCancelled() || event.isFinished()) {
             return false;
         }
         final Registration registration = registrationDao.findById(registrationId)
@@ -500,7 +504,8 @@ public class RegistrationServiceImpl implements RegistrationService {
         // una esperaria a la otra: deadlock.
         final long eventId = unlocked.getEventId();
         final Event event = eventDao.findByIdForUpdate(eventId).orElse(null);
-        if (event == null || !Long.valueOf(creatorId).equals(event.getCreatorId())) {
+        // Idem approve(): con el evento cancelado o ya pasado tampoco se revoca a nadie.
+        if (event == null || event.isCancelled() || event.isFinished() || !Long.valueOf(creatorId).equals(event.getCreatorId())) {
             return false;
         }
         // Se vuelve a leer ya con el lock (otra operacion pudo cambiarla mientras esperaba).

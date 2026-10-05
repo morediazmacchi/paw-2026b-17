@@ -46,7 +46,10 @@ public class EventInvitationServiceImpl implements EventInvitationService {
         // Con lock: dos invitaciones simultaneas no pueden pasar el cupo (cada una
         // reserva un lugar y se cuenta contra el cupo).
         final Event event = eventDao.findByIdForUpdate(eventId).orElse(null);
-        if (event == null || !event.isPrivate() || !Long.valueOf(creatorId).equals(event.getCreatorId())) {
+        // Un evento cancelado o que ya paso tampoco invita a nadie (saldria el mail de
+        // invitacion a algo que ya no va a pasar, o que ya paso).
+        if (event == null || event.isCancelled() || !event.isPrivate()
+                || !Long.valueOf(creatorId).equals(event.getCreatorId()) || event.isFinished()) {
             return EventInvitationResult.NOT_ALLOWED;
         }
 

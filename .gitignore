@@ -56,3 +56,8 @@ _to_delete/
 
 # Planes de trabajo locales
 planes/
+
+# Archivos sobrantes del editor / de Maven (vacios)
+*.bak
+**/.mvn/jvm.config
+**/.mvn/maven.config

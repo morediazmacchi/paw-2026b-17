@@ -1,6 +1,7 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Image;
+import ar.edu.itba.paw.model.exception.InvalidImageException;
 
 import java.util.Optional;
 
@@ -13,8 +14,8 @@ public interface ImageService {
      * @return la imagen guardada, ya con su id asignado por la base
      * @param contentType lo que declaro el cliente: no se le cree. Solo se usa como primer
      *                    filtro; el tipo que se guarda es el que salga de mirar los bytes.
-     * @throws IllegalArgumentException si el archivo esta vacio, pesa demasiado, o sus bytes no
-     *                                  son un JPEG, PNG, GIF o WebP (SVG y demas, nunca)
+     * @throws InvalidImageException si el archivo esta vacio, pesa demasiado, o sus bytes no
+     *                               son un JPEG, PNG, GIF o WebP (SVG y demas, nunca)
      */
     Image create(byte[] data, String contentType, String fileName);
 

@@ -64,6 +64,8 @@ public class EventInvitationServiceImplTest {
         event.setCreatorEmail(CREATOR_EMAIL);
         event.setCreatorId(CREATOR_ID);
         event.setVisibility(EventVisibility.PRIVATE);
+        // Futura: invite() pregunta isFinished(), que no admite fecha nula.
+        event.setEventDate(new java.util.Date(System.currentTimeMillis() + 24L * 60 * 60 * 1000));
         return event;
     }
 
@@ -156,6 +158,35 @@ public class EventInvitationServiceImplTest {
     public void testInviteReturnsNotAllowedWhenTheEventIsNotPrivate() {
         // Arrange
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(publicEvent()));
+
+        // Act
+        final EventInvitationResult result = invitationService.invite(EVENT_ID, CREATOR_ID, INVITEE_EMAIL);
+
+        // Assert
+        assertEquals(EventInvitationResult.NOT_ALLOWED, result);
+    }
+
+    // Un evento cancelado no invita a nadie (saldria el mail de una cosa que no va a pasar).
+    @Test
+    public void testInviteReturnsNotAllowedWhenTheEventIsCancelled() {
+        // Arrange
+        final Event cancelled = privateEvent();
+        cancelled.setCancelledAt(new java.util.Date());
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(cancelled));
+
+        // Act
+        final EventInvitationResult result = invitationService.invite(EVENT_ID, CREATOR_ID, INVITEE_EMAIL);
+
+        // Assert
+        assertEquals(EventInvitationResult.NOT_ALLOWED, result);
+    }
+
+    @Test
+    public void testInviteReturnsNotAllowedWhenTheEventAlreadyHappened() {
+        // Arrange
+        final Event past = privateEvent();
+        past.setEventDate(new java.util.Date(System.currentTimeMillis() - 24L * 60 * 60 * 1000));
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(past));
 
         // Act
         final EventInvitationResult result = invitationService.invite(EVENT_ID, CREATOR_ID, INVITEE_EMAIL);
