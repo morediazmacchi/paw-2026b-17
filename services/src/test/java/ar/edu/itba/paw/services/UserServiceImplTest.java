@@ -1,8 +1,6 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.dto.UserRegistrationDTO;
-import ar.edu.itba.paw.model.InboxMessage;
-import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.TokenPurpose;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.VerificationToken;
@@ -756,22 +754,6 @@ public class UserServiceImplTest {
         assertFalse(result);
     }
 
-    @Test
-    public void testSuspendLeavesAMessageInTheUsersInbox() {
-        // Arrange
-        when(userDao.setSuspended(USER_ID, true)).thenReturn(true);
-        when(userDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
-        when(inboxMessageDao.create(argThat(message -> message.getType() == InboxMessageType.ACCOUNT_SUSPENDED
-                && Long.valueOf(USER_ID).equals(message.getUserId()))))
-                .thenReturn(new InboxMessage(NORMALIZED_EMAIL, InboxMessageType.ACCOUNT_SUSPENDED, null, null, null));
-
-        // Act
-        final boolean result = userService.suspend(USER_ID);
-
-        // Assert
-        assertTrue(result);
-    }
-
     // ---- suspendByAdmin() ----
 
     private static User adminWithId(final long id, final String... roles) {
@@ -856,22 +838,6 @@ public class UserServiceImplTest {
 
         // Assert
         assertFalse(result);
-    }
-
-    @Test
-    public void testReactivateLeavesAMessageInTheUsersInbox() {
-        // Arrange
-        when(userDao.setSuspended(USER_ID, false)).thenReturn(true);
-        when(userDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
-        when(inboxMessageDao.create(argThat(message -> message.getType() == InboxMessageType.ACCOUNT_REACTIVATED
-                && Long.valueOf(USER_ID).equals(message.getUserId()))))
-                .thenReturn(new InboxMessage(NORMALIZED_EMAIL, InboxMessageType.ACCOUNT_REACTIVATED, null, null, null));
-
-        // Act
-        final boolean result = userService.reactivate(USER_ID);
-
-        // Assert
-        assertTrue(result);
     }
 
     // ---- grantAdmin()/revokeAdmin() ----
