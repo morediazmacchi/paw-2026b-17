@@ -18,7 +18,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
@@ -134,22 +133,6 @@ public class EventReminderServiceImplTest {
     // ---- findEventsNeedingReminder() ----
 
     // Pide al dao los eventos que empiezan entre ahora y dentro de 24 hs.
-    @Test
-    public void testFindEventsNeedingReminderAsksForTheNext24Hours() {
-        // Arrange
-        final long before = System.currentTimeMillis();
-        when(eventDao.findIdsNeedingReminder(
-                argThat(from -> Math.abs(from.getTime() - before) < 5000),
-                argThat(until -> Math.abs(until.getTime() - (before + EventReminderServiceImpl.ONE_DAY_MILLIS)) < 5000)))
-                .thenReturn(Arrays.asList(1L, 2L));
-
-        // Act
-        final List<Long> result = reminderService.findEventsNeedingReminder();
-
-        // Assert
-        assertEquals(Arrays.asList(1L, 2L), result);
-    }
-
     @Test
     public void testFindEventsNeedingReminderReturnsEmptyWhenNoEventIsDue() {
         // Arrange

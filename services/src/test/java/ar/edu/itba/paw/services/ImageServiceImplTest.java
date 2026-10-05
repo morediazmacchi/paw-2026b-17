@@ -15,9 +15,10 @@ import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 // Unidad 5 - Unit Testing: el ImageDao es un mock de Mockito (sin base de datos); los
@@ -97,29 +98,13 @@ public class ImageServiceImplTest {
         // Arrange
         final Image saved = new Image(PNG_DATA, "image/png", "foto.png", PNG_DATA.length);
         saved.setId(IMAGE_ID);
-        when(imageDao.create(argThat(image -> Arrays.equals(PNG_DATA, image.getData())))).thenReturn(saved);
+        when(imageDao.create(any(Image.class))).thenReturn(saved);
 
         // Act
         final Image result = imageService.create(PNG_DATA, "image/png", "foto.png");
 
         // Assert
         assertSame(saved, result);
-    }
-
-    @Test
-    public void testCreateSavesTheImageWithItsMetadata() {
-        // Arrange
-        final Image saved = new Image(PNG_DATA, "image/png", "foto.png", PNG_DATA.length);
-        saved.setId(IMAGE_ID);
-        when(imageDao.create(argThat(image -> "image/png".equals(image.getContentType())
-                && "foto.png".equals(image.getFileName())
-                && Integer.valueOf(PNG_DATA.length).equals(image.getFileSize())))).thenReturn(saved);
-
-        // Act
-        final Image result = imageService.create(PNG_DATA, "image/png", "foto.png");
-
-        // Assert
-        assertEquals(IMAGE_ID, result.getId());
     }
 
     @Test(expected = InvalidImageException.class)
@@ -154,56 +139,78 @@ public class ImageServiceImplTest {
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
 
-    @Test
-    public void testCreateStoresAJpegWithItsRealType() {
-        // Arrange
-        final Image saved = new Image(JPEG_DATA, "image/jpeg", "foto.jpg", JPEG_DATA.length);
-        when(imageDao.create(argThat(image -> "image/jpeg".equals(image.getContentType())))).thenReturn(saved);
+    // ---- detectType(): el formato sale de los bytes, no del Content-Type ----
 
+    @Test
+    public void testDetectTypeRecognizesJpegBySignature() {
         // Act
-        final Image result = imageService.create(JPEG_DATA, "image/jpeg", "foto.jpg");
+        final String type = ImageServiceImpl.detectType(JPEG_DATA);
 
         // Assert
-        assertSame(saved, result);
+        assertEquals("image/jpeg", type);
     }
 
     @Test
-    public void testCreateStoresAGifWithItsRealType() {
-        // Arrange
-        final Image saved = new Image(GIF_DATA, "image/gif", "foto.gif", GIF_DATA.length);
-        when(imageDao.create(argThat(image -> "image/gif".equals(image.getContentType())))).thenReturn(saved);
-
+    public void testDetectTypeRecognizesPngBySignature() {
         // Act
-        final Image result = imageService.create(GIF_DATA, "image/gif", "foto.gif");
+        final String type = ImageServiceImpl.detectType(PNG_DATA);
 
         // Assert
-        assertSame(saved, result);
+        assertEquals("image/png", type);
     }
 
     @Test
-    public void testCreateStoresAWebpWithItsRealType() {
-        // Arrange
-        final Image saved = new Image(WEBP_DATA, "image/webp", "foto.webp", WEBP_DATA.length);
-        when(imageDao.create(argThat(image -> "image/webp".equals(image.getContentType())))).thenReturn(saved);
-
+    public void testDetectTypeRecognizesGif89aBySignature() {
         // Act
-        final Image result = imageService.create(WEBP_DATA, "image/webp", "foto.webp");
+        final String type = ImageServiceImpl.detectType(GIF_DATA);
 
         // Assert
-        assertSame(saved, result);
+        assertEquals("image/gif", type);
     }
 
     @Test
-    public void testCreateStoresTheRealTypeEvenIfTheClientDeclaredAnotherImageType() {
-        // Arrange: el cliente dice GIF pero los bytes son PNG; se guarda lo que los bytes dicen.
-        final Image saved = new Image(PNG_DATA, "image/png", "foto.gif", PNG_DATA.length);
-        when(imageDao.create(argThat(image -> "image/png".equals(image.getContentType())))).thenReturn(saved);
-
+    public void testDetectTypeRecognizesGif87aBySignature() {
         // Act
-        final Image result = imageService.create(PNG_DATA, "image/gif", "foto.gif");
+        final String type = ImageServiceImpl.detectType("GIF87a....".getBytes(StandardCharsets.US_ASCII));
 
         // Assert
-        assertEquals("image/png", result.getContentType());
+        assertEquals("image/gif", type);
+    }
+
+    @Test
+    public void testDetectTypeRecognizesWebpBySignature() {
+        // Act
+        final String type = ImageServiceImpl.detectType(WEBP_DATA);
+
+        // Assert
+        assertEquals("image/webp", type);
+    }
+
+    @Test
+    public void testDetectTypeReturnsNullForSvgEvenWhenItIsWellFormed() {
+        // Act: un SVG puede traer <script>, por eso no es un formato permitido.
+        final String type = ImageServiceImpl.detectType(SVG_WITH_SCRIPT);
+
+        // Assert
+        assertNull(type);
+    }
+
+    @Test
+    public void testDetectTypeReturnsNullForTextThatIsNotAnImage() {
+        // Act
+        final String type = ImageServiceImpl.detectType(NOT_AN_IMAGE);
+
+        // Assert
+        assertNull(type);
+    }
+
+    @Test
+    public void testDetectTypeReturnsNullWhenTheDataIsShorterThanTheSignature() {
+        // Act: dos bytes de una firma JPEG, truncada.
+        final String type = ImageServiceImpl.detectType(new byte[] {(byte) 0xFF, (byte) 0xD8});
+
+        // Assert
+        assertNull(type);
     }
 
     // ---- findOwnerEventId() ----

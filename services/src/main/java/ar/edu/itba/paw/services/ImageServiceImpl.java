@@ -67,8 +67,11 @@ public class ImageServiceImpl implements ImageService {
         return imageDao.findOwnerEventId(imageId);
     }
 
-    /** El formato real segun los primeros bytes, o null si no es JPEG/PNG/GIF/WebP. */
-    private static String detectType(final byte[] data) {
+    /**
+     * El formato real segun los primeros bytes, o null si no es JPEG/PNG/GIF/WebP.
+     * Visibilidad de paquete a proposito: se testea directo, por valor de retorno.
+     */
+    static String detectType(final byte[] data) {
         if (startsWith(data, 0, 0xFF, 0xD8, 0xFF)) {
             return JPEG;
         }
