@@ -11,6 +11,8 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.jdbc.JdbcTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.persistence.EntityManager;
+import javax.persistence.PersistenceContext;
 import javax.sql.DataSource;
 import java.sql.Timestamp;
 import java.util.List;
@@ -26,7 +28,10 @@ import static org.junit.Assert.assertTrue;
 @ContextConfiguration(classes = TestConfig.class)
 @Transactional
 @Rollback
-public class FavoriteJdbcDaoTest {
+public class FavoriteJpaDaoTest {
+
+    @PersistenceContext
+    private EntityManager em;
 
     @Autowired
     private DataSource ds;
@@ -78,6 +83,8 @@ public class FavoriteJdbcDaoTest {
 
         // Act
         favoriteDao.add(userId, eventId);
+        // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
+        em.flush();
 
         // Assert
         assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "favorite", favoriteWhere(userId, eventId)));
@@ -92,6 +99,8 @@ public class FavoriteJdbcDaoTest {
         // No hay ON CONFLICT (no es portable a HSQLDB): add() depende de que
         // el PRIMARY KEY compuesto absorba el duplicado sin explotar.
         favoriteDao.add(userId, eventId);
+        // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
+        em.flush();
 
         // Assert
         assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "favorite", favoriteWhere(userId, eventId)));
@@ -106,6 +115,8 @@ public class FavoriteJdbcDaoTest {
 
         // Act
         favoriteDao.remove(userId, eventId);
+        // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
+        em.flush();
 
         // Assert
         assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "favorite", favoriteWhere(userId, eventId)));
@@ -117,6 +128,8 @@ public class FavoriteJdbcDaoTest {
 
         // Act
         favoriteDao.remove(userId, eventId);
+        // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
+        em.flush();
 
         // Assert
         assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "favorite", favoriteWhere(userId, eventId)));

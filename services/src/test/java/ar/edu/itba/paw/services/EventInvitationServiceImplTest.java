@@ -61,7 +61,7 @@ public class EventInvitationServiceImplTest {
         final Event event = new Event();
         event.setId(EVENT_ID);
         event.setCreatorEmail(CREATOR_EMAIL);
-        event.setCreatorId(CREATOR_ID);
+        event.setCreator(ModelFixtures.user(CREATOR_ID));
         event.setVisibility(EventVisibility.PRIVATE);
         // Futura: invite() pregunta isFinished(), que no admite fecha nula.
         event.setEventDate(new java.util.Date(System.currentTimeMillis() + 24L * 60 * 60 * 1000));
@@ -72,7 +72,7 @@ public class EventInvitationServiceImplTest {
         final Event event = new Event();
         event.setId(EVENT_ID);
         event.setCreatorEmail(CREATOR_EMAIL);
-        event.setCreatorId(CREATOR_ID);
+        event.setCreator(ModelFixtures.user(CREATOR_ID));
         event.setVisibility(EventVisibility.PUBLIC);
         return event;
     }
@@ -98,7 +98,7 @@ public class EventInvitationServiceImplTest {
     public void testInviteReturnsSentWhenTheInviteeAlreadyHasAnAccount() {
         // Arrange
         final User invitee = new User(NORMALIZED_INVITEE_EMAIL, "Invitado");
-        invitee.setId(42);
+        invitee.setId(42L);
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
         when(mockInvitationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
         when(mockUserService.findByEmail(NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.of(invitee));
@@ -115,7 +115,7 @@ public class EventInvitationServiceImplTest {
         // Arrange
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
         when(mockInvitationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_INVITEE_EMAIL))
-                .thenReturn(Optional.of(new EventInvitation(EVENT_ID, NORMALIZED_INVITEE_EMAIL, CREATOR_EMAIL)));
+                .thenReturn(Optional.of(new EventInvitation(ModelFixtures.event(EVENT_ID), NORMALIZED_INVITEE_EMAIL, CREATOR_EMAIL)));
 
         // Act
         final EventInvitationResult result = invitationService.invite(EVENT_ID, CREATOR_ID, INVITEE_EMAIL);
@@ -196,7 +196,7 @@ public class EventInvitationServiceImplTest {
     public void testIsInvitedReturnsTrueForTheInvitedUserId() {
         // Arrange
         when(mockInvitationDao.findByEventAndUserId(EVENT_ID, OTHER_ID))
-                .thenReturn(Optional.of(new EventInvitation(EVENT_ID, NORMALIZED_INVITEE_EMAIL, CREATOR_EMAIL)));
+                .thenReturn(Optional.of(new EventInvitation(ModelFixtures.event(EVENT_ID), NORMALIZED_INVITEE_EMAIL, CREATOR_EMAIL)));
 
         // Act
         final boolean result = invitationService.isInvited(EVENT_ID, OTHER_ID);
@@ -224,7 +224,7 @@ public class EventInvitationServiceImplTest {
         // Arrange
         when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
         final List<EventInvitation> invitations = Collections.singletonList(
-                new EventInvitation(EVENT_ID, NORMALIZED_INVITEE_EMAIL, CREATOR_EMAIL));
+                new EventInvitation(ModelFixtures.event(EVENT_ID), NORMALIZED_INVITEE_EMAIL, CREATOR_EMAIL));
         when(mockInvitationDao.findByEvent(EVENT_ID)).thenReturn(invitations);
 
         // Act
@@ -242,7 +242,7 @@ public class EventInvitationServiceImplTest {
         // el resultado no estaria vacio.
         lenient().when(mockInvitationDao.findByEvent(EVENT_ID))
                 .thenReturn(Collections.singletonList(
-                        new EventInvitation(EVENT_ID, NORMALIZED_INVITEE_EMAIL, CREATOR_EMAIL)));
+                        new EventInvitation(ModelFixtures.event(EVENT_ID), NORMALIZED_INVITEE_EMAIL, CREATOR_EMAIL)));
 
         // Act
         final List<EventInvitation> result = invitationService.findByEvent(EVENT_ID, OTHER_ID);
@@ -305,7 +305,7 @@ public class EventInvitationServiceImplTest {
     @Test
     public void testFindPageByUserReturnsTheRequestedPageWithItsTotals() {
         // Arrange: 25 en total, de a EventInvitationServiceImpl.PAGE_SIZE por pagina -> 3 paginas
-        final List<EventInvitation> pageTwo = Collections.singletonList(new EventInvitation(EVENT_ID, NORMALIZED_INVITEE_EMAIL, CREATOR_EMAIL));
+        final List<EventInvitation> pageTwo = Collections.singletonList(new EventInvitation(ModelFixtures.event(EVENT_ID), NORMALIZED_INVITEE_EMAIL, CREATOR_EMAIL));
         when(mockInvitationDao.countByUserId(OTHER_ID)).thenReturn(25L);
         when(mockInvitationDao.findByUserId(OTHER_ID, 2, EventInvitationServiceImpl.PAGE_SIZE)).thenReturn(pageTwo);
 
@@ -322,7 +322,7 @@ public class EventInvitationServiceImplTest {
     @Test
     public void testFindPageByUserShowsTheLastPageWhenThePageIsBeyondIt() {
         // Arrange: 25 en total -> la ultima pagina es la 3
-        final List<EventInvitation> lastPage = Collections.singletonList(new EventInvitation(EVENT_ID, NORMALIZED_INVITEE_EMAIL, CREATOR_EMAIL));
+        final List<EventInvitation> lastPage = Collections.singletonList(new EventInvitation(ModelFixtures.event(EVENT_ID), NORMALIZED_INVITEE_EMAIL, CREATOR_EMAIL));
         when(mockInvitationDao.countByUserId(OTHER_ID)).thenReturn(25L);
         when(mockInvitationDao.findByUserId(OTHER_ID, 3, EventInvitationServiceImpl.PAGE_SIZE)).thenReturn(lastPage);
 
@@ -337,7 +337,7 @@ public class EventInvitationServiceImplTest {
     @Test
     public void testFindPageByUserShowsTheFirstPageWhenThePageIsBelowOne() {
         // Arrange
-        final List<EventInvitation> firstPage = Collections.singletonList(new EventInvitation(EVENT_ID, NORMALIZED_INVITEE_EMAIL, CREATOR_EMAIL));
+        final List<EventInvitation> firstPage = Collections.singletonList(new EventInvitation(ModelFixtures.event(EVENT_ID), NORMALIZED_INVITEE_EMAIL, CREATOR_EMAIL));
         when(mockInvitationDao.countByUserId(OTHER_ID)).thenReturn(25L);
         when(mockInvitationDao.findByUserId(OTHER_ID, 1, EventInvitationServiceImpl.PAGE_SIZE)).thenReturn(firstPage);
 

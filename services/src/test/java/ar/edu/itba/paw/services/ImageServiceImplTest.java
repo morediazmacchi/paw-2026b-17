@@ -253,7 +253,7 @@ public class ImageServiceImplTest {
 
         // Assert
         assertTrue(result.isPresent());
-        assertEquals(IMAGE_ID, result.get().getId());
+        assertEquals(IMAGE_ID, result.get().getId().longValue());
     }
 
     @Test

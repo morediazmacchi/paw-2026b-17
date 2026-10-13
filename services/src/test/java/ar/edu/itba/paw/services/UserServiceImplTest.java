@@ -98,7 +98,7 @@ public class UserServiceImplTest {
     }
 
     private static VerificationToken tokenOf(final TokenPurpose purpose, final Date expiresAt) {
-        return new VerificationToken("some-token", USER_ID, purpose, expiresAt);
+        return new VerificationToken("some-token", ModelFixtures.user(USER_ID), purpose, expiresAt);
     }
 
     private static Date inOneHour() {
@@ -121,7 +121,7 @@ public class UserServiceImplTest {
 
         // Assert
         assertTrue(result.isPresent());
-        assertEquals(USER_ID, result.get().getId());
+        assertEquals(USER_ID, result.get().getId().longValue());
     }
 
     @Test
@@ -149,7 +149,7 @@ public class UserServiceImplTest {
 
         // Assert
         assertTrue(result.isPresent());
-        assertEquals(USER_ID, result.get().getId());
+        assertEquals(USER_ID, result.get().getId().longValue());
     }
 
     // ---- register() ----
@@ -419,7 +419,7 @@ public class UserServiceImplTest {
 
         // Assert
         assertTrue(result.isPresent());
-        assertEquals(USER_ID, result.get().getId());
+        assertEquals(USER_ID, result.get().getId().longValue());
     }
 
     @Test

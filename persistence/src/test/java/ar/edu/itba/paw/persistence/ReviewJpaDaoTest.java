@@ -1,6 +1,8 @@
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.Review;
+import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.User;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -12,6 +14,8 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.persistence.EntityManager;
+import javax.persistence.PersistenceContext;
 import javax.sql.DataSource;
 import java.sql.Timestamp;
 import java.util.Arrays;
@@ -27,7 +31,10 @@ import static org.junit.Assert.assertTrue;
 @ContextConfiguration(classes = TestConfig.class)
 @Transactional
 @Rollback
-public class ReviewJdbcDaoTest {
+public class ReviewJpaDaoTest {
+
+    @PersistenceContext
+    private EntityManager em;
 
     private static final String CREATOR_EMAIL = "creador@mail.com";
 
@@ -79,7 +86,7 @@ public class ReviewJdbcDaoTest {
     @Test
     public void testCreateAssignsAGeneratedId() {
         // Arrange
-        final Review toCreate = new Review(eventId, userId, 5, "Buenisimo");
+        final Review toCreate = new Review(em.getReference(Event.class, eventId), em.getReference(User.class, userId), 5, "Buenisimo");
 
         // Act
         final Review created = reviewDao.create(toCreate);
@@ -91,7 +98,7 @@ public class ReviewJdbcDaoTest {
     @Test
     public void testCreateInsertsTheReviewRow() {
         // Arrange
-        final Review toCreate = new Review(eventId, userId, 4, "Muy bueno");
+        final Review toCreate = new Review(em.getReference(Event.class, eventId), em.getReference(User.class, userId), 4, "Muy bueno");
 
         // Act
         final Review created = reviewDao.create(toCreate);
@@ -107,7 +114,7 @@ public class ReviewJdbcDaoTest {
     public void testCreateAllowsZeroRating() {
         // Arrange
         // "de 0 a 5 estrellas": 0 es un valor valido, no "sin calificar".
-        final Review toCreate = new Review(eventId, userId, 0, "Malisimo");
+        final Review toCreate = new Review(em.getReference(Event.class, eventId), em.getReference(User.class, userId), 0, "Malisimo");
 
         // Act
         final Review created = reviewDao.create(toCreate);
@@ -126,7 +133,7 @@ public class ReviewJdbcDaoTest {
         insertReview(eventId, userId, 5, "Genial");
 
         // Act
-        reviewDao.create(new Review(eventId, userId, 1, "Cambie de opinion"));
+        reviewDao.create(new Review(em.getReference(Event.class, eventId), em.getReference(User.class, userId), 1, "Cambie de opinion"));
 
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }

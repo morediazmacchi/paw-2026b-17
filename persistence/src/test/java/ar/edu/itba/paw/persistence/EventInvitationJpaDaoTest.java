@@ -1,6 +1,8 @@
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.EventInvitation;
+import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.User;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -12,6 +14,8 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.persistence.EntityManager;
+import javax.persistence.PersistenceContext;
 import javax.sql.DataSource;
 import java.sql.Timestamp;
 import java.util.List;
@@ -27,7 +31,10 @@ import static org.junit.Assert.assertTrue;
 @ContextConfiguration(classes = TestConfig.class)
 @Transactional
 @Rollback
-public class EventInvitationJdbcDaoTest {
+public class EventInvitationJpaDaoTest {
+
+    @PersistenceContext
+    private EntityManager em;
 
     private static final String CREATOR_EMAIL = "creador@mail.com";
     private static final String INVITEE_EMAIL = "invitado@mail.com";
@@ -70,8 +77,8 @@ public class EventInvitationJdbcDaoTest {
         return jdbcTemplate.queryForObject("SELECT id FROM event_invitation ORDER BY id DESC LIMIT 1", Long.class);
     }
 
-    private static EventInvitation someInvitation(final long eventId) {
-        return new EventInvitation(eventId, INVITEE_EMAIL, CREATOR_EMAIL);
+    private EventInvitation someInvitation(final long eventId) {
+        return new EventInvitation(em.getReference(Event.class, eventId), INVITEE_EMAIL, CREATOR_EMAIL);
     }
 
     // ---- create() ----
@@ -123,7 +130,7 @@ public class EventInvitationJdbcDaoTest {
         // Arrange
         final long inviteeId = insertUser(INVITEE_EMAIL);
         final EventInvitation toCreate = someInvitation(eventId);
-        toCreate.setUserId(inviteeId);
+        toCreate.setUser(em.getReference(User.class, inviteeId));
 
         // Act
         final EventInvitation created = invitationDao.create(toCreate);
@@ -154,7 +161,7 @@ public class EventInvitationJdbcDaoTest {
         insertInvitation(eventId, INVITEE_EMAIL, null);
 
         // Act
-        invitationDao.create(new EventInvitation(eventId, INVITEE_EMAIL, CREATOR_EMAIL));
+        invitationDao.create(new EventInvitation(em.getReference(Event.class, eventId), INVITEE_EMAIL, CREATOR_EMAIL));
 
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }

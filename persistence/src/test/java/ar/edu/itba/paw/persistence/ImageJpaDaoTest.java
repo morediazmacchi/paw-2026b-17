@@ -26,7 +26,7 @@ import static org.junit.Assert.assertTrue;
 @ContextConfiguration(classes = TestConfig.class)
 @Transactional
 @Rollback
-public class ImageJdbcDaoTest {
+public class ImageJpaDaoTest {
 
     private static final byte[] DATA = "esto no es una imagen real, son bytes cualquiera"
             .getBytes(StandardCharsets.UTF_8);

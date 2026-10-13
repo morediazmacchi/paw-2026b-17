@@ -73,13 +73,16 @@ public class ReviewServiceImpl implements ReviewService {
             return ReviewResult.NOT_ELIGIBLE;
         }
         try {
-            reviewDao.create(new Review(eventId, user.getId(), rating, comment));
+            reviewDao.create(new Review(event.get(), user, rating, comment));
         } catch (final DataIntegrityViolationException e) {
             // Dos envios al mismo tiempo: el SELECT de arriba no vio nada, pero el
             // otro ya inserto justo antes y choca contra el UNIQUE(event_id, user_id).
             // El contrato de create() promete que el resultado es el unico canal de
             // salida (ver ReviewService): no corresponde dejar escapar esto hacia el
             // controller.
+            // Con JPA, el insert fallido ya dejo la transaccion marcada para rollback: se lo
+            // decimos explicitamente, asi Spring hace rollback sin tirar UnexpectedRollbackException.
+            RollbackOnly.ifInTransaction();
             return ReviewResult.ALREADY_REVIEWED;
         }
         return ReviewResult.CREATED;

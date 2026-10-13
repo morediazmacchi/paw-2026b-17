@@ -71,12 +71,13 @@ public class EventInvitationServiceImpl implements EventInvitationService {
             return EventInvitationResult.FULL;
         }
 
-        final EventInvitation invitation = new EventInvitation(eventId, normalizedEmail, event.getCreatorEmail());
-        invitation.setInvitedByUserId(creatorId);
+        final EventInvitation invitation = new EventInvitation(event, normalizedEmail, event.getCreatorEmail());
+        // Quien invita es el creador del evento (arriba ya se chequeo que creatorId lo sea).
+        invitation.setInvitedByUser(event.getCreator());
         // Optimista (Grupo B, ver schema.sql): si el invitado ya tiene cuenta,
         // se enlaza de una. Si no, queda en null y se reconcilia solo cuando
         // se registre (ver UserServiceImpl.register()).
-        userService.findByEmail(normalizedEmail).ifPresent(invitee -> invitation.setUserId(invitee.getId()));
+        userService.findByEmail(normalizedEmail).ifPresent(invitation::setUser);
         invitationDao.create(invitation);
         notificationService.notifyEventInvitation(event, invitation);
         inboxService.add(normalizedEmail, InboxMessageType.PRIVATE_INVITE, eventId, null, null);

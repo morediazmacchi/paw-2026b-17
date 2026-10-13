@@ -66,14 +66,14 @@ public class EventQuestionServiceImplTest {
         final Event event = new Event();
         event.setId(EVENT_ID);
         event.setCreatorEmail(CREATOR_EMAIL);
-        event.setCreatorId(CREATOR_ID);
+        event.setCreator(ModelFixtures.user(CREATOR_ID));
         event.setEventDate(new Date(System.currentTimeMillis() + hours * 60 * 60 * 1000));
         return event;
     }
 
     private static User asker() {
         final User user = new User(ASKER_EMAIL, "Ana");
-        user.setId(2);
+        user.setId(2L);
         return user;
     }
 
@@ -82,9 +82,8 @@ public class EventQuestionServiceImplTest {
     }
 
     private static EventQuestion questionWithId(final long id, final long eventId) {
-        final EventQuestion question = new EventQuestion(eventId, 2, "Hay estacionamiento?");
+        final EventQuestion question = new EventQuestion(ModelFixtures.event(eventId), ModelFixtures.user(2), "Hay estacionamiento?");
         question.setId(id);
-        question.setAskerEmail(ASKER_EMAIL);
         return question;
     }
 

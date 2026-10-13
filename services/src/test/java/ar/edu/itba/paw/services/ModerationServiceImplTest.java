@@ -69,13 +69,13 @@ public class ModerationServiceImplTest {
     private static Event someEvent() {
         final Event event = new Event();
         event.setId(EVENT_ID);
-        event.setCreatorId(CREATOR_ID);
+        event.setCreator(ModelFixtures.user(CREATOR_ID));
         event.setCreatorEmail(CREATOR_EMAIL);
         return event;
     }
 
     private static EventReport somePendingReport() {
-        final EventReport report = new EventReport(EVENT_ID, REPORTER_ID, REASON);
+        final EventReport report = new EventReport(ModelFixtures.event(EVENT_ID), ModelFixtures.user(REPORTER_ID), REASON);
         report.setId(REPORT_ID);
         return report;
     }

@@ -66,7 +66,7 @@ public class ReviewServiceImplTest {
         final Event event = new Event();
         event.setId(EVENT_ID);
         event.setCreatorEmail(CREATOR_EMAIL);
-        event.setCreatorId(CREATOR_ID);
+        event.setCreator(ModelFixtures.user(CREATOR_ID));
         event.setEventDate(new Date(System.currentTimeMillis() - 86_400_000L)); // ayer
         return event;
     }
@@ -81,8 +81,8 @@ public class ReviewServiceImplTest {
 
     // La inscripcion de someUser() al evento 1: findByEventAndUserId la busca por userId.
     private static Registration registrationOfTheUser(final RegistrationStatus status) {
-        final Registration registration = new Registration(EVENT_ID, USER_EMAIL, "Ana", status);
-        registration.setUserId(USER_ID);
+        final Registration registration = new Registration(ModelFixtures.event(EVENT_ID), null, USER_EMAIL, "Ana", status);
+        registration.setUser(ModelFixtures.user(USER_ID));
         return registration;
     }
 
@@ -91,7 +91,7 @@ public class ReviewServiceImplTest {
     @Test
     public void testFindByEventAndUserReturnsTheReviewTheUserLeftForThatEvent() {
         // Arrange
-        final Review review = new Review(EVENT_ID, USER_ID, RATING, COMMENT);
+        final Review review = new Review(ModelFixtures.event(EVENT_ID), ModelFixtures.user(USER_ID), RATING, COMMENT);
         when(reviewDao.findByEventAndUser(EVENT_ID, USER_ID)).thenReturn(Optional.of(review));
 
         // Act
@@ -119,7 +119,7 @@ public class ReviewServiceImplTest {
     @Test
     public void testFindByEventsAndUserReturnsWhatTheDaoReturns() {
         // Arrange
-        final List<Review> reviews = Collections.singletonList(new Review(EVENT_ID, USER_ID, RATING, COMMENT));
+        final List<Review> reviews = Collections.singletonList(new Review(ModelFixtures.event(EVENT_ID), ModelFixtures.user(USER_ID), RATING, COMMENT));
         when(reviewDao.findByEventsAndUser(Collections.singletonList(EVENT_ID), USER_ID)).thenReturn(reviews);
 
         // Act
@@ -143,7 +143,7 @@ public class ReviewServiceImplTest {
     public void testCreateSucceedsWhenTheEventFinishedAndTheUserWasRegistered() {
         // Arrange
         eligibleUser();
-        when(reviewDao.create(any(Review.class))).thenReturn(new Review(EVENT_ID, USER_ID, RATING, COMMENT));
+        when(reviewDao.create(any(Review.class))).thenReturn(new Review(ModelFixtures.event(EVENT_ID), ModelFixtures.user(USER_ID), RATING, COMMENT));
 
         // Act
         final ReviewResult result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
@@ -157,7 +157,7 @@ public class ReviewServiceImplTest {
         // Arrange
         when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(pastEvent()));
         when(reviewDao.findByEventAndUser(EVENT_ID, USER_ID))
-                .thenReturn(Optional.of(new Review(EVENT_ID, USER_ID, 5, "Ya la mande")));
+                .thenReturn(Optional.of(new Review(ModelFixtures.event(EVENT_ID), ModelFixtures.user(USER_ID), 5, "Ya la mande")));
 
         // Act
         final ReviewResult result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
@@ -288,8 +288,8 @@ public class ReviewServiceImplTest {
     public void testFindByCreatorIdReturnsTheReviewsOfThatCreatorsEvents() {
         // Arrange
         final List<Review> reviews = Arrays.asList(
-                new Review(EVENT_ID, USER_ID, 5, "Genial"),
-                new Review(EVENT_ID + 1, USER_ID, 3, "Regular"));
+                new Review(ModelFixtures.event(EVENT_ID), ModelFixtures.user(USER_ID), 5, "Genial"),
+                new Review(ModelFixtures.event(EVENT_ID + 1), ModelFixtures.user(USER_ID), 3, "Regular"));
         when(reviewDao.findByCreatorId(CREATOR_ID)).thenReturn(reviews);
 
         // Act

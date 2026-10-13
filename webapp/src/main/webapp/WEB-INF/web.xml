@@ -14,7 +14,7 @@
   <context-param>
     <param-name>contextConfigLocation</param-name>
     <param-value>
-      ar.edu.itba.paw.webapp.config.WebConfig
+      ar.edu.itba.paw.webapp.config.RootConfig
     </param-value>
   </context-param>
 
@@ -36,6 +36,20 @@
   </filter>
   <filter-mapping>
     <filter-name>characterEncodingFilter</filter-name>
+    <url-pattern>/*</url-pattern>
+  </filter-mapping>
+
+  <!-- Mantiene abierta la sesion de Hibernate (el EntityManager) durante todo el request,
+       incluido el renderizado del JSP. Sin esto, tocar una relacion lazy desde el JSP tira
+       LazyInitializationException porque la transaccion del service ya cerro. Tiene que ir
+       DESPUES del filtro de Spring Security (ese se registra por codigo, ver
+       SecurityWebApplicationInitializer). -->
+  <filter>
+    <filter-name>openEntityManagerInViewFilter</filter-name>
+    <filter-class>org.springframework.orm.jpa.support.OpenEntityManagerInViewFilter</filter-class>
+  </filter>
+  <filter-mapping>
+    <filter-name>openEntityManagerInViewFilter</filter-name>
     <url-pattern>/*</url-pattern>
   </filter-mapping>
 

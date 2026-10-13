@@ -2,6 +2,7 @@ package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.TokenPurpose;
 import ar.edu.itba.paw.model.VerificationToken;
+import ar.edu.itba.paw.model.User;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -13,6 +14,8 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.jdbc.JdbcTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.persistence.EntityManager;
+import javax.persistence.PersistenceContext;
 import javax.sql.DataSource;
 import java.sql.Timestamp;
 import java.util.Date;
@@ -27,9 +30,12 @@ import static org.junit.Assert.assertTrue;
 @ContextConfiguration(classes = TestConfig.class)
 @Transactional
 @Rollback
-public class VerificationTokenJdbcDaoTest {
+public class VerificationTokenJpaDaoTest {
 
     private static final String TOKEN = "abc-123";
+
+    @PersistenceContext
+    private EntityManager em;
 
     @Autowired
     private DataSource ds;
@@ -67,10 +73,12 @@ public class VerificationTokenJdbcDaoTest {
     public void testCreateInsertsTheTokenRow() {
         // Arrange
         final Date expiresAt = inOneHour();
-        final VerificationToken toCreate = new VerificationToken(TOKEN, userId, TokenPurpose.VERIFY_EMAIL, expiresAt);
+        final VerificationToken toCreate = new VerificationToken(TOKEN, em.getReference(User.class, userId), TokenPurpose.VERIFY_EMAIL, expiresAt);
 
         // Act
         tokenDao.create(toCreate);
+        // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
+        em.flush();
 
         // Assert
         final Map<String, Object> row = jdbcTemplate.queryForMap(
@@ -115,6 +123,8 @@ public class VerificationTokenJdbcDaoTest {
 
         // Act
         tokenDao.delete(TOKEN);
+        // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
+        em.flush();
 
         // Assert
         assertEquals(0, JdbcTestUtils.countRowsInTableWhere(
@@ -127,6 +137,8 @@ public class VerificationTokenJdbcDaoTest {
 
         // Act
         tokenDao.delete(TOKEN);
+        // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
+        em.flush();
 
         // Assert
         assertEquals(0, JdbcTestUtils.countRowsInTableWhere(
@@ -143,6 +155,8 @@ public class VerificationTokenJdbcDaoTest {
 
         // Act
         tokenDao.deleteByUserAndPurpose(userId, TokenPurpose.VERIFY_EMAIL);
+        // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
+        em.flush();
 
         // Assert
         assertEquals(0, JdbcTestUtils.countRowsInTableWhere(
@@ -154,7 +168,7 @@ public class VerificationTokenJdbcDaoTest {
     @Test
     public void testCreateReturnsTheTokenThatWasSaved() {
         // Arrange
-        final VerificationToken toCreate = new VerificationToken(TOKEN, userId, TokenPurpose.VERIFY_EMAIL, inOneHour());
+        final VerificationToken toCreate = new VerificationToken(TOKEN, em.getReference(User.class, userId), TokenPurpose.VERIFY_EMAIL, inOneHour());
 
         // Act
         final VerificationToken result = tokenDao.create(toCreate);

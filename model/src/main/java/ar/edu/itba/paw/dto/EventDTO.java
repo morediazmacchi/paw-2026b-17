@@ -108,8 +108,9 @@ public class EventDTO {
     // propia transaccion, antes de llamar a esto (ver EventServiceImpl).
     public Event toEvent(final String creatorEmail, final List<Long> imageIds) {
         final Event event = new Event(title, description, eventDate, address, neighborhood, imageIds, price,
-                maxCapacity, creatorEmail, null);
-        event.setCategories(categories);
+                maxCapacity, creatorEmail);
+        // Las categorias no se copian aca: "categories" solo trae ids y texto (EventCategoryInfo);
+        // armar las relaciones con objetos Category le toca al service (ver EventServiceImpl).
         event.setRequiresApproval(requiresApproval);
         event.setVisibility(visibility);
         event.setParking(parking);

@@ -56,9 +56,7 @@ public class EventQuestionServiceImpl implements EventQuestionService {
         if (!event.isOpenForQuestions()) {
             return QuestionResult.CLOSED;
         }
-        final EventQuestion question = questionDao.create(new EventQuestion(eventId, asker.getId(), text.trim()));
-        question.setAskerName(asker.getName());
-        question.setAskerEmail(asker.getEmail());
+        final EventQuestion question = questionDao.create(new EventQuestion(event, asker, text.trim()));
 
         inboxService.add(event.getCreatorEmail(), InboxMessageType.NEW_QUESTION, eventId,
                 displayName(asker.getName(), asker.getEmail()), null);

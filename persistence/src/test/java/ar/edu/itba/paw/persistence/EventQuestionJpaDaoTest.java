@@ -1,6 +1,8 @@
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.EventQuestion;
+import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.User;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -12,6 +14,8 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.jdbc.JdbcTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.persistence.EntityManager;
+import javax.persistence.PersistenceContext;
 import javax.sql.DataSource;
 import java.sql.Timestamp;
 import java.util.Arrays;
@@ -30,12 +34,15 @@ import static org.junit.Assert.assertTrue;
 @ContextConfiguration(classes = TestConfig.class)
 @Transactional
 @Rollback
-public class EventQuestionJdbcDaoTest {
+public class EventQuestionJpaDaoTest {
 
     private static final String CREATOR_EMAIL = "creador@mail.com";
 
     @Autowired
     private DataSource ds;
+
+    @PersistenceContext
+    private EntityManager em;
 
     @Autowired
     private EventQuestionDao questionDao;
@@ -90,7 +97,7 @@ public class EventQuestionJdbcDaoTest {
     @Test
     public void testCreateInsertsTheQuestionRow() {
         // Arrange
-        final EventQuestion toCreate = new EventQuestion(eventId, userId, "Hay estacionamiento?");
+        final EventQuestion toCreate = new EventQuestion(em.getReference(Event.class, eventId), em.getReference(User.class, userId), "Hay estacionamiento?");
 
         // Act
         final EventQuestion created = questionDao.create(toCreate);
@@ -106,7 +113,7 @@ public class EventQuestionJdbcDaoTest {
     @Test
     public void testCreateLeavesTheQuestionUnanswered() {
         // Arrange
-        final EventQuestion toCreate = new EventQuestion(eventId, userId, "Hay estacionamiento?");
+        final EventQuestion toCreate = new EventQuestion(em.getReference(Event.class, eventId), em.getReference(User.class, userId), "Hay estacionamiento?");
 
         // Act
         final EventQuestion created = questionDao.create(toCreate);
@@ -119,7 +126,7 @@ public class EventQuestionJdbcDaoTest {
     @Test
     public void testCreateSetsCreatedAtAutomatically() {
         // Arrange
-        final EventQuestion toCreate = new EventQuestion(eventId, userId, "Hay estacionamiento?");
+        final EventQuestion toCreate = new EventQuestion(em.getReference(Event.class, eventId), em.getReference(User.class, userId), "Hay estacionamiento?");
 
         // Act
         final EventQuestion created = questionDao.create(toCreate);
@@ -245,6 +252,22 @@ public class EventQuestionJdbcDaoTest {
     // ---- answer() ----
 
     @Test
+    public void testAnswerDoesNotLoseAnsweredAtWhenTheAlreadyLoadedQuestionIsModifiedAfterwards() {
+        // Arrange
+        final long id = insertQuestion(eventId, userId, "Se puede ir con perros?");
+        final EventQuestion q = questionDao.findById(id).get();
+        questionDao.answer(id, "Si", new Date());
+        // El service hace esto mismo: lee la pregunta, responde por el DAO y despues actualiza
+        // la entidad en memoria para armar el mail.
+        q.setAnswer("Si");
+        em.flush();
+        final Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT answer_text, answered_at FROM event_question WHERE id = ?", id);
+        assertTrue("answered_at fue pisado con NULL", row.get("answered_at") != null);
+    }
+
+
+    @Test
     public void testAnswerSetsTheAnswerAndReturnsTrueTheFirstTime() {
         // Arrange
         final long id = insertQuestion(eventId, userId, "Se puede ir con perros?");
@@ -284,6 +307,8 @@ public class EventQuestionJdbcDaoTest {
 
         // Act
         questionDao.delete(id);
+        // El DAO escribe via JPA (dirty checking/remove): se manda a la base antes de leer por JDBC.
+        em.flush();
 
         // Assert
         assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "event_question", "id = " + id));
@@ -296,6 +321,8 @@ public class EventQuestionJdbcDaoTest {
 
         // Act
         questionDao.delete(id);
+        // El DAO escribe via JPA (dirty checking/remove): se manda a la base antes de leer por JDBC.
+        em.flush();
 
         // Assert
         assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "event_question", "id = " + id));
@@ -309,6 +336,8 @@ public class EventQuestionJdbcDaoTest {
 
         // Act
         questionDao.delete(toDelete);
+        // El DAO escribe via JPA (dirty checking/remove): se manda a la base antes de leer por JDBC.
+        em.flush();
 
         // Assert
         assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "event_question", "id = " + toDelete));

@@ -42,7 +42,7 @@ public class EventAccessServiceImplTest {
     private static Event event(final EventVisibility visibility) {
         final Event event = new Event();
         event.setId(EVENT_ID);
-        event.setCreatorId(CREATOR_ID);
+        event.setCreator(ModelFixtures.user(CREATOR_ID));
         event.setVisibility(visibility);
         return event;
     }

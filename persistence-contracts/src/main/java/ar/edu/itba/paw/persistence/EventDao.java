@@ -1,4 +1,4 @@
-// Contrato de persistencia para Event. Implementacion: EventJdbcDao (modulo persistence).
+// Contrato de persistencia para Event. Implementacion: EventJpaDao (modulo persistence).
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.Event;

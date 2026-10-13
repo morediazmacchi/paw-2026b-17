@@ -2,6 +2,8 @@ package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationStatus;
+import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.User;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -14,6 +16,8 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.jdbc.JdbcTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.persistence.EntityManager;
+import javax.persistence.PersistenceContext;
 import javax.sql.DataSource;
 import java.sql.Timestamp;
 import java.util.List;
@@ -27,13 +31,16 @@ import static org.junit.Assert.assertTrue;
 @ContextConfiguration(classes = TestConfig.class)
 @Transactional
 @Rollback
-public class RegistrationJdbcDaoTest {
+public class RegistrationJpaDaoTest {
 
     private static final String EMAIL = "invitado@mail.com";
     private static final String NAME = "Ana";
 
     @Autowired
     private DataSource ds;
+
+    @PersistenceContext
+    private EntityManager em;
 
     @Autowired
     private RegistrationDao registrationDao;
@@ -93,9 +100,8 @@ public class RegistrationJdbcDaoTest {
         return insertRegistrationAt(eventId, email, userId, name, status, new Timestamp(System.currentTimeMillis()));
     }
 
-    private static Registration someRegistration(final long eventId, final long userId) {
-        final Registration registration = new Registration(eventId, EMAIL, NAME, RegistrationStatus.CONFIRMED);
-        registration.setUserId(userId);
+    private Registration someRegistration(final long eventId, final long userId) {
+        final Registration registration = new Registration(em.getReference(Event.class, eventId), em.getReference(User.class, userId), EMAIL, NAME, RegistrationStatus.CONFIRMED);
         return registration;
     }
 
@@ -217,6 +223,25 @@ public class RegistrationJdbcDaoTest {
         // Assert
         assertTrue(found.isPresent());
         assertEquals(EMAIL, found.get().getEmail());
+    }
+
+    @Test
+    public void testFindByIdReturnsARegistrationWhoseEventAndUserIdsCanBeReadOutsideTheSession() {
+        // Arrange: la inscripcion guarda el evento y el usuario como relaciones LAZY (representantes
+        // vacios que solo conocen su id). Se "cierra la sesion" (em.clear) para que esos
+        // representantes ya no puedan ir a la base: leer el id tiene que seguir andando, porque es lo
+        // que usan los servicios y los JSP despues de que la transaccion termino.
+        final long id = insertRegistration(eventId, EMAIL, userId, NAME, RegistrationStatus.CONFIRMED);
+        final Registration found = registrationDao.findById(id).get();
+        em.clear();
+
+        // Act
+        final long foundEventId = found.getEventId();
+        final Long foundUserId = found.getUserId();
+
+        // Assert
+        assertEquals(eventId, foundEventId);
+        assertEquals(Long.valueOf(userId), foundUserId);
     }
 
     // ---- findByUserId() ("Mis inscripciones") ----
@@ -396,6 +421,8 @@ public class RegistrationJdbcDaoTest {
 
         // Act
         registrationDao.delete(id);
+        // El DAO escribe via JPA (dirty checking/remove): se manda a la base antes de leer por JDBC.
+        em.flush();
 
         // Assert
         assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "registration", "id = " + id));
@@ -474,6 +501,8 @@ public class RegistrationJdbcDaoTest {
 
         // Act
         registrationDao.updateStatus(id, RegistrationStatus.CONFIRMED);
+        // El DAO escribe via JPA (dirty checking/remove): se manda a la base antes de leer por JDBC.
+        em.flush();
 
         // Assert
         assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "registration",
@@ -490,6 +519,8 @@ public class RegistrationJdbcDaoTest {
 
         // Act
         registrationDao.updateStatus(id, RegistrationStatus.REJECTED);
+        // El DAO escribe via JPA (dirty checking/remove): se manda a la base antes de leer por JDBC.
+        em.flush();
 
         // Assert
         assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "registration",
@@ -515,9 +546,9 @@ public class RegistrationJdbcDaoTest {
         final List<Registration> found = registrationDao.findNextWaitlisted(eventId, 10);
 
         // Assert
-        assertEquals(first, found.get(0).getId());
-        assertEquals(second, found.get(1).getId());
-        assertEquals(last, found.get(2).getId());
+        assertEquals(first, found.get(0).getId().longValue());
+        assertEquals(second, found.get(1).getId().longValue());
+        assertEquals(last, found.get(2).getId().longValue());
     }
 
     @Test
@@ -532,7 +563,7 @@ public class RegistrationJdbcDaoTest {
 
         // Assert
         assertEquals(1, found.size());
-        assertEquals(first, found.get(0).getId());
+        assertEquals(first, found.get(0).getId().longValue());
     }
 
     @Test
@@ -548,7 +579,7 @@ public class RegistrationJdbcDaoTest {
 
         // Assert
         assertEquals(1, found.size());
-        assertEquals(waiting, found.get(0).getId());
+        assertEquals(waiting, found.get(0).getId().longValue());
     }
 
     @Test

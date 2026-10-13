@@ -51,7 +51,7 @@ public class ModerationServiceImpl implements ModerationService {
         if (eventReportDao.existsPendingByEventAndReporter(eventId, reporter.getId())) {
             return ReportResult.ALREADY_REPORTED;
         }
-        eventReportDao.create(new EventReport(eventId, reporter.getId(), reason));
+        eventReportDao.create(new EventReport(event, reporter, reason));
         return ReportResult.CREATED;
     }
 

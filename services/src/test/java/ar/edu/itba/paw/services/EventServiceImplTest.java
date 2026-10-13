@@ -1,6 +1,7 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.dto.EventDTO;
+import ar.edu.itba.paw.model.Category;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventCategoryInfo;
 import ar.edu.itba.paw.model.EventSearchCriteria;
@@ -8,6 +9,7 @@ import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.exception.EventCancelledException;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import ar.edu.itba.paw.model.exception.InvalidEventException;
+import ar.edu.itba.paw.persistence.CategoryDao;
 import ar.edu.itba.paw.persistence.EventDao;
 import org.junit.Before;
 import org.junit.Test;
@@ -30,6 +32,7 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 /**
@@ -55,6 +58,8 @@ public class EventServiceImplTest {
     @Mock
     private UserService userService;
     @Mock
+    private CategoryDao categoryDao;
+    @Mock
     private RegistrationService registrationService;
     @Mock
     private NotificationService notificationService;
@@ -67,8 +72,11 @@ public class EventServiceImplTest {
 
     @Before
     public void setUp() {
-        eventService = new EventServiceImpl(eventDao, userService, notificationService, registrationService,
-                inboxService, imageService);
+        eventService = new EventServiceImpl(eventDao, userService, categoryDao, notificationService,
+                registrationService, inboxService, imageService);
+        // El servicio busca las categorias elegidas entre las que existen: por defecto existe CATEGORY_ID.
+        final List<Category> existingCategories = Collections.singletonList(ModelFixtures.category(CATEGORY_ID));
+        lenient().when(categoryDao.findAll()).thenReturn(existingCategories);
     }
 
     private static Event someEvent() {
@@ -78,9 +86,8 @@ public class EventServiceImplTest {
     private static Event eventWith(final long id, final long categoryId, final long creatorId) {
         final Event event = new Event();
         event.setId(id);
-        event.setCategories(Collections.singletonList(new EventCategoryInfo(categoryId)));
         event.setCreatorEmail(CREATOR_EMAIL);
-        event.setCreatorId(creatorId);
+        event.setCreator(ModelFixtures.user(creatorId));
         return event;
     }
 
@@ -146,6 +153,20 @@ public class EventServiceImplTest {
     }
 
     @Test
+    public void testCreateWithACategoryThatDoesNotExistThrowsInvalidEventExceptionWithCategoryKey() {
+        // Arrange: el dto pide una categoria que no esta entre las que existen
+        final EventDTO dto = someDto();
+        dto.setCategories(Collections.singletonList(new EventCategoryInfo(CATEGORY_ID + 1)));
+
+        // Act
+        final InvalidEventException thrown = assertThrows(InvalidEventException.class,
+                () -> eventService.create(dto));
+
+        // Assert
+        assertEquals("event.publish.categoryNotFound", thrown.getMessageKey());
+    }
+
+    @Test
     public void testCreateWithAnyOtherConstraintViolationThrowsInvalidEventExceptionWithGenericKey() {
         // Arrange
         when(eventDao.create(any(Event.class)))
@@ -188,7 +209,7 @@ public class EventServiceImplTest {
 
         // Assert
         assertTrue(result.isPresent());
-        assertEquals(EVENT_ID, result.get().getId());
+        assertEquals(EVENT_ID, result.get().getId().longValue());
     }
 
     @Test
@@ -401,7 +422,7 @@ public class EventServiceImplTest {
         final EventUpdateOutcome result = eventService.update(EVENT_ID, dto, CREATOR_ID);
 
         // Assert
-        assertEquals(EVENT_ID, result.getEvent().getId());
+        assertEquals(EVENT_ID, result.getEvent().getId().longValue());
     }
 
     @Test(expected = EventNotFoundException.class)

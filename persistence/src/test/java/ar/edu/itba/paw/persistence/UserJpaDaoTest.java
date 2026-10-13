@@ -13,6 +13,8 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.jdbc.JdbcTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.persistence.EntityManager;
+import javax.persistence.PersistenceContext;
 import javax.sql.DataSource;
 import java.util.Arrays;
 import java.util.Collections;
@@ -35,10 +37,13 @@ import static org.junit.Assert.assertTrue;
 @ContextConfiguration(classes = TestConfig.class)
 @Transactional
 @Rollback
-public class UserJdbcDaoTest {
+public class UserJpaDaoTest {
 
     private static final String EMAIL = "user@mail.com";
     private static final String NAME = "Ana";
+
+    @PersistenceContext
+    private EntityManager em;
 
     @Autowired
     private DataSource ds;
@@ -188,7 +193,7 @@ public class UserJdbcDaoTest {
 
         // Assert
         assertTrue(found.isPresent());
-        assertEquals(id, found.get().getId());
+        assertEquals(id, found.get().getId().longValue());
     }
 
     @Test
@@ -247,6 +252,8 @@ public class UserJdbcDaoTest {
 
         // Act
         userDao.addRole(id, "ROLE_USER");
+        // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
+        em.flush();
 
         // Assert
         assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
@@ -263,6 +270,8 @@ public class UserJdbcDaoTest {
 
         // Act
         userDao.addRole(id, "ROLE_USER");
+        // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
+        em.flush();
 
         // Assert
         assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
@@ -280,6 +289,8 @@ public class UserJdbcDaoTest {
 
         // Act
         userDao.removeRole(id, "ROLE_ADMIN");
+        // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
+        em.flush();
 
         // Assert
         assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
@@ -296,6 +307,8 @@ public class UserJdbcDaoTest {
 
         // Act
         userDao.removeRole(id, "ROLE_ADMIN");
+        // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
+        em.flush();
 
         // Assert
         assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
@@ -313,6 +326,8 @@ public class UserJdbcDaoTest {
 
         // Act
         userDao.setPassword(id, "hashed-password");
+        // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
+        em.flush();
 
         // Assert
         final String password = jdbcTemplate.queryForObject(
@@ -329,6 +344,8 @@ public class UserJdbcDaoTest {
 
         // Act
         userDao.updateProfile(id, "Nuevo Nombre");
+        // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
+        em.flush();
 
         // Assert
         final Map<String, Object> row = jdbcTemplate.queryForMap(
@@ -346,6 +363,8 @@ public class UserJdbcDaoTest {
 
         // Act
         userDao.setVerified(id, false);
+        // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
+        em.flush();
 
         // Assert
         final Boolean verified = jdbcTemplate.queryForObject(
@@ -361,6 +380,8 @@ public class UserJdbcDaoTest {
 
         // Act
         userDao.setVerified(id, true);
+        // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
+        em.flush();
 
         // Assert
         final Boolean verified = jdbcTemplate.queryForObject(
@@ -377,6 +398,8 @@ public class UserJdbcDaoTest {
 
         // Act
         userDao.setLocale(id, "en");
+        // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
+        em.flush();
 
         // Assert
         final String locale = jdbcTemplate.queryForObject(
@@ -393,6 +416,8 @@ public class UserJdbcDaoTest {
 
         // Act
         userDao.setSuspended(id, true);
+        // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
+        em.flush();
 
         // Assert
         final Boolean suspended = jdbcTemplate.queryForObject(
@@ -408,6 +433,8 @@ public class UserJdbcDaoTest {
 
         // Act
         userDao.setSuspended(id, false);
+        // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
+        em.flush();
 
         // Assert
         final Boolean suspended = jdbcTemplate.queryForObject(
@@ -444,8 +471,8 @@ public class UserJdbcDaoTest {
 
         // Assert
         assertEquals(2, page.size());
-        assertEquals(second, page.get(0).getId());
-        assertEquals(third, page.get(1).getId());
+        assertEquals(second, page.get(0).getId().longValue());
+        assertEquals(third, page.get(1).getId().longValue());
         assertTrue(page.stream().noneMatch(u -> u.getId() == first));
     }
 
@@ -462,9 +489,9 @@ public class UserJdbcDaoTest {
 
         // Assert
         assertEquals(2, page.size());
-        assertEquals(first, page.get(0).getId());
+        assertEquals(first, page.get(0).getId().longValue());
         assertEquals(2, page.get(0).getRoles().size());
-        assertEquals(second, page.get(1).getId());
+        assertEquals(second, page.get(1).getId().longValue());
     }
 
     // ---- findAll() ----

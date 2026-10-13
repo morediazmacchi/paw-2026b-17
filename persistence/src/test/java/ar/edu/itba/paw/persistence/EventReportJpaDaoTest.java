@@ -2,6 +2,8 @@ package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.EventReport;
 import ar.edu.itba.paw.model.ReportStatus;
+import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.User;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -13,6 +15,8 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.jdbc.JdbcTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.persistence.EntityManager;
+import javax.persistence.PersistenceContext;
 import javax.sql.DataSource;
 import java.sql.Timestamp;
 import java.util.List;
@@ -27,7 +31,10 @@ import static org.junit.Assert.assertTrue;
 @ContextConfiguration(classes = TestConfig.class)
 @Transactional
 @Rollback
-public class EventReportJdbcDaoTest {
+public class EventReportJpaDaoTest {
+
+    @PersistenceContext
+    private EntityManager em;
 
     private static final String REASON = "Contenido inapropiado";
 
@@ -100,7 +107,7 @@ public class EventReportJdbcDaoTest {
     @Test
     public void testCreateAssignsAGeneratedId() {
         // Arrange
-        final EventReport toCreate = new EventReport(eventId, reporterId, REASON);
+        final EventReport toCreate = new EventReport(em.getReference(Event.class, eventId), em.getReference(User.class, reporterId), REASON);
 
         // Act
         final EventReport created = eventReportDao.create(toCreate);
@@ -112,7 +119,7 @@ public class EventReportJdbcDaoTest {
     @Test
     public void testCreateInsertsTheReportRow() {
         // Arrange
-        final EventReport toCreate = new EventReport(eventId, reporterId, REASON);
+        final EventReport toCreate = new EventReport(em.getReference(Event.class, eventId), em.getReference(User.class, reporterId), REASON);
 
         // Act
         final EventReport created = eventReportDao.create(toCreate);
@@ -128,7 +135,7 @@ public class EventReportJdbcDaoTest {
     @Test
     public void testCreateDefaultsStatusToPending() {
         // Arrange
-        final EventReport toCreate = new EventReport(eventId, reporterId, REASON);
+        final EventReport toCreate = new EventReport(em.getReference(Event.class, eventId), em.getReference(User.class, reporterId), REASON);
 
         // Act
         final EventReport created = eventReportDao.create(toCreate);
@@ -186,8 +193,8 @@ public class EventReportJdbcDaoTest {
 
         // Assert
         assertEquals(2, pending.size());
-        assertEquals(first, pending.get(0).getId());
-        assertEquals(second, pending.get(1).getId());
+        assertEquals(first, pending.get(0).getId().longValue());
+        assertEquals(second, pending.get(1).getId().longValue());
     }
 
     @Test
@@ -203,7 +210,7 @@ public class EventReportJdbcDaoTest {
 
         // Assert
         assertEquals(1, page.size());
-        assertEquals(third, page.get(0).getId());
+        assertEquals(third, page.get(0).getId().longValue());
     }
 
     @Test
@@ -329,8 +336,8 @@ public class EventReportJdbcDaoTest {
 
         // Assert
         assertEquals(2, found.size());
-        assertEquals(first, found.get(0).getId());
-        assertEquals(second, found.get(1).getId());
+        assertEquals(first, found.get(0).getId().longValue());
+        assertEquals(second, found.get(1).getId().longValue());
     }
 
     @Test
@@ -348,7 +355,7 @@ public class EventReportJdbcDaoTest {
 
         // Assert
         assertEquals(1, page.size());
-        assertEquals(third, page.get(0).getId());
+        assertEquals(third, page.get(0).getId().longValue());
     }
 
     @Test

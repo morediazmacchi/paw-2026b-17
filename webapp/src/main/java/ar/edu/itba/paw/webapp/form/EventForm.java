@@ -5,6 +5,7 @@ import ar.edu.itba.paw.dto.EventDTO;
 import ar.edu.itba.paw.model.Barrio;
 import ar.edu.itba.paw.model.Category;
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.EventCategory;
 import ar.edu.itba.paw.model.EventCategoryInfo;
 import ar.edu.itba.paw.model.EventVisibility;
 import ar.edu.itba.paw.webapp.validation.ValidBarrio;
@@ -281,13 +282,13 @@ public class EventForm {
     // extraInfo; el resto queda sin tildar. Publico porque tambien lo usa
     // EventController al precargar "Editar" con los datos de un evento existente.
     public static List<CategoriaSeleccionForm> categoriaFormsFor(
-            final List<EventCategoryInfo> existing, final List<Category> allCategories) {
-        final Map<Long, EventCategoryInfo> byId = existing.stream()
-                .collect(Collectors.toMap(EventCategoryInfo::getCategoryId, c -> c));
+            final List<EventCategory> existing, final List<Category> allCategories) {
+        final Map<Long, EventCategory> byId = existing.stream()
+                .collect(Collectors.toMap(EventCategory::getCategoryId, c -> c));
         return allCategories.stream().map(cat -> {
             final CategoriaSeleccionForm categoriaForm = new CategoriaSeleccionForm();
             categoriaForm.setCategoryId(cat.getId());
-            final EventCategoryInfo info = byId.get(cat.getId());
+            final EventCategory info = byId.get(cat.getId());
             categoriaForm.setSeleccionada(info != null);
             categoriaForm.setExtraInfo(info == null ? null : info.getExtraInfo());
             return categoriaForm;

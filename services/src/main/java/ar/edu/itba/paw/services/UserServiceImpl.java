@@ -120,6 +120,9 @@ public class UserServiceImpl implements UserService {
                 // justo antes y choca contra el UNIQUE(email). Mismo criterio
                 // que ReviewServiceImpl.create(): no corresponde dejar escapar
                 // esto hacia el controller como un 500.
+                // Con JPA, el insert fallido ya dejo la transaccion marcada para rollback: se lo
+                // decimos explicitamente, asi Spring hace rollback sin tirar UnexpectedRollbackException.
+                RollbackOnly.ifInTransaction();
                 return UserRegistrationResult.EMAIL_TAKEN;
             }
         }
@@ -182,7 +185,7 @@ public class UserServiceImpl implements UserService {
                 .filter(user -> user.getPassword() != null)
                 .map(user -> {
                     tokenDao.deleteByUserAndPurpose(user.getId(), TokenPurpose.RESET_PASSWORD);
-                    final String token = newToken(user.getId(), TokenPurpose.RESET_PASSWORD, RESET_TOKEN_TTL_MILLIS);
+                    final String token = newToken(user, TokenPurpose.RESET_PASSWORD, RESET_TOKEN_TTL_MILLIS);
                     notificationService.notifyPasswordReset(user, token);
                     return true;
                 })
@@ -209,14 +212,14 @@ public class UserServiceImpl implements UserService {
 
     private void sendVerificationEmail(final User user, final String redirectAfterConfirm) {
         tokenDao.deleteByUserAndPurpose(user.getId(), TokenPurpose.VERIFY_EMAIL);
-        final String token = newToken(user.getId(), TokenPurpose.VERIFY_EMAIL, VERIFY_TOKEN_TTL_MILLIS);
+        final String token = newToken(user, TokenPurpose.VERIFY_EMAIL, VERIFY_TOKEN_TTL_MILLIS);
         notificationService.notifyAccountVerification(user, token, redirectAfterConfirm);
     }
 
-    private String newToken(final long userId, final TokenPurpose purpose, final long ttlMillis) {
+    private String newToken(final User user, final TokenPurpose purpose, final long ttlMillis) {
         final String token = UUID.randomUUID().toString();
         final Date expiresAt = new Date(System.currentTimeMillis() + ttlMillis);
-        tokenDao.create(new VerificationToken(token, userId, purpose, expiresAt));
+        tokenDao.create(new VerificationToken(token, user, purpose, expiresAt));
         return token;
     }
 
@@ -318,7 +321,7 @@ public class UserServiceImpl implements UserService {
     // User entero). eventId siempre null: son avisos de cuenta, no de un evento.
     private void addInboxMessage(final User user, final InboxMessageType type, final String body) {
         final InboxMessage message = new InboxMessage(user.getEmail(), type, null, null, body);
-        message.setUserId(user.getId());
+        message.setUser(user);
         inboxMessageDao.create(message);
     }
 }

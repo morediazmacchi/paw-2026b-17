@@ -2,6 +2,8 @@ package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.InboxMessage;
 import ar.edu.itba.paw.model.InboxMessageType;
+import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.User;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -13,6 +15,8 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.jdbc.JdbcTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.persistence.EntityManager;
+import javax.persistence.PersistenceContext;
 import javax.sql.DataSource;
 import java.sql.Timestamp;
 import java.util.Date;
@@ -28,7 +32,10 @@ import static org.junit.Assert.assertTrue;
 @ContextConfiguration(classes = TestConfig.class)
 @Transactional
 @Rollback
-public class InboxMessageJdbcDaoTest {
+public class InboxMessageJpaDaoTest {
+
+    @PersistenceContext
+    private EntityManager em;
 
     private static final String EMAIL = "ana@mail.com";
     private static final String OTHER_EMAIL = "otro@mail.com";
@@ -80,7 +87,7 @@ public class InboxMessageJdbcDaoTest {
     @Test
     public void testCreatePersistsAllTheGivenFields() {
         // Arrange
-        final InboxMessage toCreate = new InboxMessage(EMAIL, InboxMessageType.NEW_REGISTRATION, eventId, "Juan", "hola");
+        final InboxMessage toCreate = new InboxMessage(EMAIL, InboxMessageType.NEW_REGISTRATION, em.getReference(Event.class, eventId), "Juan", "hola");
 
         // Act
         final InboxMessage created = inboxMessageDao.create(toCreate);
@@ -114,7 +121,7 @@ public class InboxMessageJdbcDaoTest {
     @Test
     public void testCreateSetsCreatedAtAutomatically() {
         // Arrange
-        final InboxMessage toCreate = new InboxMessage(EMAIL, InboxMessageType.NEW_REGISTRATION, eventId, "Juan", null);
+        final InboxMessage toCreate = new InboxMessage(EMAIL, InboxMessageType.NEW_REGISTRATION, em.getReference(Event.class, eventId), "Juan", null);
 
         // Act
         final InboxMessage created = inboxMessageDao.create(toCreate);
@@ -128,7 +135,7 @@ public class InboxMessageJdbcDaoTest {
     @Test
     public void testCreateLeavesReadAtNull() {
         // Arrange
-        final InboxMessage toCreate = new InboxMessage(EMAIL, InboxMessageType.NEW_REGISTRATION, eventId, "Juan", null);
+        final InboxMessage toCreate = new InboxMessage(EMAIL, InboxMessageType.NEW_REGISTRATION, em.getReference(Event.class, eventId), "Juan", null);
 
         // Act
         final InboxMessage created = inboxMessageDao.create(toCreate);
@@ -142,8 +149,8 @@ public class InboxMessageJdbcDaoTest {
     public void testCreatePersistsTheLinkedUserId() {
         // Arrange
         final long recipientId = insertUser(EMAIL);
-        final InboxMessage toCreate = new InboxMessage(EMAIL, InboxMessageType.NEW_REGISTRATION, eventId, "Juan", null);
-        toCreate.setUserId(recipientId);
+        final InboxMessage toCreate = new InboxMessage(EMAIL, InboxMessageType.NEW_REGISTRATION, em.getReference(Event.class, eventId), "Juan", null);
+        toCreate.setUser(em.getReference(User.class, recipientId));
 
         // Act
         final InboxMessage created = inboxMessageDao.create(toCreate);
@@ -157,7 +164,7 @@ public class InboxMessageJdbcDaoTest {
     @Test
     public void testCreateLeavesUserIdNullWhenNotLinked() {
         // Arrange
-        final InboxMessage toCreate = new InboxMessage(EMAIL, InboxMessageType.NEW_REGISTRATION, eventId, "Juan", null);
+        final InboxMessage toCreate = new InboxMessage(EMAIL, InboxMessageType.NEW_REGISTRATION, em.getReference(Event.class, eventId), "Juan", null);
 
         // Act
         final InboxMessage created = inboxMessageDao.create(toCreate);

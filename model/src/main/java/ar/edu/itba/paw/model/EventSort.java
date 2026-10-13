@@ -2,7 +2,7 @@
 package ar.edu.itba.paw.model;
 
 // Cada opcion es campo + sentido (de menor a mayor o al reves). El SQL real de
-// cada una vive solo en EventJdbcDao.SORT_COLUMNS.
+// cada una vive solo en EventJpaDao.SORT_COLUMNS.
 public enum EventSort {
     FECHA_ASC,
     FECHA_DESC,

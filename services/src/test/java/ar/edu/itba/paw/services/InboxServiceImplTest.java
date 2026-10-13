@@ -3,6 +3,7 @@ package ar.edu.itba.paw.services;
 import ar.edu.itba.paw.model.InboxMessage;
 import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.InboxMessageDao;
 import org.junit.Before;
 import org.junit.Test;
@@ -37,16 +38,18 @@ public class InboxServiceImplTest {
     private InboxMessageDao inboxDao;
     @Mock
     private UserService userService;
+    @Mock
+    private EventDao eventDao;
 
     private InboxServiceImpl inboxService;
 
     @Before
     public void setUp() {
-        inboxService = new InboxServiceImpl(inboxDao, userService);
+        inboxService = new InboxServiceImpl(inboxDao, userService, eventDao);
     }
 
     private static InboxMessage anyMessage() {
-        return new InboxMessage("ana@mail.com", InboxMessageType.NEW_PENDING, 7L, "Juan", null);
+        return new InboxMessage("ana@mail.com", InboxMessageType.NEW_PENDING, ModelFixtures.event(7L), "Juan", null);
     }
 
     // ---- add() ----
@@ -55,6 +58,7 @@ public class InboxServiceImplTest {
     public void testAddNormalizesTheEmail() {
         // Arrange
         final InboxMessage saved = anyMessage();
+        when(eventDao.findById(7L)).thenReturn(Optional.of(ModelFixtures.event(7L)));
         when(userService.findByEmail("ana@mail.com")).thenReturn(Optional.empty());
         when(inboxDao.create(any(InboxMessage.class)))
                 .thenReturn(saved);

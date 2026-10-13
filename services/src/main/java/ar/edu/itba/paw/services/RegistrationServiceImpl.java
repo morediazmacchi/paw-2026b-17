@@ -128,12 +128,10 @@ public class RegistrationServiceImpl implements RegistrationService {
         // El UNIQUE(event_id, email) sigue siendo la ultima red, pero ya no
         // deberia dispararse en el camino normal: el lock de arriba serializa
         // los clics simultaneos del mismo usuario antes de llegar aca.
-        final Registration registration = new Registration(eventId, normalizedEmail, user.getName(), status);
         // Quien se anota siempre esta logueado (el endpoint lo exige, ver
-        // EventController.rsvp()): a diferencia de antes, no hace falta
-        // userService.findOrCreate() para garantizar una fila en users, el
-        // Principal autenticado ya la implica y ya trae su id.
-        registration.setUserId(user.getId());
+        // EventController.rsvp()): no hace falta userService.findOrCreate() para garantizar
+        // una fila en users, el Principal autenticado ya la implica.
+        final Registration registration = new Registration(event, user, normalizedEmail, user.getName(), status);
         registrationDao.create(registration);
 
         // Tres avisos posibles, siempre en otro hilo: uno a la persona y otro al

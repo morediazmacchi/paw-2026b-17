@@ -1,8 +1,10 @@
 // Implementa el contrato InboxService (modulo services-contracts).
 package ar.edu.itba.paw.services;
 
+import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.InboxMessage;
 import ar.edu.itba.paw.model.InboxMessageType;
+import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.InboxMessageDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -17,9 +19,12 @@ public class InboxServiceImpl implements InboxService {
 
     private final InboxMessageDao inboxMessageDao;
     private final UserService userService;
+    private final EventDao eventDao;
 
     @Autowired
-    public InboxServiceImpl(final InboxMessageDao inboxMessageDao, final UserService userService) {
+    public InboxServiceImpl(final InboxMessageDao inboxMessageDao, final UserService userService,
+                            final EventDao eventDao) {
+        this.eventDao = eventDao;
         this.inboxMessageDao = inboxMessageDao;
         this.userService = userService;
     }
@@ -34,11 +39,14 @@ public class InboxServiceImpl implements InboxService {
     public InboxMessage add(final String recipientEmail, final InboxMessageType type, final Long eventId,
                             final String actorName, final String body) {
         final String normalizedEmail = normalize(recipientEmail);
-        final InboxMessage message = new InboxMessage(normalizedEmail, type, eventId, actorName, body);
+        // El aviso se relaciona con el evento (objeto, no solo el numero). Dentro de la misma
+        // transaccion el evento casi siempre ya esta cargado, asi que findById no va a la base.
+        final Event event = eventId == null ? null : eventDao.findById(eventId).orElse(null);
+        final InboxMessage message = new InboxMessage(normalizedEmail, type, event, actorName, body);
         // Optimista (Grupo B, ver schema.sql): si el destinatario ya tiene
         // cuenta, se enlaza de una. Si no, queda en null y se reconcilia solo
         // cuando se registre (ver UserServiceImpl.register()).
-        userService.findByEmail(normalizedEmail).ifPresent(recipient -> message.setUserId(recipient.getId()));
+        userService.findByEmail(normalizedEmail).ifPresent(message::setUser);
         return inboxMessageDao.create(message);
     }
 

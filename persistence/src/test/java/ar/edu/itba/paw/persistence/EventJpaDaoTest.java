@@ -2,7 +2,8 @@ package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.Barrio;
 import ar.edu.itba.paw.model.Event;
-import ar.edu.itba.paw.model.EventCategoryInfo;
+import ar.edu.itba.paw.model.Category;
+import ar.edu.itba.paw.model.EventCategory;
 import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.EventSort;
 import ar.edu.itba.paw.model.EventVisibility;
@@ -18,6 +19,8 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.jdbc.JdbcTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.persistence.EntityManager;
+import javax.persistence.PersistenceContext;
 import javax.sql.DataSource;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
@@ -44,7 +47,7 @@ import static org.junit.Assert.assertTrue;
 @ContextConfiguration(classes = TestConfig.class)
 @Transactional
 @Rollback
-public class EventJdbcDaoTest {
+public class EventJpaDaoTest {
 
     private static final String CATEGORY_NAME = "Musica";
     private static final String OTHER_CATEGORY_NAME = "Deportes";
@@ -57,6 +60,11 @@ public class EventJdbcDaoTest {
 
     @Autowired
     private EventDao eventDao;
+
+    // El DAO modifica la entidad gestionada y Hibernate escribe en el flush: antes de
+    // leer la fila por JDBC hay que forzarlo.
+    @PersistenceContext
+    private EntityManager em;
 
     private JdbcTemplate jdbcTemplate;
     private long categoryId;
@@ -158,14 +166,29 @@ public class EventJdbcDaoTest {
 
     // ---- objetos de entrada para create()/update() (el Act en si) ----
 
-    private static Event someEvent(final long categoryId) {
-        return new Event(TITLE, "Una noche a pura guitarra", new Date(), "Av. Corrientes 1234",
-                Barrio.PALERMO, null, new BigDecimal("1500"), 50, CREATOR_EMAIL, Collections.singletonList(categoryId));
+    // Un evento a punto de guardarse, ya con su categoria (la relacion con un objeto Category;
+    // getReference da un representante con solo el id, sin ir a buscarlo a la base).
+    private Event someEvent(final long categoryId) {
+        final Event event = new Event(TITLE, "Una noche a pura guitarra", new Date(), "Av. Corrientes 1234",
+                Barrio.PALERMO, null, new BigDecimal("1500"), 50, CREATOR_EMAIL);
+        addCategory(event, categoryId, null);
+        return event;
     }
 
-    private static Event someFutureEvent(final long categoryId) {
-        return new Event(TITLE, "desc", new Date(System.currentTimeMillis() + 86_400_000L), "Av. Corrientes 1234",
-                Barrio.PALERMO, null, new BigDecimal("1500"), 50, CREATOR_EMAIL, Collections.singletonList(categoryId));
+    private Event someFutureEvent(final long categoryId) {
+        final Event event = new Event(TITLE, "desc", new Date(System.currentTimeMillis() + 86_400_000L),
+                "Av. Corrientes 1234", Barrio.PALERMO, null, new BigDecimal("1500"), 50, CREATOR_EMAIL);
+        addCategory(event, categoryId, null);
+        return event;
+    }
+
+    private void addCategory(final Event event, final long categoryId, final String extraInfo) {
+        event.addCategory(new EventCategory(event, em.getReference(Category.class, categoryId), extraInfo));
+    }
+
+    // Saca las categorias que traia el evento (para los tests que arman las suyas).
+    private static void clearCategories(final Event event) {
+        event.getCategories().forEach(event::removeCategory);
     }
 
     private static EventSearchCriteria fewSpotsCriteria() {
@@ -287,7 +310,9 @@ public class EventJdbcDaoTest {
         // Arrange
         final long otherCategoryId = insertCategory(OTHER_CATEGORY_NAME);
         final Event toCreate = someEvent(categoryId);
-        toCreate.setCategories(Arrays.asList(new EventCategoryInfo(categoryId), new EventCategoryInfo(otherCategoryId)));
+        clearCategories(toCreate);
+        addCategory(toCreate, categoryId, null);
+        addCategory(toCreate, otherCategoryId, null);
 
         // Act
         final Event created = eventDao.create(toCreate);
@@ -304,7 +329,8 @@ public class EventJdbcDaoTest {
     public void testCreatePersistsExtraInfoPerCategory() {
         // Arrange
         final Event toCreate = someEvent(categoryId);
-        toCreate.setCategories(Collections.singletonList(new EventCategoryInfo(categoryId, "Toca una banda tributo")));
+        clearCategories(toCreate);
+        addCategory(toCreate, categoryId, "Toca una banda tributo");
 
         // Act
         final Event created = eventDao.create(toCreate);
@@ -328,7 +354,8 @@ public class EventJdbcDaoTest {
         insertEventCategory(id, categoryId, null);
         final Event changes = someEvent(categoryId);
         changes.setId(id);
-        changes.setCategories(Collections.singletonList(new EventCategoryInfo(otherCategoryId, "Torneo 5 contra 5")));
+        clearCategories(changes);
+        addCategory(changes, otherCategoryId, "Torneo 5 contra 5");
 
         // Act
         eventDao.update(changes);
@@ -592,7 +619,7 @@ public class EventJdbcDaoTest {
         final long id = insertEvent(cols("creator_email", CREATOR_EMAIL));
         // A proposito le paso un creatorEmail distinto: update() no deberia
         // tocar esa columna aunque el objeto Event lo traiga seteado (el DAO
-        // ni siquiera lo lee -- ver la query en EventJdbcDao.update()).
+        // ni siquiera lo lee -- ver la query en EventJpaDao.update()).
         final Event changes = someEvent(categoryId);
         changes.setId(id);
         changes.setCreatorEmail("otro@mail.com");
@@ -644,6 +671,7 @@ public class EventJdbcDaoTest {
 
         // Act
         eventDao.cancel(id);
+        em.flush();
 
         // Assert
         final Timestamp cancelledAt = jdbcTemplate.queryForObject(
@@ -689,6 +717,7 @@ public class EventJdbcDaoTest {
 
         // Act
         eventDao.removeByAdmin(id, "Contenido inapropiado");
+        em.flush();
 
         // Assert
         final Map<String, Object> row = jdbcTemplate.queryForMap(
@@ -790,7 +819,7 @@ public class EventJdbcDaoTest {
 
         // Assert
         assertTrue(found.isPresent());
-        assertEquals(id, found.get().getId());
+        assertEquals(id, found.get().getId().longValue());
     }
 
     @Test
@@ -965,7 +994,7 @@ public class EventJdbcDaoTest {
 
         // Assert
         assertEquals(1, result.size());
-        assertEquals(cuatroLibres, result.get(0).getId());
+        assertEquals(cuatroLibres, result.get(0).getId().longValue());
     }
 
     @Test
@@ -1619,7 +1648,7 @@ public class EventJdbcDaoTest {
 
         // Assert
         assertEquals(1, featured.size());
-        assertEquals(featuredId, featured.get(0).getId());
+        assertEquals(featuredId, featured.get(0).getId().longValue());
         assertTrue(featured.get(0).isFeatured());
     }
 
@@ -1636,8 +1665,8 @@ public class EventJdbcDaoTest {
 
         // Assert
         assertEquals(2, featured.size());
-        assertEquals(secondFeaturedId, featured.get(0).getId());
-        assertEquals(firstFeaturedId, featured.get(1).getId());
+        assertEquals(secondFeaturedId, featured.get(0).getId().longValue());
+        assertEquals(firstFeaturedId, featured.get(1).getId().longValue());
     }
 
     @Test
@@ -1680,6 +1709,7 @@ public class EventJdbcDaoTest {
 
         // Act
         eventDao.setFeatured(id, true);
+        em.flush();
 
         // Assert
         final Map<String, Object> row = jdbcTemplate.queryForMap(
@@ -1695,6 +1725,7 @@ public class EventJdbcDaoTest {
 
         // Act
         eventDao.setFeatured(id, false);
+        em.flush();
 
         // Assert
         final Map<String, Object> row = jdbcTemplate.queryForMap(
@@ -1875,7 +1906,7 @@ public class EventJdbcDaoTest {
         // Arrange
         // Sin categorias ni imagenes: lo unico que se intenta tocar es la fila del evento, que no existe.
         final Event changes = someEvent(categoryId);
-        changes.setCategories(java.util.Collections.emptyList());
+        clearCategories(changes);
         changes.setId(999_999L);
 
         // Act

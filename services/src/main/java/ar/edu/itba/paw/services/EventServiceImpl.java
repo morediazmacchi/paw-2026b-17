@@ -3,7 +3,10 @@ package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.dto.EventDTO;
 import ar.edu.itba.paw.dto.NewImageData;
+import ar.edu.itba.paw.model.Category;
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.EventCategory;
+import ar.edu.itba.paw.model.EventCategoryInfo;
 import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.Image;
 import ar.edu.itba.paw.model.InboxMessageType;
@@ -13,6 +16,7 @@ import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.exception.EventCancelledException;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import ar.edu.itba.paw.model.exception.InvalidEventException;
+import ar.edu.itba.paw.persistence.CategoryDao;
 import ar.edu.itba.paw.persistence.EventDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -20,7 +24,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -31,6 +37,7 @@ public class EventServiceImpl implements EventService {
 
     private final EventDao eventDao;
     private final UserService userService;
+    private final CategoryDao categoryDao;
     private final NotificationService notificationService;
     private final RegistrationService registrationService;
     private final InboxService inboxService;
@@ -38,11 +45,13 @@ public class EventServiceImpl implements EventService {
 
     @Autowired
     public EventServiceImpl(final EventDao eventDao, final UserService userService,
+                            final CategoryDao categoryDao,
                             final NotificationService notificationService,
                             final RegistrationService registrationService,
                             final InboxService inboxService, final ImageService imageService) {
         this.eventDao = eventDao;
         this.userService = userService;
+        this.categoryDao = categoryDao;
         this.notificationService = notificationService;
         this.registrationService = registrationService;
         this.inboxService = inboxService;
@@ -71,7 +80,12 @@ public class EventServiceImpl implements EventService {
         Objects.requireNonNull(dto, "dto");
         final List<Long> imageIds = uploadImages(dto.getNewImages());
         final Event event = dto.toEvent(dto.getCreatorEmail(), imageIds);
-        event.setCreatorId(dto.getCreatorId());
+        // El dueno es un objeto User (relacion), no solo su numero. Dentro de la transaccion
+        // findById lo trae una vez y despues sale de la memoria.
+        final User creator = dto.getCreatorId() == null ? null
+                : userService.findById(dto.getCreatorId()).orElse(null);
+        event.setCreator(creator);
+        addCategories(event, dto.getCategories());
 
         final Event created;
         try {
@@ -80,7 +94,6 @@ public class EventServiceImpl implements EventService {
             throw new InvalidEventException(categoryConstraintViolated(e)
                     ? "event.publish.categoryNotFound" : "event.publish.invalidData", e);
         }
-        final User creator = userService.findById(created.getCreatorId()).orElse(null);
         notificationService.notifyEventCreated(created, creator == null ? null : creator.getName());
         return created;
     }
@@ -150,6 +163,7 @@ public class EventServiceImpl implements EventService {
                 : uploadImages(dto.getNewImages());
         final Event changes = dto.toEvent(existing.get().getCreatorEmail(), imageIds);
         changes.setId(eventId);
+        addCategories(changes, dto.getCategories());
         eventDao.update(changes);
         // Solo a los confirmados, mismo criterio que cancel(): a alguien
         // pendiente/rechazado/en lista de espera todavia no tiene un lugar
@@ -228,6 +242,27 @@ public class EventServiceImpl implements EventService {
     // de la constraint en el mensaje de la excepcion (event_category_...),
     // que Postgres arma solo con esa convencion a partir del nombre de tabla
     // y columna.
+    // El DTO trae las categorias elegidas como numeros (EventCategoryInfo: id + texto); el evento
+    // las guarda como relaciones con objetos Category. Se buscan todas juntas (hay pocas y fijas,
+    // ver data.sql) y se arma una EventCategory por cada una. Una que no existe es un dato
+    // invalido, igual que antes cuando fallaba la clave foranea.
+    private void addCategories(final Event event, final List<EventCategoryInfo> chosen) {
+        if (chosen == null || chosen.isEmpty()) {
+            return;
+        }
+        final Map<Long, Category> byId = new HashMap<>();
+        for (final Category category : categoryDao.findAll()) {
+            byId.put(category.getId(), category);
+        }
+        for (final EventCategoryInfo info : chosen) {
+            final Category category = byId.get(info.getCategoryId());
+            if (category == null) {
+                throw new InvalidEventException("event.publish.categoryNotFound", "categories");
+            }
+            event.addCategory(new EventCategory(event, category, info.getExtraInfo()));
+        }
+    }
+
     private static boolean categoryConstraintViolated(final DataIntegrityViolationException e) {
         final Throwable cause = e.getMostSpecificCause();
         final String message = cause == null ? null : cause.getMessage();

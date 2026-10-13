@@ -21,7 +21,7 @@ import static org.junit.Assert.assertTrue;
 @ContextConfiguration(classes = TestConfig.class)
 @Transactional
 @Rollback
-public class CategoryJdbcDaoTest {
+public class CategoryJpaDaoTest {
 
     @Autowired
     private DataSource ds;
