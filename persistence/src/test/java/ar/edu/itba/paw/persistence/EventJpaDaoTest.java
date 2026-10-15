@@ -1987,4 +1987,75 @@ public class EventJpaDaoTest {
         // Assert
         assertFalse(result);
     }
+
+    // La portada y las categorias de una lista de eventos tienen que venir ya cargadas: se
+    // limpia el EntityManager (los eventos quedan "sueltos", sin sesion) y recien ahi se leen.
+    // Si algo siguiera lazy, leerlo fallaria con LazyInitializationException.
+
+    @Test
+    public void testFindByIdsReturnsTheFirstImageAsTheCover() {
+        // Arrange
+        final long eventId = insertEvent();
+        final long firstImage = insertImage();
+        final long secondImage = insertImage();
+        insertEventImage(eventId, secondImage);
+        insertEventImage(eventId, firstImage);
+
+        // Act
+        final List<Event> result = eventDao.findByIds(Collections.singletonList(eventId));
+        em.clear();
+
+        // Assert
+        assertEquals(Long.valueOf(firstImage), result.get(0).getImageId());
+    }
+
+    @Test
+    public void testFindByIdsReturnsNoCoverForAnEventWithoutImages() {
+        // Arrange
+        final long eventId = insertEvent();
+
+        // Act
+        final List<Event> result = eventDao.findByIds(Collections.singletonList(eventId));
+        em.clear();
+
+        // Assert
+        assertNull(result.get(0).getImageId());
+    }
+
+    @Test
+    public void testFindByIdsLoadsTheCategoriesOfEachEvent() {
+        // Arrange
+        final long otherCategoryId = insertCategory(OTHER_CATEGORY_NAME);
+        final long eventId = insertEvent();
+        insertEventCategory(eventId, categoryId, "rock");
+        insertEventCategory(eventId, otherCategoryId, null);
+
+        // Act
+        final List<Event> result = eventDao.findByIds(Collections.singletonList(eventId));
+        em.clear();
+
+        // Assert
+        assertEquals(1, result.size());
+        assertEquals(Arrays.asList(OTHER_CATEGORY_NAME, CATEGORY_NAME),
+                result.get(0).getCategories().stream()
+                        .map(EventCategory::getCategoryName).collect(Collectors.toList()));
+    }
+
+    @Test
+    public void testFindFeaturedLoadsTheCategoriesOfEachEvent() {
+        // Arrange
+        final long eventId = insertEvent(cols("featured", true,
+                "featured_at", new Timestamp(System.currentTimeMillis())));
+        insertEventCategory(eventId, categoryId, null);
+
+        // Act
+        final List<Event> featured = eventDao.findFeatured(10);
+        em.clear();
+
+        // Assert
+        assertEquals(1, featured.size());
+        assertEquals(Collections.singletonList(CATEGORY_NAME),
+                featured.get(0).getCategories().stream()
+                        .map(EventCategory::getCategoryName).collect(Collectors.toList()));
+    }
 }

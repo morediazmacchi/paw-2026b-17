@@ -191,14 +191,17 @@ public class EventJpaDao implements EventDao {
         // Mismas tres reglas que buildWhereClause() para search(): publico, no
         // cancelado, no pasado. Un destacado que se cancela o vence deja de
         // aparecer solo en el banner, sin que haga falta desmarcarlo a mano.
-        return em.createQuery(
-                        "FROM Event e WHERE e.featured = true AND e.eventDate >= :now "
+        // Dos pasos (ver findOrderedByIds): primero solo los ids, ya ordenados y con el limite;
+        // despues los eventos con sus categorias, que el banner muestra.
+        final List<Long> ids = em.createQuery(
+                        "SELECT e.id FROM Event e WHERE e.featured = true AND e.eventDate >= :now "
                                 + "AND e.visibility = :visibility AND e.cancelledAt IS NULL "
-                                + "ORDER BY e.featuredAt DESC", Event.class)
+                                + "ORDER BY e.featuredAt DESC", Long.class)
                 .setParameter("now", new Date(), TemporalType.TIMESTAMP)
                 .setParameter("visibility", EventVisibility.PUBLIC)
                 .setMaxResults(limit)
                 .getResultList();
+        return findOrderedByIds(ids);
     }
 
     @Override
@@ -251,7 +254,14 @@ public class EventJpaDao implements EventDao {
         if (ids.isEmpty()) {
             return Collections.emptyList();
         }
-        return em.createQuery("FROM Event e WHERE e.id IN :ids", Event.class)
+        // Segundo paso del patron "ids primero": como aca NO hay limite ni pagina (la pagina ya
+        // la decidio quien nos paso los ids), es seguro traer la coleccion de categorias con
+        // JOIN FETCH, junto con la categoria de cada fila. DISTINCT: sin el, cada evento se
+        // repetiria una vez por categoria. Las fotos no se traen: la portada sale de
+        // Event.coverImageId y la galeria completa solo hace falta en el detalle.
+        return em.createQuery(
+                        "SELECT DISTINCT e FROM Event e LEFT JOIN FETCH e.categories ec "
+                                + "LEFT JOIN FETCH ec.category WHERE e.id IN :ids", Event.class)
                 .setParameter("ids", ids)
                 .getResultList();
     }

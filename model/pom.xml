@@ -10,10 +10,16 @@
   <artifactId>model</artifactId>
   <name>model</name>
   <dependencies>
-    <!-- Solo la API (anotaciones @Entity, @Id, ...): el modelo no conoce a Hibernate. -->
+    <!-- La API estandar (anotaciones @Entity, @Id, ...). -->
     <dependency>
       <groupId>javax.persistence</groupId>
       <artifactId>javax.persistence-api</artifactId>
+    </dependency>
+    <!-- Una sola anotacion propia de Hibernate: @Formula (ver Event.coverImageId). JPA puro no
+         tiene forma de pedir "solo la primera foto" sin cargar la lista entera. -->
+    <dependency>
+      <groupId>org.hibernate</groupId>
+      <artifactId>hibernate-core</artifactId>
     </dependency>
   </dependencies>
 </project>

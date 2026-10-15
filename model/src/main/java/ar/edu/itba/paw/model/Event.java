@@ -1,5 +1,7 @@
 package ar.edu.itba.paw.model;
 
+import org.hibernate.annotations.Formula;
+
 import javax.persistence.CascadeType;
 import javax.persistence.CollectionTable;
 import javax.persistence.Column;
@@ -59,6 +61,13 @@ public class Event {
     @Column(name = "image_id", nullable = false)
     @OrderBy
     private List<Long> imageIds = new ArrayList<>();
+    // La portada (la primera foto) la calcula la base en el mismo SELECT del evento:
+    // @Formula = "este campo no es una columna, es esta expresion SQL". Asi las tarjetas y
+    // listados muestran la portada SIN cargar la lista imageIds entera (que seria traer todas
+    // las fotos de cada evento solo para usar una). Es de solo lectura: se escribe a traves de
+    // imageIds. El "id" de la subconsulta es el id del propio evento.
+    @Formula("(SELECT MIN(ei.image_id) FROM event_image ei WHERE ei.event_id = id)")
+    private Long coverImageId;
     // BigDecimal y no double: el precio es plata. double es binario y no representa
     // exactamente valores como 0.10; BigDecimal si, igual que la columna NUMERIC(10,2).
     @Column(name = "price", precision = 10, scale = 2, nullable = false)
@@ -197,9 +206,10 @@ public class Event {
     public void setNeighborhood(final Barrio neighborhood) { this.neighborhood = neighborhood; }
     // La portada: la primera foto de la galeria, o null si el evento no tiene
     // ninguna. Se usa en todos lados donde hace falta una sola miniatura
-    // (tarjetas, "Mis eventos", favoritos, inscripciones); getImageIds()
-    // (mas abajo) es la galeria completa, para el detalle.
-    public Long getImageId() { return imageIds.isEmpty() ? null : imageIds.get(0); }
+    // (tarjetas, "Mis eventos", favoritos, inscripciones). Sale de coverImageId (calculado por
+    // la base), asi que NO carga la lista de fotos; getImageIds() (mas abajo) es la galeria
+    // completa, para el detalle.
+    public Long getImageId() { return coverImageId; }
     public List<Long> getImageIds() { return imageIds; }
     // Copia la lista que llega (no la guarda tal cual): si fuera la lista de OTRO evento
     // (ver EventServiceImpl.update()), vaciar una vaciaria la otra.
