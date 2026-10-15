@@ -369,3 +369,34 @@ CREATE INDEX IF NOT EXISTS idx_event_report_pending
 -- de verdad vive en postgres-migrations.sql: HSQLDB (los tests) no entiende
 -- "IF EXISTS" en un DROP COLUMN, y de todas formas una base de tests nace de
 -- cero sin esta columna (el CREATE TABLE de aca arriba ya no la declara).
+
+-- Grupo de chat de un evento (tipo grupo de WhatsApp). Unirse es opcional: solo
+-- pueden unirse quienes tienen su inscripcion CONFIRMED. La membresia cuelga de la
+-- inscripcion (ON DELETE CASCADE): si la persona se da de baja o la sacan, la fila
+-- se borra sola. Si la inscripcion pasa a otro estado (ej. REJECTED), la fila
+-- queda pero no cuenta: toda consulta exige registration.status = 'CONFIRMED'.
+-- last_read_id es el ultimo mensaje que vio esa persona (para el punto de "sin leer").
+CREATE TABLE IF NOT EXISTS event_chat_member (
+    registration_id INTEGER PRIMARY KEY REFERENCES registration(id) ON DELETE CASCADE,
+    event_id        INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
+    user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    joined_at       TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+    last_read_id    INTEGER NOT NULL DEFAULT 0,
+    UNIQUE (event_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_event_chat_member_user
+    ON event_chat_member (user_id);
+
+-- Mensajes del grupo. Quedan aunque quien los mando se vaya del grupo.
+CREATE TABLE IF NOT EXISTS event_chat_message (
+    id         SERIAL PRIMARY KEY,
+    event_id   INTEGER NOT NULL REFERENCES event(id) ON DELETE CASCADE,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    body       VARCHAR(1000) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+);
+
+-- El chat siempre se lee por evento, en orden de llegada.
+CREATE INDEX IF NOT EXISTS idx_event_chat_message_event
+    ON event_chat_message (event_id, id);

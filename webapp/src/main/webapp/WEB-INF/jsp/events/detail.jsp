@@ -37,7 +37,7 @@
         </c:choose>
     </c:if>
     <div class="detail-hero-overlay"></div>
-    <a class="detail-hero-back" href="<c:url value='/eventos'/>"><c:out value="${backLabel}"/></a>
+    <a class="detail-hero-back" href="<c:url value='/eventos'/>" data-history-back><c:out value="${backLabel}"/></a>
     <div class="detail-hero-top-actions">
         <c:forEach var="ec" items="${event.categories}">
             <spring:message code="category.${ec.categoryName}" text="${ec.categoryName}" var="eventCategoria"/>
@@ -606,6 +606,32 @@
                         </c:if>
                     </c:otherwise>
                 </c:choose>
+
+                <%-- Grupo de chat: solo para quien tiene el lugar CONFIRMADO (el organizador no
+                     se anota a su evento, asi que nunca lo ve). Quien ya es miembro ve el acceso
+                     aunque el evento haya terminado o se haya cancelado: el chat queda de solo
+                     lectura. Unirse, en cambio, solo mientras el evento sigue vigente. --%>
+                <c:if test="${chatMember or (chatConfirmed and not chatClosed)}">
+                    <div class="detail-chat">
+                        <c:choose>
+                            <c:when test="${chatMember}">
+                                <a class="btn btn-medium detail-rsvp-submit" href="<c:url value='/eventos/${event.id}/chat'/>">
+                                    <spring:message code="chat.open"/>
+                                </a>
+                            </c:when>
+                            <c:otherwise>
+                                <form action="<c:url value='/eventos/${event.id}/chat/unirse'/>" method="post" novalidate="novalidate">
+                                    <spring:message code="chat.join" var="chatJoinLabel"/>
+                                    <paw:button text="${chatJoinLabel}" cssClass="detail-rsvp-submit" />
+                                </form>
+                                <p class="detail-rsvp-note"><spring:message code="chat.joinNote"/></p>
+                            </c:otherwise>
+                        </c:choose>
+                    </div>
+                </c:if>
+                <c:if test="${not empty chatMessage}">
+                    <p class="alert detail-alert"><spring:message code="chat.message.${chatMessage}"/></p>
+                </c:if>
             </div>
 
             <%-- Reportar: cualquiera logueado que no sea el organizador (reportar tu

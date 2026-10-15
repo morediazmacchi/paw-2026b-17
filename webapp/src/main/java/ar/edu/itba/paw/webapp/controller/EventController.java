@@ -13,6 +13,7 @@ import ar.edu.itba.paw.model.Review;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.CategoryService;
 import ar.edu.itba.paw.services.EventAccessService;
+import ar.edu.itba.paw.services.EventChatService;
 import ar.edu.itba.paw.services.EventInvitationService;
 import ar.edu.itba.paw.services.EventQuestionService;
 import ar.edu.itba.paw.services.EventService;
@@ -62,6 +63,7 @@ public class EventController {
     private final EventQuestionService eventQuestionService;
     private final EventAccessService accessChecker;
     private final EventInvitationService eventInvitationService;
+    private final EventChatService eventChatService;
     private final MessageSource messageSource;
 
     @Autowired
@@ -70,6 +72,7 @@ public class EventController {
                             final FavoriteService favoriteService, final ReviewService reviewService,
                             final EventQuestionService eventQuestionService, final EventAccessService accessChecker,
                             final EventInvitationService eventInvitationService,
+                            final EventChatService eventChatService,
                             final MessageSource messageSource) {
         this.eventService = eventService;
         this.categoryService = categoryService;
@@ -79,6 +82,7 @@ public class EventController {
         this.eventQuestionService = eventQuestionService;
         this.accessChecker = accessChecker;
         this.eventInvitationService = eventInvitationService;
+        this.eventChatService = eventChatService;
         this.messageSource = messageSource;
     }
 
@@ -177,6 +181,11 @@ public class EventController {
             mav.addObject("waitlisted", myStatus == RegistrationStatus.WAITLISTED);
             mav.addObject("pendingApproval", myStatus == RegistrationStatus.PENDING);
             mav.addObject("rejected", myStatus == RegistrationStatus.REJECTED);
+            // Grupo de chat: se ofrece "Unirme" a quien esta confirmado, y "Ir al chat" a quien ya
+            // es miembro activo (aunque el evento ya haya terminado: queda de solo lectura).
+            mav.addObject("chatConfirmed", myStatus == RegistrationStatus.CONFIRMED);
+            mav.addObject("chatMember", eventChatService.isMember(id, currentUser.getId()));
+            mav.addObject("chatClosed", event.isCancelled() || event.isFinished());
             // El creador no se anota a su propio evento.
             final boolean isOwner = Long.valueOf(currentUser.getId()).equals(event.getCreatorId());
             mav.addObject("isOwner", isOwner);

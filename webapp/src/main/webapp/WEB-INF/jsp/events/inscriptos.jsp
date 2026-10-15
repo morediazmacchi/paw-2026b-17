@@ -7,7 +7,7 @@
 <paw:layout titleCode="event.attendees.title">
 <paw:navbar>
     <spring:message code="event.attendees.backButton" var="backLabel"/>
-    <a class="btn btn-medium" href="<c:url value='/perfil/eventos'/>"><c:out value="${backLabel}"/></a>
+    <a class="btn btn-medium" href="<c:url value='/perfil/eventos'/>" data-history-back><c:out value="${backLabel}"/></a>
 </paw:navbar>
 
 <main class="page">

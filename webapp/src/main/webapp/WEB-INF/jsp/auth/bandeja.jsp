@@ -1,6 +1,7 @@
 <%@ page contentType="text/html;charset=UTF-8" pageEncoding="UTF-8" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <%@ taglib prefix="fmt" uri="http://java.sun.com/jsp/jstl/fmt" %>
+<%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions" %>
 <%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
 <%@ taglib prefix="paw" tagdir="/WEB-INF/tags" %>
 <paw:layout titleCode="inbox.title">
@@ -13,6 +14,41 @@
         <h1><spring:message code="inbox.heading"/></h1>
         <p class="auth-subheading"><spring:message code="inbox.subheading"/></p>
 
+        <%-- Arriba: un circulo por grupo de chat de eventos a los que te uniste. --%>
+        <section class="inbox-groups">
+            <h2 class="inbox-section-title"><spring:message code="inbox.groupsHeading"/></h2>
+            <c:choose>
+                <c:when test="${empty chatGroups}">
+                    <p class="empty-state inbox-groups-empty"><spring:message code="inbox.groupsEmpty"/></p>
+                </c:when>
+                <c:otherwise>
+                    <ul class="chat-groups">
+                        <c:forEach var="group" items="${chatGroups}">
+                            <li>
+                                <a class="chat-group" href="<c:url value='/eventos/${group.eventId}/chat'/>">
+                                    <span class="chat-group-circle${group.unread ? ' chat-group-circle-unread' : ''}">
+                                        <c:choose>
+                                            <c:when test="${not empty group.imageId}">
+                                                <img src="<c:url value='/image/${group.imageId}'/>" alt=""/>
+                                            </c:when>
+                                            <c:otherwise>
+                                                <span class="chat-group-initial"><c:out value="${fn:toUpperCase(fn:substring(group.eventTitle, 0, 1))}"/></span>
+                                            </c:otherwise>
+                                        </c:choose>
+                                        <c:if test="${group.unread}">
+                                            <span class="chat-group-badge" title="<spring:message code='inbox.groupUnread'/>"><c:out value="${group.unreadCount > 99 ? '99+' : group.unreadCount}"/></span>
+                                        </c:if>
+                                    </span>
+                                    <span class="chat-group-name"><c:out value="${group.eventTitle}"/></span>
+                                </a>
+                            </li>
+                        </c:forEach>
+                    </ul>
+                </c:otherwise>
+            </c:choose>
+        </section>
+
+        <h2 class="inbox-section-title"><spring:message code="inbox.notificationsHeading"/></h2>
         <c:choose>
             <c:when test="${empty messages}">
                 <p class="empty-state"><spring:message code="inbox.empty"/></p>

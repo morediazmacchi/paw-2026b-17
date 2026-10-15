@@ -639,8 +639,10 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     /**
-     * Con que nombre saludamos. Si no lo sabemos, usamos lo que va antes del
-     * arroba: es mejor "Hola sol," que "Hola null,".
+     * Con que nombre saludamos. Primero el que nos pasan; si no hay, el nombre
+     * de la cuenta con ese email (el que eligio al registrarse); y recien si
+     * tampoco existe (invitado sin cuenta), lo que va antes del arroba: es
+     * mejor "Hola sol," que "Hola null,".
      */
     private String displayName(final String name, final String email) {
         if (name != null && !name.trim().isEmpty()) {
@@ -648,6 +650,14 @@ public class NotificationServiceImpl implements NotificationService {
         }
         if (email == null) {
             return "";
+        }
+        final String accountName = userDao.findByEmail(email)
+                .map(User::getName)
+                .filter(n -> !n.trim().isEmpty())
+                .map(String::trim)
+                .orElse(null);
+        if (accountName != null) {
+            return accountName;
         }
         final int at = email.indexOf('@');
         return at > 0 ? email.substring(0, at) : email;

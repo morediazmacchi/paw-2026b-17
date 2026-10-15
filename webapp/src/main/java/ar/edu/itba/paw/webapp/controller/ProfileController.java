@@ -10,6 +10,7 @@ import ar.edu.itba.paw.services.ApprovalResult;
 import ar.edu.itba.paw.services.EventAccessService;
 import ar.edu.itba.paw.services.EventInvitationResult;
 import ar.edu.itba.paw.services.EventInvitationService;
+import ar.edu.itba.paw.services.EventChatService;
 import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.FavoriteService;
 import ar.edu.itba.paw.services.InboxService;
@@ -57,6 +58,7 @@ public class ProfileController {
     private final EventInvitationService eventInvitationService;
     private final MessageSource messageSource;
     private final InboxService inboxService;
+    private final EventChatService eventChatService;
 
     @Autowired
     public ProfileController(final UserService userService,
@@ -64,7 +66,8 @@ public class ProfileController {
                               final FavoriteService favoriteService, final ReviewService reviewService,
                               final EventInvitationService eventInvitationService,
                               final MessageSource messageSource, final InboxService inboxService,
-                              final EventAccessService accessChecker) {
+                              final EventAccessService accessChecker,
+                              final EventChatService eventChatService) {
         this.userService = userService;
         this.registrationService = registrationService;
         this.eventService = eventService;
@@ -74,6 +77,7 @@ public class ProfileController {
         this.eventInvitationService = eventInvitationService;
         this.messageSource = messageSource;
         this.inboxService = inboxService;
+        this.eventChatService = eventChatService;
     }
 
     private Map<String, String> fieldErrorsOf(final BindingResult errors) {
@@ -310,6 +314,7 @@ public class ProfileController {
         final ModelAndView mav = new ModelAndView("auth/bandeja");
         mav.addObject("user", currentUser);
         mav.addObject("messages", result.getContent());
+        mav.addObject("chatGroups", eventChatService.findGroups(currentUser.getId()));
         mav.addObject("eventsById", eventsById);
         mav.addObject("currentPage", result.getPage());
         mav.addObject("totalPages", result.getTotalPages());

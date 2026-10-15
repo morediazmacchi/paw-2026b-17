@@ -24,6 +24,7 @@
     <link rel="stylesheet" href="${pageContext.request.contextPath}/css/style.css">
     <jsp:invoke fragment="head"/>
     <script src="${pageContext.request.contextPath}/js/char-counter.js" defer></script>
+    <script src="${pageContext.request.contextPath}/js/back-link.js" defer></script>
 </head>
 <body>
 

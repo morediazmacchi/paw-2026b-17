@@ -73,7 +73,7 @@
         </c:choose>
 
         <p class="auth-subheading">
-            <a class="btn-link" href="<c:url value='/perfil/eventos'/>">
+            <a class="btn-link" href="<c:url value='/perfil/eventos'/>" data-history-back>
                 <spring:message code="auth.pendingRegistrations.backToEvents"/>
             </a>
         </p>
