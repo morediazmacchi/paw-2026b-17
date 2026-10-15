@@ -1566,66 +1566,141 @@ button.btn-accent {
     margin-bottom: 16px;
 }
 
-.location-accordion {
-    width: 100%;
+/* La regla global "input, select, textarea { max-width: 420px }" (pensada
+   para forms angostos como el login) achicaba la direccion, el <select> de
+   barrio y "Piso/depto" bastante mas que el mapa y las pestanas, que si
+   ocupan todo el ancho -- quedaba todo desalineado a la derecha. En TODO el
+   paso de ubicacion (adentro y afuera de la tarjeta) se usa el 100% real. */
+.wizard-step[data-step="3"] input,
+.wizard-step[data-step="3"] select {
+    max-width: none;
+}
+
+/* Dos pestanas lado a lado (reemplazan el acordeon viejo): la activa la marca
+   aria-expanded="true", que pone el JS (chooseMode()/syncModeToggles() en
+   event-location-map.js) sobre el mismo boton que antes abria el acordeon. */
+.location-tabs {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 14px;
-    border-radius: 10px;
-    border: 1px solid var(--border);
+    gap: 6px;
+    padding: 4px;
+    border-radius: 12px;
     background: var(--bg-elevated);
-    color: var(--text);
+    border: 1px solid var(--border);
+}
+
+.location-tab {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 9px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
     font: inherit;
+    font-weight: 500;
     cursor: pointer;
 }
 
-.location-accordion:hover {
-    border-color: var(--accent);
+.location-tab:hover {
+    color: var(--text);
 }
 
-/* Cada panel va debajo de su encabezado. El de "Escribir ubicacion" se oculta
-   con aria-expanded (lo abre su encabezado); el de busqueda ademas usa [hidden]. */
-.location-option {
-    margin-top: 10px;
+.location-tab[aria-expanded="true"] {
+    background: var(--accent);
+    color: var(--accent-text);
+    font-weight: 600;
 }
 
-.location-divider {
+/* El panel de la pestana activa se muestra con [hidden] (lo pone el JS en
+   applyMode()); el inactivo siempre existe en el DOM (manual-panel arranca
+   vacio, el JS le mueve el campo de direccion). */
+.location-tab-panel {
+    padding: 14px 2px 16px;
+}
+
+/* Direccion + boton de buscar en una sola fila (el boton es icon-only). El
+   status/las sugerencias van siempre en su propia linea debajo (flex-basis:100%),
+   sin importar el ancho disponible. #geo-search-panel es el nodo que
+   event-location-map.js mueve entre pestanas (ver applyMode()): el .form-group
+   de la direccion y el boton son sus hijos directos a proposito, para no romper
+   ese movimiento con un wrapper nuevo. */
+#geo-search-panel {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 6px;
+}
+
+/* #geocode-status y #geocode-suggestions ya reciben separacion del gap de
+   arriba (las dos tienen flex-basis:100%, asi que siempre arrancan una
+   linea nueva); sin esto, su propio margin-top se sumaba al gap y quedaba
+   el doble de espacio del que hacia falta antes de la lista de sugerencias. */
+#geo-search-panel #geocode-status,
+#geo-search-panel .geocode-suggestions {
+    margin-top: 0;
+}
+
+#geo-search-panel .form-group {
+    flex: 1 1 auto;
+    min-width: 160px;
+    margin-bottom: 0;
+}
+
+/* El boton de buscar va en su propia columna, con un spacer invisible arriba
+   que ocupa EXACTAMENTE el mismo alto que ".form-group label" (mismo
+   font-size/margin-bottom): asi el input real y el boton arrancan en la
+   misma linea sin que importe como el navegador calcule el alto del texto
+   del label de al lado. */
+.location-search-btn-group {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.location-search-btn-spacer {
+    display: block;
+    font-size: 0.9rem;
+    margin-bottom: 4px;
+    visibility: hidden;
+}
+
+.location-search-btn {
     display: flex;
     align-items: center;
-    gap: 12px;
-    margin: 16px 0;
-    color: var(--text-muted);
-    font-size: 0.85rem;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: var(--accent-text);
+    cursor: pointer;
 }
 
-.location-divider::before,
-.location-divider::after {
-    content: "";
-    flex: 1;
-    height: 1px;
-    background: var(--border);
+/* Correccion optica: la lupa esta centrada en su propio viewBox, pero el
+   circulo (todo el "peso" del dibujo) queda arriba a la izquierda y el
+   mango es solo una linea fina hacia abajo a la derecha -- centrada a la
+   perfeccion matematica, el ojo la ve corrida hacia abajo a la derecha. */
+.location-search-btn .icon {
+    transform: translate(-1px, -1px);
 }
 
-.location-option-body {
-    padding: 10px 2px 0;
+.location-search-btn:hover {
+    filter: brightness(1.08);
 }
 
-.location-accordion[aria-expanded="false"] + .location-option-body {
-    display: none;
+.location-search-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
 }
 
-#geo-search-panel .btn {
-    margin-top: 4px;
-}
-
-.location-accordion-chevron {
-    display: inline-flex;
-    transition: transform 0.15s ease;
-}
-
-.location-accordion[aria-expanded="true"] .location-accordion-chevron {
-    transform: rotate(90deg);
+#geocode-status,
+#geocode-suggestions {
+    flex-basis: 100%;
+    width: 100%;
 }
 
 .location-mode-radios {
@@ -1637,20 +1712,40 @@ button.btn-accent {
     white-space: nowrap;
 }
 
-/* Barrio deducido: caja de solo lectura, con el texto guia cuando esta vacia. */
-.location-barrio-box {
-    margin: 0;
-    padding: 10px 12px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: var(--bg-elevated);
-    color: var(--text);
-    min-height: 1.2em;
+/* Barrio elegido, debajo del mapa: pill de solo lectura en modo geolocalizacion,
+   <select> en modo manual (ver applyMode(), nunca los dos visibles a la vez). */
+.location-barrio-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-top: 14px;
 }
 
-.location-barrio-box:empty::before {
+.location-barrio-pill {
+    background: transparent;
+    border-color: var(--accent);
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.location-barrio-value:empty::before {
     content: attr(data-placeholder);
     color: var(--text-muted);
+    font-weight: 400;
+}
+
+.location-barrio-select {
+    flex: 1;
+    min-width: 160px;
+    /* padding-right de mas para la flechita nativa del <select>: sin esto
+       queda pegada al borde derecho. */
+    padding-right: 32px;
+}
+
+.location-barrio-hint {
+    margin: 0;
+    flex-basis: 100%;
 }
 
 .geocode-suggestion-main {

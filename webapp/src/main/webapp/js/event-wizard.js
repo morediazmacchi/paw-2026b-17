@@ -21,6 +21,24 @@ document.addEventListener("DOMContentLoaded", function () {
     var submitWrap = document.querySelector(".wizard-submit");
     var stepError = document.querySelector(".wizard-step-error");
 
+    // Apretar Enter en un <input> de texto hace "submit implicito" del form:
+    // el navegador busca el primer boton submit, y lo encuentra -- el de
+    // "Publicar" sigue en el DOM, solo escondido con [hidden] (ver
+    // .wizard-submit mas abajo), y eso no lo saca de la busqueda. Sin este
+    // guard, Enter en CUALQUIER campo de CUALQUIER paso manda el form entero
+    // con los pasos de mas adelante vacios, y el usuario termina viendo
+    // errores de un paso al que nunca llego. Mientras el boton real siga
+    // escondido (no es el ultimo paso), Enter en un input no hace nada.
+    form.addEventListener("keydown", function (event) {
+        if (event.key !== "Enter") {
+            return;
+        }
+        if (event.target.tagName !== "INPUT" || !submitWrap.hidden) {
+            return;
+        }
+        event.preventDefault();
+    });
+
     function showStepError(message) {
         if (stepError) {
             stepError.textContent = message;

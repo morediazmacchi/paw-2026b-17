@@ -18,10 +18,15 @@
 // toca solo -- se avisa nada mas. Si la persona quiere resolverlo, tiene que
 // pasarse ella misma al otro modo (nunca es automatico).
 //
-// MODO "en texto plano": sin geocodificar nada. El <select id="neighborhood"> se
-// habilita para elegir a mano, y el mapa se puede clickear para ubicar el pin.
-// Es el mismo mecanismo que el mapa tenia antes de existir Nominatim en esta
-// app.
+// MODO "marcar en el mapa": un click en el mapa pone el pin Y geocodifica
+// AL REVES ese punto contra Nominatim (/reverse, en vez de /search) para
+// completar #address sola -- mismo criterio de barrio que el modo de
+// arriba (se deduce del "suburb", y si no se puede, no se toca el <select>,
+// la persona lo elige a mano). El <select id="neighborhood"> queda siempre
+// habilitado en este modo por si Nominatim no identifica el barrio, o para
+// corregirlo. Si falla la geocodificacion inversa (sin conexion, Nominatim
+// caido), el pin igual queda puesto -- la direccion se completa a mano,
+// ni mejor ni peor que antes de que existiera esto.
 //
 // #location-manual (hidden) guarda si el pin ACTUAL se puso a mano o se geocodifico
 // -- lo pisa la accion real que lo puso ahi (click en el mapa, o elegir una
@@ -44,6 +49,8 @@ document.addEventListener("DOMContentLoaded", function () {
     var suggestionsEl = document.getElementById("geocode-suggestions");
     var barrioSelect = document.getElementById("neighborhood");
     var barrioDisplay = document.getElementById("neighborhood-display");
+    var barrioPill = document.getElementById("neighborhood-pill");
+    var barrioPillHint = document.getElementById("barrio-pill-hint");
     var geoSearchPanel = document.getElementById("geo-search-panel");
     var manualPanel = document.getElementById("manual-panel");
     var mapHintGeo = document.getElementById("map-hint-geo");
@@ -68,8 +75,8 @@ document.addEventListener("DOMContentLoaded", function () {
     }).addTo(map);
 
     var marker = hasPin ? L.marker([startLat, startLon]).addTo(map) : null;
-    // Solo true en modo "texto plano": ahi, y solo ahi, un click en el mapa
-    // mueve el pin a mano. Arranca segun cual de los dos radio este marcado
+    // Solo true en modo "marcar en el mapa": ahi, y solo ahi, un click en el
+    // mapa mueve el pin. Arranca segun cual de los dos radio este marcado
     // al cargar la pagina (por ej. al reabrir "Editar" un evento que ya tenia
     // el pin puesto a mano).
     var manualPinEnabled = !!(modeManualRadio && modeManualRadio.checked);
@@ -88,6 +95,34 @@ document.addEventListener("DOMContentLoaded", function () {
         map.setView(latlng, PIN_ZOOM);
     }
 
+    // Geocodificacion INVERSA (lat/lon -> direccion), para que marcar en el
+    // mapa complete #address sola en vez de pedirla tipeada aparte -- si no,
+    // no tiene sentido ofrecer las dos formas de cargar el lugar. Mismo
+    // formato de respuesta que /search (result.address), asi que reusa
+    // formatCleanAddress()/applyBarrioMatch() de abajo.
+    function reverseGeocodeAndFill(lat, lon) {
+        var url = "https://nominatim.openstreetmap.org/reverse"
+            + "?format=jsonv2&addressdetails=1&lat=" + lat + "&lon=" + lon;
+        fetch(url)
+            .then(function (response) {
+                if (!response.ok) {
+                    throw new Error("reverse geocode failed: " + response.status);
+                }
+                return response.json();
+            })
+            .then(function (result) {
+                if (!result || !result.address) {
+                    return;
+                }
+                addressInput.value = formatCleanAddress(result.address, result.display_name);
+                applyBarrioMatch(result.address.suburb, barrioSelect, barrioDisplay);
+            })
+            .catch(function () {
+                // Sin conexion o Nominatim caido: el pin ya quedo puesto igual,
+                // la persona completa la direccion a mano, como antes de esto.
+            });
+    }
+
     map.on("click", function (event) {
         if (!manualPinEnabled) {
             return;
@@ -96,6 +131,7 @@ document.addEventListener("DOMContentLoaded", function () {
             pinManualInput.value = "true";
         }
         setPin(event.latlng.lat, event.latlng.lng);
+        reverseGeocodeAndFill(event.latlng.lat, event.latlng.lng);
     });
 
     // Cambia que controles se ven segun el modo elegido. Nunca toca el pin,
@@ -121,6 +157,15 @@ document.addEventListener("DOMContentLoaded", function () {
         }
         if (barrioSelect) {
             barrioSelect.hidden = !isManual;
+        }
+        // Pill de solo lectura (modo geolocalizacion) vs <select> (modo texto
+        // plano): el wrapper del pill y su ayuda van juntos con barrioDisplay,
+        // nunca visibles a la vez que el <select>.
+        if (barrioPill) {
+            barrioPill.hidden = isManual;
+        }
+        if (barrioPillHint) {
+            barrioPillHint.hidden = isManual;
         }
         if (mapHintGeo) {
             mapHintGeo.hidden = isManual;
@@ -224,6 +269,26 @@ function buildBarrioLookup() {
     return lookup;
 }
 
+// Completa el <select> de barrio Y el pill de solo lectura a partir del
+// "suburb" que devuelve Nominatim -- mismo formato en /search y /reverse,
+// asi que esto lo usan selectSuggestion() y reverseGeocodeAndFill() los dos.
+// Si no hay match (parques/reservas grandes sin "suburb"), no toca nada: la
+// persona elige el barrio a mano, nunca se pisa en silencio.
+function applyBarrioMatch(suburb, barrioSelect, barrioDisplay) {
+    var lookup = buildBarrioLookup();
+    var matchedEnumName = suburb ? lookup[normalizeBarrioText(suburb)] : undefined;
+    if (!matchedEnumName) {
+        return false;
+    }
+    if (barrioSelect) {
+        barrioSelect.value = matchedEnumName;
+    }
+    if (barrioDisplay) {
+        barrioDisplay.textContent = window.PAW_BARRIOS[matchedEnumName];
+    }
+    return true;
+}
+
 // Arma el texto que reemplaza a lo que la persona tipeo, a partir de los
 // componentes de Nominatim (no del display_name entero): road + house_number
 // + suburb, sin postcode/ciudad/provincia/pais -- son siempre "Buenos Aires"/
@@ -233,7 +298,7 @@ function formatCleanAddress(nominatimAddress, fallbackDisplayName) {
     if (!road) {
         return fallbackDisplayName;
     }
-    var streetPart = nominatimAddress.house_number ? nominatimAddress.house_number + " " + road : road;
+    var streetPart = nominatimAddress.house_number ? road + " " + nominatimAddress.house_number : road;
     return nominatimAddress.suburb ? streetPart + ", " + nominatimAddress.suburb : streetPart;
 }
 
@@ -270,22 +335,12 @@ function setUpAddressSearch(refs) {
         refs.addressInput.value = formatCleanAddress(result.address || {}, result.display_name);
         clearSuggestions();
 
-        var suburb = (result.address || {}).suburb;
-        var lookup = buildBarrioLookup();
-        var matchedEnumName = suburb ? lookup[normalizeBarrioText(suburb)] : undefined;
-        if (matchedEnumName) {
-            refs.barrioSelect.value = matchedEnumName;
-            if (refs.barrioDisplay) {
-                refs.barrioDisplay.textContent = window.PAW_BARRIOS[matchedEnumName];
-            }
-            showStatus("");
-        } else {
-            // A proposito NO se toca el <select>/el mapa: el pin ya quedo
-            // puesto (sirve igual, aunque no sepamos el barrio), pero elegir
-            // el barrio a mano y ajustar el lugar es una decision de la
-            // persona -- se pasa ella misma a modo "texto plano" si quiere.
-            showStatus(refs.button.dataset.noBarrioLabel);
-        }
+        var matched = applyBarrioMatch((result.address || {}).suburb, refs.barrioSelect, refs.barrioDisplay);
+        // Si no matcheo, a proposito NO se toca el <select>/el mapa: el pin ya
+        // quedo puesto (sirve igual, aunque no sepamos el barrio), pero elegir
+        // el barrio a mano y ajustar el lugar es una decision de la persona --
+        // se pasa ella misma a modo "marcar en el mapa" si quiere.
+        showStatus(matched ? "" : refs.button.dataset.noBarrioLabel);
     }
 
     // Nominatim puede devolver varios resultados que, una vez limpios (sin
@@ -348,10 +403,21 @@ function setUpAddressSearch(refs) {
         clearSuggestions();
         showStatus(refs.button.dataset.searchingLabel);
 
-        var query = address + ", Ciudad Autónoma de Buenos Aires, Argentina";
+        // Busqueda ESTRUCTURADA (street/city/country separados), no "q=" en texto
+        // libre: con q= Nominatim a veces ignora el numero de puerta y devuelve
+        // la calle entera (un resultado por cada barrio que cruza, ej. "Larrea"
+        // separado en Balvanera/Recoleta, sin altura) porque su parser de texto
+        // libre no siempre entiende que el numero pegado al nombre de la calle
+        // es la altura. structured street=<numero+calle> se lo dice explicito,
+        // asi el resultado SI apunta a esa altura puntual (cuando OSM la tiene
+        // mapeada; si una calle no tiene ningun numero cargado en el tramo
+        // pedido, Nominatim igual puede devolver la calle entera -- no hay
+        // forma de evitar eso del lado nuestro, es un limite de los datos).
         var url = "https://nominatim.openstreetmap.org/search"
             + "?format=jsonv2&addressdetails=1&limit=5&countrycodes=ar&bounded=1&viewbox=" + CABA_VIEWBOX
-            + "&q=" + encodeURIComponent(query);
+            + "&street=" + encodeURIComponent(address)
+            + "&city=" + encodeURIComponent("Ciudad Autónoma de Buenos Aires")
+            + "&country=" + encodeURIComponent("Argentina");
 
         fetch(url)
             .then(function (response) {
@@ -365,6 +431,9 @@ function setUpAddressSearch(refs) {
                     showStatus(refs.button.dataset.notFoundLabel);
                     return;
                 }
+                // Encontro resultados: borra el "Buscando..." de arriba, si no
+                // queda pegado arriba de la lista de sugerencias para siempre.
+                showStatus("");
                 renderSuggestions(results);
             })
             .catch(function () {
@@ -377,5 +446,22 @@ function setUpAddressSearch(refs) {
                 searching = false;
                 refs.button.disabled = false;
             });
+    });
+
+    // Enter en el campo de direccion busca, en vez de mandar el <form> entero
+    // (ver el guard general en event-wizard.js: esto es ademas, no en lugar de
+    // eso -- ese guard nunca sabe que este campo en particular tiene un boton
+    // de buscar al lado). Solo dispara en modo geolocalizacion: en modo manual
+    // este input vive en #manual-panel y el boton de buscar sigue escondido
+    // adentro de #geo-search-panel, no tiene sentido geocodificar ahi.
+    refs.addressInput.addEventListener("keydown", function (event) {
+        if (event.key !== "Enter") {
+            return;
+        }
+        event.preventDefault();
+        var manualRadio = document.getElementById("modo-direccion-manual");
+        if (!manualRadio || !manualRadio.checked) {
+            refs.button.click();
+        }
     });
 }
