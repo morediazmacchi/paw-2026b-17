@@ -3448,3 +3448,19 @@ button.btn-accent {
     padding: 12px 0 0;
     border-bottom: 0;
 }
+
+/* "Darme de baja" dentro del aviso de "reportaste este evento": un link en negrita, en la misma
+   linea del texto, que al apretarlo da de baja (es un boton de un formulario POST). */
+.report-unregister {
+    display: inline;
+    margin: 0;
+}
+
+.report-unregister-link {
+    font: inherit;
+    font-weight: 800;
+    text-decoration: underline;
+    color: inherit;
+    padding: 0;
+    cursor: pointer;
+}

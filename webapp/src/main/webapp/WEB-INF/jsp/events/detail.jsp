@@ -193,7 +193,22 @@
     <%-- Resultado de reportar el evento (ver EventController.reportar()): mismo
          mecanismo POST-Redirect-GET que "rsvp"/"questionMessage" de aca arriba. --%>
     <c:if test="${not empty reportMessage}">
-        <p class="alert<c:if test="${reportMessage == 'CREATED'}"> alert-success</c:if> detail-alert"><spring:message code="event.detail.reportFlash.${reportMessage}"/></p>
+        <div class="alert<c:if test="${reportMessage == 'CREATED'}"> alert-success</c:if> detail-alert">
+            <spring:message code="event.detail.reportFlash.${reportMessage}"/>
+            <%-- Si quien reporta tambien esta anotado (confirmado, en lista de espera o pendiente),
+                 se le ofrece darse de baja ahi mismo, en la misma linea: es el mismo POST que el
+                 boton de la barra lateral. --%>
+            <c:if test="${(reportMessage == 'CREATED' or reportMessage == 'ALREADY_REPORTED') and registered and not event.cancelled and not event.finished}">
+                <c:choose>
+                    <c:when test="${waitlisted}"><spring:message code="event.detail.leaveWaitlistButton" var="reportUnregisterLabel"/></c:when>
+                    <c:when test="${pendingApproval}"><spring:message code="event.detail.pendingApprovalButton" var="reportUnregisterLabel"/></c:when>
+                    <c:otherwise><spring:message code="event.detail.unregisterButton" var="reportUnregisterLabel"/></c:otherwise>
+                </c:choose>
+                <form class="report-unregister" action="<c:url value='/eventos/${event.id}/darme-de-baja'/>" method="post" novalidate="novalidate">
+                    <button type="submit" class="btn-link report-unregister-link"><c:out value="${reportUnregisterLabel}"/></button>.
+                </form>
+            </c:if>
+        </div>
     </c:if>
 
     <div class="detail-meta-strip">
