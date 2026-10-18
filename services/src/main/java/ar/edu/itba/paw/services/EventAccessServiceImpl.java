@@ -29,13 +29,21 @@ public class EventAccessServiceImpl implements EventAccessService {
 
     @Override
     public boolean canView(final Event event, final User user, final Optional<Registration> myRegistration) {
-        if (!event.isPrivate()) {
-            return true;
-        }
+        // El creador y un admin lo ven siempre, este aprobado o no (el admin
+        // necesita verlo justamente para poder aprobarlo/rechazarlo).
         if (user != null && Long.valueOf(user.getId()).equals(event.getCreatorId())) {
             return true;
         }
         if (user != null && user.getRoles().contains("ROLE_ADMIN")) {
+            return true;
+        }
+        // Pendiente o rechazado: invisible para cualquier otra persona, sea
+        // publico o privado -- mismo criterio que un evento privado sin
+        // invitacion, antes de llegar a chequear eso.
+        if (!event.isApproved()) {
+            return false;
+        }
+        if (!event.isPrivate()) {
             return true;
         }
         if (myRegistration.isPresent()) {
@@ -56,8 +64,12 @@ public class EventAccessServiceImpl implements EventAccessService {
     @Override
     @Transactional(readOnly = true)
     public boolean canView(final Event event, final User user) {
+        // La regla real vive en la otra sobrecarga. Esta solo evita pedir la
+        // inscripcion propia cuando no hace falta: para un evento publico, la
+        // otra sobrecarga nunca mira "myRegistration" (solo importa para el
+        // caso privado), asi que pasarle Optional.empty() es siempre correcto.
         if (!event.isPrivate()) {
-            return true;
+            return canView(event, user, Optional.empty());
         }
         final Optional<Registration> myRegistration = user == null
                 ? Optional.empty()

@@ -60,7 +60,8 @@
                         <paw:eventRow id="${event.id}" nombre="${event.title}" fecha="${event.eventDate}"
                                       ubicacion="${event.neighborhood.displayName}" precio="${event.price}"
                                       imagenId="${event.imageId}" privado="${event.visibility == 'PRIVATE'}"
-                                      cancelado="${event.cancelled}">
+                                      cancelado="${event.cancelled}" pendiente="${event.pendingApproval}"
+                                      rechazado="${event.rejected}">
                             <a class="btn btn-medium" href="<c:url value='/eventos/${event.id}/inscriptos'/>">
                                 <c:out value="${attendeesButtonLabel}"/>
                             </a>
@@ -81,7 +82,8 @@
                                     </c:if>
                                 </a>
                             </c:if>
-                            <c:if test="${!event.cancelled}">
+                            <%-- Rechazado es definitivo, mismo criterio que detail.jsp: no se edita. --%>
+                            <c:if test="${!event.cancelled && !event.rejected}">
                                 <a class="btn btn-medium btn-accent" href="<c:url value='/eventos/${event.id}/editar'/>">
                                     <c:out value="${editButtonLabel}"/>
                                 </a>

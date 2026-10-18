@@ -10,6 +10,12 @@
 <%@ attribute name="privado" required="false" type="java.lang.Boolean" %>
 <%-- Idem privado: marca la fila de un evento cancelado (Mis eventos, Mis inscripciones, Mis favoritos). --%>
 <%@ attribute name="cancelado" required="false" type="java.lang.Boolean" %>
+<%-- Revision previa a publicarse (ver EventApprovalStatus): solo la usa "Mis
+     eventos" (en el resto de los listados el evento ya esta aprobado, porque
+     EventAccessServiceImpl.canView() no deja ver uno pendiente/rechazado a
+     nadie mas que al creador/admin). --%>
+<%@ attribute name="pendiente" required="false" type="java.lang.Boolean" %>
+<%@ attribute name="rechazado" required="false" type="java.lang.Boolean" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <%@ taglib prefix="fmt" uri="http://java.sun.com/jsp/jstl/fmt" %>
 <%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
@@ -19,7 +25,7 @@
      pantalla: Cancelar en "Mis inscripciones", Editar/Eliminar en "Mis eventos",
      Quitar en "Favoritos"). Por eso no es <paw:card>: esa es un link entero,
      esto necesita un boton al lado que no puede ir adentro de un <a>. --%>
-<div class="event-row${cancelado ? ' event-row-cancelled' : ''}">
+<div class="event-row${(cancelado or rechazado) ? ' event-row-cancelled' : ''}">
     <a class="event-row-link" href="<c:url value='/eventos/${id}'/>">
         <div class="event-row-thumb">
             <c:if test="${not empty imagenId}">
@@ -34,6 +40,12 @@
                 </c:if>
                 <c:if test="${cancelado}">
                     <span class="event-row-cancelled-tag">(<spring:message code="auth.events.cancelledTag"/>)</span>
+                </c:if>
+                <c:if test="${pendiente}">
+                    <span class="event-row-pending-tag">(<spring:message code="auth.events.pendingApprovalTag"/>)</span>
+                </c:if>
+                <c:if test="${rechazado}">
+                    <span class="event-row-cancelled-tag">(<spring:message code="auth.events.rejectedTag"/>)</span>
                 </c:if>
             </h3>
             <p class="event-row-meta">

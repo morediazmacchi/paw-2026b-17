@@ -328,6 +328,19 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS suspended BOOLEAN NOT NULL DEFAULT fa
 ALTER TABLE event ADD COLUMN IF NOT EXISTS removed_by_admin BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE event ADD COLUMN IF NOT EXISTS removed_reason VARCHAR(500);
 
+-- Revision de un admin antes de publicarse (ver Event.approvalStatus). DEFAULT
+-- 'APPROVED' A PROPOSITO: esta columna la agrega un ALTER sobre una tabla que
+-- ya puede tener filas (eventos ya publicados en Pampero, o el "fresh install"
+-- de un test, da lo mismo), y el default de una columna nueva se aplica a esas
+-- filas existentes -- si fuera 'PENDING' por default, todo evento ya publicado
+-- desaparaceria de las busquedas al correr esta migracion. Un evento creado de
+-- verdad por la app arranca en PENDING igual: ese default lo pone el campo de
+-- Event.java (Hibernate manda el valor explicito en el INSERT, no deja que la
+-- base use el suyo), asi que el DEFAULT de la columna solo importa para las
+-- filas que ya estaban, nunca para una fila nueva de la app real.
+ALTER TABLE event ADD COLUMN IF NOT EXISTS approval_status VARCHAR(20) NOT NULL DEFAULT 'APPROVED';
+ALTER TABLE event ADD COLUMN IF NOT EXISTS rejected_reason VARCHAR(500);
+
 -- Banner destacado de /eventos, curado por un admin (ver EventDao.findFeatured()/
 -- setFeatured(), AdminController.destacar()/quitarDestacado()). featured_at
 -- ordena el banner (mas reciente primero) y se limpia al desmarcar.

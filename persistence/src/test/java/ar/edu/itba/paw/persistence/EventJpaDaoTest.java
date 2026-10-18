@@ -2,6 +2,7 @@ package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.Barrio;
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.EventApprovalStatus;
 import ar.edu.itba.paw.model.Category;
 import ar.edu.itba.paw.model.EventCategory;
 import ar.edu.itba.paw.model.EventSearchCriteria;
@@ -725,6 +726,112 @@ public class EventJpaDaoTest {
         assertNotNull(row.get("cancelled_at"));
         assertTrue((Boolean) row.get("removed_by_admin"));
         assertEquals("Contenido inapropiado", row.get("removed_reason"));
+    }
+
+    // ==================================================================
+    // approve() / reject() / findPendingApproval() / countPendingApproval()
+    // (revision previa a publicarse, ver EventApprovalStatus)
+    // ==================================================================
+
+    @Test
+    public void testCreateDefaultsApprovalStatusToPending() {
+        // Arrange
+        final Event toCreate = someEvent(categoryId);
+
+        // Act
+        final Event created = eventDao.create(toCreate);
+
+        // Assert
+        final String approvalStatus = jdbcTemplate.queryForObject(
+                "SELECT approval_status FROM event WHERE id = ?", String.class, created.getId());
+        assertEquals(EventApprovalStatus.PENDING.name(), approvalStatus);
+    }
+
+    @Test
+    public void testApproveSetsApprovalStatusToApproved() {
+        // Arrange
+        final long id = insertEvent(cols("approval_status", EventApprovalStatus.PENDING.name()));
+
+        // Act
+        final boolean result = eventDao.approve(id);
+        em.flush();
+
+        // Assert
+        assertTrue(result);
+        final String approvalStatus = jdbcTemplate.queryForObject(
+                "SELECT approval_status FROM event WHERE id = ?", String.class, id);
+        assertEquals(EventApprovalStatus.APPROVED.name(), approvalStatus);
+    }
+
+    @Test
+    public void testApproveReturnsFalseWhenTheEventDoesNotExist() {
+        // Act
+        final boolean result = eventDao.approve(-1);
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    public void testRejectSetsApprovalStatusToRejectedAndTheReason() {
+        // Arrange
+        final long id = insertEvent(cols("approval_status", EventApprovalStatus.PENDING.name()));
+
+        // Act
+        final boolean result = eventDao.reject(id, "Contenido inapropiado");
+        em.flush();
+
+        // Assert
+        assertTrue(result);
+        final Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT approval_status, rejected_reason FROM event WHERE id = ?", id);
+        assertEquals(EventApprovalStatus.REJECTED.name(), row.get("approval_status"));
+        assertEquals("Contenido inapropiado", row.get("rejected_reason"));
+    }
+
+    @Test
+    public void testRejectReturnsFalseWhenTheEventDoesNotExist() {
+        // Act
+        final boolean result = eventDao.reject(-1, "motivo");
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    public void testFindPendingApprovalReturnsOnlyPendingEventsOldestFirst() {
+        // Arrange
+        final Timestamp antes = new Timestamp(System.currentTimeMillis() - 2000);
+        final Timestamp despues = new Timestamp(System.currentTimeMillis() - 1000);
+        final long secondPendingId = insertEvent(cols("address", "Segundo", "created_at", despues,
+                "approval_status", EventApprovalStatus.PENDING.name()));
+        final long firstPendingId = insertEvent(cols("address", "Primero", "created_at", antes,
+                "approval_status", EventApprovalStatus.PENDING.name()));
+        insertEvent(cols("address", "Ya aprobado", "approval_status", EventApprovalStatus.APPROVED.name()));
+        insertEvent(cols("address", "Ya rechazado", "approval_status", EventApprovalStatus.REJECTED.name()));
+
+        // Act
+        final List<Event> result = eventDao.findPendingApproval(1, 10);
+
+        // Assert
+        assertEquals(2, result.size());
+        assertEquals(firstPendingId, result.get(0).getId().longValue());
+        assertEquals(secondPendingId, result.get(1).getId().longValue());
+    }
+
+    @Test
+    public void testCountPendingApprovalCountsOnlyPendingEvents() {
+        // Arrange
+        insertEvent(cols("approval_status", EventApprovalStatus.PENDING.name()));
+        insertEvent(cols("approval_status", EventApprovalStatus.PENDING.name()));
+        insertEvent(cols("approval_status", EventApprovalStatus.APPROVED.name()));
+        insertEvent(cols("approval_status", EventApprovalStatus.REJECTED.name()));
+
+        // Act
+        final long count = eventDao.countPendingApproval();
+
+        // Assert
+        assertEquals(2, count);
     }
 
     // ==================================================================
@@ -1633,6 +1740,57 @@ public class EventJpaDaoTest {
     }
 
     // ==================================================================
+    // search(): revision previa a publicarse (ver EventApprovalStatus)
+    // ==================================================================
+
+    /**
+     * EL TEST QUE IMPIDE QUE UN EVENTO TODAVIA NO APROBADO SE FILTRE POR EL
+     * LISTADO PUBLICO: igual que un evento privado o cancelado, nadie lo
+     * tiene que poder encontrar hasta que un admin lo revise.
+     */
+    @Test
+    public void testSearchExcludesPendingApprovalEvents() {
+        // Arrange
+        insertEvent(cols("approval_status", EventApprovalStatus.PENDING.name()));
+        final EventSearchCriteria criteria = new EventSearchCriteria();
+        criteria.setPageSize(10);
+
+        // Act
+        final List<Event> result = eventDao.search(criteria);
+
+        // Assert
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    public void testSearchExcludesRejectedEvents() {
+        // Arrange
+        insertEvent(cols("approval_status", EventApprovalStatus.REJECTED.name()));
+        final EventSearchCriteria criteria = new EventSearchCriteria();
+        criteria.setPageSize(10);
+
+        // Act
+        final List<Event> result = eventDao.search(criteria);
+
+        // Assert
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    public void testCountSearchExcludesPendingApprovalEvents() {
+        // Arrange
+        insertEvent(cols("approval_status", EventApprovalStatus.PENDING.name()));
+        final EventSearchCriteria criteria = new EventSearchCriteria();
+        criteria.setPageSize(10);
+
+        // Act
+        final long count = eventDao.countSearch(criteria);
+
+        // Assert
+        assertEquals(0, count);
+    }
+
+    // ==================================================================
     // findFeatured() / setFeatured()
     // ==================================================================
 
@@ -1694,6 +1852,23 @@ public class EventJpaDaoTest {
         insertEvent(cols("address", "Pasado", "featured", true,
                 "featured_at", new Timestamp(System.currentTimeMillis()),
                 "event_date", new Timestamp(System.currentTimeMillis() - 86_400_000L)));
+
+        // Act
+        final List<Event> featured = eventDao.findFeatured(10);
+
+        // Assert
+        assertTrue(featured.isEmpty());
+    }
+
+    @Test
+    public void testFindFeaturedExcludesPendingApprovalAndRejectedEvents() {
+        // Arrange
+        insertEvent(cols("address", "Pendiente", "featured", true,
+                "featured_at", new Timestamp(System.currentTimeMillis()),
+                "approval_status", EventApprovalStatus.PENDING.name()));
+        insertEvent(cols("address", "Rechazado", "featured", true,
+                "featured_at", new Timestamp(System.currentTimeMillis()),
+                "approval_status", EventApprovalStatus.REJECTED.name()));
 
         // Act
         final List<Event> featured = eventDao.findFeatured(10);

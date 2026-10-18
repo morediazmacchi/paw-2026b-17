@@ -1,6 +1,7 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.EventApprovalStatus;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.EventVisibility;
@@ -44,6 +45,11 @@ public class EventAccessServiceImplTest {
         event.setId(EVENT_ID);
         event.setCreator(ModelFixtures.user(CREATOR_ID));
         event.setVisibility(visibility);
+        // El resto de estos tests son sobre la logica de publico/privado/invitacion,
+        // no sobre la revision previa (ver EventApprovalStatus): se asume ya
+        // aprobado, como cualquier evento publicado antes de que existiera esta
+        // feature. La logica de PENDING/REJECTED tiene sus propios tests abajo.
+        event.setApprovalStatus(EventApprovalStatus.APPROVED);
         return event;
     }
 
@@ -265,5 +271,74 @@ public class EventAccessServiceImplTest {
         accessService.getOwnedPrivateEvent(EVENT_ID, user(CREATOR_ID));
 
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
+    }
+
+    // ---- canView() con revision previa (ver EventApprovalStatus) ----
+
+    @Test
+    public void testCanViewAPendingEventIsFalseForAStranger() {
+        // Arrange
+        final Event event = event(EventVisibility.PUBLIC);
+        event.setApprovalStatus(EventApprovalStatus.PENDING);
+
+        // Act
+        final boolean result = accessService.canView(event, user(OTHER_ID));
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    public void testCanViewAPendingEventIsFalseForAnAnonymousUser() {
+        // Arrange
+        final Event event = event(EventVisibility.PUBLIC);
+        event.setApprovalStatus(EventApprovalStatus.PENDING);
+
+        // Act
+        final boolean result = accessService.canView(event, null);
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    public void testCanViewAPendingEventIsTrueForItsCreator() {
+        // Arrange
+        final Event event = event(EventVisibility.PUBLIC);
+        event.setApprovalStatus(EventApprovalStatus.PENDING);
+
+        // Act
+        final boolean result = accessService.canView(event, user(CREATOR_ID));
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    public void testCanViewAPendingEventIsTrueForAnAdmin() {
+        // Arrange
+        final Event event = event(EventVisibility.PUBLIC);
+        event.setApprovalStatus(EventApprovalStatus.PENDING);
+        final User admin = user(OTHER_ID);
+        admin.getRoles().add("ROLE_ADMIN");
+
+        // Act
+        final boolean result = accessService.canView(event, admin);
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    public void testCanViewARejectedEventIsFalseForAStranger() {
+        // Arrange
+        final Event event = event(EventVisibility.PUBLIC);
+        event.setApprovalStatus(EventApprovalStatus.REJECTED);
+
+        // Act
+        final boolean result = accessService.canView(event, user(OTHER_ID));
+
+        // Assert
+        assertFalse(result);
     }
 }

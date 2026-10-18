@@ -506,10 +506,31 @@
                          (ver RegistrationServiceImpl.register()), asi que no tiene
                          sentido ofrecerte ningun boton relacionado. --%>
                     <c:when test="${isOwner}">
-                        <p class="alert"><spring:message code="event.detail.ownEventNote"/></p>
-                        <%-- Cancelado no se edita (mismo criterio que "Mis eventos",
-                             donde tampoco se muestra el boton para uno cancelado). --%>
-                        <c:if test="${!event.cancelled}">
+                        <%-- Revision previa a publicarse (ver EventApprovalStatus): no es
+                             lo mismo que event.cancelled/removedByAdmin, por eso va
+                             primero aca y no en esas ramas de abajo (esas son para
+                             terceros, a quienes nunca les llega a esta rama porque
+                             isOwner gana sobre todo). --%>
+                        <c:choose>
+                            <c:when test="${event.pendingApproval}">
+                                <p class="alert"><spring:message code="event.detail.eventPendingApproval"/></p>
+                            </c:when>
+                            <c:when test="${event.rejected}">
+                                <p class="alert">
+                                    <spring:message code="event.detail.eventRejectedByAdmin"/>
+                                    <c:if test="${not empty event.rejectedReason}">
+                                        <br/>
+                                        <spring:message code="event.detail.eventRejectedByAdminReason" arguments="${event.rejectedReason}" htmlEscape="true"/>
+                                    </c:if>
+                                </p>
+                            </c:when>
+                            <c:otherwise>
+                                <p class="alert"><spring:message code="event.detail.ownEventNote"/></p>
+                            </c:otherwise>
+                        </c:choose>
+                        <%-- Cancelado o rechazado no se edita (mismo criterio que "Mis
+                             eventos": rechazado es definitivo, no hay vuelta atras). --%>
+                        <c:if test="${!event.cancelled && !event.rejected}">
                             <spring:message code="auth.events.editButton" var="editButtonLabel"/>
                             <a class="btn btn-medium btn-accent detail-rsvp-submit" href="<c:url value='/eventos/${event.id}/editar'/>">
                                 <c:out value="${editButtonLabel}"/>

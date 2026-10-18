@@ -3,12 +3,14 @@ package ar.edu.itba.paw.webapp.controller;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventReport;
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.services.EventApprovalResult;
 import ar.edu.itba.paw.services.EventQuestionService;
 import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.ModerationService;
 import ar.edu.itba.paw.services.PageResult;
 import ar.edu.itba.paw.services.ReportResolutionResult;
 import ar.edu.itba.paw.services.UserService;
+import ar.edu.itba.paw.webapp.form.RejectEventForm;
 import ar.edu.itba.paw.webapp.form.RequestChangesForm;
 import ar.edu.itba.paw.webapp.util.Paging;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -141,6 +143,44 @@ public class AdminController {
             redirectAttributes.addFlashAttribute("adminReportError", result.name());
         }
         return new ModelAndView("redirect:/admin/reportes");
+    }
+
+    // Revision previa a publicarse (ver EventApprovalStatus): distinto del
+    // sistema de reportes de arriba, son eventos que todavia no llegaron a
+    // estar publicos.
+    @RequestMapping(value = "/eventos-pendientes", method = RequestMethod.GET)
+    public ModelAndView eventosPendientes(@RequestParam(value = "page", required = false) final String page) {
+        final PageResult<Event> result = eventService.findPendingApprovalPage(Paging.parsePage(page));
+        final ModelAndView mav = new ModelAndView("admin/eventosPendientes");
+        mav.addObject("pendingEvents", result.getContent());
+        mav.addObject("currentPage", result.getPage());
+        mav.addObject("totalPages", result.getTotalPages());
+        return mav;
+    }
+
+    @RequestMapping(value = "/eventos-pendientes/{id}/aprobar", method = RequestMethod.POST)
+    public ModelAndView aprobarEvento(@PathVariable final long id, final RedirectAttributes redirectAttributes) {
+        final EventApprovalResult result = eventService.approve(id);
+        // ALREADY_DECIDED: otro admin ya lo aprobo o rechazo mientras este lo
+        // tenia abierto.
+        if (result != EventApprovalResult.OK) {
+            redirectAttributes.addFlashAttribute("adminApprovalError", result.name());
+        }
+        return new ModelAndView("redirect:/admin/eventos-pendientes");
+    }
+
+    @RequestMapping(value = "/eventos-pendientes/{id}/rechazar", method = RequestMethod.POST)
+    public ModelAndView rechazarEvento(@PathVariable final long id, @Valid final RejectEventForm form,
+                                        final BindingResult errors, final RedirectAttributes redirectAttributes) {
+        if (errors.hasErrors()) {
+            redirectAttributes.addFlashAttribute("adminApprovalError", "INVALID");
+            return new ModelAndView("redirect:/admin/eventos-pendientes");
+        }
+        final EventApprovalResult result = eventService.reject(id, form.getMotivo());
+        if (result != EventApprovalResult.OK) {
+            redirectAttributes.addFlashAttribute("adminApprovalError", result.name());
+        }
+        return new ModelAndView("redirect:/admin/eventos-pendientes");
     }
 
     // Tamaño de pagina para "Usuarios"

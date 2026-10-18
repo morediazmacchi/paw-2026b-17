@@ -40,5 +40,10 @@ public enum InboxMessageType {
     // Un admin suspendio la cuenta.
     ACCOUNT_SUSPENDED,
     // Un admin reactivo la cuenta.
-    ACCOUNT_REACTIVATED
+    ACCOUNT_REACTIVATED,
+    // Revision previa a publicarse (ver EventApprovalStatus), no un reporte:
+    // un admin aprobo el evento recien creado, ya es visible publicamente.
+    EVENT_APPROVED,
+    // Un admin rechazo el evento recien creado (definitivo, no hay reenvio).
+    EVENT_REJECTED
 }

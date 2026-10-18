@@ -159,6 +159,20 @@ public class Event {
     // el evento nunca fue removido por moderacion.
     @Column(name = "removed_reason", length = 500)
     private String removedReason;
+    // Revision previa a publicarse (distinto de requiresApproval, que es el
+    // organizador aceptando INSCRIPCIONES, y distinto del sistema de reportes
+    // de ModerationService, que es sobre eventos YA publicados). PENDING por
+    // default: un "new Event(...)" sin tocar este campo (tests, services)
+    // arranca sin aprobar, igual que arrancaria uno creado de verdad. No va
+    // en el constructor, mismo motivo que requiresApproval/visibility: no
+    // romper los call sites existentes.
+    @Column(name = "approval_status", length = 20, nullable = false)
+    @Enumerated(EnumType.STRING)
+    private EventApprovalStatus approvalStatus = EventApprovalStatus.PENDING;
+    // Motivo que cargo el admin al rechazarlo (ver AdminController). Null si
+    // todavia esta pendiente o ya fue aprobado.
+    @Column(name = "rejected_reason", length = 500)
+    private String rejectedReason;
     // Un admin lo eligio para el banner de /eventos (ver EventController.eventos()
     // y AdminController.destacar()). featuredAt ordena el banner (mas reciente
     // primero) y se limpia al desmarcar: si se vuelve a destacar despues, entra
@@ -262,6 +276,10 @@ public class Event {
     public void setRemovedByAdmin(final boolean removedByAdmin) { this.removedByAdmin = removedByAdmin; }
     public String getRemovedReason() { return removedReason; }
     public void setRemovedReason(final String removedReason) { this.removedReason = removedReason; }
+    public EventApprovalStatus getApprovalStatus() { return approvalStatus; }
+    public void setApprovalStatus(final EventApprovalStatus approvalStatus) { this.approvalStatus = approvalStatus; }
+    public String getRejectedReason() { return rejectedReason; }
+    public void setRejectedReason(final String rejectedReason) { this.rejectedReason = rejectedReason; }
     public boolean isFeatured() { return featured; }
     public void setFeatured(final boolean featured) { this.featured = featured; }
     public Date getFeaturedAt() { return featuredAt; }
@@ -279,6 +297,9 @@ public class Event {
     public boolean isFree() { return price == null || price.signum() == 0; }
     public boolean isPrivate() { return visibility == EventVisibility.PRIVATE; }
     public boolean isCancelled() { return cancelledAt != null; }
+    public boolean isApproved() { return approvalStatus == EventApprovalStatus.APPROVED; }
+    public boolean isPendingApproval() { return approvalStatus == EventApprovalStatus.PENDING; }
+    public boolean isRejected() { return approvalStatus == EventApprovalStatus.REJECTED; }
 
     // Ya paso: la fecha del evento quedo en el pasado. No mira cancelledAt a
     // proposito -- un evento cancelado antes de su fecha no esta "finalizado"

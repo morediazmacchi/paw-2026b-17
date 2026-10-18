@@ -2,6 +2,7 @@ package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Category;
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.EventApprovalStatus;
 import ar.edu.itba.paw.model.User;
 
 // Los modelos ahora se relacionan entre si (una Registration tiene un Event y un User, no
@@ -16,6 +17,12 @@ final class ModelFixtures {
     static Event event(final long id) {
         final Event event = new Event();
         event.setId(id);
+        // Estos tests son sobre otros servicios (moderacion, inscripciones, chat,
+        // etc.), no sobre la revision previa a publicarse (ver EventApprovalStatus
+        // / EventAccessServiceImplTest, que es donde si importa el estado real):
+        // se asume ya aprobado, como cualquier evento publicado antes de que
+        // existiera esta feature.
+        event.setApprovalStatus(EventApprovalStatus.APPROVED);
         return event;
     }
 

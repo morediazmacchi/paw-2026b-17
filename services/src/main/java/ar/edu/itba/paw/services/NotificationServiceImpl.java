@@ -537,6 +537,49 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Async
     @Override
+    public void notifyEventApproved(final Event event) {
+        try {
+            final Locale locale = localeForUserId(event.getCreatorId());
+            final Map<String, Object> variables = eventVariables(event, locale);
+            variables.put("personName", displayName(null, event.getCreatorEmail()));
+
+            mailService.send(event.getCreatorEmail(),
+                    "event-approved",
+                    "mail.eventApproved.subject",
+                    new Object[]{ event.getTitle() },
+                    variables,
+                    locale);
+        } catch (final RuntimeException e) {
+            LOGGER.error("Fallo el aviso de evento aprobado, evento {}", event.getId(), e);
+        }
+    }
+
+    @Async
+    @Override
+    public void notifyEventRejected(final Event event, final String reason) {
+        try {
+            final Locale locale = localeForUserId(event.getCreatorId());
+            final Map<String, Object> variables = eventVariables(event, locale);
+            variables.put("personName", displayName(null, event.getCreatorEmail()));
+            variables.put("reason", reason);
+            // El evento rechazado nunca llega a ser accesible: el CTA va al
+            // listado general, no a eventUrl (mismo criterio que
+            // notifyEventRemovedByAdmin).
+            variables.put("eventsUrl", baseUrl + "/eventos");
+
+            mailService.send(event.getCreatorEmail(),
+                    "event-rejected",
+                    "mail.eventRejected.subject",
+                    new Object[]{ event.getTitle() },
+                    variables,
+                    locale);
+        } catch (final RuntimeException e) {
+            LOGGER.error("Fallo el aviso de evento rechazado, evento {}", event.getId(), e);
+        }
+    }
+
+    @Async
+    @Override
     public void notifyEventChangesRequested(final Event event, final String message) {
         try {
             final Locale locale = localeForUserId(event.getCreatorId());

@@ -107,6 +107,12 @@ public interface NotificationService {
     /** Un admin dio de baja el evento (tras revisar un reporte) -> le avisa al creador. */
     void notifyEventRemovedByAdmin(Event event, String reason);
 
+    /** Un admin aprobo el evento recien creado (ver EventApprovalStatus) -> le avisa al creador. */
+    void notifyEventApproved(Event event);
+
+    /** Un admin rechazo el evento recien creado -> le avisa al creador con el motivo. */
+    void notifyEventRejected(Event event, String reason);
+
     /** Un admin le pidio al creador que corrija algo del evento -> le avisa con el mensaje. */
     void notifyEventChangesRequested(Event event, String message);
 

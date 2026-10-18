@@ -2299,6 +2299,12 @@ button.btn-accent {
     font-size: 0.85rem;
 }
 
+.event-row-pending-tag {
+    color: #e0a030;
+    font-weight: 400;
+    font-size: 0.85rem;
+}
+
 .event-row-meta {
     color: var(--text-muted);
     font-size: 0.85rem;

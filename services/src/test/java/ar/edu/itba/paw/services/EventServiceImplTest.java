@@ -3,6 +3,7 @@ package ar.edu.itba.paw.services;
 import ar.edu.itba.paw.dto.EventDTO;
 import ar.edu.itba.paw.model.Category;
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.EventApprovalStatus;
 import ar.edu.itba.paw.model.EventCategoryInfo;
 import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.User;
@@ -608,6 +609,100 @@ public class EventServiceImplTest {
 
         // Assert
         assertEquals(EventCancelResult.ALREADY_CANCELLED, result);
+    }
+
+    // ---- approve() / reject() (revision previa a publicarse, ver EventApprovalStatus) ----
+
+    @Test
+    public void testApproveSucceedsOnAPendingEvent() {
+        // Arrange: someEvent() arranca PENDING (default de Event.approvalStatus).
+        existingForUpdate(someEvent());
+        when(eventDao.approve(EVENT_ID)).thenReturn(true);
+
+        // Act
+        final EventApprovalResult result = eventService.approve(EVENT_ID);
+
+        // Assert
+        assertEquals(EventApprovalResult.OK, result);
+    }
+
+    @Test
+    public void testApproveWhenTheEventDoesNotExistReturnsNotFound() {
+        // Arrange
+        when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.empty());
+
+        // Act
+        final EventApprovalResult result = eventService.approve(EVENT_ID);
+
+        // Assert
+        assertEquals(EventApprovalResult.NOT_FOUND, result);
+    }
+
+    @Test
+    public void testApproveWhenAlreadyApprovedReturnsAlreadyDecided() {
+        // Arrange
+        final Event event = someEvent();
+        event.setApprovalStatus(EventApprovalStatus.APPROVED);
+        existingForUpdate(event);
+
+        // Act
+        final EventApprovalResult result = eventService.approve(EVENT_ID);
+
+        // Assert
+        assertEquals(EventApprovalResult.ALREADY_DECIDED, result);
+    }
+
+    @Test
+    public void testApproveWhenAlreadyRejectedReturnsAlreadyDecided() {
+        // Arrange
+        final Event event = someEvent();
+        event.setApprovalStatus(EventApprovalStatus.REJECTED);
+        existingForUpdate(event);
+
+        // Act
+        final EventApprovalResult result = eventService.approve(EVENT_ID);
+
+        // Assert
+        assertEquals(EventApprovalResult.ALREADY_DECIDED, result);
+    }
+
+    @Test
+    public void testRejectSucceedsOnAPendingEvent() {
+        // Arrange
+        existingForUpdate(someEvent());
+        when(eventDao.reject(EVENT_ID, "Contenido inapropiado")).thenReturn(true);
+
+        // Act
+        final EventApprovalResult result = eventService.reject(EVENT_ID, "Contenido inapropiado");
+
+        // Assert
+        assertEquals(EventApprovalResult.OK, result);
+    }
+
+    @Test
+    public void testRejectWhenTheEventDoesNotExistReturnsNotFound() {
+        // Arrange
+        when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.empty());
+
+        // Act
+        final EventApprovalResult result = eventService.reject(EVENT_ID, "motivo");
+
+        // Assert
+        assertEquals(EventApprovalResult.NOT_FOUND, result);
+    }
+
+    @Test
+    public void testRejectWhenAlreadyDecidedReturnsAlreadyDecided() {
+        // Arrange
+        final Event event = someEvent();
+        event.setApprovalStatus(EventApprovalStatus.APPROVED);
+        existingForUpdate(event);
+
+        // Act
+        final EventApprovalResult result = eventService.reject(EVENT_ID, "motivo");
+
+        // Assert
+        assertEquals(EventApprovalResult.ALREADY_DECIDED, result);
     }
 
     // ---- findFeatured() / setFeatured() (banner de /eventos) ----

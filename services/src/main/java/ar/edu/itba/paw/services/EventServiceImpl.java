@@ -223,6 +223,48 @@ public class EventServiceImpl implements EventService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
+    public EventApprovalResult approve(final long eventId) {
+        final Optional<Event> existing = eventDao.findByIdForUpdate(eventId);
+        if (!existing.isPresent()) {
+            return EventApprovalResult.NOT_FOUND;
+        }
+        final Event event = existing.get();
+        if (!event.isPendingApproval()) {
+            return EventApprovalResult.ALREADY_DECIDED;
+        }
+        eventDao.approve(eventId);
+        notificationService.notifyEventApproved(event);
+        inboxService.add(event.getCreatorEmail(), InboxMessageType.EVENT_APPROVED, eventId, null, null);
+        return EventApprovalResult.OK;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public EventApprovalResult reject(final long eventId, final String reason) {
+        final Optional<Event> existing = eventDao.findByIdForUpdate(eventId);
+        if (!existing.isPresent()) {
+            return EventApprovalResult.NOT_FOUND;
+        }
+        final Event event = existing.get();
+        if (!event.isPendingApproval()) {
+            return EventApprovalResult.ALREADY_DECIDED;
+        }
+        eventDao.reject(eventId, reason);
+        notificationService.notifyEventRejected(event, reason);
+        inboxService.add(event.getCreatorEmail(), InboxMessageType.EVENT_REJECTED, eventId, null, reason);
+        return EventApprovalResult.OK;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResult<Event> findPendingApprovalPage(final int page) {
+        final long total = eventDao.countPendingApproval();
+        final int effectivePage = PageResult.clampPage(page, total, PAGE_SIZE);
+        return new PageResult<>(eventDao.findPendingApproval(effectivePage, PAGE_SIZE), total, effectivePage, PAGE_SIZE);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public List<Event> findFeatured(final int limit) {
         return eventDao.findFeatured(limit);

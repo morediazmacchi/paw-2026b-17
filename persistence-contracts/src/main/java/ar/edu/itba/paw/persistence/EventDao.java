@@ -25,6 +25,19 @@ public interface EventDao {
     // admin y por que, para que el detalle y el mail al creador lo digan.
     boolean removeByAdmin(long id, String reason);
 
+    // Revision previa a publicarse (ver EventService.approve()/reject()): NO
+    // es el mismo mecanismo que cancel()/removeByAdmin (esos son para un
+    // evento que YA estaba publico y se da de baja; esto es si nunca llego a
+    // estarlo). false si no existe.
+    boolean approve(long id);
+    boolean reject(long id, String reason);
+
+    /** Cola de aprobacion del admin (ver EventService.findPendingApprovalPage()): FIFO, el mas viejo primero. */
+    List<Event> findPendingApproval(int page, int pageSize);
+
+    /** Para el badge de la cola de aprobacion, sin traer las filas. */
+    long countPendingApproval();
+
     // No excluye cancelados a proposito: el detalle de un evento cancelado
     // sigue siendo accesible para quien ya estaba anotado (ver EventController).
     Optional<Event> findById(long id);

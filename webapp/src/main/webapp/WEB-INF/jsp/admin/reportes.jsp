@@ -15,10 +15,12 @@
     <h1><spring:message code="admin.reports.heading"/></h1>
     <spring:message code="admin.reports.tabLabel" var="reportsTabLabel"/>
     <spring:message code="admin.reports.trackingTabLabel" var="trackingTabLabel"/>
+    <spring:message code="admin.pendingEvents.tabLabel" var="pendingEventsTabLabel"/>
     <spring:message code="admin.users.tabLabel" var="usersTabLabel"/>
     <div class="auth-tabs">
         <span class="pill pill-active auth-tab"><c:out value="${reportsTabLabel}"/></span>
         <a class="pill auth-tab" href="<c:url value='/admin/reportes/seguimiento'/>"><c:out value="${trackingTabLabel}"/></a>
+        <a class="pill auth-tab" href="<c:url value='/admin/eventos-pendientes'/>"><c:out value="${pendingEventsTabLabel}"/></a>
         <a class="pill auth-tab" href="<c:url value='/admin/usuarios'/>"><c:out value="${usersTabLabel}"/></a>
     </div>
 

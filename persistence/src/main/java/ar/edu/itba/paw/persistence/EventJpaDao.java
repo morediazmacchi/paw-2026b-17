@@ -2,6 +2,7 @@
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.EventApprovalStatus;
 import ar.edu.itba.paw.model.EventCategory;
 import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.EventSort;
@@ -187,18 +188,42 @@ public class EventJpaDao implements EventDao {
     }
 
     @Override
+    public boolean approve(final long id) {
+        final Event event = em.find(Event.class, id);
+        if (event == null) {
+            return false;
+        }
+        event.setApprovalStatus(EventApprovalStatus.APPROVED);
+        return true;
+    }
+
+    @Override
+    public boolean reject(final long id, final String reason) {
+        final Event event = em.find(Event.class, id);
+        if (event == null) {
+            return false;
+        }
+        event.setApprovalStatus(EventApprovalStatus.REJECTED);
+        event.setRejectedReason(reason);
+        return true;
+    }
+
+    @Override
     public List<Event> findFeatured(final int limit) {
-        // Mismas tres reglas que buildWhereClause() para search(): publico, no
-        // cancelado, no pasado. Un destacado que se cancela o vence deja de
-        // aparecer solo en el banner, sin que haga falta desmarcarlo a mano.
+        // Mismas cuatro reglas que buildSearchFilter() para search(): publico,
+        // no cancelado, no pasado, y aprobado. Un destacado que se cancela,
+        // vence, o (no deberia pasar, pero por las dudas) queda pendiente de
+        // nuevo, deja de aparecer solo en el banner, sin desmarcarlo a mano.
         // Dos pasos (ver findOrderedByIds): primero solo los ids, ya ordenados y con el limite;
         // despues los eventos con sus categorias, que el banner muestra.
         final List<Long> ids = em.createQuery(
                         "SELECT e.id FROM Event e WHERE e.featured = true AND e.eventDate >= :now "
                                 + "AND e.visibility = :visibility AND e.cancelledAt IS NULL "
+                                + "AND e.approvalStatus = :approvalStatus "
                                 + "ORDER BY e.featuredAt DESC", Long.class)
                 .setParameter("now", new Date(), TemporalType.TIMESTAMP)
                 .setParameter("visibility", EventVisibility.PUBLIC)
+                .setParameter("approvalStatus", EventApprovalStatus.APPROVED)
                 .setMaxResults(limit)
                 .getResultList();
         return findOrderedByIds(ids);
@@ -293,6 +318,24 @@ public class EventJpaDao implements EventDao {
     }
 
     @Override
+    public List<Event> findPendingApproval(final int page, final int pageSize) {
+        return em.createQuery(
+                        "FROM Event e WHERE e.approvalStatus = :status ORDER BY e.createdAt ASC, e.id ASC",
+                        Event.class)
+                .setParameter("status", EventApprovalStatus.PENDING)
+                .setFirstResult((page - 1) * pageSize)
+                .setMaxResults(pageSize)
+                .getResultList();
+    }
+
+    @Override
+    public long countPendingApproval() {
+        return em.createQuery("SELECT COUNT(e) FROM Event e WHERE e.approvalStatus = :status", Long.class)
+                .setParameter("status", EventApprovalStatus.PENDING)
+                .getSingleResult();
+    }
+
+    @Override
     public List<Event> search(final EventSearchCriteria criteria) {
         final SearchFilter filter = buildSearchFilter(criteria);
         final EventSort sort = SORT_COLUMNS.containsKey(criteria.getSort()) ? criteria.getSort() : EventSort.FECHA_ASC;
@@ -342,16 +385,19 @@ public class EventJpaDao implements EventDao {
     // Arma el WHERE (y sus parametros) una sola vez, para que search() y countSearch()
     // filtren exactamente lo mismo y nunca se desincronicen.
     private SearchFilter buildSearchFilter(final EventSearchCriteria criteria) {
-        // Tres reglas del listado publico (no del criteria, no son filtros que
-        // el usuario pueda sacar): un evento ya ocurrido no aparece, uno
-        // privado tampoco, y uno cancelado tampoco. findById/findByIdForUpdate
-        // no llevan ninguna de las tres: el detalle sigue siendo accesible (con
-        // su propio chequeo de acceso para el privado, ver EventController).
+        // Cuatro reglas del listado publico (no del criteria, no son filtros
+        // que el usuario pueda sacar): un evento ya ocurrido no aparece, uno
+        // privado tampoco, uno cancelado tampoco, y uno que un admin todavia
+        // no aprobo (o que rechazo) tampoco. findById/findByIdForUpdate no
+        // llevan ninguna de las cuatro: el detalle sigue siendo accesible (con
+        // su propio chequeo de acceso, ver EventAccessServiceImpl.canView()).
         final StringBuilder sql = new StringBuilder(
-                " WHERE e.event_date >= :now AND e.visibility = :publicVisibility AND e.cancelled_at IS NULL");
+                " WHERE e.event_date >= :now AND e.visibility = :publicVisibility AND e.cancelled_at IS NULL"
+                        + " AND e.approval_status = :approvedStatus");
         final Map<String, Object> params = new LinkedHashMap<>();
         params.put("now", new Date());
         params.put("publicVisibility", EventVisibility.PUBLIC.name());
+        params.put("approvedStatus", EventApprovalStatus.APPROVED.name());
 
         if (criteria.getCategoryIds() != null && !criteria.getCategoryIds().isEmpty()) {
             // EXISTS, no un JOIN: un evento con varias de las categorias

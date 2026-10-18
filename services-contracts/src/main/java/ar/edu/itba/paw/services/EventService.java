@@ -95,6 +95,29 @@ public interface EventService {
     EventCancelResult removeByAdmin(long eventId, String reason);
 
     /**
+     * Un admin revisa y aprueba un evento recien creado (ver EventApprovalStatus):
+     * recien ahi se vuelve visible publicamente. Avisa al creador.
+     */
+    @Transactional(rollbackFor = Exception.class)
+    EventApprovalResult approve(long eventId);
+
+    /**
+     * Un admin rechaza un evento recien creado: queda invisible para siempre
+     * (no hay reenvio a revision), igual que uno dado de baja por moderacion.
+     * Avisa al creador con el motivo.
+     */
+    @Transactional(rollbackFor = Exception.class)
+    EventApprovalResult reject(long eventId, String reason);
+
+    /**
+     * Cola de aprobacion del admin: los eventos PENDING, mas viejo primero
+     * (FIFO), de a una pagina. Mismo criterio de pagina fuera de rango que
+     * findPageByCreatorId() (una mayor a la ultima da la ultima, etc.).
+     */
+    @Transactional(readOnly = true)
+    PageResult<Event> findPendingApprovalPage(int page);
+
+    /**
      * Banner de /eventos (ver EventController.eventos()): los eventos que un
      * admin destaco, mas reciente primero. Ya vienen filtrados a
      * publicos/activos/futuros, igual que search().
