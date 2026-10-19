@@ -50,9 +50,17 @@ mvn -pl webapp jetty:run
 
 La IP de la base (`10.16.1.110`) es interna, así que solo responde desde la red del ITBA (o por VPN). Ojo: es la base compartida del equipo y la app le corre `schema.sql` y las migraciones al arrancar; no es un entorno descartable.
 
+### Si `jetty:run` falla con "Unsupported class file major version"
+
+Jetty 9 no sabe leer las clases compiladas para Java 25. Para correr en desarrollo hay que compilar para Java 21, agregando estos tres `-D` tanto al `mvn clean install` como al `mvn -pl webapp jetty:run` (el segundo recompila `webapp`):
+
+```bash
+-Dmaven.compiler.source=21 -Dmaven.compiler.target=21 -Dmaven.compiler.release=21
+```
+
 ## Generar el WAR
 
-Requiere JDK 21 o superior.
+Requiere JDK 25 (LTS).
 
 ```bash
 mvn clean package
