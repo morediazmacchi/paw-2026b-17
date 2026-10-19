@@ -33,6 +33,9 @@ public class EventSearchCriteria {
     // Solo eventos sin lugares libres ("Sold out"). Se puede combinar con el de
     // arriba: si estan los dos, trae los de pocos cupos Y los agotados.
     private boolean onlySoldOut;
+    // Quien esta navegando (null = anonimo). Sus propios eventos no se listan en el
+    // home, y con EventSort.RECOMENDADOS el orden se calcula para esta persona.
+    private Long viewerId;
     private EventSort sort = EventSort.FECHA_ASC;
     private int page = 1;
     private int pageSize = 12;
@@ -55,6 +58,8 @@ public class EventSearchCriteria {
     public void setOnlyFewSpotsLeft(final boolean onlyFewSpotsLeft) { this.onlyFewSpotsLeft = onlyFewSpotsLeft; }
     public boolean isOnlySoldOut() { return onlySoldOut; }
     public void setOnlySoldOut(final boolean onlySoldOut) { this.onlySoldOut = onlySoldOut; }
+    public Long getViewerId() { return viewerId; }
+    public void setViewerId(final Long viewerId) { this.viewerId = viewerId; }
     public EventSort getSort() { return sort; }
     public void setSort(final EventSort sort) { this.sort = sort; }
     public int getPage() { return page; }

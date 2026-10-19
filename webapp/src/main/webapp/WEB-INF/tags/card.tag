@@ -11,6 +11,9 @@
      dibuja el boton. --%>
 <%@ attribute name="favorito" required="false" type="java.lang.Boolean" %>
 <%@ attribute name="returnTo" required="false" %>
+<%-- estado: el de la inscripcion propia en este evento (CONFIRMED, PENDING, WAITLISTED o
+     REJECTED). Si no viene, la persona no tiene inscripcion y no se dibuja nada. --%>
+<%@ attribute name="estado" required="false" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <%@ taglib prefix="fmt" uri="http://java.sun.com/jsp/jstl/fmt" %>
 <%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions" %>
@@ -46,6 +49,9 @@
             </p>
         </div>
     </a>
+    <c:if test="${not empty estado}">
+        <span class="status-pill card-status status-pill-${fn:toLowerCase(estado)}"><spring:message code="event.status.${estado}"/></span>
+    </c:if>
     <sec:authorize access="isAuthenticated()">
         <c:url value="/eventos/${id}/favorito" var="favAddUrl"/>
         <c:url value="/eventos/${id}/favorito/quitar" var="favRemoveUrl"/>

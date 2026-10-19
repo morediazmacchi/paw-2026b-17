@@ -15,6 +15,8 @@ import javax.persistence.LockModeType;
 import javax.persistence.PersistenceContext;
 import javax.persistence.Query;
 import javax.persistence.TemporalType;
+import javax.persistence.TypedQuery;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
@@ -88,6 +90,9 @@ public class EventJpaDao implements EventDao {
 
     // Los ordenes que usan AVAILABLE_SPOTS_SQL.
     private static final Set<EventSort> SORTS_BY_SPOTS = EnumSet.of(EventSort.CUPOS_ASC, EventSort.CUPOS_DESC);
+
+    // Cuantos ids se cargan por consulta en findAllMatching().
+    private static final int FETCH_CHUNK = 500;
 
     @PersistenceContext
     private EntityManager em;
@@ -209,23 +214,28 @@ public class EventJpaDao implements EventDao {
     }
 
     @Override
-    public List<Event> findFeatured(final int limit) {
+    public List<Event> findFeatured(final int limit, final Long viewerId) {
         // Mismas cuatro reglas que buildSearchFilter() para search(): publico,
         // no cancelado, no pasado, y aprobado. Un destacado que se cancela,
         // vence, o (no deberia pasar, pero por las dudas) queda pendiente de
         // nuevo, deja de aparecer solo en el banner, sin desmarcarlo a mano.
         // Dos pasos (ver findOrderedByIds): primero solo los ids, ya ordenados y con el limite;
         // despues los eventos con sus categorias, que el banner muestra.
-        final List<Long> ids = em.createQuery(
+        // viewerId: el home no lista los eventos propios (ver buildSearchFilter()), y el
+        // banner es parte del home.
+        final TypedQuery<Long> query = em.createQuery(
                         "SELECT e.id FROM Event e WHERE e.featured = true AND e.eventDate >= :now "
                                 + "AND e.visibility = :visibility AND e.cancelledAt IS NULL "
                                 + "AND e.approvalStatus = :approvalStatus "
+                                + (viewerId == null ? "" : "AND (e.creator IS NULL OR e.creator.id <> :viewerId) ")
                                 + "ORDER BY e.featuredAt DESC", Long.class)
                 .setParameter("now", new Date(), TemporalType.TIMESTAMP)
                 .setParameter("visibility", EventVisibility.PUBLIC)
-                .setParameter("approvalStatus", EventApprovalStatus.APPROVED)
-                .setMaxResults(limit)
-                .getResultList();
+                .setParameter("approvalStatus", EventApprovalStatus.APPROVED);
+        if (viewerId != null) {
+            query.setParameter("viewerId", viewerId);
+        }
+        final List<Long> ids = query.setMaxResults(limit).getResultList();
         return findOrderedByIds(ids);
     }
 
@@ -357,6 +367,37 @@ public class EventJpaDao implements EventDao {
     }
 
     @Override
+    public List<Event> findAllMatching(final EventSearchCriteria criteria) {
+        final SearchFilter filter = buildSearchFilter(criteria);
+        // Siempre por fecha: el orden "de verdad" lo decide quien llama; este es solo el
+        // desempate estable (ver EventServiceImpl / EventSimilarityServiceImpl).
+        final Query idsQuery = em.createNativeQuery(
+                SEARCH_IDS_BASE + filter.where + " ORDER BY " + SORT_COLUMNS.get(EventSort.FECHA_ASC));
+        filter.bindTo(idsQuery);
+        final List<Long> ids = new ArrayList<>();
+        for (final Object id : idsQuery.getResultList()) {
+            ids.add(((Number) id).longValue());
+        }
+        // De a tandas: un IN con miles de ids pasa el limite de parametros del driver.
+        final List<Event> events = new ArrayList<>(ids.size());
+        for (int from = 0; from < ids.size(); from += FETCH_CHUNK) {
+            events.addAll(findOrderedByIds(ids.subList(from, Math.min(from + FETCH_CHUNK, ids.size()))));
+        }
+        return events;
+    }
+
+    @Override
+    public List<BigDecimal> findPublicPaidPrices() {
+        return em.createQuery(
+                        "SELECT e.price FROM Event e WHERE e.visibility = :visibility "
+                                + "AND e.approvalStatus = :approvalStatus AND e.cancelledAt IS NULL "
+                                + "AND e.price > 0 ORDER BY e.price ASC", BigDecimal.class)
+                .setParameter("visibility", EventVisibility.PUBLIC)
+                .setParameter("approvalStatus", EventApprovalStatus.APPROVED)
+                .getResultList();
+    }
+
+    @Override
     public long countSearch(final EventSearchCriteria criteria) {
         final SearchFilter filter = buildSearchFilter(criteria);
         // SQL nativo por el mismo motivo que search().
@@ -399,6 +440,12 @@ public class EventJpaDao implements EventDao {
         params.put("publicVisibility", EventVisibility.PUBLIC.name());
         params.put("approvedStatus", EventApprovalStatus.APPROVED.name());
 
+        if (criteria.getViewerId() != null) {
+            // Los eventos propios no se listan en el home (siguen en "Mis eventos"). creator_id
+            // puede ser null en una fila vieja: esa no es de nadie, asi que entra.
+            sql.append(" AND (e.creator_id IS NULL OR e.creator_id <> :viewerId)");
+            params.put("viewerId", criteria.getViewerId());
+        }
         if (criteria.getCategoryIds() != null && !criteria.getCategoryIds().isEmpty()) {
             // EXISTS, no un JOIN: un evento con varias de las categorias
             // pedidas tiene que aparecer una sola vez, no una fila por cada

@@ -82,6 +82,12 @@ public class RootConfig {
     // sobreviva a cerrar el navegador (PAW20-82).
     @Bean
     public LocaleResolver localeResolver() {
+        return cookieLocaleResolver();
+    }
+
+    // Aparte del @Bean de arriba porque WebConfig (el contexto hijo) tiene que crear el mismo
+    // resolver: ver WebConfig.localeResolver().
+    static LocaleResolver cookieLocaleResolver() {
         final CookieLocaleResolver resolver = new CookieLocaleResolver();
         resolver.setDefaultLocale(new Locale("es"));
         resolver.setCookieName("paw_locale");

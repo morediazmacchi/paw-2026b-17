@@ -37,8 +37,13 @@ final class ModelFixtures {
     // por reflection. Se hace asi (y no con un mock) porque Mockito no puede mockear clases
     // concretas en las versiones nuevas de Java (ej. 26).
     static Category category(final long id) {
+        return category(id, "categoria-" + id);
+    }
+
+    // Igual, pero con el nombre elegido (para tests que dependen de el, como la categoria "Otros").
+    static Category category(final long id, final String name) {
         try {
-            final Category category = new Category("categoria-" + id);
+            final Category category = new Category(name);
             final java.lang.reflect.Field idField = Category.class.getDeclaredField("id");
             idField.setAccessible(true);
             idField.set(category, id);

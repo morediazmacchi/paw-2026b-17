@@ -20,6 +20,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
@@ -554,6 +555,36 @@ public class RegistrationServiceImplTest {
         registrationService.isFull(EVENT_ID);
 
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
+    }
+
+    // ---- findStatusesByEventIds() ----
+
+    @Test
+    public void testFindStatusesByEventIdsMapsEachEventToTheStatusOfTheOwnRegistration() {
+        // Arrange
+        final List<Long> eventIds = Arrays.asList(1L, 2L, 3L);
+        when(mockRegistrationDao.findByUserIdAndEventIds(USER_ID, eventIds)).thenReturn(Arrays.asList(
+                new Registration(ModelFixtures.event(1), null, NORMALIZED_EMAIL, NAME, RegistrationStatus.CONFIRMED),
+                new Registration(ModelFixtures.event(3), null, NORMALIZED_EMAIL, NAME, RegistrationStatus.WAITLISTED)));
+
+        // Act
+        final Map<Long, RegistrationStatus> statuses = registrationService.findStatusesByEventIds(USER_ID, eventIds);
+
+        // Assert: el evento 2 no tiene inscripcion, asi que no esta en el mapa
+        assertEquals(2, statuses.size());
+        assertEquals(RegistrationStatus.CONFIRMED, statuses.get(1L));
+        assertEquals(RegistrationStatus.WAITLISTED, statuses.get(3L));
+        assertFalse(statuses.containsKey(2L));
+    }
+
+    @Test
+    public void testFindStatusesByEventIdsIsEmptyWhenThereAreNoRegistrations() {
+        // Arrange
+        when(mockRegistrationDao.findByUserIdAndEventIds(USER_ID, Collections.singletonList(1L)))
+                .thenReturn(Collections.emptyList());
+
+        // Act + Assert
+        assertTrue(registrationService.findStatusesByEventIds(USER_ID, Collections.singletonList(1L)).isEmpty());
     }
 
     // ---- findPageByUserId() ----

@@ -2,10 +2,13 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Registration;
+import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.User;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 // @Transactional aca documenta la garantia que promete cada metodo (cual lee
@@ -100,6 +103,14 @@ public interface RegistrationService {
      */
     @Transactional(readOnly = true)
     Optional<Registration> findByEventAndUserId(long eventId, long userId);
+
+    /**
+     * El estado de la inscripcion de esta persona en cada uno de esos eventos, en una sola
+     * consulta (para etiquetar un listado, ver EventController.list()). Los eventos en los que no
+     * tiene inscripcion (o se dio de baja: la fila se borra) no aparecen en el mapa.
+     */
+    @Transactional(readOnly = true)
+    Map<Long, RegistrationStatus> findStatusesByEventIds(long userId, Collection<Long> eventIds);
 
     /**
      * "Ver inscriptos" del organizador: todos los anotados a un evento, en

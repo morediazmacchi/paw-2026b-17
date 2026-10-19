@@ -1,10 +1,13 @@
 package ar.edu.itba.paw.webapp.form;
 
+import ar.edu.itba.paw.model.EventSort;
 import org.junit.Test;
 
 import java.util.Arrays;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class EventSearchFormTest {
 
@@ -32,10 +35,18 @@ public class EventSearchFormTest {
     }
 
     @Test
-    public void testToFilterQueryOmitsDefaultSort() {
+    public void testToFilterQueryOmitsTheSortWhenNoneWasChosen() {
+        final EventSearchForm form = new EventSearchForm();
+        assertEquals("", form.toFilterQuery());
+    }
+
+    @Test
+    public void testToFilterQueryKeepsAnExplicitDefaultSort() {
+        // Quien elige "Mas proximos" a mano tiene que seguir en ese orden al cambiar de pagina:
+        // si se omitiera, volveria el orden por defecto, que para quien tiene historial es RECOMENDADOS.
         final EventSearchForm form = new EventSearchForm();
         form.setSort("FECHA_ASC");
-        assertEquals("", form.toFilterQuery());
+        assertEquals("sort=FECHA_ASC&", form.toFilterQuery());
     }
 
     @Test
@@ -46,11 +57,51 @@ public class EventSearchFormTest {
     }
 
     @Test
-    public void testToFilterQueryNormalizesInvalidSortToDefault() {
-        // Un valor que no existe cae en FECHA_ASC (ver parseSort): no debe quedar en la URL.
+    public void testToFilterQueryKeepsTheRecommendedSort() {
+        final EventSearchForm form = new EventSearchForm();
+        form.setSort("RECOMENDADOS");
+        assertEquals("sort=RECOMENDADOS&", form.toFilterQuery());
+    }
+
+    @Test
+    public void testToFilterQueryDropsAnInvalidSort() {
+        // Un valor que no existe no es un orden elegido: no debe quedar en la URL.
         final EventSearchForm form = new EventSearchForm();
         form.setSort("FECHA");
         assertEquals("", form.toFilterQuery());
+    }
+
+    @Test
+    public void testSortIsNotExplicitWhenMissing() {
+        assertFalse(new EventSearchForm().isSortExplicit());
+    }
+
+    @Test
+    public void testSortIsNotExplicitWhenBlank() {
+        final EventSearchForm form = new EventSearchForm();
+        form.setSort("");
+        assertFalse(form.isSortExplicit());
+    }
+
+    @Test
+    public void testSortIsNotExplicitWhenInvalid() {
+        final EventSearchForm form = new EventSearchForm();
+        form.setSort("FECHA");
+        assertFalse(form.isSortExplicit());
+    }
+
+    @Test
+    public void testSortIsExplicitWhenItIsAKnownOption() {
+        final EventSearchForm form = new EventSearchForm();
+        form.setSort("CUPOS_ASC");
+        assertTrue(form.isSortExplicit());
+    }
+
+    @Test
+    public void testAnInvalidSortParsesToTheDateOrder() {
+        final EventSearchForm form = new EventSearchForm();
+        form.setSort("FECHA");
+        assertEquals(EventSort.FECHA_ASC, form.getParsedSort());
     }
 
     @Test

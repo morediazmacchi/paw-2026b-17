@@ -6,6 +6,7 @@ import ar.edu.itba.paw.model.Barrio;
 import ar.edu.itba.paw.model.Category;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventQuestion;
+import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.EventSort;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationStatus;
@@ -16,6 +17,7 @@ import ar.edu.itba.paw.services.EventAccessService;
 import ar.edu.itba.paw.services.EventChatService;
 import ar.edu.itba.paw.services.EventInvitationService;
 import ar.edu.itba.paw.services.EventQuestionService;
+import ar.edu.itba.paw.services.EventSimilarityService;
 import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.FavoriteService;
 import ar.edu.itba.paw.services.PageResult;
@@ -43,6 +45,7 @@ import org.springframework.web.servlet.ModelAndView;
 import javax.validation.Valid;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -64,6 +67,7 @@ public class EventController {
     private final EventAccessService accessChecker;
     private final EventInvitationService eventInvitationService;
     private final EventChatService eventChatService;
+    private final EventSimilarityService eventSimilarityService;
     private final MessageSource messageSource;
 
     @Autowired
@@ -73,6 +77,7 @@ public class EventController {
                             final EventQuestionService eventQuestionService, final EventAccessService accessChecker,
                             final EventInvitationService eventInvitationService,
                             final EventChatService eventChatService,
+                            final EventSimilarityService eventSimilarityService,
                             final MessageSource messageSource) {
         this.eventService = eventService;
         this.categoryService = categoryService;
@@ -83,6 +88,7 @@ public class EventController {
         this.accessChecker = accessChecker;
         this.eventInvitationService = eventInvitationService;
         this.eventChatService = eventChatService;
+        this.eventSimilarityService = eventSimilarityService;
         this.messageSource = messageSource;
     }
 
@@ -111,10 +117,18 @@ public class EventController {
             filterErrors.put("fechaHasta", message("event.list.dateRangeInvalid"));
         }
 
-        final PageResult<Event> result = eventService.search(filters.toCriteria());
+        // Quien navega: sus propios eventos no se listan (ni en el banner), y si ya asistio a
+        // algo el orden por defecto pasa a ser RECOMENDADOS (ver EventSimilarityService).
+        final Long viewerId = currentUser == null ? null : currentUser.getId();
+        final boolean hasHistory = viewerId != null && eventSimilarityService.hasAttendanceHistory(viewerId);
+        final EventSort sort = effectiveSort(filters, hasHistory);
+        final EventSearchCriteria criteria = filters.toCriteria();
+        criteria.setViewerId(viewerId);
+        criteria.setSort(sort);
+        final PageResult<Event> result = eventService.search(criteria);
 
         // Banner destacado
-        final List<Event> featured = eventService.findFeatured(FEATURED_COUNT);
+        final List<Event> featured = eventService.findFeatured(FEATURED_COUNT, viewerId);
 
         final ModelAndView mav = new ModelAndView("events/list");
         mav.addObject("events", result.getContent());
@@ -135,15 +149,38 @@ public class EventController {
         mav.addObject("pocosCupos", filters.getPocosCupos());
         mav.addObject("agotados", filters.getAgotados());
         mav.addObject("hasActiveFilters", filters.hasActiveFilters());
-        mav.addObject("sort", filters.getParsedSort().name());
+        mav.addObject("sort", sort.name());
         mav.addObject("filterQuery", filters.toFilterQuery());
-        mav.addObject("sortOptions", EventSort.values());
+        mav.addObject("sortOptions", sortOptions(hasHistory));
         mav.addObject("filterErrors", filterErrors);
-        // Anonimo no ve el corazon de favorito.
+        // Anonimo no ve el corazon de favorito ni las etiquetas de estado.
         if (currentUser != null) {
             mav.addObject("favoriteEventIds", new HashSet<>(favoriteService.findEventIdsByUser(currentUser.getId())));
+            // Estado de la inscripcion propia en cada evento de la pagina: una card sin etiqueta
+            // significa que la persona nunca se inscribio (o se dio de baja).
+            mav.addObject("registrationStatuses", registrationService.findStatusesByEventIds(
+                    currentUser.getId(), result.getContent().stream().map(Event::getId).collect(Collectors.toList())));
         }
         return mav;
+    }
+
+    // El orden que pidio la persona; si no pidio ninguno, RECOMENDADOS para quien ya asistio a
+    // algo y FECHA_ASC para el resto. RECOMENDADOS pedido a mano sin historial no dice nada, asi
+    // que cae a FECHA_ASC.
+    private static EventSort effectiveSort(final EventSearchForm filters, final boolean hasHistory) {
+        if (!filters.isSortExplicit()) {
+            return hasHistory ? EventSort.RECOMENDADOS : EventSort.FECHA_ASC;
+        }
+        final EventSort requested = filters.getParsedSort();
+        return requested == EventSort.RECOMENDADOS && !hasHistory ? EventSort.FECHA_ASC : requested;
+    }
+
+    // RECOMENDADOS solo se ofrece a quien tiene historial: sin el, el orden seria identico a
+    // "Mas proximos" y la opcion no diria nada.
+    private static List<EventSort> sortOptions(final boolean hasHistory) {
+        return Arrays.stream(EventSort.values())
+                .filter(option -> hasHistory || option != EventSort.RECOMENDADOS)
+                .collect(Collectors.toList());
     }
 
     @RequestMapping(value = "/eventos/{id}", method = RequestMethod.GET)
@@ -198,12 +235,29 @@ public class EventController {
         if (event.getCreatorId() != null) {
             addCreatorReputation(mav, event.getCreatorId());
         }
+        addRelatedEvents(mav, event, currentUser);
         final PageResult<EventQuestion> questions = eventQuestionService.findPage(id, Paging.parsePage(preguntasPage));
         mav.addObject("questions", questions.getContent());
         mav.addObject("questionsPage", questions.getPage());
         mav.addObject("questionsTotalPages", questions.getTotalPages());
         mav.addObject("questionsOpen", event.isOpenForQuestions());
         return mav;
+    }
+
+    // "Eventos que te pueden interesar": solo en el detalle de un evento publico y aprobado (uno
+    // privado, pendiente o rechazado no sugiere nada). Es evento contra evento: no depende de
+    // quien mira, salvo que sus propios eventos no se sugieren.
+    private void addRelatedEvents(final ModelAndView mav, final Event event, final User currentUser) {
+        if (event.isPrivate() || !event.isApproved()) {
+            return;
+        }
+        final List<Event> related = eventSimilarityService.findSimilar(
+                event.getId(), currentUser == null ? null : currentUser.getId());
+        mav.addObject("relatedEvents", related);
+        if (currentUser != null && !related.isEmpty()) {
+            mav.addObject("relatedStatuses", registrationService.findStatusesByEventIds(
+                    currentUser.getId(), related.stream().map(Event::getId).collect(Collectors.toList())));
+        }
     }
 
     // Puntaje del promotor (todas sus reseñas, de todos sus eventos) + la lista

@@ -4,6 +4,7 @@ package ar.edu.itba.paw.persistence;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventSearchCriteria;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
@@ -67,6 +68,17 @@ public interface EventDao {
     // Mismos filtros que search() (mismo WHERE), sin orden ni paginado: el total para el paginador.
     long countSearch(EventSearchCriteria criteria);
 
+    // Mismos filtros que search() (mismo WHERE), pero TODOS los que matchean, sin paginar y
+    // siempre por fecha ascendente (desempate por id). Es la base para ordenar en memoria lo
+    // que SQL no puede ordenar (ver EventSort.RECOMENDADOS): ignora criteria.getSort() y la
+    // pagina. Vienen con sus categorias cargadas.
+    List<Event> findAllMatching(EventSearchCriteria criteria);
+
+    // Los precios (> 0) de los eventos publicos, aprobados y no cancelados -- pasados incluidos --,
+    // de menor a mayor. Es la distribucion que usa EventSimilarity para ubicar un precio como
+    // percentil.
+    List<BigDecimal> findPublicPaidPrices();
+
     // Recordatorio de 24 hs: los eventos (publicos o privados) no cancelados que
     // empiezan entre "from" y "until" y a los que todavia no se les mando.
     List<Long> findIdsNeedingReminder(java.util.Date from, java.util.Date until);
@@ -79,8 +91,9 @@ public interface EventDao {
     // destaco, mas reciente primero (por featured_at). Mismos filtros de base
     // que search() (publicos, no cancelados, futuros): un evento destacado que
     // se cancela o vence deja de aparecer solo, sin que un admin tenga que
-    // acordarse de desmarcarlo.
-    List<Event> findFeatured(int limit);
+    // acordarse de desmarcarlo. Si viewerId no es null, los eventos de esa persona
+    // tampoco entran (igual que en search(), ver EventSearchCriteria.viewerId).
+    List<Event> findFeatured(int limit, Long viewerId);
 
     // Marca o desmarca un evento para el banner (ver AdminController.destacar()/
     // quitarDestacado()). Al desmarcar limpia featured_at.

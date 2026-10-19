@@ -8,6 +8,7 @@ import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventCategory;
 import ar.edu.itba.paw.model.EventCategoryInfo;
 import ar.edu.itba.paw.model.EventSearchCriteria;
+import ar.edu.itba.paw.model.EventSort;
 import ar.edu.itba.paw.model.Image;
 import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.Registration;
@@ -42,13 +43,15 @@ public class EventServiceImpl implements EventService {
     private final RegistrationService registrationService;
     private final InboxService inboxService;
     private final ImageService imageService;
+    private final EventSimilarityService eventSimilarityService;
 
     @Autowired
     public EventServiceImpl(final EventDao eventDao, final UserService userService,
                             final CategoryDao categoryDao,
                             final NotificationService notificationService,
                             final RegistrationService registrationService,
-                            final InboxService inboxService, final ImageService imageService) {
+                            final InboxService inboxService, final ImageService imageService,
+                            final EventSimilarityService eventSimilarityService) {
         this.eventDao = eventDao;
         this.userService = userService;
         this.categoryDao = categoryDao;
@@ -56,6 +59,7 @@ public class EventServiceImpl implements EventService {
         this.registrationService = registrationService;
         this.inboxService = inboxService;
         this.imageService = imageService;
+        this.eventSimilarityService = eventSimilarityService;
     }
 
     // Sube cada imagen y devuelve sus ids, en el mismo orden en que se cargaron
@@ -120,6 +124,12 @@ public class EventServiceImpl implements EventService {
     @Transactional(readOnly = true)
     public PageResult<Event> search(final EventSearchCriteria criteria) {
         criteria.setPageSize(PAGE_SIZE);
+        // RECOMENDADOS no tiene SQL (no es una columna): lo ordena EventSimilarityService en
+        // memoria. Sin viewerId no hay a quien recomendarle y sigue el camino de siempre
+        // (el DAO trata un orden desconocido como FECHA_ASC).
+        if (criteria.getSort() == EventSort.RECOMENDADOS && criteria.getViewerId() != null) {
+            return eventSimilarityService.searchRecommended(criteria);
+        }
         final long totalElements = eventDao.countSearch(criteria);
         final int totalPages = criteria.getPageSize() <= 0 ? 0
                 : (int) Math.ceil((double) totalElements / criteria.getPageSize());
@@ -266,8 +276,8 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<Event> findFeatured(final int limit) {
-        return eventDao.findFeatured(limit);
+    public List<Event> findFeatured(final int limit, final Long viewerId) {
+        return eventDao.findFeatured(limit, viewerId);
     }
 
     @Override
