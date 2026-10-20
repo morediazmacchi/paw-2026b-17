@@ -27,9 +27,9 @@ public class EventSimilarityServiceImpl implements EventSimilarityService {
     // Los puntos son sumas de doubles: se comparan redondeados a esta precision para que dos
     // eventos con los mismos matches nunca se desempaten por ruido de punto flotante.
     private static final double POINTS_PRECISION = 1e9;
-    // Lo mismo para "S >= umbral": un S que mide 0,6 en papel y 0,59999999999 en doubles cuenta.
+    // Lo mismo para "S >= piso" de "Te puede interesar": un S que mide 0,5 en papel y 0,49999999999
+    // en doubles entra.
     private static final double EPSILON = 1e-9;
-    private static final double MILLIS_PER_DAY = 24.0 * 60 * 60 * 1000;
 
     private final EventDao eventDao;
     private final RegistrationDao registrationDao;
@@ -71,19 +71,14 @@ public class EventSimilarityServiceImpl implements EventSimilarityService {
         }
 
         final PriceDistribution prices = priceDistributionCache.get();
-        final double[] attendedWeights = new double[attended.size()];
-        for (int i = 0; i < attended.size(); i++) {
-            attendedWeights[i] = recencyWeight(attended.get(i), now);
-        }
 
+        // Todos los eventos asistidos suman, sin umbral ni peso por antiguedad: cada uno aporta
+        // exactamente su similitud con el candidato (de 0 a 1).
         final Map<Long, Long> pointsByEvent = new HashMap<>();
         for (final Event candidate : candidates) {
             double points = 0;
-            for (int i = 0; i < attended.size(); i++) {
-                if (similarity.similarity(candidate, attended.get(i), prices)
-                        >= parameters.getUserThreshold() - EPSILON) {
-                    points += attendedWeights[i];
-                }
+            for (final Event attendedEvent : attended) {
+                points += similarity.similarity(candidate, attendedEvent, prices);
             }
             pointsByEvent.put(candidate.getId(), Math.round(points * POINTS_PRECISION));
         }
@@ -153,11 +148,5 @@ public class EventSimilarityServiceImpl implements EventSimilarityService {
             }
         }
         return ordered;
-    }
-
-    // 1 + bonus * 0,5^(dias / vida media): un evento de hoy pesa 1 + bonus; uno viejo tiende a 1.
-    private double recencyWeight(final Event attended, final Date now) {
-        final double ageDays = Math.max(0, (now.getTime() - attended.getEventDate().getTime()) / MILLIS_PER_DAY);
-        return 1 + parameters.getRecencyBonus() * Math.pow(0.5, ageDays / parameters.getRecencyHalfLifeDays());
     }
 }

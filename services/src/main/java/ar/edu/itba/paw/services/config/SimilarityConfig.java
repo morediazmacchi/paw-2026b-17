@@ -45,10 +45,7 @@ public class SimilarityConfig {
                 .ignoredCategoryNames(ignoredCategories(env.getProperty("similarity.category.ignored"), d))
                 .relatedLimit(env.getProperty("similarity.related.limit", Integer.class, d.getRelatedLimit()))
                 .relatedMinScore(env.getProperty("similarity.related.min-score", Double.class, d.getRelatedMinScore()))
-                .userThreshold(env.getProperty("similarity.user.threshold", Double.class, d.getUserThreshold()))
                 .historySize(env.getProperty("similarity.user.history-size", Integer.class, d.getHistorySize()))
-                .recencyHalfLifeDays(env.getProperty("similarity.user.recency-half-life-days", Double.class, d.getRecencyHalfLifeDays()))
-                .recencyBonus(env.getProperty("similarity.user.recency-bonus", Double.class, d.getRecencyBonus()))
                 .build();
     }
 

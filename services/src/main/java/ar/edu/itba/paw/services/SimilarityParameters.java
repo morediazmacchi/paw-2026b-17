@@ -36,13 +36,8 @@ public final class SimilarityParameters {
     private final double relatedMinScore;
 
     // ---- Orden RECOMENDADOS ----
-    // Un par (candidato, evento asistido) "suma" si S >= userThreshold.
-    private final double userThreshold;
     // Se miran los ultimos N eventos asistidos.
     private final int historySize;
-    // Cada evento asistido pesa 1 + recencyBonus * 0,5^(antiguedad / recencyHalfLifeDays).
-    private final double recencyHalfLifeDays;
-    private final double recencyBonus;
 
     private SimilarityParameters(final Builder b) {
         this.weightCategory = b.weightCategory;
@@ -56,10 +51,7 @@ public final class SimilarityParameters {
         this.priceRefreshSeconds = b.priceRefreshSeconds;
         this.relatedLimit = b.relatedLimit;
         this.relatedMinScore = b.relatedMinScore;
-        this.userThreshold = b.userThreshold;
         this.historySize = b.historySize;
-        this.recencyHalfLifeDays = b.recencyHalfLifeDays;
-        this.recencyBonus = b.recencyBonus;
     }
 
     /** Los valores con los que se calibro el algoritmo; son tambien los de similarity.properties. */
@@ -82,10 +74,7 @@ public final class SimilarityParameters {
     public long getPriceRefreshSeconds() { return priceRefreshSeconds; }
     public int getRelatedLimit() { return relatedLimit; }
     public double getRelatedMinScore() { return relatedMinScore; }
-    public double getUserThreshold() { return userThreshold; }
     public int getHistorySize() { return historySize; }
-    public double getRecencyHalfLifeDays() { return recencyHalfLifeDays; }
-    public double getRecencyBonus() { return recencyBonus; }
 
     /** Arranca con los valores por defecto; cada setter pisa uno. */
     public static final class Builder {
@@ -100,10 +89,7 @@ public final class SimilarityParameters {
         private long priceRefreshSeconds = 24 * 60 * 60;
         private int relatedLimit = 5;
         private double relatedMinScore = 0.5;
-        private double userThreshold = 0.6;
         private int historySize = 30;
-        private double recencyHalfLifeDays = 180;
-        private double recencyBonus = 0.5;
 
         private Builder() {
         }
@@ -119,10 +105,7 @@ public final class SimilarityParameters {
         public Builder priceRefreshSeconds(final long v) { this.priceRefreshSeconds = v; return this; }
         public Builder relatedLimit(final int v) { this.relatedLimit = v; return this; }
         public Builder relatedMinScore(final double v) { this.relatedMinScore = v; return this; }
-        public Builder userThreshold(final double v) { this.userThreshold = v; return this; }
         public Builder historySize(final int v) { this.historySize = v; return this; }
-        public Builder recencyHalfLifeDays(final double v) { this.recencyHalfLifeDays = v; return this; }
-        public Builder recencyBonus(final double v) { this.recencyBonus = v; return this; }
 
         public SimilarityParameters build() {
             return new SimilarityParameters(this);

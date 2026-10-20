@@ -52,46 +52,41 @@ public class SimilarityConfigTest {
         assertEquals(defaults.getIgnoredCategoryNames(), loaded.getIgnoredCategoryNames());
         assertEquals(defaults.getRelatedLimit(), loaded.getRelatedLimit());
         assertEquals(defaults.getRelatedMinScore(), loaded.getRelatedMinScore(), DELTA);
-        assertEquals(defaults.getUserThreshold(), loaded.getUserThreshold(), DELTA);
         assertEquals(defaults.getHistorySize(), loaded.getHistorySize());
-        assertEquals(defaults.getRecencyHalfLifeDays(), loaded.getRecencyHalfLifeDays(), DELTA);
-        assertEquals(defaults.getRecencyBonus(), loaded.getRecencyBonus(), DELTA);
     }
 
     @Test
     public void testTheCalibratedValuesAreTheOnesAgreedOn() {
         final SimilarityParameters loaded = load();
 
-        assertEquals(0.6, loaded.getUserThreshold(), DELTA);
         assertEquals(0.5, loaded.getRelatedMinScore(), DELTA);
         assertEquals(5, loaded.getRelatedLimit());
         assertEquals(30, loaded.getHistorySize());
-        assertEquals(180, loaded.getRecencyHalfLifeDays(), DELTA);
         assertEquals(Collections.singleton("Otros"), loaded.getIgnoredCategoryNames());
     }
 
     @Test
     public void testAnExternalFileOverridesOnlyTheKeysItHas() throws IOException {
         final File external = folder.newFile("similarity.properties");
-        Files.write(external.toPath(), ("similarity.user.threshold=0.9\n"
+        Files.write(external.toPath(), ("similarity.user.history-size=10\n"
                 + "similarity.weight.category=0.5\n"
                 + "similarity.category.ignored=Otros, Arte\n").getBytes(StandardCharsets.UTF_8));
         System.setProperty(EXTERNAL_CONFIG_PROPERTY, external.getAbsolutePath());
 
         final SimilarityParameters loaded = load();
 
-        assertEquals(0.9, loaded.getUserThreshold(), DELTA);
+        assertEquals(10, loaded.getHistorySize());
         assertEquals(0.5, loaded.getWeightCategory(), DELTA);
         assertEquals(2, loaded.getIgnoredCategoryNames().size());
         // Lo que el externo no menciona queda como en el archivo del WAR.
         assertEquals(0.15, loaded.getWeightPrice(), DELTA);
-        assertEquals(30, loaded.getHistorySize());
+        assertEquals(5, loaded.getRelatedLimit());
     }
 
     @Test
     public void testAMissingExternalFileIsIgnored() {
         System.setProperty(EXTERNAL_CONFIG_PROPERTY, new File(folder.getRoot(), "no-existe.properties").getAbsolutePath());
 
-        assertEquals(0.6, load().getUserThreshold(), DELTA);
+        assertEquals(30, load().getHistorySize());
     }
 }

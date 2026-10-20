@@ -142,16 +142,14 @@ public class EventSimilarityServiceImplTest {
     }
 
     @Test
-    public void testAnEventSimilarToMoreAttendedEventsOutranksOneSimilarToFewer() {
+    public void testCandidatesAreRankedBySumOfTheirSimilarityToTheAttendedEvents() {
         final EventSearchCriteria criteria = criteria();
-        final Event music = musicFriday(100).build();
-        final Event art = event(101).categories(ARTE).price("0").barrio(Barrio.PALERMO)
-                .at("2026-10-16T21:00").creator(2).build();
-        attended(music, art);
-        // K se parece solo al de musica; M (musica + arte) se parece a los dos. K ocurre antes.
-        final Event k = musicFriday(1).at("2026-10-23T21:00").build();
-        final Event m = musicFriday(2).categories(ARTE).at("2026-10-30T21:00").build();
-        candidates(criteria, k, m);
+        attended(musicFriday(100).build(), musicFriday(101).build());
+        // Los dos se parecen mucho a lo asistido, pero el segundo (mismo organizador) mas que el
+        // primero (S = 1 contra S = 0,85 en cada comparacion). El primero ocurre antes.
+        final Event otherOrganizer = musicFriday(1).at("2026-10-23T21:00").creator(2).build();
+        final Event sameOrganizer = musicFriday(2).at("2026-10-30T21:00").build();
+        candidates(criteria, otherOrganizer, sameOrganizer);
 
         final PageResult<Event> result = service.searchRecommended(criteria);
 
@@ -159,7 +157,46 @@ public class EventSimilarityServiceImplTest {
     }
 
     @Test
-    public void testRecentAttendanceCountsMoreThanOldAttendance() {
+    public void testEventsAddPointsEvenWhenTheyAreNotVerySimilar() {
+        final EventSearchCriteria criteria = criteria();
+        attended(musicFriday(100).build());
+        // Ninguno de los dos se parece "mucho" (S = 0,5 y S = 0,08): no hay un umbral que los deje
+        // en cero, asi que el de S = 0,5 va primero aunque ocurra despues.
+        final Event veryDifferent = sportsTuesday(1).at("2026-10-20T09:00").build();
+        final Event halfSimilar = event(2).categories(DEPORTES).price("0").barrio(Barrio.PALERMO)
+                .at("2026-10-30T21:00").creator(9).build();
+        candidates(criteria, veryDifferent, halfSimilar);
+
+        final PageResult<Event> result = service.searchRecommended(criteria);
+
+        assertEquals(Arrays.asList(2L, 1L), ids(result.getContent()));
+    }
+
+    @Test
+    public void testACandidateSimilarToMoreAttendedEventsOutranksOneSimilarToFewer() {
+        final EventSearchCriteria criteria = criteria();
+        // Tres asistidos: uno de musica y dos de deportes, todos el mismo viernes a la noche en Palermo.
+        final Event music = musicFriday(100).build();
+        final Event sports1 = event(101).categories(DEPORTES).price("0").barrio(Barrio.PALERMO)
+                .at("2026-10-16T21:00").creator(9).build();
+        final Event sports2 = event(102).categories(DEPORTES).price("0").barrio(Barrio.PALERMO)
+                .at("2026-10-09T21:00").creator(9).build();
+        attended(music, sports1, sports2);
+        // El de musica es identico al recital asistido (S = 1) y se parece a medias a los de deportes
+        // (S = 0,5); el de deportes es lo contrario. Suman 2,0 (1 + 0,5 + 0,5) contra 2,5 (0,5 + 1 + 1),
+        // aunque el de musica sea el unico "muy parecido" a algo.
+        final Event likeTheMusic = musicFriday(1).at("2026-10-23T21:00").build();
+        final Event likeTheSports = event(2).categories(DEPORTES).price("0").barrio(Barrio.PALERMO)
+                .at("2026-10-30T21:00").creator(9).build();
+        candidates(criteria, likeTheMusic, likeTheSports);
+
+        final PageResult<Event> result = service.searchRecommended(criteria);
+
+        assertEquals(Arrays.asList(2L, 1L), ids(result.getContent()));
+    }
+
+    @Test
+    public void testHowLongAgoAnEventWasAttendedDoesNotMatter() {
         final EventSearchCriteria criteria = criteria();
         // Dos asistidos muy distintos entre si: uno de hace mas de un anio, otro de hace 10 dias.
         final Event old = event(100).categories(ARTE).price("9000").barrio(Barrio.NUNEZ)
@@ -167,16 +204,17 @@ public class EventSimilarityServiceImplTest {
         final Event recent = event(101).categories(DEPORTES).price("0").barrio(Barrio.VILLA_LUGANO)
                 .at("2026-10-09T23:00").creator(12).build();
         attended(old, recent);
-        // Cada candidato es casi un clon de uno de los dos. El que se parece al viejo ocurre antes.
+        // Cada candidato es un clon de uno de los dos (mismo dia de la semana y hora). Empatan en
+        // puntos: el que se parece al viejo vale lo mismo, asi que gana el que ocurre antes.
         final Event likeOld = event(1).categories(ARTE).price("9000").barrio(Barrio.NUNEZ)
-                .at("2026-10-20T10:00").creator(11).build();
+                .at("2026-10-19T10:00").creator(11).build();
         final Event likeRecent = event(2).categories(DEPORTES).price("0").barrio(Barrio.VILLA_LUGANO)
-                .at("2026-10-31T23:00").creator(12).build();
+                .at("2026-10-30T23:00").creator(12).build();
         candidates(criteria, likeOld, likeRecent);
 
         final PageResult<Event> result = service.searchRecommended(criteria);
 
-        assertEquals(Arrays.asList(2L, 1L), ids(result.getContent()));
+        assertEquals(Arrays.asList(1L, 2L), ids(result.getContent()));
     }
 
     @Test
@@ -193,20 +231,6 @@ public class EventSimilarityServiceImplTest {
         final PageResult<Event> result = service.searchRecommended(criteria);
 
         assertEquals(Arrays.asList(2L, 3L, 1L), ids(result.getContent()));
-    }
-
-    @Test
-    public void testAHigherThresholdLetsFewerPairsScore() {
-        final EventSearchCriteria criteria = criteria();
-        attended(musicFriday(100).build());
-        // S de este recital contra el asistido es 0,975: con un umbral de 0,99 ya no suma.
-        candidates(criteria, sportsTuesday(1).build(), musicFriday(2).at("2026-10-24T21:00").build());
-        final EventSimilarityServiceImpl strict = serviceWith(
-                SimilarityParameters.builder().userThreshold(0.99).build());
-
-        final PageResult<Event> result = strict.searchRecommended(criteria);
-
-        assertEquals(Arrays.asList(1L, 2L), ids(result.getContent()));
     }
 
     @Test
