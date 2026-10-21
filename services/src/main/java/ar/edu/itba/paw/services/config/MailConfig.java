@@ -122,8 +122,8 @@ public class MailConfig {
     @Bean
     public TemplateEngine mailTemplateEngine() {
         final ClassLoaderTemplateResolver resolver = new ClassLoaderTemplateResolver();
-        // Con este prefijo, pedir la plantilla "event-created" busca
-        // el archivo mails/event-created.html adentro del jar.
+        // Con este prefijo, pedir la plantilla "event-approved" busca
+        // el archivo mails/event-approved.html adentro del jar.
         resolver.setPrefix("mails/");
         resolver.setSuffix(".html");
         resolver.setTemplateMode(TemplateMode.HTML);

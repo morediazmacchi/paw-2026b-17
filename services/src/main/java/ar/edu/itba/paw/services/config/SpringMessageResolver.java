@@ -12,7 +12,7 @@ import org.thymeleaf.messageresolver.IMessageResolver;
  * con el mismo nombre que la plantilla. Eso nos obligaria a tener un archivo
  * de textos por cada mail, con las frases comunes repetidas en todos.
  *
- * Con esta clase, cuando una plantilla escribe #{mail.eventCreated.title},
+ * Con esta clase, cuando una plantilla escribe #{mail.eventApproved.title},
  * Thymeleaf nos lo pregunta a nosotros y nosotros se lo pedimos al
  * MessageSource de Spring, que lee un unico archivo por idioma.
  */

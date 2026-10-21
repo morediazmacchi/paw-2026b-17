@@ -52,20 +52,20 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Async
     @Override
-    public void notifyEventCreated(final Event event, final String creatorName) {
+    public void notifyEventPendingApproval(final Event event, final String creatorName) {
         try {
             final Locale locale = localeForUserId(event.getCreatorId());
             final Map<String, Object> variables = eventVariables(event, locale);
             variables.put("personName", displayName(creatorName, event.getCreatorEmail()));
 
             mailService.send(event.getCreatorEmail(),
-                    "event-created",
-                    "mail.eventCreated.subject",
+                    "event-pending-approval",
+                    "mail.eventPendingApproval.subject",
                     new Object[]{ event.getTitle() },
                     variables,
                     locale);
         } catch (final RuntimeException e) {
-            LOGGER.error("Fallo la notificacion de evento creado, evento {}", event.getId(), e);
+            LOGGER.error("Fallo la notificacion de evento pendiente de aprobacion, evento {}", event.getId(), e);
         }
     }
 

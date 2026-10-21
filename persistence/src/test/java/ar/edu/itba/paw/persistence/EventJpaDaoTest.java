@@ -1940,6 +1940,24 @@ public class EventJpaDaoTest {
     }
 
     @Test
+    public void testFindIdsNeedingReminderExcludesPendingApprovalAndRejectedEvents() {
+        // Arrange
+        insertEvent(cols("address", "Pendiente",
+                "event_date", new Timestamp(System.currentTimeMillis() + 10 * HORA),
+                "approval_status", EventApprovalStatus.PENDING.name()));
+        insertEvent(cols("address", "Rechazado",
+                "event_date", new Timestamp(System.currentTimeMillis() + 10 * HORA),
+                "approval_status", EventApprovalStatus.REJECTED.name()));
+        final Date now = new Date();
+
+        // Act
+        final List<Long> ids = eventDao.findIdsNeedingReminder(now, new Date(now.getTime() + 24 * HORA));
+
+        // Assert
+        assertTrue(ids.isEmpty());
+    }
+
+    @Test
     public void testMarkReminderSentReturnsTrueTheFirstTime() {
         // Arrange
         final long id = eventInHours(10, "Una vez");

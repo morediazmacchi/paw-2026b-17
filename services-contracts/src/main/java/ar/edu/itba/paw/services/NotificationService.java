@@ -20,8 +20,13 @@ import ar.edu.itba.paw.model.User;
  */
 public interface NotificationService {
 
-    /** Se creo un evento -> le avisa al creador. */
-    void notifyEventCreated(Event event, String creatorName);
+    /**
+     * Se creo un evento -> le avisa al creador. Todo evento nuevo arranca
+     * PENDING (ver EventApprovalStatus), asi que este aviso es siempre "lo
+     * recibimos, esta en revision" -- nunca "ya esta publicado": ese otro
+     * aviso es notifyEventApproved(), y llega recien cuando un admin lo revise.
+     */
+    void notifyEventPendingApproval(Event event, String creatorName);
 
     /** Alguien se anoto -> le avisa a esa persona, con los datos del evento. */
     void notifyRegistrationConfirmed(Event event, Registration registration);

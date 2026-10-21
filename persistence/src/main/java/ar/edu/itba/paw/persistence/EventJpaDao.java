@@ -242,11 +242,17 @@ public class EventJpaDao implements EventDao {
 
     @Override
     public List<Long> findIdsNeedingReminder(final Date from, final Date until) {
+        // Ademas de no cancelado y no ya avisado: aprobado. Uno pendiente (un admin
+        // todavia no lo revisa) o rechazado no le tiene que llegar un recordatorio
+        // a nadie -- ni al creador, ni a nadie anotado (que ademas no deberia
+        // existir: canView() ya le impide a un tercero inscribirse a uno pendiente).
         return em.createQuery(
                         "SELECT e.id FROM Event e WHERE e.eventDate > :from AND e.eventDate <= :until "
-                                + "AND e.cancelledAt IS NULL AND e.reminderSentAt IS NULL", Long.class)
+                                + "AND e.cancelledAt IS NULL AND e.reminderSentAt IS NULL "
+                                + "AND e.approvalStatus = :approvalStatus", Long.class)
                 .setParameter("from", from, TemporalType.TIMESTAMP)
                 .setParameter("until", until, TemporalType.TIMESTAMP)
+                .setParameter("approvalStatus", EventApprovalStatus.APPROVED)
                 .getResultList();
     }
 

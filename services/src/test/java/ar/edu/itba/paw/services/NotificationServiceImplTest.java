@@ -20,7 +20,7 @@ import static org.mockito.Mockito.when;
  * es "armar variables y delegar en MailService". Los dos metodos son
  * protected (no private) para que este test, en el mismo paquete, los pueda
  * invocar directo y assertear sobre el Locale que devuelven -- sin eso,
- * habria que pasar por un metodo void (notifyEventCreated(), etc.) y espiar
+ * habria que pasar por un metodo void (notifyEventApproved(), etc.) y espiar
  * que le llego a MailService, que es exactamente lo que no hay que hacer.
  */
 @RunWith(MockitoJUnitRunner.class)

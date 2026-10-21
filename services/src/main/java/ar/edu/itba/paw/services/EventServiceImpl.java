@@ -94,7 +94,7 @@ public class EventServiceImpl implements EventService {
             throw new InvalidEventException(categoryConstraintViolated(e)
                     ? "event.publish.categoryNotFound" : "event.publish.invalidData", e);
         }
-        notificationService.notifyEventCreated(created, creator == null ? null : creator.getName());
+        notificationService.notifyEventPendingApproval(created, creator == null ? null : creator.getName());
         return created;
     }
     @Override

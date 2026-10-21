@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <!--/*
-  MAIL 1: se creo un evento -> le llega al creador.
+  MAIL 1: se creo un evento -> le llega al creador. Un admin todavia no lo
+  reviso (ver EventApprovalStatus), asi que este mail NUNCA dice "ya esta
+  publicado": ese es notifyEventApproved(), que llega despues si lo aprueban.
   Variables que espera: personName, eventTitle, eventDate, eventPlace, eventPrice, eventUrl
 */-->
 <html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::content})}">
@@ -8,13 +10,13 @@
 <th:block th:fragment="content">
 
   <h1 style="margin:0 0 8px; font-size:22px; line-height:1.3; color:#111827;"
-      th:text="#{mail.eventCreated.title}">Titulo</h1>
+      th:text="#{mail.eventPendingApproval.title}">Titulo</h1>
 
   <p style="margin:0 0 4px; color:#6b7280;"
-     th:text="#{mail.eventCreated.greeting(${personName})}">Hola</p>
+     th:text="#{mail.eventPendingApproval.greeting(${personName})}">Hola</p>
 
   <p style="margin:0 0 20px;"
-     th:text="#{mail.eventCreated.body}">Cuerpo</p>
+     th:text="#{mail.eventPendingApproval.body}">Cuerpo</p>
 
   <!-- ficha del evento -->
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
@@ -44,7 +46,7 @@
       <a th:href="${eventUrl}" href="#"
          style="display:inline-block; padding:12px 22px; color:#ffffff;
                 text-decoration:none; font-size:15px; font-weight:600;"
-         th:text="#{mail.eventCreated.cta}">Ver mi evento</a>
+         th:text="#{mail.eventPendingApproval.cta}">Ver mi evento</a>
     </td></tr>
   </table>
 

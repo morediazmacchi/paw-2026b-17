@@ -56,7 +56,10 @@ public class EventReminderServiceImpl implements EventReminderService {
             return false;
         }
         final Event event = eventDao.findById(eventId).orElse(null);
-        if (event == null || event.isCancelled() || !event.getEventDate().after(now)) {
+        // isApproved(): mismo motivo que isCancelled() -- aunque findIdsNeedingReminder()
+        // ya filtra por aprobado, esto cubre la ventana entre esa consulta y este punto
+        // (si justo en el medio un admin lo rechaza, no se manda nada).
+        if (event == null || event.isCancelled() || !event.isApproved() || !event.getEventDate().after(now)) {
             return false;
         }
 

@@ -25,9 +25,9 @@ public interface MailService {
      *
      * @param to          destinatario
      * @param template    nombre de la plantilla, SIN carpeta ni extension.
-     *                    "event-created" busca mails/event-created.html
+     *                    "event-approved" busca mails/event-approved.html
      * @param subjectKey  clave del asunto en el archivo de textos
-     *                    (ej: mail.eventCreated.subject)
+     *                    (ej: mail.eventApproved.subject)
      * @param subjectArgs valores que reemplazan los {0}, {1}... del asunto
      * @param variables   datos que la plantilla usa con ${...}
      * @param locale      idioma del mail
