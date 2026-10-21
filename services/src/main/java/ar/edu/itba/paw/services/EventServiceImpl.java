@@ -234,12 +234,17 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public EventApprovalResult approve(final long eventId) {
+    public EventApprovalResult approve(final long eventId, final long adminUserId) {
         final Optional<Event> existing = eventDao.findByIdForUpdate(eventId);
         if (!existing.isPresent()) {
             return EventApprovalResult.NOT_FOUND;
         }
         final Event event = existing.get();
+        // Mismo conflicto de intereses que ModerationServiceImpl: el creador
+        // del evento no puede ser tambien quien lo aprueba.
+        if (Long.valueOf(adminUserId).equals(event.getCreatorId())) {
+            return EventApprovalResult.OWN_EVENT;
+        }
         if (!event.isPendingApproval()) {
             return EventApprovalResult.ALREADY_DECIDED;
         }
@@ -251,12 +256,16 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public EventApprovalResult reject(final long eventId, final String reason) {
+    public EventApprovalResult reject(final long eventId, final String reason, final long adminUserId) {
         final Optional<Event> existing = eventDao.findByIdForUpdate(eventId);
         if (!existing.isPresent()) {
             return EventApprovalResult.NOT_FOUND;
         }
         final Event event = existing.get();
+        // Mismo conflicto de intereses que approve().
+        if (Long.valueOf(adminUserId).equals(event.getCreatorId())) {
+            return EventApprovalResult.OWN_EVENT;
+        }
         if (!event.isPendingApproval()) {
             return EventApprovalResult.ALREADY_DECIDED;
         }

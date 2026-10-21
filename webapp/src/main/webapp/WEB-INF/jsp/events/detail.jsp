@@ -537,6 +537,12 @@
                             </a>
                         </c:if>
                     </c:when>
+                    <%-- Admin revisando un evento pendiente/rechazado (ver EventApprovalStatus):
+                         puede verlo para decidir, pero no anotarse. Va antes que viewOnly, mismo
+                         orden que canView() (aprobacion antes que privado/publico). --%>
+                    <c:when test="${adminReviewOnly}">
+                        <p class="alert"><spring:message code="event.detail.adminPendingReviewNote"/></p>
+                    </c:when>
                     <%-- Admin mirando un evento privado al que no fue invitado: puede verlo
                          (moderacion) pero no anotarse, asi que no se le ofrece el boton. --%>
                     <c:when test="${viewOnly}">

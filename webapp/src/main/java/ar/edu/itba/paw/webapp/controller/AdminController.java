@@ -159,10 +159,12 @@ public class AdminController {
     }
 
     @RequestMapping(value = "/eventos-pendientes/{id}/aprobar", method = RequestMethod.POST)
-    public ModelAndView aprobarEvento(@PathVariable final long id, final RedirectAttributes redirectAttributes) {
-        final EventApprovalResult result = eventService.approve(id);
+    public ModelAndView aprobarEvento(@PathVariable final long id,
+                                       @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
+                                       final RedirectAttributes redirectAttributes) {
+        final EventApprovalResult result = eventService.approve(id, currentUser.getId());
         // ALREADY_DECIDED: otro admin ya lo aprobo o rechazo mientras este lo
-        // tenia abierto.
+        // tenia abierto. OWN_EVENT: el evento es propio (conflicto de intereses).
         if (result != EventApprovalResult.OK) {
             redirectAttributes.addFlashAttribute("adminApprovalError", result.name());
         }
@@ -171,12 +173,14 @@ public class AdminController {
 
     @RequestMapping(value = "/eventos-pendientes/{id}/rechazar", method = RequestMethod.POST)
     public ModelAndView rechazarEvento(@PathVariable final long id, @Valid final RejectEventForm form,
-                                        final BindingResult errors, final RedirectAttributes redirectAttributes) {
+                                        final BindingResult errors,
+                                        @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
+                                        final RedirectAttributes redirectAttributes) {
         if (errors.hasErrors()) {
             redirectAttributes.addFlashAttribute("adminApprovalError", "INVALID");
             return new ModelAndView("redirect:/admin/eventos-pendientes");
         }
-        final EventApprovalResult result = eventService.reject(id, form.getMotivo());
+        final EventApprovalResult result = eventService.reject(id, form.getMotivo(), currentUser.getId());
         if (result != EventApprovalResult.OK) {
             redirectAttributes.addFlashAttribute("adminApprovalError", result.name());
         }

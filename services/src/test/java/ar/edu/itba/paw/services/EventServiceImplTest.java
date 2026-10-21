@@ -619,12 +619,13 @@ public class EventServiceImplTest {
 
     @Test
     public void testApproveSucceedsOnAPendingEvent() {
-        // Arrange: someEvent() arranca PENDING (default de Event.approvalStatus).
+        // Arrange: someEvent() arranca PENDING (default de Event.approvalStatus)
+        // y su creador es CREATOR_ID, asi que el admin que aprueba tiene que ser otro.
         existingForUpdate(someEvent());
         when(eventDao.approve(EVENT_ID)).thenReturn(true);
 
         // Act
-        final EventApprovalResult result = eventService.approve(EVENT_ID);
+        final EventApprovalResult result = eventService.approve(EVENT_ID, OTHER_ID);
 
         // Assert
         assertEquals(EventApprovalResult.OK, result);
@@ -636,7 +637,7 @@ public class EventServiceImplTest {
         when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
-        final EventApprovalResult result = eventService.approve(EVENT_ID);
+        final EventApprovalResult result = eventService.approve(EVENT_ID, OTHER_ID);
 
         // Assert
         assertEquals(EventApprovalResult.NOT_FOUND, result);
@@ -650,7 +651,7 @@ public class EventServiceImplTest {
         existingForUpdate(event);
 
         // Act
-        final EventApprovalResult result = eventService.approve(EVENT_ID);
+        final EventApprovalResult result = eventService.approve(EVENT_ID, OTHER_ID);
 
         // Assert
         assertEquals(EventApprovalResult.ALREADY_DECIDED, result);
@@ -664,10 +665,23 @@ public class EventServiceImplTest {
         existingForUpdate(event);
 
         // Act
-        final EventApprovalResult result = eventService.approve(EVENT_ID);
+        final EventApprovalResult result = eventService.approve(EVENT_ID, OTHER_ID);
 
         // Assert
         assertEquals(EventApprovalResult.ALREADY_DECIDED, result);
+    }
+
+    // Mismo conflicto de intereses que ModerationServiceImplTest con OWN_EVENT.
+    @Test
+    public void testApproveOnOwnEventReturnsOwnEvent() {
+        // Arrange: someEvent() tiene como creador a CREATOR_ID.
+        existingForUpdate(someEvent());
+
+        // Act
+        final EventApprovalResult result = eventService.approve(EVENT_ID, CREATOR_ID);
+
+        // Assert
+        assertEquals(EventApprovalResult.OWN_EVENT, result);
     }
 
     @Test
@@ -677,7 +691,7 @@ public class EventServiceImplTest {
         when(eventDao.reject(EVENT_ID, "Contenido inapropiado")).thenReturn(true);
 
         // Act
-        final EventApprovalResult result = eventService.reject(EVENT_ID, "Contenido inapropiado");
+        final EventApprovalResult result = eventService.reject(EVENT_ID, "Contenido inapropiado", OTHER_ID);
 
         // Assert
         assertEquals(EventApprovalResult.OK, result);
@@ -689,7 +703,7 @@ public class EventServiceImplTest {
         when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
-        final EventApprovalResult result = eventService.reject(EVENT_ID, "motivo");
+        final EventApprovalResult result = eventService.reject(EVENT_ID, "motivo", OTHER_ID);
 
         // Assert
         assertEquals(EventApprovalResult.NOT_FOUND, result);
@@ -703,10 +717,22 @@ public class EventServiceImplTest {
         existingForUpdate(event);
 
         // Act
-        final EventApprovalResult result = eventService.reject(EVENT_ID, "motivo");
+        final EventApprovalResult result = eventService.reject(EVENT_ID, "motivo", OTHER_ID);
 
         // Assert
         assertEquals(EventApprovalResult.ALREADY_DECIDED, result);
+    }
+
+    @Test
+    public void testRejectOnOwnEventReturnsOwnEvent() {
+        // Arrange
+        existingForUpdate(someEvent());
+
+        // Act
+        final EventApprovalResult result = eventService.reject(EVENT_ID, "motivo", CREATOR_ID);
+
+        // Assert
+        assertEquals(EventApprovalResult.OWN_EVENT, result);
     }
 
     // ---- findFeatured() / setFeatured() (banner de /eventos) ----

@@ -30,6 +30,9 @@
                     <c:when test="${adminApprovalError == 'ALREADY_DECIDED'}">
                         <spring:message code="admin.pendingEvents.alreadyDecided"/>
                     </c:when>
+                    <c:when test="${adminApprovalError == 'OWN_EVENT'}">
+                        <spring:message code="admin.pendingEvents.ownEvent"/>
+                    </c:when>
                     <c:otherwise>
                         <spring:message code="admin.pendingEvents.invalid"/>
                     </c:otherwise>

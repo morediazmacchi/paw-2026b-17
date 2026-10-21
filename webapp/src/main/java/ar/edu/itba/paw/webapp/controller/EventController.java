@@ -226,6 +226,11 @@ public class EventController {
             // El creador no se anota a su propio evento.
             final boolean isOwner = Long.valueOf(currentUser.getId()).equals(event.getCreatorId());
             mav.addObject("isOwner", isOwner);
+            // Un admin puede VER un evento todavia no aprobado (o ya rechazado) para
+            // revisarlo (ver EventAccessService.canView()), pero no inscribirse:
+            // register() lo trata como un id inexistente. Va antes (y separado) del
+            // viewOnly de abajo porque el mensaje es distinto (no es sobre invitacion).
+            mav.addObject("adminReviewOnly", !isOwner && !event.isApproved());
             // Un admin puede VER un evento privado para moderarlo (ver EventAccessService.canView()),
             // pero no inscribirse si nadie lo invito: register() lo trata como un id inexistente.
             // La pantalla no le ofrece un boton que terminaria en un 404.

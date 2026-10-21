@@ -88,6 +88,16 @@ public class RegistrationServiceImpl implements RegistrationService {
             return RegistrationResult.of(RegistrationResult.Status.OWN_EVENT);
         }
 
+        // Pendiente o rechazado (ver EventApprovalStatus): nadie se anota todavia,
+        // ni siquiera un admin que lo esta revisando para decidir -- mismo motivo
+        // y mismo error que el chequeo de abajo, y va primero porque
+        // EventAccessServiceImpl.canView() tambien chequea esto antes que lo
+        // privado/publico (sin el bypass de admin que canView() si tiene: un admin
+        // puede VER el evento para revisarlo, pero no inscribirse).
+        if (!event.isApproved()) {
+            throw new EventNotFoundException(eventId);
+        }
+
         // Mismo chequeo que EventAccessService.canView(), salvo el bypass de admin (un
         // admin puede VER un privado para moderarlo, pero no anotarse): quien ya tenia
         // inscripcion o es el creador ya salio por los ifs de arriba, asi que lo

@@ -1,6 +1,7 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.EventApprovalStatus;
 import ar.edu.itba.paw.model.EventInvitation;
 import ar.edu.itba.paw.model.EventVisibility;
 import ar.edu.itba.paw.model.Registration;
@@ -91,6 +92,11 @@ public class RegistrationServiceImplTest {
         // asi que cualquier test que no sea especificamente sobre un evento finalizado
         // necesita una fecha, aunque no la use para nada mas.
         event.setEventDate(new Date(System.currentTimeMillis() + ONE_DAY_MILLIS));
+        // El resto de estos tests son sobre cupo/lista de espera, no sobre la revision
+        // previa (ver EventApprovalStatus): se asume ya aprobado, como cualquier evento
+        // publicado antes de que existiera esta feature. El caso pendiente/rechazado
+        // tiene sus propios tests, mas abajo.
+        event.setApprovalStatus(EventApprovalStatus.APPROVED);
         return event;
     }
 
@@ -289,6 +295,35 @@ public class RegistrationServiceImplTest {
         // OWN_EVENT solo se devuelve ANTES de crear la inscripcion o notificar a
         // nadie (early return): el resultado ya prueba que nada de eso paso.
         assertEquals(RegistrationResult.Status.OWN_EVENT, result.getStatus());
+    }
+
+    // ---- register(): revision previa a publicarse (ver EventApprovalStatus) ----
+
+    @Test(expected = EventNotFoundException.class)
+    public void testRegisterOnAPendingApprovalEventThrowsEventNotFoundException() {
+        // Arrange: mismo error que un id inexistente o un privado sin invitacion --
+        // ni siquiera un admin que lo este revisando se tiene que poder anotar.
+        final Event pendingEvent = eventWithCapacity(10);
+        pendingEvent.setApprovalStatus(EventApprovalStatus.PENDING);
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(pendingEvent));
+
+        // Act
+        registrationService.register(EVENT_ID, someUser());
+
+        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
+    }
+
+    @Test(expected = EventNotFoundException.class)
+    public void testRegisterOnARejectedEventThrowsEventNotFoundException() {
+        // Arrange
+        final Event rejectedEvent = eventWithCapacity(10);
+        rejectedEvent.setApprovalStatus(EventApprovalStatus.REJECTED);
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(rejectedEvent));
+
+        // Act
+        registrationService.register(EVENT_ID, someUser());
+
+        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
 
     // ---- register() con requiresApproval ----

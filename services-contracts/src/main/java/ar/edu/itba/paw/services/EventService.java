@@ -98,9 +98,11 @@ public interface EventService {
     /**
      * Un admin revisa y aprueba un evento recien creado (ver EventApprovalStatus):
      * recien ahi se vuelve visible publicamente. Avisa al creador.
+     * adminUserId: mismo conflicto de intereses que ModerationService -- un
+     * admin no puede aprobar/rechazar su propio evento.
      */
     @Transactional(rollbackFor = Exception.class)
-    EventApprovalResult approve(long eventId);
+    EventApprovalResult approve(long eventId, long adminUserId);
 
     /**
      * Un admin rechaza un evento recien creado: queda invisible para siempre
@@ -108,7 +110,7 @@ public interface EventService {
      * Avisa al creador con el motivo.
      */
     @Transactional(rollbackFor = Exception.class)
-    EventApprovalResult reject(long eventId, String reason);
+    EventApprovalResult reject(long eventId, String reason, long adminUserId);
 
     /**
      * Cola de aprobacion del admin: los eventos PENDING, mas viejo primero
