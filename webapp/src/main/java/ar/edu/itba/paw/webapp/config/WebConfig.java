@@ -12,6 +12,7 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.support.ReloadableResourceBundleMessageSource;
 import org.springframework.web.multipart.MultipartResolver;
+import org.springframework.web.servlet.LocaleResolver;
 import org.springframework.web.multipart.support.StandardServletMultipartResolver;
 import org.springframework.web.servlet.ViewResolver;
 import org.springframework.validation.Validator;
@@ -48,6 +49,18 @@ public class WebConfig implements WebMvcConfigurer {
         // servidor (en pampero puede ser ingles) antes de caer al archivo base.
         ms.setFallbackToSystemLocale(false);
         return ms;
+    }
+
+    // @EnableWebMvc registra, en ESTE contexto, su propio bean "localeResolver" (un
+    // AcceptHeaderLocaleResolver, que solo lee el header del navegador y no se puede cambiar:
+    // setLocale() tira UnsupportedOperationException). Como el nombre es el mismo, ese bean tapa
+    // al de RootConfig para todo lo que se inyecta aca (LocaleController, el DispatcherServlet), y
+    // el boton de idioma terminaba en un 500. Redefinirlo con el mismo nombre hace que gane este.
+    // Es el mismo resolver que el de RootConfig (la cookie es el estado, no el objeto), asi que
+    // lo que escribe aca lo lee tambien el contexto raiz.
+    @Bean
+    public LocaleResolver localeResolver() {
+        return RootConfig.cookieLocaleResolver();
     }
 
     @Bean

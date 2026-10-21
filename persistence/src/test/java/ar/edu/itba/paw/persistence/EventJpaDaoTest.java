@@ -1802,7 +1802,7 @@ public class EventJpaDaoTest {
                 "featured_at", new Timestamp(System.currentTimeMillis())));
 
         // Act
-        final List<Event> featured = eventDao.findFeatured(10);
+        final List<Event> featured = eventDao.findFeatured(10, null);
 
         // Assert
         assertEquals(1, featured.size());
@@ -1819,7 +1819,7 @@ public class EventJpaDaoTest {
         final long secondFeaturedId = insertEvent(cols("address", "Segundo", "featured", true, "featured_at", despues));
 
         // Act
-        final List<Event> featured = eventDao.findFeatured(10);
+        final List<Event> featured = eventDao.findFeatured(10, null);
 
         // Assert
         assertEquals(2, featured.size());
@@ -1836,7 +1836,7 @@ public class EventJpaDaoTest {
         }
 
         // Act
-        final List<Event> featured = eventDao.findFeatured(2);
+        final List<Event> featured = eventDao.findFeatured(2, null);
 
         // Assert
         assertEquals(2, featured.size());
@@ -1854,7 +1854,7 @@ public class EventJpaDaoTest {
                 "event_date", new Timestamp(System.currentTimeMillis() - 86_400_000L)));
 
         // Act
-        final List<Event> featured = eventDao.findFeatured(10);
+        final List<Event> featured = eventDao.findFeatured(10, null);
 
         // Assert
         assertTrue(featured.isEmpty());
@@ -1871,7 +1871,7 @@ public class EventJpaDaoTest {
                 "approval_status", EventApprovalStatus.REJECTED.name()));
 
         // Act
-        final List<Event> featured = eventDao.findFeatured(10);
+        final List<Event> featured = eventDao.findFeatured(10, null);
 
         // Assert
         assertTrue(featured.isEmpty());
@@ -2242,7 +2242,7 @@ public class EventJpaDaoTest {
         insertEventCategory(eventId, categoryId, null);
 
         // Act
-        final List<Event> featured = eventDao.findFeatured(10);
+        final List<Event> featured = eventDao.findFeatured(10, null);
         em.clear();
 
         // Assert
@@ -2250,5 +2250,241 @@ public class EventJpaDaoTest {
         assertEquals(Collections.singletonList(CATEGORY_NAME),
                 featured.get(0).getCategories().stream()
                         .map(EventCategory::getCategoryName).collect(Collectors.toList()));
+    }
+
+    // ---- eventos propios fuera del home (EventSearchCriteria.viewerId) ----
+
+    @Test
+    public void testSearchLeavesOutTheViewersOwnEvents() {
+        // Arrange
+        final long other = insertUser("otro@mail.com");
+        final long own = insertEvent(cols("creator_id", creatorId));
+        final long theirs = insertEvent(cols("creator_id", other));
+        final EventSearchCriteria criteria = new EventSearchCriteria();
+        criteria.setViewerId(creatorId);
+
+        // Act
+        final List<Long> ids = idsOf(eventDao.search(criteria));
+
+        // Assert
+        assertEquals(Collections.singletonList(theirs), ids);
+        assertFalse(ids.contains(own));
+    }
+
+    @Test
+    public void testSearchKeepsEventsWithoutAnOwnerWhenAViewerIsGiven() {
+        // Arrange: una fila vieja sin creator_id no es de nadie
+        final long legacy = insertEvent(cols());
+        final EventSearchCriteria criteria = new EventSearchCriteria();
+        criteria.setViewerId(creatorId);
+
+        // Act
+        final List<Long> ids = idsOf(eventDao.search(criteria));
+
+        // Assert
+        assertEquals(Collections.singletonList(legacy), ids);
+    }
+
+    @Test
+    public void testSearchWithoutAViewerListsEveryoneElsesAndOwnEventsAlike() {
+        // Arrange
+        final long own = insertEvent(cols("creator_id", creatorId));
+        final long other = insertEvent(cols("creator_id", insertUser("otro@mail.com")));
+
+        // Act
+        final List<Long> ids = idsOf(eventDao.search(new EventSearchCriteria()));
+
+        // Assert
+        assertTrue(ids.contains(own));
+        assertTrue(ids.contains(other));
+    }
+
+    @Test
+    public void testCountSearchLeavesOutTheViewersOwnEvents() {
+        // Arrange
+        insertEvent(cols("creator_id", creatorId));
+        insertEvent(cols("creator_id", creatorId));
+        insertEvent(cols("creator_id", insertUser("otro@mail.com")));
+        final EventSearchCriteria criteria = new EventSearchCriteria();
+        criteria.setViewerId(creatorId);
+
+        // Act + Assert: el total del paginador cuenta lo mismo que se ve
+        assertEquals(1L, eventDao.countSearch(criteria));
+    }
+
+    @Test
+    public void testFindFeaturedLeavesOutTheViewersOwnEvents() {
+        // Arrange
+        final Timestamp featuredAt = new Timestamp(System.currentTimeMillis());
+        insertEvent(cols("creator_id", creatorId, "featured", true, "featured_at", featuredAt));
+        final long theirs = insertEvent(cols("creator_id", insertUser("otro@mail.com"),
+                "featured", true, "featured_at", featuredAt));
+
+        // Act
+        final List<Event> featured = eventDao.findFeatured(10, creatorId);
+
+        // Assert
+        assertEquals(Collections.singletonList(theirs), idsOf(featured));
+    }
+
+    @Test
+    public void testFindFeaturedWithoutAViewerKeepsEveryFeaturedEvent() {
+        // Arrange
+        final Timestamp featuredAt = new Timestamp(System.currentTimeMillis());
+        insertEvent(cols("creator_id", creatorId, "featured", true, "featured_at", featuredAt));
+        insertEvent(cols("featured", true, "featured_at", featuredAt));
+
+        // Act + Assert
+        assertEquals(2, eventDao.findFeatured(10, null).size());
+    }
+
+    // ---- findAllMatching() ----
+
+    @Test
+    public void testFindAllMatchingReturnsEveryEventWithoutPaginatingByDateAscending() {
+        // Arrange
+        final long third = insertEvent(cols("event_date", fromNow(3 * DAY)));
+        final long first = insertEvent(cols("event_date", fromNow(DAY)));
+        final long second = insertEvent(cols("event_date", fromNow(2 * DAY)));
+        final EventSearchCriteria criteria = new EventSearchCriteria();
+        criteria.setPageSize(1);
+        criteria.setPage(2);
+        criteria.setSort(EventSort.PRECIO_DESC);
+
+        // Act
+        final List<Event> result = eventDao.findAllMatching(criteria);
+
+        // Assert: ignora pagina y orden pedidos
+        assertEquals(Arrays.asList(first, second, third), idsOf(result));
+    }
+
+    @Test
+    public void testFindAllMatchingBreaksDateTiesById() {
+        // Arrange
+        final Timestamp sameDate = fromNow(DAY);
+        final long a = insertEvent(cols("event_date", sameDate));
+        final long b = insertEvent(cols("event_date", sameDate));
+        final long c = insertEvent(cols("event_date", sameDate));
+
+        // Act + Assert
+        assertEquals(Arrays.asList(a, b, c), idsOf(eventDao.findAllMatching(new EventSearchCriteria())));
+    }
+
+    @Test
+    public void testFindAllMatchingAppliesTheSameVisibilityRulesAsSearch() {
+        // Arrange
+        final long visible = insertEvent(cols());
+        insertEvent(cols("visibility", EventVisibility.PRIVATE.name()));
+        insertEvent(cols("cancelled_at", fromNow(-HORA)));
+        insertEvent(cols("event_date", fromNow(-DAY)));
+        insertEvent(cols("approval_status", EventApprovalStatus.PENDING.name()));
+        insertEvent(cols("approval_status", EventApprovalStatus.REJECTED.name()));
+
+        // Act
+        final List<Long> ids = idsOf(eventDao.findAllMatching(new EventSearchCriteria()));
+
+        // Assert
+        assertEquals(Collections.singletonList(visible), ids);
+    }
+
+    @Test
+    public void testFindAllMatchingAppliesTheFilters() {
+        // Arrange
+        final long palermo = insertEvent(cols("neighborhood", Barrio.PALERMO.name()));
+        insertEvent(cols("neighborhood", Barrio.LA_BOCA.name()));
+        final EventSearchCriteria criteria = new EventSearchCriteria();
+        criteria.setBarrios(Collections.singletonList(Barrio.PALERMO));
+
+        // Act + Assert
+        assertEquals(Collections.singletonList(palermo), idsOf(eventDao.findAllMatching(criteria)));
+    }
+
+    @Test
+    public void testFindAllMatchingLeavesOutTheViewersOwnEvents() {
+        // Arrange
+        insertEvent(cols("creator_id", creatorId));
+        final long theirs = insertEvent(cols("creator_id", insertUser("otro@mail.com")));
+        final EventSearchCriteria criteria = new EventSearchCriteria();
+        criteria.setViewerId(creatorId);
+
+        // Act + Assert
+        assertEquals(Collections.singletonList(theirs), idsOf(eventDao.findAllMatching(criteria)));
+    }
+
+    @Test
+    public void testFindAllMatchingLoadsTheCategoriesOfEachEvent() {
+        // Arrange
+        final long otherCategoryId = insertCategory(OTHER_CATEGORY_NAME);
+        final long eventId = insertEvent();
+        insertEventCategory(eventId, categoryId, null);
+        insertEventCategory(eventId, otherCategoryId, null);
+
+        // Act
+        final List<Event> result = eventDao.findAllMatching(new EventSearchCriteria());
+        em.clear();
+
+        // Assert
+        assertEquals(1, result.size());
+        assertEquals(Arrays.asList(OTHER_CATEGORY_NAME, CATEGORY_NAME),
+                result.get(0).getCategories().stream()
+                        .map(EventCategory::getCategoryName).collect(Collectors.toList()));
+    }
+
+    @Test
+    public void testFindAllMatchingWithNoEventsIsEmpty() {
+        assertTrue(eventDao.findAllMatching(new EventSearchCriteria()).isEmpty());
+    }
+
+    // ---- findPublicPaidPrices() ----
+
+    @Test
+    public void testFindPublicPaidPricesReturnsThePricesFromCheapestToMostExpensive() {
+        // Arrange
+        insertEvent(cols("price", new BigDecimal("5000")));
+        insertEvent(cols("price", new BigDecimal("1000")));
+        insertEvent(cols("price", new BigDecimal("3000")));
+
+        // Act
+        final List<BigDecimal> prices = eventDao.findPublicPaidPrices();
+
+        // Assert
+        assertEquals(Arrays.asList(1000.0, 3000.0, 5000.0),
+                prices.stream().map(BigDecimal::doubleValue).collect(Collectors.toList()));
+    }
+
+    @Test
+    public void testFindPublicPaidPricesLeavesOutFreeEvents() {
+        // Arrange
+        insertEvent(cols("price", BigDecimal.ZERO));
+        insertEvent(cols("price", new BigDecimal("2000")));
+
+        // Act + Assert
+        assertEquals(1, eventDao.findPublicPaidPrices().size());
+    }
+
+    @Test
+    public void testFindPublicPaidPricesLeavesOutPrivateCancelledAndUnapprovedEvents() {
+        // Arrange
+        insertEvent(cols("price", new BigDecimal("1000"), "visibility", EventVisibility.PRIVATE.name()));
+        insertEvent(cols("price", new BigDecimal("2000"), "cancelled_at", fromNow(-HORA)));
+        insertEvent(cols("price", new BigDecimal("3000"), "approval_status", EventApprovalStatus.PENDING.name()));
+        insertEvent(cols("price", new BigDecimal("4000"), "approval_status", EventApprovalStatus.REJECTED.name()));
+        insertEvent(cols("price", new BigDecimal("5000")));
+
+        // Act
+        final List<BigDecimal> prices = eventDao.findPublicPaidPrices();
+
+        // Assert
+        assertEquals(Collections.singletonList(5000.0),
+                prices.stream().map(BigDecimal::doubleValue).collect(Collectors.toList()));
+    }
+
+    @Test
+    public void testFindPublicPaidPricesIncludesEventsThatAlreadyHappened() {
+        // Arrange: la distribucion se arma tambien con los pasados, para que no se mueva cada vez que vence uno
+        insertEvent(cols("price", new BigDecimal("1500"), "event_date", fromNow(-30 * DAY)));
+
+        // Act + Assert
+        assertEquals(1, eventDao.findPublicPaidPrices().size());
     }
 }

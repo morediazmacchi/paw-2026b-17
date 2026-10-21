@@ -8,6 +8,8 @@ import org.springframework.stereotype.Repository;
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 import javax.persistence.TemporalType;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -99,6 +101,35 @@ public class RegistrationJpaDao implements RegistrationDao {
         // Dirty checking: el UPDATE se manda solo al hacer flush/commit.
         registration.setStatus(status);
         return true;
+    }
+
+    @Override
+    public List<Long> findAttendedEventIds(final long userId, final Date now, final int limit) {
+        // "Asistio" = inscripcion confirmada a un evento que ya paso y no se cancelo. Un evento
+        // cancelado (o dado de baja por un admin, que usa el mismo cancelled_at) no ocurrio.
+        return em.createQuery(
+                        "SELECT e.id FROM Registration r JOIN r.event e "
+                                + "WHERE r.user.id = :userId AND r.status = :confirmed "
+                                + "AND e.eventDate < :now AND e.cancelledAt IS NULL "
+                                + "ORDER BY e.eventDate DESC, e.id DESC", Long.class)
+                .setParameter("userId", userId)
+                .setParameter("confirmed", RegistrationStatus.CONFIRMED)
+                .setParameter("now", now, TemporalType.TIMESTAMP)
+                .setMaxResults(limit)
+                .getResultList();
+    }
+
+    @Override
+    public List<Registration> findByUserIdAndEventIds(final long userId, final Collection<Long> eventIds) {
+        if (eventIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return em.createQuery(
+                        "FROM Registration r WHERE r.user.id = :userId AND r.event.id IN :eventIds",
+                        Registration.class)
+                .setParameter("userId", userId)
+                .setParameter("eventIds", eventIds)
+                .getResultList();
     }
 
     @Override

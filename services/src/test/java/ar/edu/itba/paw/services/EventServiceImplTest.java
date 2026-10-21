@@ -6,6 +6,7 @@ import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventApprovalStatus;
 import ar.edu.itba.paw.model.EventCategoryInfo;
 import ar.edu.itba.paw.model.EventSearchCriteria;
+import ar.edu.itba.paw.model.EventSort;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.exception.EventCancelledException;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
@@ -34,6 +35,7 @@ import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -68,13 +70,15 @@ public class EventServiceImplTest {
     private InboxService inboxService;
     @Mock
     private ImageService imageService;
+    @Mock
+    private EventSimilarityService eventSimilarityService;
 
     private EventServiceImpl eventService;
 
     @Before
     public void setUp() {
         eventService = new EventServiceImpl(eventDao, userService, categoryDao, notificationService,
-                registrationService, inboxService, imageService);
+                registrationService, inboxService, imageService, eventSimilarityService);
         // El servicio busca las categorias elegidas entre las que existen: por defecto existe CATEGORY_ID.
         final List<Category> existingCategories = Collections.singletonList(ModelFixtures.category(CATEGORY_ID));
         lenient().when(categoryDao.findAll()).thenReturn(existingCategories);
@@ -711,13 +715,78 @@ public class EventServiceImplTest {
     public void testFindFeaturedReturnsTheFeaturedEventsTheDaoFinds() {
         // Arrange
         final List<Event> featured = Arrays.asList(eventWith(2, CATEGORY_ID, CREATOR_ID), eventWith(3, CATEGORY_ID, CREATOR_ID));
-        when(eventDao.findFeatured(2)).thenReturn(featured);
+        when(eventDao.findFeatured(2, null)).thenReturn(featured);
 
         // Act
-        final List<Event> result = eventService.findFeatured(2);
+        final List<Event> result = eventService.findFeatured(2, null);
 
         // Assert
         assertEquals(featured, result);
+    }
+
+    @Test
+    public void testFindFeaturedPassesTheViewerSoTheirOwnEventsAreLeftOut() {
+        // Arrange
+        final List<Event> featured = Collections.singletonList(eventWith(2, CATEGORY_ID, CREATOR_ID));
+        when(eventDao.findFeatured(2, OTHER_ID)).thenReturn(featured);
+
+        // Act
+        final List<Event> result = eventService.findFeatured(2, OTHER_ID);
+
+        // Assert
+        assertEquals(featured, result);
+    }
+
+    // ---- search() con RECOMENDADOS ----
+
+    @Test
+    public void testSearchRecommendedWithAViewerIsRankedByTheSimilarityService() {
+        // Arrange
+        final EventSearchCriteria criteria = new EventSearchCriteria();
+        criteria.setSort(EventSort.RECOMENDADOS);
+        criteria.setViewerId(CREATOR_ID);
+        final PageResult<Event> ranked = new PageResult<>(eventsWithIds(2), 2, 1, EventServiceImpl.PAGE_SIZE);
+        when(eventSimilarityService.searchRecommended(criteria)).thenReturn(ranked);
+
+        // Act
+        final PageResult<Event> result = eventService.search(criteria);
+
+        // Assert
+        assertSame(ranked, result);
+        assertEquals(EventServiceImpl.PAGE_SIZE, criteria.getPageSize());
+    }
+
+    @Test
+    public void testSearchRecommendedWithoutAViewerFallsBackToTheDaoOrder() {
+        // Arrange: sin sesion no hay a quien recomendarle: es una busqueda comun (el dao ordena por fecha)
+        final EventSearchCriteria criteria = new EventSearchCriteria();
+        criteria.setSort(EventSort.RECOMENDADOS);
+        final List<Event> events = eventsWithIds(2);
+        when(eventDao.countSearch(criteria)).thenReturn(2L);
+        when(eventDao.search(criteria)).thenReturn(events);
+
+        // Act
+        final PageResult<Event> result = eventService.search(criteria);
+
+        // Assert
+        assertEquals(events, result.getContent());
+        verifyNoInteractions(eventSimilarityService);
+    }
+
+    @Test
+    public void testSearchByAnotherSortDoesNotUseTheSimilarityServiceEvenWithAViewer() {
+        // Arrange
+        final EventSearchCriteria criteria = new EventSearchCriteria();
+        criteria.setSort(EventSort.PRECIO_ASC);
+        criteria.setViewerId(CREATOR_ID);
+        when(eventDao.countSearch(criteria)).thenReturn(0L);
+        when(eventDao.search(criteria)).thenReturn(Collections.emptyList());
+
+        // Act
+        eventService.search(criteria);
+
+        // Assert
+        verifyNoInteractions(eventSimilarityService);
     }
 
     @Test

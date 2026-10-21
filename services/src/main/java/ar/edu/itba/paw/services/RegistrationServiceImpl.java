@@ -15,9 +15,12 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -278,6 +281,16 @@ public class RegistrationServiceImpl implements RegistrationService {
         final int effectivePage = PageResult.clampPage(page, total, PAGE_SIZE);
         return new PageResult<>(registrationDao.findByUserId(userId, effectivePage, PAGE_SIZE),
                 total, effectivePage, PAGE_SIZE);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<Long, RegistrationStatus> findStatusesByEventIds(final long userId, final Collection<Long> eventIds) {
+        final Map<Long, RegistrationStatus> statuses = new HashMap<>();
+        for (final Registration registration : registrationDao.findByUserIdAndEventIds(userId, eventIds)) {
+            statuses.put(registration.getEventId(), registration.getStatus());
+        }
+        return statuses;
     }
 
     @Override

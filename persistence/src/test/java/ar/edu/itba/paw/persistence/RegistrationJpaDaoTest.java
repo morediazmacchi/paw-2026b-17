@@ -20,6 +20,9 @@ import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 import javax.sql.DataSource;
 import java.sql.Timestamp;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
@@ -628,5 +631,169 @@ public class RegistrationJpaDaoTest {
 
         // Assert
         assertFalse(result);
+    }
+
+    // ---- findAttendedEventIds() ----
+
+    @Test
+    public void testFindAttendedEventIdsReturnsConfirmedPastEventsNewestFirst() {
+        // Arrange
+        final long tenDaysAgo = insertEventAt(-10 * DAY);
+        final long twentyDaysAgo = insertEventAt(-20 * DAY);
+        final long fiveDaysAgo = insertEventAt(-5 * DAY);
+        registerUserAtEvent(tenDaysAgo);
+        registerUserAtEvent(twentyDaysAgo);
+        registerUserAtEvent(fiveDaysAgo);
+
+        // Act
+        final List<Long> ids = registrationDao.findAttendedEventIds(userId, new Date(), 10);
+
+        // Assert
+        assertEquals(Arrays.asList(fiveDaysAgo, tenDaysAgo, twentyDaysAgo), ids);
+    }
+
+    @Test
+    public void testFindAttendedEventIdsLeavesOutEventsThatHaveNotHappenedYet() {
+        // Arrange
+        final long past = insertEventAt(-DAY);
+        final long future = insertEventAt(DAY);
+        registerUserAtEvent(past);
+        registerUserAtEvent(future);
+
+        // Act
+        final List<Long> ids = registrationDao.findAttendedEventIds(userId, new Date(), 10);
+
+        // Assert
+        assertEquals(Collections.singletonList(past), ids);
+    }
+
+    @Test
+    public void testFindAttendedEventIdsOnlyCountsConfirmedRegistrations() {
+        // Arrange
+        final long confirmed = insertEventAt(-DAY);
+        final long waitlisted = insertEventAt(-2 * DAY);
+        final long pending = insertEventAt(-3 * DAY);
+        final long rejected = insertEventAt(-4 * DAY);
+        insertRegistration(confirmed, EMAIL + "1", userId, NAME, RegistrationStatus.CONFIRMED);
+        insertRegistration(waitlisted, EMAIL + "2", userId, NAME, RegistrationStatus.WAITLISTED);
+        insertRegistration(pending, EMAIL + "3", userId, NAME, RegistrationStatus.PENDING);
+        insertRegistration(rejected, EMAIL + "4", userId, NAME, RegistrationStatus.REJECTED);
+
+        // Act
+        final List<Long> ids = registrationDao.findAttendedEventIds(userId, new Date(), 10);
+
+        // Assert
+        assertEquals(Collections.singletonList(confirmed), ids);
+    }
+
+    @Test
+    public void testFindAttendedEventIdsLeavesOutCancelledEvents() {
+        // Arrange: un evento cancelado (o dado de baja por un admin, mismo cancelled_at) no ocurrio
+        final long held = insertEventAt(-DAY);
+        final long cancelled = insertEventAt(-2 * DAY);
+        registerUserAtEvent(held);
+        registerUserAtEvent(cancelled);
+        jdbcTemplate.update("UPDATE event SET cancelled_at = ? WHERE id = ?",
+                new Timestamp(System.currentTimeMillis() - 3 * DAY), cancelled);
+
+        // Act
+        final List<Long> ids = registrationDao.findAttendedEventIds(userId, new Date(), 10);
+
+        // Assert
+        assertEquals(Collections.singletonList(held), ids);
+    }
+
+    @Test
+    public void testFindAttendedEventIdsOnlyReturnsThatPersonsEvents() {
+        // Arrange
+        final long mine = insertEventAt(-DAY);
+        final long theirs = insertEventAt(-2 * DAY);
+        final long otherUserId = insertUser("otra@mail.com", "Otra");
+        registerUserAtEvent(mine);
+        insertRegistration(theirs, "otra@mail.com", otherUserId, "Otra", RegistrationStatus.CONFIRMED);
+
+        // Act
+        final List<Long> ids = registrationDao.findAttendedEventIds(userId, new Date(), 10);
+
+        // Assert
+        assertEquals(Collections.singletonList(mine), ids);
+    }
+
+    @Test
+    public void testFindAttendedEventIdsStopsAtTheLimitKeepingTheMostRecent() {
+        // Arrange
+        final long newest = insertEventAt(-DAY);
+        final long middle = insertEventAt(-2 * DAY);
+        final long oldest = insertEventAt(-3 * DAY);
+        registerUserAtEvent(newest);
+        registerUserAtEvent(middle);
+        registerUserAtEvent(oldest);
+
+        // Act
+        final List<Long> ids = registrationDao.findAttendedEventIds(userId, new Date(), 2);
+
+        // Assert
+        assertEquals(Arrays.asList(newest, middle), ids);
+    }
+
+    @Test
+    public void testFindAttendedEventIdsIsEmptyWithoutRegistrations() {
+        assertTrue(registrationDao.findAttendedEventIds(userId, new Date(), 10).isEmpty());
+    }
+
+    // ---- findByUserIdAndEventIds() ----
+
+    @Test
+    public void testFindByUserIdAndEventIdsReturnsTheOwnRegistrationInEachEvent() {
+        // Arrange
+        final long a = insertEventAt(DAY);
+        final long b = insertEventAt(2 * DAY);
+        final long c = insertEventAt(3 * DAY);
+        insertRegistration(a, EMAIL + "a", userId, NAME, RegistrationStatus.CONFIRMED);
+        insertRegistration(b, EMAIL + "b", userId, NAME, RegistrationStatus.WAITLISTED);
+
+        // Act
+        final List<Registration> result = registrationDao.findByUserIdAndEventIds(userId, Arrays.asList(a, b, c));
+
+        // Assert: en c no esta inscripto
+        assertEquals(2, result.size());
+        assertEquals(RegistrationStatus.CONFIRMED, statusOfEvent(result, a));
+        assertEquals(RegistrationStatus.WAITLISTED, statusOfEvent(result, b));
+    }
+
+    @Test
+    public void testFindByUserIdAndEventIdsIgnoresOtherUsersRegistrations() {
+        // Arrange
+        final long a = insertEventAt(DAY);
+        final long otherUserId = insertUser("otra@mail.com", "Otra");
+        insertRegistration(a, "otra@mail.com", otherUserId, "Otra", RegistrationStatus.CONFIRMED);
+
+        // Act + Assert
+        assertTrue(registrationDao.findByUserIdAndEventIds(userId, Collections.singletonList(a)).isEmpty());
+    }
+
+    @Test
+    public void testFindByUserIdAndEventIdsIgnoresEventsNotAsked() {
+        // Arrange
+        final long asked = insertEventAt(DAY);
+        final long notAsked = insertEventAt(2 * DAY);
+        insertRegistration(asked, EMAIL + "a", userId, NAME, RegistrationStatus.CONFIRMED);
+        insertRegistration(notAsked, EMAIL + "b", userId, NAME, RegistrationStatus.CONFIRMED);
+
+        // Act
+        final List<Registration> result = registrationDao.findByUserIdAndEventIds(userId, Collections.singletonList(asked));
+
+        // Assert
+        assertEquals(1, result.size());
+        assertEquals(asked, result.get(0).getEventId());
+    }
+
+    @Test
+    public void testFindByUserIdAndEventIdsWithNoIdsIsEmpty() {
+        assertTrue(registrationDao.findByUserIdAndEventIds(userId, Collections.<Long>emptyList()).isEmpty());
+    }
+
+    private static RegistrationStatus statusOfEvent(final List<Registration> registrations, final long eventId) {
+        return registrations.stream().filter(r -> r.getEventId() == eventId).findFirst().get().getStatus();
     }
 }

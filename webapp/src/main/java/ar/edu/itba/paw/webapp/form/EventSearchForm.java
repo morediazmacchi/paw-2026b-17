@@ -84,6 +84,21 @@ public class EventSearchForm {
         return parseSort(sort);
     }
 
+    // Si la persona eligio un orden valido (en la URL). Sin esto no se sabe si FECHA_ASC es lo
+    // que pidio o solo el default de parseSort(): el controller necesita la diferencia, porque
+    // para quien tiene historial el orden por defecto es otro (RECOMENDADOS).
+    public boolean isSortExplicit() {
+        if (sort == null || sort.isEmpty()) {
+            return false;
+        }
+        try {
+            EventSort.valueOf(sort);
+            return true;
+        } catch (final IllegalArgumentException e) {
+            return false;
+        }
+    }
+
     public boolean isPriceRangeInvalid() {
         final BigDecimal min = parseDecimal(precioMin);
         final BigDecimal max = parseDecimal(precioMax);
@@ -148,7 +163,9 @@ public class EventSearchForm {
         appendParam(query, "puntajeMin", puntajeMin);
         appendParam(query, "pocosCupos", pocosCupos);
         appendParam(query, "agotados", agotados);
-        if (getParsedSort() != EventSort.FECHA_ASC) {
+        // Solo el orden que la persona eligio de verdad (aunque sea FECHA_ASC): si se omitiera,
+        // al cambiar de pagina volveria el default, que puede ser RECOMENDADOS.
+        if (isSortExplicit()) {
             appendParam(query, "sort", getParsedSort().name());
         }
         return query.toString();

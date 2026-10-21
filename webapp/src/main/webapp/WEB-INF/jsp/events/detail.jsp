@@ -683,6 +683,26 @@
             </c:if>
         </aside>
     </div>
+
+    <%-- Eventos parecidos a este (ver EventSimilarityService.findSimilar()). Si ninguno llega al
+         piso de similitud, no se muestra nada. --%>
+    <c:if test="${not empty relatedEvents}">
+        <section class="related-events">
+            <h2 class="related-events-title"><spring:message code="event.detail.related.title"/></h2>
+            <div class="related-events-list">
+                <c:forEach var="rel" items="${relatedEvents}">
+                    <c:set var="relStatus" value="${relatedStatuses[rel.id]}"/>
+                    <a class="related-event-chip" href="<c:url value='/eventos/${rel.id}'/>">
+                        <span class="related-event-chip-title"><c:out value="${rel.title}"/></span>
+                        <span class="related-event-chip-meta"><fmt:formatDate value="${rel.eventDate}" pattern="dd/MM · HH:mm"/>hs</span>
+                        <c:if test="${not empty relStatus}">
+                            <span class="status-pill status-pill-${fn:toLowerCase(relStatus)}"><spring:message code="event.status.${relStatus}"/></span>
+                        </c:if>
+                    </a>
+                </c:forEach>
+            </div>
+        </section>
+    </c:if>
 </main>
 
 <c:if test="${not isOwner}">

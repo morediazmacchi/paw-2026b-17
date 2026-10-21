@@ -3565,3 +3565,95 @@ button.btn-accent {
     padding: 0;
     cursor: pointer;
 }
+
+/* Etiqueta de estado de la inscripcion propia (card.tag, y los eventos sugeridos del detalle).
+   Sobre una card se superpone arriba a la izquierda, pegada al corazon de favoritos. */
+.status-pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: rgba(13, 13, 13, 0.82);
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+
+.status-pill-confirmed {
+    color: #6fdc8c;
+    border-color: var(--success-border);
+}
+
+.status-pill-pending {
+    color: #e0a030;
+    border-color: #6b5320;
+}
+
+.status-pill-waitlisted {
+    color: #7db8ff;
+    border-color: #2a4f7d;
+}
+
+.status-pill-rejected {
+    color: #ff8080;
+    border-color: var(--danger-border);
+}
+
+.card-status {
+    position: absolute;
+    top: 14px;
+    /* El corazon ocupa 10px + 34px de ancho a la izquierda: la etiqueta va a su lado. */
+    left: 52px;
+    z-index: 2;
+    /* Que el click atraviese la etiqueta y llegue a la card. */
+    pointer-events: none;
+}
+
+/* "Eventos que te pueden interesar" al pie del detalle */
+.related-events {
+    margin-top: 40px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+}
+
+.related-events-title {
+    font-size: 1.1rem;
+    margin-bottom: 14px;
+}
+
+.related-events-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.related-event-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    max-width: 100%;
+    padding: 8px 16px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--bg-elevated);
+    color: var(--text);
+    text-decoration: none;
+}
+
+.related-event-chip:hover {
+    border-color: var(--accent);
+}
+
+.related-event-chip-title {
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.related-event-chip-meta {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    white-space: nowrap;
+}

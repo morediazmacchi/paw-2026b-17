@@ -44,7 +44,8 @@ public interface EventService {
     @Transactional(readOnly = true)
     List<Event> findByIds(List<Long> ids);
     // Pagina la respuesta: criteria.getPage() puede caer a la ultima pagina con
-    // resultados si pedis una que no existe.
+    // resultados si pedis una que no existe. Con sort RECOMENDADOS y un viewerId, el
+    // orden lo calcula EventSimilarityService; sin viewerId cae a FECHA_ASC.
     @Transactional(readOnly = true)
     PageResult<Event> search(EventSearchCriteria criteria);
 
@@ -120,10 +121,11 @@ public interface EventService {
     /**
      * Banner de /eventos (ver EventController.eventos()): los eventos que un
      * admin destaco, mas reciente primero. Ya vienen filtrados a
-     * publicos/activos/futuros, igual que search().
+     * publicos/activos/futuros, igual que search(). Si viewerId no es null,
+     * los eventos de esa persona no entran (ver EventSearchCriteria.viewerId).
      */
     @Transactional(readOnly = true)
-    List<Event> findFeatured(int limit);
+    List<Event> findFeatured(int limit, Long viewerId);
 
     /** Un admin marca o desmarca este evento para el banner (ver AdminController). */
     @Transactional(rollbackFor = Exception.class)

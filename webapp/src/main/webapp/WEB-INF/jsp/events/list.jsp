@@ -376,6 +376,7 @@
                               fecha="${event.eventDate}" categoria="${cardCategoria}"
                               ubicacion="${cardUbicacion}" imagenId="${event.imageId}"
                               favorito="${not empty favoriteEventIds and favoriteEventIds.contains(event.id)}"
+                              estado="${registrationStatuses[event.id]}"
                               returnTo="${currentUrl}" />
                 </c:forEach>
             </div>

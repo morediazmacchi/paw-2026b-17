@@ -4,6 +4,8 @@ package ar.edu.itba.paw.persistence;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationStatus;
 
+import java.util.Collection;
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
@@ -35,6 +37,14 @@ public interface RegistrationDao {
     List<Registration> findByEventId(long eventId);
 
     boolean delete(long id);
+
+    // Los eventos a los que esta persona "asistio": inscripcion CONFIRMED, fecha anterior a "now"
+    // y evento no cancelado (no hay un campo de asistencia: se deriva de eso). Solo los ids, del
+    // mas reciente al mas viejo, como mucho "limit".
+    List<Long> findAttendedEventIds(long userId, Date now, int limit);
+
+    // La inscripcion de esta persona (si tiene) en cada uno de esos eventos, en una sola consulta.
+    List<Registration> findByUserIdAndEventIds(long userId, Collection<Long> eventIds);
 
     /** Cuantas inscripciones de este evento estan esperando que el creador las revise. */
     long countPending(long eventId);
