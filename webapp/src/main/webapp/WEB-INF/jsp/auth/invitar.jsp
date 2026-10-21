@@ -6,9 +6,34 @@
 <paw:layout titleCode="auth.invite.title">
 <jsp:attribute name="head">
     <script src="<c:url value='/js/disable-on-submit.js'/>"></script>
+    <script src="<c:url value='/js/modal.js'/>"></script>
 </jsp:attribute>
 <jsp:body>
 <paw:navbar backToEvents="true"/>
+
+<%-- Recien publicado un evento privado (ver EventController.publish()): mismo
+     popup que detail.jsp, la pantalla a la que llegaria un evento publico. --%>
+<c:if test="${justPublished}">
+    <spring:message code="event.detail.closeButton" var="justPublishedCloseLabel"/>
+    <div class="modal-overlay" id="justPublishedModal">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h2><spring:message code="event.publish.pendingApprovalModalTitle"/></h2>
+                <button type="button" class="modal-close" data-close-modal aria-label="${justPublishedCloseLabel}">
+                    <paw:icon name="close"/>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p><spring:message code="event.publish.pendingApprovalModalBody"/></p>
+                <div class="modal-confirm-actions">
+                    <button type="button" class="btn btn-medium btn-accent" data-close-modal>
+                        <c:out value="${justPublishedCloseLabel}"/>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</c:if>
 
 <div class="account-layout">
     <paw:accountSidebar active="events" registrationsCount="${registrationsCount}" favoritesCount="${favoritesCount}" eventsCount="${eventsCount}" invitationsCount="${invitationsCount}"/>

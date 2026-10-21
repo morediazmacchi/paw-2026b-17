@@ -41,6 +41,7 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.ModelAndView;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import javax.validation.Valid;
 import java.io.IOException;
@@ -300,7 +301,8 @@ public class EventController {
     // custom de EventForm
     @RequestMapping(value = "/eventos/publicar", method = RequestMethod.POST)
     public ModelAndView publish(@Valid final EventForm form, final BindingResult errors,
-                                 @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
+                                 @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
+                                 final RedirectAttributes redirectAttributes) {
         if (errors.hasErrors()) {
             return publishFormWithErrors(form, errors, null);
         }
@@ -329,6 +331,9 @@ public class EventController {
         } catch (final InvalidEventException e) {
             return publishFormWithErrors(form, errors, message(e.getMessageKey()));
         }
+        // Todo evento nuevo arranca pendiente de aprobacion (ver EventApprovalStatus):
+        // se avisa con un popup en la pantalla a la que se redirige, sea cual sea.
+        redirectAttributes.addFlashAttribute("justPublished", true);
         // Privado: a invitar. Publico: al detalle del evento.
         return created.isPrivate()
                 ? new ModelAndView("redirect:/perfil/eventos/" + created.getId() + "/invitar")

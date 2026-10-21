@@ -107,6 +107,32 @@
     <h1 class="detail-hero-title"><c:out value="${event.title}"/></h1>
 </section>
 
+<%-- Recien publicado (ver EventController.publish()): todo evento nuevo arranca
+     pendiente de aprobacion (ver EventApprovalStatus), asi que se avisa con un
+     popup apenas se llega a esta pantalla. Flash attribute: solo aparece en el
+     primer GET despues del redirect, nunca en una recarga de la pagina. --%>
+<c:if test="${justPublished}">
+    <spring:message code="event.detail.closeButton" var="justPublishedCloseLabel"/>
+    <div class="modal-overlay" id="justPublishedModal">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h2><spring:message code="event.publish.pendingApprovalModalTitle"/></h2>
+                <button type="button" class="modal-close" data-close-modal aria-label="${justPublishedCloseLabel}">
+                    <paw:icon name="close"/>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p><spring:message code="event.publish.pendingApprovalModalBody"/></p>
+                <div class="modal-confirm-actions">
+                    <button type="button" class="btn btn-medium btn-accent" data-close-modal>
+                        <c:out value="${justPublishedCloseLabel}"/>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</c:if>
+
 <%-- Galeria: solo si hay mas de una foto (la primera ya se ve en el hero de
      arriba). Tocar la principal o cualquier miniatura abre el carrusel de mas
      abajo con todas las fotos (event-gallery.js); sin JS cada una sigue
