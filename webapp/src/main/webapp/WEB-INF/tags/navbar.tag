@@ -43,6 +43,9 @@
             <a class="btn btn-medium" href="<c:url value='/eventos'/>"><c:out value="${backToEventsLabel}"/></a>
         </c:if>
         <jsp:doBody/>
+        <%-- Comunidad: va pegado a Bandeja, y se ve tambien sin sesion. --%>
+        <spring:message code="common.nav.community" var="communityLabel"/>
+        <a class="btn btn-medium btn-ghost" href="<c:url value='/comunidad'/>"><paw:icon name="people"/> <c:out value="${communityLabel}"/></a>
         <sec:authorize access="isAuthenticated()">
             <%-- unreadInboxCount lo pone UnreadInboxInterceptor en todas las paginas. --%>
             <spring:message code="common.nav.inbox" var="inboxLabel"/>

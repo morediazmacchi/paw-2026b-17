@@ -123,11 +123,11 @@ public interface EventService {
     /**
      * Banner de /eventos (ver EventController.eventos()): los eventos que un
      * admin destaco, mas reciente primero. Ya vienen filtrados a
-     * publicos/activos/futuros, igual que search(). Si viewerId no es null,
-     * los eventos de esa persona no entran (ver EventSearchCriteria.viewerId).
+     * publicos/activos/futuros, igual que search(). Se ven siempre, tambien
+     * los de quien navega.
      */
     @Transactional(readOnly = true)
-    List<Event> findFeatured(int limit, Long viewerId);
+    List<Event> findFeatured(int limit);
 
     /** Un admin marca o desmarca este evento para el banner (ver AdminController). */
     @Transactional(rollbackFor = Exception.class)

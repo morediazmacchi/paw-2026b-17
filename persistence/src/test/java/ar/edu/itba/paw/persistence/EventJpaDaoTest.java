@@ -1802,7 +1802,7 @@ public class EventJpaDaoTest {
                 "featured_at", new Timestamp(System.currentTimeMillis())));
 
         // Act
-        final List<Event> featured = eventDao.findFeatured(10, null);
+        final List<Event> featured = eventDao.findFeatured(10);
 
         // Assert
         assertEquals(1, featured.size());
@@ -1819,7 +1819,7 @@ public class EventJpaDaoTest {
         final long secondFeaturedId = insertEvent(cols("address", "Segundo", "featured", true, "featured_at", despues));
 
         // Act
-        final List<Event> featured = eventDao.findFeatured(10, null);
+        final List<Event> featured = eventDao.findFeatured(10);
 
         // Assert
         assertEquals(2, featured.size());
@@ -1836,7 +1836,7 @@ public class EventJpaDaoTest {
         }
 
         // Act
-        final List<Event> featured = eventDao.findFeatured(2, null);
+        final List<Event> featured = eventDao.findFeatured(2);
 
         // Assert
         assertEquals(2, featured.size());
@@ -1854,7 +1854,7 @@ public class EventJpaDaoTest {
                 "event_date", new Timestamp(System.currentTimeMillis() - 86_400_000L)));
 
         // Act
-        final List<Event> featured = eventDao.findFeatured(10, null);
+        final List<Event> featured = eventDao.findFeatured(10);
 
         // Assert
         assertTrue(featured.isEmpty());
@@ -1871,7 +1871,7 @@ public class EventJpaDaoTest {
                 "approval_status", EventApprovalStatus.REJECTED.name()));
 
         // Act
-        final List<Event> featured = eventDao.findFeatured(10, null);
+        final List<Event> featured = eventDao.findFeatured(10);
 
         // Assert
         assertTrue(featured.isEmpty());
@@ -2242,7 +2242,7 @@ public class EventJpaDaoTest {
         insertEventCategory(eventId, categoryId, null);
 
         // Act
-        final List<Event> featured = eventDao.findFeatured(10, null);
+        final List<Event> featured = eventDao.findFeatured(10);
         em.clear();
 
         // Assert
@@ -2313,29 +2313,14 @@ public class EventJpaDaoTest {
     }
 
     @Test
-    public void testFindFeaturedLeavesOutTheViewersOwnEvents() {
-        // Arrange
-        final Timestamp featuredAt = new Timestamp(System.currentTimeMillis());
-        insertEvent(cols("creator_id", creatorId, "featured", true, "featured_at", featuredAt));
-        final long theirs = insertEvent(cols("creator_id", insertUser("otro@mail.com"),
-                "featured", true, "featured_at", featuredAt));
-
-        // Act
-        final List<Event> featured = eventDao.findFeatured(10, creatorId);
-
-        // Assert
-        assertEquals(Collections.singletonList(theirs), idsOf(featured));
-    }
-
-    @Test
-    public void testFindFeaturedWithoutAViewerKeepsEveryFeaturedEvent() {
+    public void testFindFeaturedKeepsEveryFeaturedEventEvenTheCreators() {
         // Arrange
         final Timestamp featuredAt = new Timestamp(System.currentTimeMillis());
         insertEvent(cols("creator_id", creatorId, "featured", true, "featured_at", featuredAt));
         insertEvent(cols("featured", true, "featured_at", featuredAt));
 
         // Act + Assert
-        assertEquals(2, eventDao.findFeatured(10, null).size());
+        assertEquals(2, eventDao.findFeatured(10).size());
     }
 
     // ---- findAllMatching() ----

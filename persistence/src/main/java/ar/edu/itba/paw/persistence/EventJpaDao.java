@@ -214,28 +214,23 @@ public class EventJpaDao implements EventDao {
     }
 
     @Override
-    public List<Event> findFeatured(final int limit, final Long viewerId) {
+    public List<Event> findFeatured(final int limit) {
         // Mismas cuatro reglas que buildSearchFilter() para search(): publico,
         // no cancelado, no pasado, y aprobado. Un destacado que se cancela,
         // vence, o (no deberia pasar, pero por las dudas) queda pendiente de
         // nuevo, deja de aparecer solo en el banner, sin desmarcarlo a mano.
         // Dos pasos (ver findOrderedByIds): primero solo los ids, ya ordenados y con el limite;
         // despues los eventos con sus categorias, que el banner muestra.
-        // viewerId: el home no lista los eventos propios (ver buildSearchFilter()), y el
-        // banner es parte del home.
-        final TypedQuery<Long> query = em.createQuery(
+        final List<Long> ids = em.createQuery(
                         "SELECT e.id FROM Event e WHERE e.featured = true AND e.eventDate >= :now "
                                 + "AND e.visibility = :visibility AND e.cancelledAt IS NULL "
                                 + "AND e.approvalStatus = :approvalStatus "
-                                + (viewerId == null ? "" : "AND (e.creator IS NULL OR e.creator.id <> :viewerId) ")
                                 + "ORDER BY e.featuredAt DESC", Long.class)
                 .setParameter("now", new Date(), TemporalType.TIMESTAMP)
                 .setParameter("visibility", EventVisibility.PUBLIC)
-                .setParameter("approvalStatus", EventApprovalStatus.APPROVED);
-        if (viewerId != null) {
-            query.setParameter("viewerId", viewerId);
-        }
-        final List<Long> ids = query.setMaxResults(limit).getResultList();
+                .setParameter("approvalStatus", EventApprovalStatus.APPROVED)
+                .setMaxResults(limit)
+                .getResultList();
         return findOrderedByIds(ids);
     }
 

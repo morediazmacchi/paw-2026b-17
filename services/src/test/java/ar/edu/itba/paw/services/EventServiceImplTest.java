@@ -741,23 +741,10 @@ public class EventServiceImplTest {
     public void testFindFeaturedReturnsTheFeaturedEventsTheDaoFinds() {
         // Arrange
         final List<Event> featured = Arrays.asList(eventWith(2, CATEGORY_ID, CREATOR_ID), eventWith(3, CATEGORY_ID, CREATOR_ID));
-        when(eventDao.findFeatured(2, null)).thenReturn(featured);
+        when(eventDao.findFeatured(2)).thenReturn(featured);
 
         // Act
-        final List<Event> result = eventService.findFeatured(2, null);
-
-        // Assert
-        assertEquals(featured, result);
-    }
-
-    @Test
-    public void testFindFeaturedPassesTheViewerSoTheirOwnEventsAreLeftOut() {
-        // Arrange
-        final List<Event> featured = Collections.singletonList(eventWith(2, CATEGORY_ID, CREATOR_ID));
-        when(eventDao.findFeatured(2, OTHER_ID)).thenReturn(featured);
-
-        // Act
-        final List<Event> result = eventService.findFeatured(2, OTHER_ID);
+        final List<Event> result = eventService.findFeatured(2);
 
         // Assert
         assertEquals(featured, result);

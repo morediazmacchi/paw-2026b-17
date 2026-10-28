@@ -285,8 +285,8 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<Event> findFeatured(final int limit, final Long viewerId) {
-        return eventDao.findFeatured(limit, viewerId);
+    public List<Event> findFeatured(final int limit) {
+        return eventDao.findFeatured(limit);
     }
 
     @Override

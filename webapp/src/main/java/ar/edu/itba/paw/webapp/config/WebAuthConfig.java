@@ -145,6 +145,8 @@ public class WebAuthConfig {
                         .antMatchers("/favicon.ico", "/favicon.svg").permitAll()
                         .antMatchers(HttpMethod.GET, "/", "/eventos").permitAll()
                         .antMatchers(HttpMethod.GET, "/eventos/{id:[0-9]+}").permitAll()
+                        // Comunidad (por ahora solo diseño con datos de ejemplo): publica.
+                        .antMatchers(HttpMethod.GET, "/comunidad", "/comunidad/**").permitAll()
                         // Mas especifico primero: Spring Security usa el PRIMER
                         // antMatcher que matchea, asi que gestion de roles (solo
                         // superadmin) tiene que ir antes del "/admin/**" general

@@ -118,7 +118,7 @@ public class EventController {
             filterErrors.put("fechaHasta", message("event.list.dateRangeInvalid"));
         }
 
-        // Quien navega: sus propios eventos no se listan (ni en el banner), y si ya asistio a
+        // Quien navega: sus propios eventos no se listan (el banner si los muestra), y si ya asistio a
         // algo el orden por defecto pasa a ser RECOMENDADOS (ver EventSimilarityService).
         final Long viewerId = currentUser == null ? null : currentUser.getId();
         final boolean hasHistory = viewerId != null && eventSimilarityService.hasAttendanceHistory(viewerId);
@@ -129,7 +129,7 @@ public class EventController {
         final PageResult<Event> result = eventService.search(criteria);
 
         // Banner destacado
-        final List<Event> featured = eventService.findFeatured(FEATURED_COUNT, viewerId);
+        final List<Event> featured = eventService.findFeatured(FEATURED_COUNT);
 
         final ModelAndView mav = new ModelAndView("events/list");
         mav.addObject("events", result.getContent());
