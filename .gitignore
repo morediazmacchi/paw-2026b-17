@@ -30,6 +30,7 @@ dist/
 .claude/launch.json
 
 Claude outputs/
+CLAUDE.md
 
 # Unit test reports
 TEST*.xml
