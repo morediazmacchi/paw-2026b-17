@@ -78,7 +78,10 @@ public class PasswordResetController {
 
     private ModelAndView resetPasswordFormWithErrors(final ResetPasswordForm form, final BindingResult errors) {
         final ModelAndView mav = new ModelAndView("auth/restablecer");
-        mav.addObject("tokenValid", true);
+        // Re-validar, no asumir true: el token que llega aca es el del body del
+        // POST (lo que haya puesto quien mando el request), no uno que ya haya
+        // pasado por isResetTokenValid() en este pedido.
+        mav.addObject("tokenValid", userService.isResetTokenValid(form.getToken()));
         mav.addObject("resetPasswordForm", form);
         mav.addObject("fieldErrors", FormErrors.of(errors, messageSource));
         return mav;

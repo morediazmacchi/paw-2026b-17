@@ -1,5 +1,6 @@
 <%@ page contentType="text/html;charset=UTF-8" pageEncoding="UTF-8" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
+<%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions" %>
 <%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
 <%@ taglib prefix="paw" tagdir="/WEB-INF/tags" %>
 <paw:layout titleCode="auth.resetPassword.title">
@@ -20,7 +21,11 @@
                 <spring:message code="auth.resetPassword.confirmPasswordLabel" var="confirmPasswordLabel"/>
                 <spring:message code="auth.resetPassword.submitButton" var="submitButtonLabel"/>
                 <form action="<c:url value='/login/restablecer'/>" method="post" novalidate="novalidate">
-                    <input type="hidden" name="token" value="${resetPasswordForm.token}"/>
+                    <%-- fn:escapeXml, no c:out: esto es el VALOR de un atributo, no texto visible
+                         entre tags. Sin esto, un token con comillas/markup podia cerrar el
+                         atributo e inyectar HTML/JS (XSS reflejado via el POST de abajo, que
+                         reimprime el token tal cual vino en el body). --%>
+                    <input type="hidden" name="token" value="${fn:escapeXml(resetPasswordForm.token)}"/>
                     <paw:input name="password" maxLength="72" label="${newPasswordLabel}" type="password"
                                errorMessage="${fieldErrors.password}"/>
                     <paw:input name="confirmarPassword" maxLength="72" label="${confirmPasswordLabel}" type="password"
