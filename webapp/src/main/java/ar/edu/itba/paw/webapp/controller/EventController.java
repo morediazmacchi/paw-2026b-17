@@ -32,6 +32,7 @@ import ar.edu.itba.paw.webapp.util.Paging;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -373,18 +374,20 @@ public class EventController {
                 .orElse(null);
     }
 
+    @PreAuthorize("@eventSecurity.isOwner(#id, authentication)")
     @RequestMapping(value = "/eventos/{id}/inscriptos", method = RequestMethod.GET)
     public ModelAndView inscriptos(@PathVariable final long id, @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final Event event = accessChecker.getOwnedEvent(id, currentUser);
+        final Event event = eventService.findByIdOrThrow(id);
         final ModelAndView mav = new ModelAndView("events/inscriptos");
         mav.addObject("event", event);
         mav.addObject("registrations", registrationService.findByEventId(id));
         return mav;
     }
 
+    @PreAuthorize("@eventSecurity.isOwner(#id, authentication)")
     @RequestMapping(value = "/eventos/{id}/editar", method = RequestMethod.GET)
     public ModelAndView editarForm(@PathVariable final long id, @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final Event event = accessChecker.getEditableEvent(id, currentUser);
+        final Event event = accessChecker.getEditableEvent(id);
         final List<Category> categories = categoryService.findAll();
         final ModelAndView mav = new ModelAndView("events/editar");
         mav.addObject("eventId", id);
@@ -396,10 +399,11 @@ public class EventController {
 
     // Toda la validacion (fecha, barrio, categorias, cantidad de imagenes) ya
     // corrio con @Valid, (tiene validaciones con srvice).
+    @PreAuthorize("@eventSecurity.isOwner(#id, authentication)")
     @RequestMapping(value = "/eventos/{id}/editar", method = RequestMethod.POST)
     public ModelAndView editar(@PathVariable final long id, @Valid final EventForm form, final BindingResult errors,
                                 @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        accessChecker.getEditableEvent(id, currentUser);
+        accessChecker.getEditableEvent(id);
         if (errors.hasErrors()) {
             return editarFormWithErrors(id, form, errors, null);
         }
@@ -444,6 +448,7 @@ public class EventController {
         return mav;
     }
 
+    @PreAuthorize("@eventSecurity.isOwner(#id, authentication)")
     @RequestMapping(value = "/eventos/{id}/cancelar", method = RequestMethod.POST)
     public ModelAndView cancelar(@PathVariable final long id, @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         eventService.cancel(id, currentUser.getId());

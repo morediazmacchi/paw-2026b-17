@@ -2,6 +2,7 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.EventAccessData;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.exception.EventCancelledException;
@@ -28,7 +29,8 @@ public class EventAccessServiceImpl implements EventAccessService {
     }
 
     @Override
-    public boolean canView(final Event event, final User user, final Optional<Registration> myRegistration) {
+    public boolean canView(final EventAccessData event, final User user,
+                           final Optional<Registration> myRegistration) {
         // El creador y un admin lo ven siempre, este aprobado o no (el admin
         // necesita verlo justamente para poder aprobarlo/rechazarlo).
         if (user != null && Long.valueOf(user.getId()).equals(event.getCreatorId())) {
@@ -63,7 +65,7 @@ public class EventAccessServiceImpl implements EventAccessService {
 
     @Override
     @Transactional(readOnly = true)
-    public boolean canView(final Event event, final User user) {
+    public boolean canView(final EventAccessData event, final User user) {
         // La regla real vive en la otra sobrecarga. Esta solo evita pedir la
         // inscripcion propia cuando no hace falta: para un evento publico, la
         // otra sobrecarga nunca mira "myRegistration" (solo importa para el
@@ -89,28 +91,8 @@ public class EventAccessServiceImpl implements EventAccessService {
 
     @Override
     @Transactional(readOnly = true)
-    public Event getOwnedEvent(final long eventId, final User user) {
+    public Event getEditableEvent(final long eventId) {
         final Event event = eventService.findById(eventId).orElseThrow(() -> new EventNotFoundException(eventId));
-        if (user == null || !Long.valueOf(user.getId()).equals(event.getCreatorId())) {
-            throw new EventNotFoundException(eventId);
-        }
-        return event;
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public Event getOwnedPrivateEvent(final long eventId, final User user) {
-        final Event event = getOwnedEvent(eventId, user);
-        if (!event.isPrivate()) {
-            throw new EventNotFoundException(eventId);
-        }
-        return event;
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public Event getEditableEvent(final long eventId, final User user) {
-        final Event event = getOwnedEvent(eventId, user);
         if (event.isCancelled()) {
             throw new EventCancelledException(eventId);
         }

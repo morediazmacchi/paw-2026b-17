@@ -1,15 +1,14 @@
 package ar.edu.itba.paw.webapp.controller;
 
 import ar.edu.itba.paw.model.Image;
-import ar.edu.itba.paw.model.User;
-import ar.edu.itba.paw.services.EventAccessService;
-import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.ImageService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
@@ -20,7 +19,7 @@ import java.util.Optional;
 
 /**
  * Sirve las imagenes guardadas en la base.
- * Una imagen hereda la visibilidad de su evento:
+ * Una imagen hereda la visibilidad de su evento (ver EventSecurity.canViewImage).
  */
 @Controller
 public class ImageController {
@@ -30,23 +29,17 @@ public class ImageController {
             MediaType.IMAGE_JPEG, MediaType.IMAGE_PNG, MediaType.IMAGE_GIF, MediaType.parseMediaType("image/webp"));
 
     private final ImageService imageService;
-    private final EventService eventService;
-    private final EventAccessService accessChecker;
 
     @Autowired
-    public ImageController(final ImageService imageService, final EventService eventService,
-                           final EventAccessService accessChecker) {
+    public ImageController(final ImageService imageService) {
         this.imageService = imageService;
-        this.eventService = eventService;
-        this.accessChecker = accessChecker;
     }
 
+    // Una imagen hereda la visibilidad de su evento: la regla vive en EventSecurity.canViewImage.
+    // Una imagen inexistente, o que nunca se asocio a un evento, tampoco la ve nadie.
+    @PreAuthorize("@eventSecurity.canViewImage(#id, authentication)")
     @RequestMapping(value = "/image/{id}", method = RequestMethod.GET)
-    public ResponseEntity<byte[]> getImage(@PathVariable final long id,
-                                            @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        if (!canView(id, currentUser)) {
-            return ResponseEntity.notFound().build();
-        }
+    public ResponseEntity<byte[]> getImage(@PathVariable final long id) {
         final Optional<Image> maybeImage = imageService.findById(id);
         if (!maybeImage.isPresent()) {
             return ResponseEntity.notFound().build();
@@ -66,13 +59,11 @@ public class ImageController {
         return response.body(image.getData());
     }
 
-    // Una imagen que no cuelga de ningun evento (nunca se asocio) no tiene quien
-    // la vea: se trata como inexistente
-    private boolean canView(final long imageId, final User user) {
-        return imageService.findOwnerEventId(imageId)
-                .flatMap(eventService::findById)
-                .map(event -> accessChecker.canView(event, user))
-                .orElse(false);
+    // Una imagen que no puede ver da 404 sin cuerpo: para un <img> no tiene sentido renderizar la
+    // pagina de error (la de ErrorAdvice), y asi no se revela que la imagen existe.
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<Void> accessDenied() {
+        return ResponseEntity.notFound().build();
     }
 
     private MediaType servableType(final String contentType) {

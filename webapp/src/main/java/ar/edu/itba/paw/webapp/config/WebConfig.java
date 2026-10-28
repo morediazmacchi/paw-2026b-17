@@ -1,7 +1,12 @@
 package ar.edu.itba.paw.webapp.config;
 
+import ar.edu.itba.paw.services.EventAccessService;
+import ar.edu.itba.paw.services.EventService;
+import ar.edu.itba.paw.services.ImageService;
 import ar.edu.itba.paw.services.InboxService;
+import ar.edu.itba.paw.services.RegistrationService;
 import ar.edu.itba.paw.services.UserService;
+import ar.edu.itba.paw.webapp.security.EventSecurity;
 import ar.edu.itba.paw.webapp.interceptor.CurrentLocaleInterceptor;
 import ar.edu.itba.paw.webapp.interceptor.SuspendedUserInterceptor;
 import ar.edu.itba.paw.webapp.interceptor.UnreadInboxInterceptor;
@@ -11,6 +16,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.support.ReloadableResourceBundleMessageSource;
+import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
 import org.springframework.web.multipart.MultipartResolver;
 import org.springframework.web.servlet.LocaleResolver;
 import org.springframework.web.multipart.support.StandardServletMultipartResolver;
@@ -28,9 +34,26 @@ import org.springframework.web.servlet.view.JstlView;
 // Contexto de SPRING MVC (lo carga el DispatcherServlet): solo lo que tiene que ver con la
 // web. La persistencia, los services y la seguridad estan en RootConfig (contexto raiz).
 @EnableWebMvc
+// Seguridad por metodos (@PreAuthorize en los controllers). Se activa en ESTE contexto, no en
+// RootConfig, porque los proxies se aplican a los beans del contexto donde se declara: los
+// controllers viven aca. proxyTargetClass: los controllers no tienen interfaz.
+@EnableGlobalMethodSecurity(prePostEnabled = true, proxyTargetClass = true)
 @ComponentScan("ar.edu.itba.paw.webapp.controller")
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
+
+    // Reglas de ownership para @PreAuthorize (ver EventSecurity). Vive en este contexto porque
+    // la seguridad por metodos se activa aca, donde estan los controllers; no se escanea porque
+    // RootConfig solo escanea sus propios paquetes.
+    @Bean
+    public EventSecurity eventSecurity(final EventService eventService,
+                                       final RegistrationService registrationService,
+                                       final EventAccessService eventAccessService,
+                                       final ImageService imageService,
+                                       final UserService userService) {
+        return new EventSecurity(eventService, registrationService, eventAccessService, imageService,
+                userService);
+    }
 
     // Se llama messageSource (no otro nombre): es el nombre de bean que Spring
     // busca por convencion para resolver <spring:message> en los JSP. El de los

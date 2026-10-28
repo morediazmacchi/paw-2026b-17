@@ -6,6 +6,7 @@ import ar.edu.itba.paw.services.EventQuestionService;
 import ar.edu.itba.paw.services.QuestionResult;
 import ar.edu.itba.paw.webapp.form.QuestionForm;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -43,6 +44,7 @@ public class EventQuestionController {
     }
 
     // Responder.
+    @PreAuthorize("@eventSecurity.isOwner(#id, authentication)")
     @RequestMapping(value = "/eventos/{id}/preguntas/{questionId}/responder", method = RequestMethod.POST)
     public ModelAndView answer(@PathVariable final long id, @PathVariable final long questionId,
                                @Valid final QuestionForm form, final BindingResult errors,

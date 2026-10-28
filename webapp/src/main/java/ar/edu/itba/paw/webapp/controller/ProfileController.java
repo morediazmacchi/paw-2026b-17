@@ -7,7 +7,6 @@ import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.Review;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.ApprovalResult;
-import ar.edu.itba.paw.services.EventAccessService;
 import ar.edu.itba.paw.services.EventInvitationResult;
 import ar.edu.itba.paw.services.EventInvitationService;
 import ar.edu.itba.paw.services.EventChatService;
@@ -28,6 +27,7 @@ import ar.edu.itba.paw.webapp.util.FormErrors;
 import ar.edu.itba.paw.webapp.util.Paging;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -53,7 +53,6 @@ public class ProfileController {
     private final RegistrationService registrationService;
     private final EventService eventService;
     private final FavoriteService favoriteService;
-    private final EventAccessService accessChecker;
     private final ReviewService reviewService;
     private final EventInvitationService eventInvitationService;
     private final MessageSource messageSource;
@@ -66,13 +65,11 @@ public class ProfileController {
                               final FavoriteService favoriteService, final ReviewService reviewService,
                               final EventInvitationService eventInvitationService,
                               final MessageSource messageSource, final InboxService inboxService,
-                              final EventAccessService accessChecker,
                               final EventChatService eventChatService) {
         this.userService = userService;
         this.registrationService = registrationService;
         this.eventService = eventService;
         this.favoriteService = favoriteService;
-        this.accessChecker = accessChecker;
         this.reviewService = reviewService;
         this.eventInvitationService = eventInvitationService;
         this.messageSource = messageSource;
@@ -378,13 +375,14 @@ public class ProfileController {
         return mav;
     }
 
+    @PreAuthorize("@eventSecurity.isOwner(#id, authentication)")
     @RequestMapping(value = "/perfil/eventos/{id}/inscriptos", method = RequestMethod.GET)
     public ModelAndView pendingRegistrations(@PathVariable final long id,
                                               @RequestParam(value = "approved", required = false) final String approvedParam,
                                               @RequestParam(value = "rejected", required = false) final String rejectedParam,
                                               @RequestParam(value = "full", required = false) final String fullParam,
                                               @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final Event event = accessChecker.getOwnedEvent(id, currentUser);
+        final Event event = eventService.findByIdOrThrow(id);
 
         final ModelAndView mav = new ModelAndView("auth/inscriptos");
         mav.addObject("user", currentUser);
@@ -405,6 +403,7 @@ public class ProfileController {
         return mav;
     }
 
+    @PreAuthorize("@eventSecurity.isOwnerOfRegistrationEvent(#id, #registrationId, authentication)")
     @RequestMapping(value = "/perfil/eventos/{id}/inscriptos/{registrationId}/aceptar", method = RequestMethod.POST)
     public ModelAndView approveRegistration(@PathVariable final long id, @PathVariable final long registrationId,
                                              @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
@@ -423,6 +422,7 @@ public class ProfileController {
         };
     }
 
+    @PreAuthorize("@eventSecurity.isOwnerOfRegistrationEvent(#id, #registrationId, authentication)")
     @RequestMapping(value = "/perfil/eventos/{id}/inscriptos/{registrationId}/rechazar", method = RequestMethod.POST)
     public ModelAndView rejectRegistration(@PathVariable final long id, @PathVariable final long registrationId,
                                             @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
@@ -431,6 +431,7 @@ public class ProfileController {
     }
 
     // Volver de "Ver inscriptos" (donde esta el boton Revocar) a esa misma lista.
+    @PreAuthorize("@eventSecurity.isOwnerOfRegistrationEvent(#id, #registrationId, authentication)")
     @RequestMapping(value = "/perfil/eventos/{id}/inscriptos/{registrationId}/revocar", method = RequestMethod.POST)
     public ModelAndView revokeRegistration(@PathVariable final long id, @PathVariable final long registrationId,
                                             @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
@@ -441,19 +442,21 @@ public class ProfileController {
     // Invitar solo tiene sentido en un evento privado: uno publico ya tiene un
     // link que se puede compartir sin necesitar un token. Mismo 404 que
     // pendingRegistrations si no sos el creador, o si el evento no es privado.
+    @PreAuthorize("@eventSecurity.isOwnerOfPrivate(#id, authentication)")
     @RequestMapping(value = "/perfil/eventos/{id}/invitar", method = RequestMethod.GET)
     public ModelAndView inviteForm(@PathVariable final long id,
                                     @RequestParam(value = "sent", required = false) final String sentParam,
                                     @RequestParam(value = "alreadyInvited", required = false) final String alreadyInvitedParam,
                                     @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final Event event = accessChecker.getOwnedPrivateEvent(id, currentUser);
+        final Event event = eventService.findByIdOrThrow(id);
         return inviteFormView(event, currentUser, new InviteForm(), null, sentParam != null, alreadyInvitedParam != null);
     }
 
+    @PreAuthorize("@eventSecurity.isOwnerOfPrivate(#id, authentication)")
     @RequestMapping(value = "/perfil/eventos/{id}/invitar", method = RequestMethod.POST)
     public ModelAndView invite(@PathVariable final long id, @Valid final InviteForm form, final BindingResult errors,
                                 @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final Event event = accessChecker.getOwnedPrivateEvent(id, currentUser);
+        final Event event = eventService.findByIdOrThrow(id);
         if (errors.hasErrors()) {
             return inviteFormView(event, currentUser, form, errors, false, false);
         }

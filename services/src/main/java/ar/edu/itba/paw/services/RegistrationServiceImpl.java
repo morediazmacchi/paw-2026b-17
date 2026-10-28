@@ -391,6 +391,12 @@ public class RegistrationServiceImpl implements RegistrationService {
 
     @Override
     @Transactional(readOnly = true)
+    public Optional<Registration> findById(final long registrationId) {
+        return registrationDao.findById(registrationId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Optional<Registration> findByEventAndUserId(final long eventId, final long userId) {
         return registrationDao.findByEventAndUserId(eventId, userId);
     }

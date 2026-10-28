@@ -1,5 +1,6 @@
 package ar.edu.itba.paw.services;
 
+import ar.edu.itba.paw.model.EventAccessSummary;
 import ar.edu.itba.paw.model.Image;
 import ar.edu.itba.paw.model.exception.InvalidImageException;
 
@@ -22,8 +23,8 @@ public interface ImageService {
     Optional<Image> findById(long id);
 
     /**
-     * Id del evento al que pertenece la imagen. Sirve para decidir si quien la pide
-     * puede verla: una imagen hereda la visibilidad de su evento.
+     * Los datos del evento al que pertenece la imagen que alcanzan para decidir si quien la pide
+     * puede verla: una imagen hereda la visibilidad de su evento. Vacio si no cuelga de ninguno.
      */
-    Optional<Long> findOwnerEventId(long imageId);
+    Optional<EventAccessSummary> findOwnerEventAccess(long imageId);
 }

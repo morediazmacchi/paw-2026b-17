@@ -1,6 +1,9 @@
 // Implementa el contrato ImageDao (modulo persistence-contracts) con JPA/Hibernate.
 package ar.edu.itba.paw.persistence;
 
+import ar.edu.itba.paw.model.EventAccessSummary;
+import ar.edu.itba.paw.model.EventApprovalStatus;
+import ar.edu.itba.paw.model.EventVisibility;
 import ar.edu.itba.paw.model.Image;
 import org.springframework.stereotype.Repository;
 
@@ -27,12 +30,19 @@ public class ImageJpaDao implements ImageDao {
     }
 
     @Override
-    public Optional<Long> findOwnerEventId(final long imageId) {
-        // Nativa: event_image todavia no es una entidad (la tabla es del modelo de Event).
-        // image_id es UNIQUE: a lo sumo una fila por imagen.
-        final List<?> rows = em.createNativeQuery("SELECT event_id FROM event_image WHERE image_id = :imageId")
+    public Optional<EventAccessSummary> findOwnerEventAccess(final long imageId) {
+        // Proyeccion: solo las cuatro columnas que necesita la regla de visibilidad, no el Event
+        // (sin su fila entera, ni la subconsulta de la portada, ni las colecciones). Se une por la
+        // coleccion imageIds (event_image); image_id es UNIQUE, asi que a lo sumo una fila.
+        // e.creator.id no hace JOIN con users: es la propia columna creator_id del evento.
+        final List<Object[]> rows = em.createQuery(
+                        "SELECT e.id, e.creator.id, e.visibility, e.approvalStatus "
+                                + "FROM Event e JOIN e.imageIds i WHERE i = :imageId", Object[].class)
                 .setParameter("imageId", imageId)
                 .getResultList();
-        return rows.stream().map(id -> ((Number) id).longValue()).findFirst();
+        return rows.stream()
+                .map(row -> new EventAccessSummary((Long) row[0], (Long) row[1],
+                        row[2] == EventVisibility.PRIVATE, row[3] == EventApprovalStatus.APPROVED))
+                .findFirst();
     }
 }

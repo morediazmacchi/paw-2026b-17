@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
 
 @Entity
 @Table(name = "event")
-public class Event {
+public class Event implements EventAccessData {
 
     public static final int MAX_IMAGES = 5;
 
@@ -206,6 +206,7 @@ public class Event {
         this.creatorEmail = creatorEmail;
     }
 
+    @Override
     public Long getId() { return id; }
     public void setId(final Long id) { this.id = id; }
     public String getTitle() { return title; }
@@ -240,6 +241,7 @@ public class Event {
     public void setCreator(final User creator) { this.creator = creator; }
     // Atajo para no escribir getCreator().getId(); null si el evento no tiene dueno cargado.
     // No dispara ninguna consulta: el id ya esta en la fila del evento.
+    @Override
     public Long getCreatorId() { return creator == null ? null : creator.getId(); }
     // Las categorias del evento, ordenadas por nombre (lo que mostraban las pantallas).
     // Es una copia: para agregar o sacar se usan addCategory()/removeCategory().
@@ -295,8 +297,10 @@ public class Event {
     public boolean isLocationPinned() { return latitude != null && longitude != null; }
 
     public boolean isFree() { return price == null || price.signum() == 0; }
+    @Override
     public boolean isPrivate() { return visibility == EventVisibility.PRIVATE; }
     public boolean isCancelled() { return cancelledAt != null; }
+    @Override
     public boolean isApproved() { return approvalStatus == EventApprovalStatus.APPROVED; }
     public boolean isPendingApproval() { return approvalStatus == EventApprovalStatus.PENDING; }
     public boolean isRejected() { return approvalStatus == EventApprovalStatus.REJECTED; }

@@ -112,10 +112,25 @@
       <artifactId>junit</artifactId>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-core</artifactId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
     <finalName>app</finalName>
+    <plugins>
+      <!-- Hibernate arrastra un Byte Buddy viejo que no lee clases Java 21, y Mockito (inline) lo
+           usa para los mocks de los tests de EventSecurity. Esto solo afecta a los tests. -->
+      <plugin>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <argLine>-Dnet.bytebuddy.experimental=true</argLine>
+        </configuration>
+      </plugin>
+    </plugins>
     <pluginManagement><!-- los plugins comunes (clean, compiler, surefire, etc.) estan en el pom padre -->
       <plugins>
         <!-- see http://maven.apache.org/ref/current/maven-core/default-bindings.html#Plugin_bindings_for_war_packaging -->

@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -50,6 +51,15 @@ public class ErrorAdvice {
     @ExceptionHandler(EventNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ModelAndView eventNotFound(final EventNotFoundException e) {
+        return new ModelAndView("errors/404");
+    }
+
+    // @PreAuthorize de ownership (ver EventSecurity): mismo 404 que un evento inexistente, para no
+    // revelar que el evento existe pero no es tuyo. Un anonimo nunca llega aca: WebAuthConfig ya
+    // exige estar autenticado en esas rutas (los 403 por rol los resuelve el filtro, no este handler).
+    @ExceptionHandler(AccessDeniedException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ModelAndView accessDenied(final AccessDeniedException e) {
         return new ModelAndView("errors/404");
     }
 

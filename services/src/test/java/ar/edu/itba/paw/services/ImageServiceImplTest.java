@@ -1,5 +1,6 @@
 package ar.edu.itba.paw.services;
 
+import ar.edu.itba.paw.model.EventAccessSummary;
 import ar.edu.itba.paw.model.Image;
 import ar.edu.itba.paw.model.exception.InvalidImageException;
 import ar.edu.itba.paw.persistence.ImageDao;
@@ -213,27 +214,28 @@ public class ImageServiceImplTest {
         assertNull(type);
     }
 
-    // ---- findOwnerEventId() ----
+    // ---- findOwnerEventAccess() ----
 
     @Test
-    public void testFindOwnerEventIdReturnsTheEventTheImageBelongsTo() {
+    public void testFindOwnerEventAccessReturnsTheAccessDataOfTheEventTheImageBelongsTo() {
         // Arrange
-        when(imageDao.findOwnerEventId(IMAGE_ID)).thenReturn(Optional.of(7L));
+        final EventAccessSummary access = new EventAccessSummary(7L, 1L, true, true);
+        when(imageDao.findOwnerEventAccess(IMAGE_ID)).thenReturn(Optional.of(access));
 
         // Act
-        final Optional<Long> result = imageService.findOwnerEventId(IMAGE_ID);
+        final Optional<EventAccessSummary> result = imageService.findOwnerEventAccess(IMAGE_ID);
 
         // Assert
-        assertEquals(Optional.of(7L), result);
+        assertEquals(Optional.of(access), result);
     }
 
     @Test
-    public void testFindOwnerEventIdReturnsEmptyWhenTheImageBelongsToNoEvent() {
+    public void testFindOwnerEventAccessReturnsEmptyWhenTheImageBelongsToNoEvent() {
         // Arrange
-        when(imageDao.findOwnerEventId(IMAGE_ID)).thenReturn(Optional.empty());
+        when(imageDao.findOwnerEventAccess(IMAGE_ID)).thenReturn(Optional.empty());
 
         // Act
-        final Optional<Long> result = imageService.findOwnerEventId(IMAGE_ID);
+        final Optional<EventAccessSummary> result = imageService.findOwnerEventAccess(IMAGE_ID);
 
         // Assert
         assertFalse(result.isPresent());

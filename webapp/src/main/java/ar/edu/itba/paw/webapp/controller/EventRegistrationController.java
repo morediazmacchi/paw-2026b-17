@@ -1,7 +1,6 @@
 package ar.edu.itba.paw.webapp.controller;
 
 import ar.edu.itba.paw.model.User;
-import ar.edu.itba.paw.services.EventAccessService;
 import ar.edu.itba.paw.services.FavoriteService;
 import ar.edu.itba.paw.services.ModerationService;
 import ar.edu.itba.paw.services.RegistrationResult;
@@ -11,6 +10,7 @@ import ar.edu.itba.paw.services.UnregisterResult;
 import ar.edu.itba.paw.webapp.form.ReportForm;
 import ar.edu.itba.paw.webapp.util.SafeRedirect;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -30,16 +30,13 @@ public class EventRegistrationController {
     private final RegistrationService registrationService;
     private final FavoriteService favoriteService;
     private final ModerationService moderationService;
-    private final EventAccessService accessChecker;
 
     @Autowired
     public EventRegistrationController(final RegistrationService registrationService,
-                                        final FavoriteService favoriteService, final ModerationService moderationService,
-                                        final EventAccessService accessChecker) {
+                                        final FavoriteService favoriteService, final ModerationService moderationService) {
         this.registrationService = registrationService;
         this.favoriteService = favoriteService;
         this.moderationService = moderationService;
-        this.accessChecker = accessChecker;
     }
 
     @RequestMapping(value = "/eventos/{id}/quiero-ir", method = RequestMethod.POST)
@@ -90,11 +87,11 @@ public class EventRegistrationController {
         return new ModelAndView("redirect:/eventos/" + id);
     }
 
+    @PreAuthorize("@eventSecurity.canView(#id, authentication)")
     @RequestMapping(value = "/eventos/{id}/reportar", method = RequestMethod.POST)
     public ModelAndView reportar(@PathVariable final long id, @Valid final ReportForm form,
                                   final BindingResult errors, @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
                                   final RedirectAttributes redirectAttributes) {
-        accessChecker.getViewableEvent(id, currentUser);
         if (errors.hasErrors()) {
             redirectAttributes.addFlashAttribute("reportMessage", "INVALID");
         } else {

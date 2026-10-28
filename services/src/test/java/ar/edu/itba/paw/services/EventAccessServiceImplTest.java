@@ -1,10 +1,12 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.EventAccessSummary;
 import ar.edu.itba.paw.model.EventApprovalStatus;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.EventVisibility;
+import ar.edu.itba.paw.model.exception.EventCancelledException;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import org.junit.Before;
 import org.junit.Test;
@@ -149,6 +151,36 @@ public class EventAccessServiceImplTest {
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
 
+    // ---- canView() con la proyeccion EventAccessSummary (la que usa el acceso a imagenes) ----
+
+    @Test
+    public void testCanViewAPublicApprovedSummaryIsTrueWithoutSession() {
+        assertTrue(accessService.canView(new EventAccessSummary(EVENT_ID, CREATOR_ID, false, true), null));
+    }
+
+    @Test
+    public void testCanViewAPublicNotApprovedSummaryIsFalseForAStranger() {
+        assertFalse(accessService.canView(new EventAccessSummary(EVENT_ID, CREATOR_ID, false, false), user(OTHER_ID)));
+    }
+
+    @Test
+    public void testCanViewAPrivateSummaryIsFalseWithoutSession() {
+        assertFalse(accessService.canView(new EventAccessSummary(EVENT_ID, CREATOR_ID, true, true), null));
+    }
+
+    @Test
+    public void testCanViewAPrivateSummaryIsTrueForTheCreator() {
+        assertTrue(accessService.canView(new EventAccessSummary(EVENT_ID, CREATOR_ID, true, true), user(CREATOR_ID)));
+    }
+
+    @Test
+    public void testCanViewAPrivateSummaryIsTrueForAnInvitedUser() {
+        when(registrationService.findByEventAndUserId(EVENT_ID, OTHER_ID)).thenReturn(Optional.empty());
+        when(eventInvitationService.isInvited(EVENT_ID, OTHER_ID)).thenReturn(true);
+
+        assertTrue(accessService.canView(new EventAccessSummary(EVENT_ID, CREATOR_ID, true, true), user(OTHER_ID)));
+    }
+
     // ---- getViewableEvent() ----
 
     @Test
@@ -188,87 +220,43 @@ public class EventAccessServiceImplTest {
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
 
-    // ---- getOwnedEvent() ----
+    // ---- getEditableEvent() ----
+    // Quien es el creador lo decide @PreAuthorize en el controller (ver EventSecurity): aca solo
+    // se prueba la regla de estado.
 
     @Test
-    public void testGetOwnedEventReturnsTheEventToItsCreator() {
+    public void testGetEditableEventReturnsTheEvent() {
         // Arrange
         final Event event = event(EventVisibility.PUBLIC);
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event));
 
         // Act
-        final Event result = accessService.getOwnedEvent(EVENT_ID, user(CREATOR_ID));
+        final Event result = accessService.getEditableEvent(EVENT_ID);
 
         // Assert
         assertSame(event, result);
     }
 
-    @Test(expected = EventNotFoundException.class)
-    public void testGetOwnedEventWhenTheUserIsNotTheCreatorThrowsEventNotFoundException() {
+    @Test(expected = EventCancelledException.class)
+    public void testGetEditableEventWhenTheEventIsCancelledThrowsEventCancelledException() {
         // Arrange
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event(EventVisibility.PUBLIC)));
-
-        // Act
-        accessService.getOwnedEvent(EVENT_ID, user(OTHER_ID));
-
-        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
-    }
-
-    @Test(expected = EventNotFoundException.class)
-    public void testGetOwnedEventWhenTheEventDoesNotExistThrowsEventNotFoundException() {
-        // Arrange
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.empty());
-
-        // Act
-        accessService.getOwnedEvent(EVENT_ID, user(CREATOR_ID));
-
-        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
-    }
-
-    // ---- getOwnedPrivateEvent() ----
-
-    @Test
-    public void testGetOwnedPrivateEventReturnsThePrivateEventToItsCreator() {
-        // Arrange
-        final Event event = event(EventVisibility.PRIVATE);
+        final Event event = event(EventVisibility.PUBLIC);
+        event.setCancelledAt(new java.util.Date());
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event));
 
         // Act
-        final Event result = accessService.getOwnedPrivateEvent(EVENT_ID, user(CREATOR_ID));
-
-        // Assert
-        assertSame(event, result);
-    }
-
-    @Test(expected = EventNotFoundException.class)
-    public void testGetOwnedPrivateEventWhenTheEventIsPublicThrowsEventNotFoundException() {
-        // Arrange
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event(EventVisibility.PUBLIC)));
-
-        // Act
-        accessService.getOwnedPrivateEvent(EVENT_ID, user(CREATOR_ID));
+        accessService.getEditableEvent(EVENT_ID);
 
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
 
     @Test(expected = EventNotFoundException.class)
-    public void testGetOwnedPrivateEventWhenTheUserIsNotTheCreatorThrowsEventNotFoundException() {
-        // Arrange
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event(EventVisibility.PRIVATE)));
-
-        // Act
-        accessService.getOwnedPrivateEvent(EVENT_ID, user(OTHER_ID));
-
-        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
-    }
-
-    @Test(expected = EventNotFoundException.class)
-    public void testGetOwnedPrivateEventWhenTheEventDoesNotExistThrowsEventNotFoundException() {
+    public void testGetEditableEventWhenTheEventDoesNotExistThrowsEventNotFoundException() {
         // Arrange
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
-        accessService.getOwnedPrivateEvent(EVENT_ID, user(CREATOR_ID));
+        accessService.getEditableEvent(EVENT_ID);
 
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }

@@ -1,5 +1,6 @@
 package ar.edu.itba.paw.persistence;
 
+import ar.edu.itba.paw.model.EventAccessSummary;
 import ar.edu.itba.paw.model.Image;
 import org.junit.Before;
 import org.junit.Test;
@@ -122,38 +123,77 @@ public class ImageJpaDaoTest {
         assertFalse(found.isPresent());
     }
 
-    // ---- findOwnerEventId() ----
+    // ---- findOwnerEventAccess() ----
 
-    private long insertEvent() {
-        jdbcTemplate.update("INSERT INTO event (title, event_date, address, creator_email, visibility) VALUES (?, ?, ?, ?, ?)",
+    private long insertEvent(final String visibility, final String approvalStatus) {
+        jdbcTemplate.update("INSERT INTO event (title, event_date, address, creator_email, visibility, approval_status) "
+                        + "VALUES (?, ?, ?, ?, ?, ?)",
                 "Un evento", new java.sql.Timestamp(System.currentTimeMillis() + 86_400_000L),
-                "Av. Corrientes 1234", "creador@test.com", "PRIVATE");
+                "Av. Corrientes 1234", "creador@test.com", visibility, approvalStatus);
         return jdbcTemplate.queryForObject("SELECT id FROM event ORDER BY id DESC LIMIT 1", Long.class);
     }
 
     @Test
-    public void testFindOwnerEventIdReturnsTheEventTheImageIsAttachedTo() {
+    public void testFindOwnerEventAccessReturnsTheVisibilityDataOfTheEventTheImageIsAttachedTo() {
         // Arrange
         final long imageId = insertImage();
-        final long eventId = insertEvent();
+        final long eventId = insertEvent("PRIVATE", "APPROVED");
         jdbcTemplate.update("INSERT INTO event_image (event_id, image_id) VALUES (?, ?)", eventId, imageId);
 
         // Act
-        final Optional<Long> owner = imageDao.findOwnerEventId(imageId);
+        final Optional<EventAccessSummary> access = imageDao.findOwnerEventAccess(imageId);
 
         // Assert
-        assertEquals(Optional.of(eventId), owner);
+        assertTrue(access.isPresent());
+        assertEquals(Long.valueOf(eventId), access.get().getId());
+        assertTrue(access.get().isPrivate());
+        assertTrue(access.get().isApproved());
     }
 
     @Test
-    public void testFindOwnerEventIdReturnsEmptyWhenTheImageIsNotAttachedToAnyEvent() {
+    public void testFindOwnerEventAccessReturnsTheCreatorIdOfTheEvent() {
+        // Arrange
+        jdbcTemplate.update("INSERT INTO users (email, name) VALUES (?, ?)", "creador@test.com", "Creador");
+        final long creatorId = jdbcTemplate.queryForObject(
+                "SELECT id FROM users WHERE email = ?", Long.class, "creador@test.com");
+        final long imageId = insertImage();
+        final long eventId = insertEvent("PRIVATE", "APPROVED");
+        jdbcTemplate.update("UPDATE event SET creator_id = ? WHERE id = ?", creatorId, eventId);
+        jdbcTemplate.update("INSERT INTO event_image (event_id, image_id) VALUES (?, ?)", eventId, imageId);
+
+        // Act
+        final Optional<EventAccessSummary> access = imageDao.findOwnerEventAccess(imageId);
+
+        // Assert
+        assertTrue(access.isPresent());
+        assertEquals(Long.valueOf(creatorId), access.get().getCreatorId());
+    }
+
+    @Test
+    public void testFindOwnerEventAccessOfAPublicPendingEventIsNotPrivateNorApproved() {
+        // Arrange
+        final long imageId = insertImage();
+        final long eventId = insertEvent("PUBLIC", "PENDING");
+        jdbcTemplate.update("INSERT INTO event_image (event_id, image_id) VALUES (?, ?)", eventId, imageId);
+
+        // Act
+        final Optional<EventAccessSummary> access = imageDao.findOwnerEventAccess(imageId);
+
+        // Assert
+        assertTrue(access.isPresent());
+        assertFalse(access.get().isPrivate());
+        assertFalse(access.get().isApproved());
+    }
+
+    @Test
+    public void testFindOwnerEventAccessReturnsEmptyWhenTheImageIsNotAttachedToAnyEvent() {
         // Arrange: una imagen subida que nunca se asocio a un evento.
         final long imageId = insertImage();
 
         // Act
-        final Optional<Long> owner = imageDao.findOwnerEventId(imageId);
+        final Optional<EventAccessSummary> access = imageDao.findOwnerEventAccess(imageId);
 
         // Assert
-        assertFalse(owner.isPresent());
+        assertFalse(access.isPresent());
     }
 }

@@ -1,5 +1,6 @@
 package ar.edu.itba.paw.services;
 
+import ar.edu.itba.paw.model.EventAccessSummary;
 import ar.edu.itba.paw.model.Image;
 import ar.edu.itba.paw.model.exception.InvalidImageException;
 import ar.edu.itba.paw.persistence.ImageDao;
@@ -63,8 +64,8 @@ public class ImageServiceImpl implements ImageService {
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<Long> findOwnerEventId(final long imageId) {
-        return imageDao.findOwnerEventId(imageId);
+    public Optional<EventAccessSummary> findOwnerEventAccess(final long imageId) {
+        return imageDao.findOwnerEventAccess(imageId);
     }
 
     /**

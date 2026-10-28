@@ -98,6 +98,13 @@ public interface RegistrationService {
     UnregisterResult cancelOwnRegistration(long eventId, long userId);
 
     /**
+     * La inscripcion con ese id, sin mirar quien pregunta. Lo usa la capa web
+     * (EventSecurity) para decidir si el organizador puede actuar sobre ella.
+     */
+    @Transactional(readOnly = true)
+    Optional<Registration> findById(long registrationId);
+
+    /**
      * Para el detalle de evento: si el usuario logueado ya esta anotado a
      * este evento, para mostrar "Darme de baja" en vez de "Inscribirme".
      */
