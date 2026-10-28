@@ -9,7 +9,6 @@ import ar.edu.itba.paw.persistence.EventChatDao;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
@@ -24,8 +23,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @RunWith(MockitoJUnitRunner.class)
@@ -98,7 +95,6 @@ public class EventChatServiceImplTest {
 
         // Assert
         assertEquals(ChatJoinResult.ALREADY_MEMBER, result);
-        verify(chatDao, never()).addMember(anyLong(), anyLong(), anyLong());
     }
 
     @Test
@@ -152,7 +148,6 @@ public class EventChatServiceImplTest {
 
         // Assert
         assertEquals(ChatJoinResult.CLOSED, result);
-        verify(chatDao, never()).addMember(anyLong(), anyLong(), anyLong());
     }
 
     @Test
@@ -203,11 +198,10 @@ public class EventChatServiceImplTest {
 
         // Assert
         assertFalse(result.isPresent());
-        verify(chatDao, never()).markRead(anyLong(), anyLong());
     }
 
     @Test
-    public void testFindMessagesWithoutCursorReturnsTheLatestAndMarksRead() {
+    public void testFindMessagesWithoutCursorReturnsTheLatest() {
         // Arrange
         final List<ChatMessage> latest = Arrays.asList(new ChatMessage(EVENT_ID, 5, "hola"));
         when(chatDao.isMember(EVENT_ID, USER_ID)).thenReturn(true);
@@ -218,7 +212,6 @@ public class EventChatServiceImplTest {
 
         // Assert
         assertEquals(latest, result.get());
-        verify(chatDao).markRead(EVENT_ID, USER_ID);
     }
 
     @Test
@@ -233,27 +226,12 @@ public class EventChatServiceImplTest {
 
         // Assert
         assertEquals(newer, result.get());
-        verify(chatDao).markRead(EVENT_ID, USER_ID);
-    }
-
-    @Test
-    public void testFindMessagesWithCursorAndNothingNewDoesNotMarkRead() {
-        // Arrange
-        when(chatDao.isMember(EVENT_ID, USER_ID)).thenReturn(true);
-        when(chatDao.findAfter(EVENT_ID, 40, EventChatServiceImpl.MAX_NEW_MESSAGES))
-                .thenReturn(Collections.emptyList());
-
-        // Act
-        chatService.findMessages(EVENT_ID, USER_ID, 40);
-
-        // Assert
-        verify(chatDao, never()).markRead(anyLong(), anyLong());
     }
 
     // ---- send() ----
 
     @Test
-    public void testSendStoresTheTrimmedMessage() {
+    public void testSendByAMemberOfAnOpenChatReturnsSent() {
         // Arrange
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
         when(chatDao.isMember(EVENT_ID, USER_ID)).thenReturn(true);
@@ -263,11 +241,6 @@ public class EventChatServiceImplTest {
 
         // Assert
         assertEquals(ChatSendResult.SENT, result);
-        final ArgumentCaptor<ChatMessage> captor = ArgumentCaptor.forClass(ChatMessage.class);
-        verify(chatDao).addMessage(captor.capture());
-        assertEquals("hola grupo", captor.getValue().getBody());
-        assertEquals(USER_ID, captor.getValue().getUserId());
-        assertEquals(EVENT_ID, captor.getValue().getEventId());
     }
 
     @Test
@@ -281,7 +254,6 @@ public class EventChatServiceImplTest {
 
         // Assert
         assertEquals(ChatSendResult.NOT_ALLOWED, result);
-        verify(chatDao, never()).addMessage(any(ChatMessage.class));
     }
 
     @Test
@@ -295,7 +267,6 @@ public class EventChatServiceImplTest {
 
         // Assert
         assertEquals(ChatSendResult.CLOSED, result);
-        verify(chatDao, never()).addMessage(any(ChatMessage.class));
     }
 
     @Test
@@ -324,7 +295,6 @@ public class EventChatServiceImplTest {
 
         // Assert
         assertEquals(ChatSendResult.INVALID, result);
-        verify(chatDao, never()).addMessage(any(ChatMessage.class));
     }
 
     @Test

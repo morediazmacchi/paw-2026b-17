@@ -215,7 +215,7 @@ public class RegistrationServiceImplTest {
         // Assert
         assertEquals(RegistrationResult.Status.CONFIRMED, result.getStatus());
         // Esta inscripcion ocupo el ultimo lugar: se disparo notifyEventFull().
-        // Sin verify(): se confirma por el valor de retorno, no espiando el mock.
+        // Se confirma por el valor de retorno, no espiando el mock.
         assertTrue(result.isNotificationSent());
     }
 
@@ -1160,7 +1160,7 @@ public class RegistrationServiceImplTest {
         // Assert
         assertEquals(ApprovalResult.Status.APPROVED, result.getStatus());
         // Esta aceptacion ocupo el ultimo lugar: se disparo notifyEventFull().
-        // Sin verify(): se confirma por el valor de retorno, no espiando el mock.
+        // Se confirma por el valor de retorno, no espiando el mock.
         assertTrue(result.isNotificationSent());
     }
 

@@ -16,8 +16,6 @@ import java.util.Collections;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @RunWith(MockitoJUnitRunner.class)
@@ -47,14 +45,17 @@ public class PriceDistributionCacheTest {
 
     @Test
     public void testSecondGetWithinTheRefreshWindowDoesNotReadAgain() {
-        when(eventDao.findPublicPaidPrices()).thenReturn(Collections.singletonList(new BigDecimal("1000")));
+        // Si leyera de nuevo, la segunda lectura traeria dos precios y no uno.
+        when(eventDao.findPublicPaidPrices())
+                .thenReturn(Collections.singletonList(new BigDecimal("1000")))
+                .thenReturn(Arrays.asList(new BigDecimal("1000"), new BigDecimal("3000")));
 
         final PriceDistribution first = cache.get();
         clock.advanceSeconds(REFRESH_SECONDS - 1);
         final PriceDistribution second = cache.get();
 
         assertSame(first, second);
-        verify(eventDao, times(1)).findPublicPaidPrices();
+        assertEquals(1, second.size());
     }
 
     @Test
@@ -67,7 +68,6 @@ public class PriceDistributionCacheTest {
         clock.advanceSeconds(REFRESH_SECONDS);
 
         assertEquals(2, cache.get().size());
-        verify(eventDao, times(2)).findPublicPaidPrices();
     }
 
     // Un reloj que se puede adelantar a mano.

@@ -441,7 +441,8 @@ public class ProfileController {
 
     // Invitar solo tiene sentido en un evento privado: uno publico ya tiene un
     // link que se puede compartir sin necesitar un token. Mismo 404 que
-    // pendingRegistrations si no sos el creador, o si el evento no es privado.
+    // pendingRegistrations si no sos el creador, o si el evento no es privado
+    // (lo decide @PreAuthorize, ver EventSecurity.isOwnerOfPrivate).
     @PreAuthorize("@eventSecurity.isOwnerOfPrivate(#id, authentication)")
     @RequestMapping(value = "/perfil/eventos/{id}/invitar", method = RequestMethod.GET)
     public ModelAndView inviteForm(@PathVariable final long id,

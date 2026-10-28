@@ -154,6 +154,9 @@ public class WebAuthConfig {
                         .antMatchers("/admin/usuarios/*/promover", "/admin/usuarios/*/revocar")
                             .hasRole("SUPERADMIN")
                         .antMatchers("/admin/**").hasRole("ADMIN")
+                        // Todo lo demas exige sesion. QUIEN puede hacer que sobre un evento (ser el
+                        // organizador, poder verlo...) no se decide aca sino con @PreAuthorize en los
+                        // controllers (ver EventSecurity y WebConfig, donde se activa).
                         .anyRequest().authenticated())
                 .formLogin(form -> form
                         .loginPage("/login")

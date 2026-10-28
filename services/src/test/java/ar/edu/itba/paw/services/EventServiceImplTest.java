@@ -35,7 +35,6 @@ import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -777,13 +776,15 @@ public class EventServiceImplTest {
         final List<Event> events = eventsWithIds(2);
         when(eventDao.countSearch(criteria)).thenReturn(2L);
         when(eventDao.search(criteria)).thenReturn(events);
+        // Si el service de similitud se usara igual, el resultado seria este otro.
+        lenient().when(eventSimilarityService.searchRecommended(criteria))
+                .thenReturn(new PageResult<>(eventsWithIds(5), 5, 1, EventServiceImpl.PAGE_SIZE));
 
         // Act
         final PageResult<Event> result = eventService.search(criteria);
 
         // Assert
         assertEquals(events, result.getContent());
-        verifyNoInteractions(eventSimilarityService);
     }
 
     @Test
@@ -794,12 +795,15 @@ public class EventServiceImplTest {
         criteria.setViewerId(CREATOR_ID);
         when(eventDao.countSearch(criteria)).thenReturn(0L);
         when(eventDao.search(criteria)).thenReturn(Collections.emptyList());
+        // Si el service de similitud se usara igual, el resultado no estaria vacio.
+        lenient().when(eventSimilarityService.searchRecommended(criteria))
+                .thenReturn(new PageResult<>(eventsWithIds(5), 5, 1, EventServiceImpl.PAGE_SIZE));
 
         // Act
-        eventService.search(criteria);
+        final PageResult<Event> result = eventService.search(criteria);
 
         // Assert
-        verifyNoInteractions(eventSimilarityService);
+        assertTrue(result.getContent().isEmpty());
     }
 
     @Test

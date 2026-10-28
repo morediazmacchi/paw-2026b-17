@@ -21,9 +21,12 @@ public interface EventAccessService {
      * dice que evento es: quien sos lo dice tu sesion.
      * Recibe EventAccessData (lo implementan Event y la proyeccion EventAccessSummary) para poder
      * decidir, por ejemplo al servir una imagen, sin cargar el Event entero.
-     * Lo comparten EventController, EventRegistrationController, EventQuestionController,
-     * ProfileController e ImageController: por eso vive en un service aparte y no
-     * como metodo privado de un solo controller.
+     * Lo comparten el detalle del evento (EventController), las imagenes y los services de
+     * preguntas y favoritos (via EventSecurity y directamente): por eso vive en un service aparte y
+     * no como metodo privado de un solo controller.
+     * OJO: esto es VISIBILIDAD (quien puede ver un evento). La AUTORIZACION de las acciones del
+     * organizador (editar, cancelar, ver inscriptos, invitar...) no esta aca: la resuelve
+     * @PreAuthorize en los controllers (ver EventSecurity).
      */
     boolean canView(EventAccessData event, User user, Optional<Registration> myRegistration);
 

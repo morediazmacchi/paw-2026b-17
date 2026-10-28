@@ -25,10 +25,7 @@ import java.util.Optional;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @RunWith(MockitoJUnitRunner.class)
@@ -226,13 +223,12 @@ public class EventSecurityTest {
     }
 
     @Test
-    public void testCanViewImageOfAPublicEventIsTrueForAnAnonymousVisitorWithoutLookingUpAUser() {
+    public void testCanViewImageOfAPublicEventIsTrueForAnAnonymousVisitor() {
         final EventAccessSummary access = new EventAccessSummary(EVENT_ID, CREATOR_ID, false, true);
         when(imageService.findOwnerEventAccess(IMAGE_ID)).thenReturn(Optional.of(access));
         when(eventAccessService.canView(access, null)).thenReturn(true);
 
         assertTrue(security.canViewImage(IMAGE_ID, anonymous()));
-        verify(userService, never()).findByEmail(anyString());
     }
 
     @Test

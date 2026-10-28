@@ -9,7 +9,6 @@ import ar.edu.itba.paw.persistence.RegistrationDao;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
@@ -33,9 +32,8 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -236,12 +234,17 @@ public class EventSimilarityServiceImplTest {
     @Test
     public void testOnlyTheConfiguredNumberOfAttendedEventsIsRead() {
         final EventSearchCriteria criteria = criteria();
-        when(registrationDao.findAttendedEventIds(VIEWER_ID, NOW_DATE, 7)).thenReturn(Collections.emptyList());
-        candidates(criteria);
+        // El historial solo existe si se pide con limite 7 (con cualquier otro el dao devuelve
+        // vacio): si el service pidiera otra cantidad, no se enteraria de lo que asistio.
+        when(registrationDao.findAttendedEventIds(VIEWER_ID, NOW_DATE, 7)).thenReturn(Collections.singletonList(100L));
+        when(eventDao.findByIds(Collections.singletonList(100L))).thenReturn(Collections.singletonList(musicFriday(100).build()));
+        candidates(criteria, sportsTuesday(1).build(), musicFriday(2).at("2026-10-24T21:00").build());
 
-        serviceWith(SimilarityParameters.builder().historySize(7).build()).searchRecommended(criteria);
+        final PageResult<Event> result = serviceWith(SimilarityParameters.builder().historySize(7).build())
+                .searchRecommended(criteria);
 
-        verify(registrationDao).findAttendedEventIds(VIEWER_ID, NOW_DATE, 7);
+        // Con historial, el recital (parecido a lo que asistio) pasa adelante del deporte.
+        assertEquals(Arrays.asList(2L, 1L), ids(result.getContent()));
     }
 
     @Test
@@ -380,51 +383,51 @@ public class EventSimilarityServiceImplTest {
 
     @Test
     public void testFindSimilarAsksOnlyForEventsOtherThanTheViewersOwn() {
-        final Event subject = subject().build();
-        similarTo(subject, musicFriday(2).build());
+        // Solo responde si el criterio trae al espectador (para excluir sus propios eventos).
+        when(eventDao.findById(1)).thenReturn(Optional.of(subject().build()));
+        when(eventDao.findAllMatching(argThat(c -> c != null && Long.valueOf(VIEWER_ID).equals(c.getViewerId()))))
+                .thenReturn(Arrays.asList(musicFriday(2).build()));
 
-        service.findSimilar(1, VIEWER_ID);
-
-        final ArgumentCaptor<EventSearchCriteria> captor = ArgumentCaptor.forClass(EventSearchCriteria.class);
-        verify(eventDao).findAllMatching(captor.capture());
-        assertEquals(Long.valueOf(VIEWER_ID), captor.getValue().getViewerId());
+        assertEquals(Arrays.asList(2L), ids(service.findSimilar(1, VIEWER_ID)));
     }
 
     @Test
     public void testFindSimilarForAnAnonymousVisitorHasNoViewer() {
-        final Event subject = subject().build();
-        similarTo(subject, musicFriday(2).build());
+        // Solo responde si el criterio NO trae espectador.
+        when(eventDao.findById(1)).thenReturn(Optional.of(subject().build()));
+        when(eventDao.findAllMatching(argThat(c -> c != null && c.getViewerId() == null)))
+                .thenReturn(Arrays.asList(musicFriday(2).build()));
 
-        service.findSimilar(1, null);
-
-        final ArgumentCaptor<EventSearchCriteria> captor = ArgumentCaptor.forClass(EventSearchCriteria.class);
-        verify(eventDao).findAllMatching(captor.capture());
-        assertEquals(null, captor.getValue().getViewerId());
+        assertEquals(Arrays.asList(2L), ids(service.findSimilar(1, null)));
     }
 
     @Test
     public void testFindSimilarIsEmptyForAMissingEvent() {
         when(eventDao.findById(1)).thenReturn(Optional.empty());
+        lenient().when(eventDao.findAllMatching(any(EventSearchCriteria.class)))
+                .thenReturn(Arrays.asList(musicFriday(2).build()));
 
+        // Si consultara candidatos igual, el resultado no estaria vacio.
         assertTrue(service.findSimilar(1, null).isEmpty());
-        verify(eventDao, never()).findAllMatching(any(EventSearchCriteria.class));
     }
 
     @Test
     public void testFindSimilarIsEmptyForAPrivateEvent() {
         when(eventDao.findById(1)).thenReturn(Optional.of(subject().privateEvent().build()));
+        lenient().when(eventDao.findAllMatching(any(EventSearchCriteria.class)))
+                .thenReturn(Arrays.asList(musicFriday(2).build()));
 
         assertTrue(service.findSimilar(1, null).isEmpty());
-        verify(eventDao, never()).findAllMatching(any(EventSearchCriteria.class));
     }
 
     @Test
     public void testFindSimilarIsEmptyForAnEventNotYetApproved() {
         when(eventDao.findById(1)).thenReturn(Optional.of(
                 subject().approval(EventApprovalStatus.PENDING).build()));
+        lenient().when(eventDao.findAllMatching(any(EventSearchCriteria.class)))
+                .thenReturn(Arrays.asList(musicFriday(2).build()));
 
         assertTrue(service.findSimilar(1, null).isEmpty());
-        verify(eventDao, never()).findAllMatching(any(EventSearchCriteria.class));
     }
 
     // ---- hasAttendanceHistory() ----
