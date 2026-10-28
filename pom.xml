@@ -32,6 +32,8 @@
     <mockito.version>5.11.0</mockito.version>
     <hsqldb.version>2.7.3</hsqldb.version>
     <spring-security.version>5.7.11</spring-security.version>
+    <jstl.version>1.2</jstl.version>
+    <servlet-api.version>4.0.1</servlet-api.version>
   </properties>
   <dependencyManagement>
     <dependencies>
@@ -205,6 +207,47 @@
         <artifactId>spring-security-taglibs</artifactId>
         <version>${spring-security.version}</version>
       </dependency>
+      <!-- JSTL para los JSP y API de servlets (la provee el contenedor, por eso en webapp va con scope provided). -->
+      <dependency>
+        <groupId>jstl</groupId>
+        <artifactId>jstl</artifactId>
+        <version>${jstl.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>javax.servlet</groupId>
+        <artifactId>javax.servlet-api</artifactId>
+        <version>${servlet-api.version}</version>
+      </dependency>
     </dependencies>
   </dependencyManagement>
+  <build>
+    <pluginManagement><!-- versiones de los plugins comunes a todos los modulos, para no usar las de Maven por defecto -->
+      <plugins>
+        <plugin>
+          <artifactId>maven-clean-plugin</artifactId>
+          <version>3.4.0</version>
+        </plugin>
+        <plugin>
+          <artifactId>maven-resources-plugin</artifactId>
+          <version>3.3.1</version>
+        </plugin>
+        <plugin>
+          <artifactId>maven-compiler-plugin</artifactId>
+          <version>3.13.0</version>
+        </plugin>
+        <plugin>
+          <artifactId>maven-surefire-plugin</artifactId>
+          <version>3.3.0</version>
+        </plugin>
+        <plugin>
+          <artifactId>maven-install-plugin</artifactId>
+          <version>3.1.2</version>
+        </plugin>
+        <plugin>
+          <artifactId>maven-deploy-plugin</artifactId>
+          <version>3.1.2</version>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+  </build>
 </project>
