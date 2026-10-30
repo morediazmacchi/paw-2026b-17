@@ -1,6 +1,5 @@
 <%@ page contentType="text/html;charset=UTF-8" pageEncoding="UTF-8" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
-<%@ taglib prefix="fmt" uri="http://java.sun.com/jsp/jstl/fmt" %>
 <%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions" %>
 <%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
 <%@ taglib prefix="paw" tagdir="/WEB-INF/tags" %>
@@ -85,7 +84,7 @@
                                     <p class="inbox-item-body"><c:out value="${message.body}"/></p>
                                 </c:if>
                                 <p class="inbox-item-date">
-                                    <fmt:formatDate value="${message.createdAt}" pattern="dd/MM/yyyy · HH:mm"/>hs
+                                    <paw:date value="${message.createdAt}" format="dateTime"/>
                                 </p>
                             </div>
                             <c:if test="${not empty targetUrl}">

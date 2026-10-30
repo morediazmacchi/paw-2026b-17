@@ -15,7 +15,6 @@
     </c:if>
     <script src="<c:url value='/js/disable-on-submit.js'/>"></script>
     <script src="<c:url value='/js/event-gallery.js'/>"></script>
-    <script src="<c:url value='/js/favorite-toggle.js'/>"></script>
     <script src="<c:url value='/js/modal.js'/>"></script>
 </jsp:attribute>
 <jsp:body>
@@ -67,11 +66,9 @@
             <c:url value="/eventos/${event.id}/favorito/quitar" var="favRemoveUrl"/>
             <spring:message code="event.favorite.add" var="favAddLabel"/>
             <spring:message code="event.favorite.remove" var="favRemoveLabel"/>
-            <spring:message code="event.favorite.error" var="favErrorLabel"/>
-            <form class="js-favorite-toggle" action="${favorite ? favRemoveUrl : favAddUrl}" method="post"
-                  data-add-url="${favAddUrl}" data-remove-url="${favRemoveUrl}"
-                  data-add-label="${favAddLabel}" data-remove-label="${favRemoveLabel}"
-                  data-error-label="${favErrorLabel}">
+            <%-- Formulario comun (sin fetch): POST, el controller redirige a returnTo y la
+                 pagina se recarga con el corazon ya actualizado. --%>
+            <form action="${favorite ? favRemoveUrl : favAddUrl}" method="post">
                 <input type="hidden" name="returnTo" value="${detailUrl}"/>
                 <button type="submit" class="card-favorite-btn detail-hero-favorite-btn${favorite ? ' card-favorite-btn-active' : ''}"
                         aria-label="${favorite ? favRemoveLabel : favAddLabel}">
@@ -242,14 +239,14 @@
             <span class="detail-meta-icon"><paw:icon name="calendar"/></span>
             <div>
                 <span class="detail-meta-label"><spring:message code="event.detail.dateLabelSmall"/></span>
-                <span class="detail-meta-value"><fmt:formatDate value="${event.eventDate}" pattern="EEE dd MMM yyyy"/></span>
+                <span class="detail-meta-value"><paw:date value="${event.eventDate}" format="longDate"/></span>
             </div>
         </div>
         <div class="detail-meta-item">
             <span class="detail-meta-icon"><paw:icon name="clock"/></span>
             <div>
                 <span class="detail-meta-label"><spring:message code="event.detail.timeLabelSmall"/></span>
-                <span class="detail-meta-value"><fmt:formatDate value="${event.eventDate}" pattern="HH:mm"/>hs</span>
+                <span class="detail-meta-value"><paw:date value="${event.eventDate}" format="time"/></span>
             </div>
         </div>
         <div class="detail-meta-item">
@@ -410,7 +407,7 @@
                                         <c:otherwise><spring:message code="event.questions.unnamedAsker"/></c:otherwise>
                                     </c:choose>
                                 </span>
-                                <span class="creator-review-date"><fmt:formatDate value="${question.createdAt}" pattern="dd/MM/yyyy"/></span>
+                                <span class="creator-review-date"><paw:date value="${question.createdAt}" format="date"/></span>
                             </div>
                             <p class="review-comment"><c:out value="${question.text}"/></p>
                             <c:choose>
@@ -518,8 +515,8 @@
                     </c:if>
                 </div>
                 <div class="detail-price-card-bottom">
-                    <span><paw:icon name="calendar"/> <fmt:formatDate value="${event.eventDate}" pattern="EEE dd MMM yyyy"/></span>
-                    <span><paw:icon name="clock"/> <fmt:formatDate value="${event.eventDate}" pattern="HH:mm"/>hs</span>
+                    <span><paw:icon name="calendar"/> <paw:date value="${event.eventDate}" format="longDate"/></span>
+                    <span><paw:icon name="clock"/> <paw:date value="${event.eventDate}" format="time"/></span>
                 </div>
             </div>
 
@@ -726,7 +723,7 @@
                     <c:set var="relStatus" value="${relatedStatuses[rel.id]}"/>
                     <a class="related-event-chip" href="<c:url value='/eventos/${rel.id}'/>">
                         <span class="related-event-chip-title"><c:out value="${rel.title}"/></span>
-                        <span class="related-event-chip-meta"><fmt:formatDate value="${rel.eventDate}" pattern="dd/MM · HH:mm"/>hs</span>
+                        <span class="related-event-chip-meta"><paw:date value="${rel.eventDate}" format="shortDateTime"/></span>
                         <c:if test="${not empty relStatus}">
                             <span class="status-pill status-pill-${fn:toLowerCase(relStatus)}"><spring:message code="event.status.${relStatus}"/></span>
                         </c:if>
@@ -780,7 +777,7 @@
                         <c:if test="${not empty reviewedEvent}">
                             <div class="creator-review-event">
                                 <span class="creator-review-event-title"><c:out value="${reviewedEvent.title}"/></span>
-                                <span class="creator-review-date"><fmt:formatDate value="${reviewedEvent.eventDate}" pattern="dd/MM/yyyy"/></span>
+                                <span class="creator-review-date"><paw:date value="${reviewedEvent.eventDate}" format="date"/></span>
                             </div>
                         </c:if>
                         <paw:stars rating="${review.rating}"/>

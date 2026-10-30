@@ -18,6 +18,7 @@
 <%@ attribute name="rechazado" required="false" type="java.lang.Boolean" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <%@ taglib prefix="fmt" uri="http://java.sun.com/jsp/jstl/fmt" %>
+<%@ taglib prefix="paw" tagdir="/WEB-INF/tags" %>
 <%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
 
 <%-- Fila horizontal: miniatura + titulo (linkean al detalle) mas metadata, y a
@@ -49,7 +50,7 @@
                 </c:if>
             </h3>
             <p class="event-row-meta">
-                <fmt:formatDate value="${fecha}" pattern="EEE dd/MM/yyyy · HH:mm" />hs
+                <paw:date value="${fecha}" format="weekdayDateTime"/>
                 <c:if test="${not empty ubicacion}"> &middot; <c:out value="${ubicacion}"/></c:if>
                 <c:if test="${not empty precio}">
                     &middot;

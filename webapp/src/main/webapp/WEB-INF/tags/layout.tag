@@ -16,7 +16,10 @@
      head (opcional): lo que la pagina necesita ADEMAS en el <head> (sus <script> y <link>
      propios). Se pasa con <jsp:attribute name="head">...</jsp:attribute> y entonces el
      contenido va dentro de <jsp:body>...</jsp:body>. --%>
-<html>
+<%-- lang: el idioma de la pagina (lo pone CurrentLocaleInterceptor). Ademas de ayudar a los
+     lectores de pantalla, de ahi lo leen los JS para escribir fechas (Intl.DateTimeFormat). En
+     una pagina de error armada desde ErrorAdvice el interceptor no corre: ahi queda sin lang. --%>
+<html<c:if test="${not empty currentLanguage}"> lang="<c:out value='${currentLanguage}'/>"</c:if>>
 <head>
     <meta charset="UTF-8">
     <title>Plancito &middot; <c:choose><c:when test="${not empty titleCode}"><spring:message code="${titleCode}"/></c:when><c:otherwise><c:out value="${title}"/></c:otherwise></c:choose></title>

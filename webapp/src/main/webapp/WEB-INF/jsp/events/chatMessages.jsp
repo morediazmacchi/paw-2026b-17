@@ -1,6 +1,6 @@
 <%@ page contentType="text/html;charset=UTF-8" pageEncoding="UTF-8" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
-<%@ taglib prefix="fmt" uri="http://java.sun.com/jsp/jstl/fmt" %>
+<%@ taglib prefix="paw" tagdir="/WEB-INF/tags" %>
 <%-- Fragmento (sin layout): lo incluye chat.jsp para los mensajes iniciales y lo devuelve
      tal cual EventChatController.messages() para el polling. Todo lo que escribio un
      usuario va con c:out: el nombre y el texto se escapan. --%>
@@ -11,6 +11,6 @@
             <span class="chat-msg-author"><c:out value="${message.senderName}"/></span>
         </c:if>
         <p class="chat-msg-body"><c:out value="${message.body}"/></p>
-        <span class="chat-msg-time"><fmt:formatDate value="${message.createdAt}" pattern="HH:mm"/></span>
+        <span class="chat-msg-time"><paw:date value="${message.createdAt}" format="timeShort"/></span>
     </div>
 </c:forEach>

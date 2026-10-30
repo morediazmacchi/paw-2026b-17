@@ -5,8 +5,11 @@
 // "Desde" (y viceversa): en vez de validar recien al filtrar, cada almanaque
 // deshabilita los dias invalidos segun lo que ya este elegido en el otro.
 document.addEventListener("DOMContentLoaded", function () {
-    var MONTH_NAMES = ["enero", "febrero", "marzo", "abril", "mayo", "junio",
-        "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+    // Meses y fechas en el idioma de la pagina (<html lang>, ver layout.tag): el navegador
+    // ya trae los nombres traducidos (Intl.DateTimeFormat), no hace falta una lista por idioma.
+    var LANG = document.documentElement.lang || "es";
+    var monthFormat = new Intl.DateTimeFormat(LANG, { month: "long" });
+    var longDateFormat = new Intl.DateTimeFormat(LANG, { day: "numeric", month: "long", year: "numeric" });
 
     function pad2(n) { return n < 10 ? "0" + n : "" + n; }
     function isoDate(date) { return date.getFullYear() + "-" + pad2(date.getMonth() + 1) + "-" + pad2(date.getDate()); }
@@ -46,16 +49,17 @@ document.addEventListener("DOMContentLoaded", function () {
         function updateTriggerText() {
             var chosen = parseIso(hidden.value);
             if (!chosen) {
-                triggerText.textContent = "Cualquier fecha";
+                // "Cualquier fecha" en el idioma de la pagina (data-* de list.jsp).
+                triggerText.textContent = triggerText.getAttribute("data-calendar-empty-label") || "";
                 triggerText.classList.remove("calendar-trigger-text-filled");
                 return;
             }
-            triggerText.textContent = chosen.getDate() + " de " + MONTH_NAMES[chosen.getMonth()] + " de " + chosen.getFullYear();
+            triggerText.textContent = longDateFormat.format(chosen);
             triggerText.classList.add("calendar-trigger-text-filled");
         }
 
         function renderCalendar() {
-            monthLabel.textContent = MONTH_NAMES[viewMonth] + " " + viewYear;
+            monthLabel.textContent = monthFormat.format(new Date(viewYear, viewMonth, 1)) + " " + viewYear;
             var firstOfMonth = new Date(viewYear, viewMonth, 1);
             // getDay(): 0=domingo..6=sabado. Se corre para que 0=lunes..6=domingo.
             var firstWeekday = (firstOfMonth.getDay() + 6) % 7;

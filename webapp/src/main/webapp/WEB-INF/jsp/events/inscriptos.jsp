@@ -1,6 +1,5 @@
 <%@ page contentType="text/html;charset=UTF-8" pageEncoding="UTF-8" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
-<%@ taglib prefix="fmt" uri="http://java.sun.com/jsp/jstl/fmt" %>
 <%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions" %>
 <%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
 <%@ taglib prefix="paw" tagdir="/WEB-INF/tags" %>
@@ -47,7 +46,7 @@
                                 </c:choose>
                             </td>
                             <td><c:out value="${registration.email}"/></td>
-                            <td><fmt:formatDate value="${registration.registeredAt}" pattern="dd/MM/yyyy HH:mm"/></td>
+                            <td><paw:date value="${registration.registeredAt}" format="dateTimeTable"/></td>
                             <td>
                                 <c:choose>
                                     <c:when test="${registration.status == 'CONFIRMED'}">

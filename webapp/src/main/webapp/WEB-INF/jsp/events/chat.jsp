@@ -71,14 +71,14 @@
             <span class="detail-meta-icon"><paw:icon name="calendar"/></span>
             <div>
                 <span class="detail-meta-label"><spring:message code="event.detail.dateLabelSmall"/></span>
-                <span class="detail-meta-value"><fmt:formatDate value="${event.eventDate}" pattern="EEE dd MMM yyyy"/></span>
+                <span class="detail-meta-value"><paw:date value="${event.eventDate}" format="longDate"/></span>
             </div>
         </div>
         <div class="detail-meta-item">
             <span class="detail-meta-icon"><paw:icon name="clock"/></span>
             <div>
                 <span class="detail-meta-label"><spring:message code="event.detail.timeLabelSmall"/></span>
-                <span class="detail-meta-value"><fmt:formatDate value="${event.eventDate}" pattern="HH:mm"/>hs</span>
+                <span class="detail-meta-value"><paw:date value="${event.eventDate}" format="time"/></span>
             </div>
         </div>
         <div class="detail-meta-item">

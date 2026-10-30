@@ -1,6 +1,5 @@
 <%@ page contentType="text/html;charset=UTF-8" pageEncoding="UTF-8" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
-<%@ taglib prefix="fmt" uri="http://java.sun.com/jsp/jstl/fmt" %>
 <%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
 <%@ taglib prefix="paw" tagdir="/WEB-INF/tags" %>
 <paw:layout titleCode="auth.invite.title">
@@ -75,7 +74,7 @@
                 <div class="pending-registration-list">
                     <c:forEach var="invitation" items="${invitations}">
                         <div class="pending-registration-row">
-                            <fmt:formatDate value="${invitation.createdAt}" pattern="dd/MM/yyyy HH:mm" var="invitedAt"/>
+                            <c:set var="invitedAt"><paw:date value="${invitation.createdAt}" format="dateTimeTable"/></c:set>
                             <div class="pending-registration-info">
                                 <p class="pending-registration-name"><c:out value="${invitation.email}"/></p>
                                 <p class="pending-registration-meta">

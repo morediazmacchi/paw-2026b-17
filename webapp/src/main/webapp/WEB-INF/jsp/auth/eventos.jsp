@@ -149,7 +149,7 @@
                         <c:if test="${not empty reviewedEvent}">
                             <div class="creator-review-event">
                                 <span class="creator-review-event-title"><c:out value="${reviewedEvent.title}"/></span>
-                                <span class="creator-review-date"><fmt:formatDate value="${reviewedEvent.eventDate}" pattern="dd/MM/yyyy"/></span>
+                                <span class="creator-review-date"><paw:date value="${reviewedEvent.eventDate}" format="date"/></span>
                             </div>
                         </c:if>
                         <paw:stars rating="${review.rating}"/>

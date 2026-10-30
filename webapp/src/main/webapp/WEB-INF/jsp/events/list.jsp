@@ -7,7 +7,6 @@
 <paw:layout titleCode="event.list.title">
 <jsp:attribute name="head">
     <script src="<c:url value='/js/hero-carousel.js'/>"></script>
-    <script src="<c:url value='/js/favorite-toggle.js'/>"></script>
     <%-- data-open-modal/data-close-modal de los almanaques "Desde"/"Hasta". --%>
     <script src="<c:url value='/js/modal.js'/>"></script>
     <script src="<c:url value='/js/date-filter-calendar.js'/>"></script>
@@ -55,7 +54,7 @@
                         <p class="hero-description"><c:out value="${fe.description}"/></p>
                     </c:if>
                     <div class="hero-meta">
-                        <span><paw:icon name="calendar"/> <fmt:formatDate value="${fe.eventDate}" pattern="EEE dd MMM yyyy · HH:mm"/>hs</span>
+                        <span><paw:icon name="calendar"/> <paw:date value="${fe.eventDate}" format="longDateTime"/></span>
                         <span><paw:icon name="pin"/> <c:out value="${empty fe.neighborhood ? fe.address : fe.neighborhood.displayName}"/></span>
                         <span class="hero-price">
                             <c:choose>
@@ -85,6 +84,8 @@
     <spring:message code="event.list.priceToLabel" var="priceToLabel"/>
     <spring:message code="event.list.dateFromLabel" var="dateFromLabel"/>
     <spring:message code="event.list.dateToLabel" var="dateToLabel"/>
+    <%-- Lo muestra date-filter-calendar.js cuando no hay fecha elegida. --%>
+    <spring:message code="event.list.anyDate" var="anyDateLabel"/>
     <spring:message code="event.list.categoryLabel" var="categoryLabel"/>
     <spring:message code="event.list.neighborhoodLabel" var="neighborhoodLabel"/>
     <spring:message code="event.list.dateFilterLabel" var="dateFilterLabel"/>
@@ -161,7 +162,8 @@
                     <button type="button" id="fechaDesdeTrigger" class="calendar-trigger"
                             data-open-modal="fechaDesdeCalendarModal">
                         <paw:icon name="calendar"/>
-                        <span class="calendar-trigger-text" data-calendar-trigger-text></span>
+                        <span class="calendar-trigger-text" data-calendar-trigger-text
+                              data-calendar-empty-label="<c:out value='${anyDateLabel}'/>"></span>
                     </button>
                     <input type="hidden" id="fechaDesde" name="fechaDesde" value="<c:out value='${fechaDesde}'/>"/>
                 </div>
@@ -170,7 +172,8 @@
                     <button type="button" id="fechaHastaTrigger" class="calendar-trigger"
                             data-open-modal="fechaHastaCalendarModal">
                         <paw:icon name="calendar"/>
-                        <span class="calendar-trigger-text" data-calendar-trigger-text></span>
+                        <span class="calendar-trigger-text" data-calendar-trigger-text
+                              data-calendar-empty-label="<c:out value='${anyDateLabel}'/>"></span>
                     </button>
                     <input type="hidden" id="fechaHasta" name="fechaHasta" value="<c:out value='${fechaHasta}'/>"/>
                     <c:if test="${not empty filterErrors.fechaHasta}">
@@ -200,9 +203,7 @@
                         <paw:icon name="chevron-right"/>
                     </button>
                 </div>
-                <div class="calendar-weekdays">
-                    <span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span>
-                </div>
+                <paw:calendarWeekdays/>
                 <div class="calendar-days" data-calendar-days></div>
             </div>
         </div>
@@ -223,9 +224,7 @@
                         <paw:icon name="chevron-right"/>
                     </button>
                 </div>
-                <div class="calendar-weekdays">
-                    <span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span>
-                </div>
+                <paw:calendarWeekdays/>
                 <div class="calendar-days" data-calendar-days></div>
             </div>
         </div>

@@ -39,6 +39,12 @@ document.addEventListener("DOMContentLoaded", function () {
         event.preventDefault();
     });
 
+    // Los textos de los errores de cada paso vienen traducidos en data-* del propio cartel
+    // (ver _eventWizardFields.jspf), igual que los de image-picker.js.
+    function stepMessage(name) {
+        return stepError ? stepError.getAttribute("data-" + name + "-message") || "" : "";
+    }
+
     function showStepError(message) {
         if (stepError) {
             stepError.textContent = message;
@@ -161,8 +167,13 @@ document.addEventListener("DOMContentLoaded", function () {
     var minDate = today;
     var maxDate = new Date(today.getFullYear() + 2, today.getMonth(), today.getDate());
 
-    var MONTH_NAMES = ["enero", "febrero", "marzo", "abril", "mayo", "junio",
-        "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+    // Meses y fechas en el idioma de la pagina (<html lang>, ver layout.tag): el navegador
+    // ya trae los nombres traducidos (Intl.DateTimeFormat), no hace falta una lista por idioma.
+    var LANG = document.documentElement.lang || "es";
+    var monthFormat = new Intl.DateTimeFormat(LANG, { month: "long" });
+    var longDateFormat = new Intl.DateTimeFormat(LANG, { day: "numeric", month: "long", year: "numeric" });
+    var shortDateFormat = new Intl.DateTimeFormat(LANG, { day: "2-digit", month: "2-digit", year: "numeric" });
+    var timeFormat = new Intl.DateTimeFormat(LANG, { hour: "2-digit", minute: "2-digit" });
 
     function isoDate(date) {
         return date.getFullYear() + "-" + pad2(date.getMonth() + 1) + "-" + pad2(date.getDate());
@@ -189,13 +200,13 @@ document.addEventListener("DOMContentLoaded", function () {
             return;
         }
         if (!fechaDateInput.value) {
-            fechaTriggerText.textContent = "Elegí una fecha";
+            fechaTriggerText.textContent = fechaTriggerText.getAttribute("data-calendar-empty-label") || "";
             fechaTriggerText.classList.remove("calendar-trigger-text-filled");
             return;
         }
         var parts = fechaDateInput.value.split("-");
         var chosen = new Date(+parts[0], +parts[1] - 1, +parts[2]);
-        fechaTriggerText.textContent = chosen.getDate() + " de " + MONTH_NAMES[chosen.getMonth()] + " de " + chosen.getFullYear();
+        fechaTriggerText.textContent = longDateFormat.format(chosen);
         fechaTriggerText.classList.add("calendar-trigger-text-filled");
     }
 
@@ -207,7 +218,7 @@ document.addEventListener("DOMContentLoaded", function () {
             return;
         }
         if (calendarMonthLabel) {
-            calendarMonthLabel.textContent = MONTH_NAMES[viewMonth] + " " + viewYear;
+            calendarMonthLabel.textContent = monthFormat.format(new Date(viewYear, viewMonth, 1)) + " " + viewYear;
         }
         var firstOfMonth = new Date(viewYear, viewMonth, 1);
         // getDay(): 0=domingo..6=sabado. Se corre para que 0=lunes..6=domingo.
@@ -321,7 +332,7 @@ document.addEventListener("DOMContentLoaded", function () {
     function messageForField(field) {
         if ((field === fechaHoursInput || field === fechaMinutesInput)
                 && (field.validity.rangeUnderflow || field.validity.rangeOverflow)) {
-            return "El horario no es válido.";
+            return stepMessage("invalid-time");
         }
         // El <select> de barrio pide "required" en los dos modos de
         // ubicacion (ver publish.jsp/editar.jsp), pero en modo "con
@@ -335,15 +346,15 @@ document.addEventListener("DOMContentLoaded", function () {
         if (field.id === "neighborhood" && field.validity.valueMissing) {
             var modoManualRadio = document.getElementById("modo-direccion-manual");
             if (!modoManualRadio || !modoManualRadio.checked) {
-                return "No se pudo localizar la dirección. Revisá el nombre o seleccioná el modo \"texto plano\".";
+                return stepMessage("address-not-found");
             }
         }
         if (field.validity.valueMissing) {
-            return "Completá este campo antes de seguir.";
+            return stepMessage("field-required");
         }
         // Cualquier otra regla (ej. un patron): el texto que ya trae el propio
         // navegador es mejor que nada, aunque no este traducido.
-        return field.validationMessage || "Completá este campo antes de seguir.";
+        return field.validationMessage || stepMessage("field-required");
     }
 
     // Cada campo del paso se valida con la API nativa (checkValidity): min/max
@@ -358,13 +369,13 @@ document.addEventListener("DOMContentLoaded", function () {
                 steps[index].querySelectorAll(".wizard-category-checkbox"));
         if (stepCategoryCheckboxes.length > 0
                 && !stepCategoryCheckboxes.some(function (checkbox) { return checkbox.checked; })) {
-            showStepError("Elegí al menos una categoría antes de seguir.");
+            showStepError(stepMessage("category-required"));
             stepCategoryCheckboxes[0].focus();
             return false;
         }
         var stepFechaTrigger = steps[index].querySelector("#eventDateTrigger");
         if (stepFechaTrigger && !fechaDateInput.value) {
-            showStepError("Elegí una fecha antes de seguir.");
+            showStepError(stepMessage("date-required"));
             stepFechaTrigger.focus();
             return false;
         }
@@ -435,9 +446,8 @@ document.addEventListener("DOMContentLoaded", function () {
         if (isNaN(parsed.getTime())) {
             return raw;
         }
-        function pad(n) { return n < 10 ? "0" + n : "" + n; }
-        return pad(parsed.getDate()) + "/" + pad(parsed.getMonth() + 1) + "/" + parsed.getFullYear()
-                + " " + pad(parsed.getHours()) + ":" + pad(parsed.getMinutes());
+        // En espanol "05/11/2026 20:30"; en ingles "11/05/2026 08:30 PM".
+        return shortDateFormat.format(parsed) + " " + timeFormat.format(parsed);
     }
 
     // Las categorias tildadas, separadas por coma (el texto visible del
@@ -527,7 +537,8 @@ document.addEventListener("DOMContentLoaded", function () {
                 filenameEl.textContent = dropzoneInput.files[0].name;
                 filenameEl.hidden = false;
             } else if (count > 1) {
-                filenameEl.textContent = count + " fotos elegidas";
+                // "{0} fotos elegidas" en el idioma de la pagina (data-* de _eventWizardFields.jspf).
+                filenameEl.textContent = (filenameEl.getAttribute("data-many-label") || "").replace("{0}", count);
                 filenameEl.hidden = false;
             } else {
                 filenameEl.hidden = true;

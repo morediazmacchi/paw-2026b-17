@@ -1,6 +1,5 @@
 <%@ page contentType="text/html;charset=UTF-8" pageEncoding="UTF-8" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
-<%@ taglib prefix="fmt" uri="http://java.sun.com/jsp/jstl/fmt" %>
 <%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
 <%@ taglib prefix="paw" tagdir="/WEB-INF/tags" %>
 <paw:layout titleCode="admin.tracking.title">
@@ -85,7 +84,7 @@
                                 <td data-label="${reasonLabel}"><c:out value="${report.reason}"/></td>
                                 <td data-label="${requestedMessageLabel}"><c:out value="${report.changesRequestedMessage}"/></td>
                                 <td data-label="${requestedByLabel}"><c:out value="${not empty requestedBy ? requestedBy.email : '—'}"/></td>
-                                <td data-label="${requestedAtLabel}"><fmt:formatDate value="${report.changesRequestedAt}" pattern="dd/MM/yyyy HH:mm"/></td>
+                                <td data-label="${requestedAtLabel}"><paw:date value="${report.changesRequestedAt}" format="dateTimeTable"/></td>
                                 <td class="admin-report-actions">
                                     <c:if test="${not empty reportedEvent}">
                                         <a class="btn btn-medium" href="<c:url value='/eventos/${reportedEvent.id}'/>"><c:out value="${viewEventButtonLabel}"/></a>

@@ -1,6 +1,6 @@
 // El "ojito" de los campos de contraseña (paw:input type="password"): alterna
-// entre type="password"/"text" y muestra el icono contrario, igual patron que
-// favorite-toggle.js (dos iconos, uno oculto con "hidden" segun el estado).
+// entre type="password"/"text" y muestra el icono contrario (dos iconos, uno
+// oculto con "hidden" segun el estado).
 document.addEventListener("click", function (event) {
     const toggle = event.target.closest("[data-toggle-password]");
     if (!toggle) {

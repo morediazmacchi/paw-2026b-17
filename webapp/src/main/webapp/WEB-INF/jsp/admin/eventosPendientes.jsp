@@ -1,6 +1,5 @@
 <%@ page contentType="text/html;charset=UTF-8" pageEncoding="UTF-8" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
-<%@ taglib prefix="fmt" uri="http://java.sun.com/jsp/jstl/fmt" %>
 <%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
 <%@ taglib prefix="paw" tagdir="/WEB-INF/tags" %>
 <paw:layout titleCode="admin.pendingEvents.title">
@@ -66,7 +65,7 @@
                             <tr>
                                 <td><a href="<c:url value='/eventos/${pendingEvent.id}'/>"><c:out value="${pendingEvent.title}"/></a></td>
                                 <td><c:out value="${pendingEvent.creatorEmail}"/></td>
-                                <td><fmt:formatDate value="${pendingEvent.createdAt}" pattern="dd/MM/yyyy HH:mm"/></td>
+                                <td><paw:date value="${pendingEvent.createdAt}" format="dateTimeTable"/></td>
                                 <td class="admin-report-actions">
                                     <a class="btn btn-medium" href="<c:url value='/eventos/${pendingEvent.id}'/>"><c:out value="${viewEventButtonLabel}"/></a>
                                     <form action="<c:url value='/admin/eventos-pendientes/${pendingEvent.id}/aprobar'/>" method="post">

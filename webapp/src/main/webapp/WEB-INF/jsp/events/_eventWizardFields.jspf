@@ -37,6 +37,14 @@
 <spring:message code="event.publish.nextButton" var="nextButtonLabel"/>
 <spring:message code="event.publish.backButton" var="backButtonLabel"/>
 <spring:message code="event.publish.cancelButton" var="cancelButtonLabel"/>
+<%-- Textos que arma event-wizard.js: le llegan por data-* (mismo patron que los de image-picker.js). --%>
+<spring:message code="event.publish.chooseDate" var="chooseDateLabel"/>
+<spring:message code="event.publish.photosChosen" var="photosChosenLabel"/>
+<spring:message code="event.publish.error.invalidTime" var="invalidTimeMsg"/>
+<spring:message code="event.publish.error.addressNotFound" var="addressNotFoundMsg"/>
+<spring:message code="event.publish.error.fieldRequired" var="fieldRequiredMsg"/>
+<spring:message code="event.publish.error.categoryRequired" var="categoryRequiredMsg"/>
+<spring:message code="event.publish.error.dateRequired" var="dateRequiredMsg"/>
 
 <form class="wizard-form" action="${formAction}" method="post"
       enctype="multipart/form-data" novalidate="novalidate">
@@ -120,7 +128,8 @@
                 <button type="button" id="eventDateTrigger" class="calendar-trigger"
                         data-open-modal="eventDateCalendarModal">
                     <paw:icon name="calendar"/>
-                    <span class="calendar-trigger-text" data-calendar-trigger-text></span>
+                    <span class="calendar-trigger-text" data-calendar-trigger-text
+                          data-calendar-empty-label="<c:out value='${chooseDateLabel}'/>"></span>
                 </button>
                 <input type="hidden" id="eventDateDate"/>
                 <%-- Nada de <input type="time">: ese widget depende de la
@@ -169,9 +178,7 @@
                         <paw:icon name="chevron-right"/>
                     </button>
                 </div>
-                <div class="calendar-weekdays">
-                    <span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span>
-                </div>
+                <paw:calendarWeekdays/>
                 <div class="calendar-days" data-calendar-days></div>
             </div>
         </div>
@@ -333,7 +340,9 @@
             <label class="wizard-dropzone" for="images">
                 <paw:icon name="image"/>
                 <span class="wizard-dropzone-label"><spring:message code="event.publish.imageDropHint"/></span>
-                <span class="wizard-dropzone-filename" hidden></span>
+                <%-- data-many-label: "{0} fotos elegidas", el JS reemplaza {0} por la cantidad. --%>
+                <span class="wizard-dropzone-filename" hidden
+                      data-many-label="<c:out value='${photosChosenLabel}'/>"></span>
             </label>
             <spring:message code="event.publish.tooManyImagesError" var="tooManyImagesMsg"/>
             <spring:message code="event.publish.imageTooLarge" var="tooLargeImageMsg"/>
@@ -453,7 +462,12 @@
          en vez de depender de la burbuja nativa del navegador (que en
          algunos casos - el ejemplo real: una fecha pasada - es facil
          que pase desapercibida). --%>
-    <p class="alert wizard-step-error" hidden></p>
+    <p class="alert wizard-step-error" hidden
+       data-invalid-time-message="<c:out value='${invalidTimeMsg}'/>"
+       data-address-not-found-message="<c:out value='${addressNotFoundMsg}'/>"
+       data-field-required-message="<c:out value='${fieldRequiredMsg}'/>"
+       data-category-required-message="<c:out value='${categoryRequiredMsg}'/>"
+       data-date-required-message="<c:out value='${dateRequiredMsg}'/>"></p>
 
     <div class="wizard-actions">
         <button type="button" class="btn btn-medium wizard-back" data-wizard-back hidden>
