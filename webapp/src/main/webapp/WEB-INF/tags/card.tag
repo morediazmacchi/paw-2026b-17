@@ -15,7 +15,6 @@
      REJECTED). Si no viene, la persona no tiene inscripcion y no se dibuja nada. --%>
 <%@ attribute name="estado" required="false" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
-<%@ taglib prefix="fmt" uri="http://java.sun.com/jsp/jstl/fmt" %>
 <%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions" %>
 <%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
 <%@ taglib prefix="sec" uri="http://www.springframework.org/security/tags" %>
@@ -34,7 +33,7 @@
             <span class="card-precio">
                 <c:choose>
                     <c:when test="${empty precio or precio == 0}"><spring:message code="event.price.free"/></c:when>
-                    <c:otherwise>$<fmt:formatNumber value="${precio}" type="number" minFractionDigits="0" maxFractionDigits="0" /></c:otherwise>
+                    <c:otherwise><paw:price value="${precio}"/></c:otherwise>
                 </c:choose>
             </span>
         </div>

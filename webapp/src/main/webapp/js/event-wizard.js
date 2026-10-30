@@ -174,6 +174,7 @@ document.addEventListener("DOMContentLoaded", function () {
     var longDateFormat = new Intl.DateTimeFormat(LANG, { day: "numeric", month: "long", year: "numeric" });
     var shortDateFormat = new Intl.DateTimeFormat(LANG, { day: "2-digit", month: "2-digit", year: "numeric" });
     var timeFormat = new Intl.DateTimeFormat(LANG, { hour: "2-digit", minute: "2-digit" });
+    var priceNumberFormat = new Intl.NumberFormat(LANG, { maximumFractionDigits: 0 });
 
     function isoDate(date) {
         return date.getFullYear() + "-" + pad2(date.getMonth() + 1) + "-" + pad2(date.getDate());
@@ -470,11 +471,21 @@ document.addEventListener("DOMContentLoaded", function () {
         var barrioField = form.querySelector("[name='neighborhood']");
         var barrioChosen = barrioField && barrioField.value ? fieldValue("neighborhood") : "";
         var direccion = fieldValue("address");
-        setReview("address", barrioChosen ? direccion + " (" + barrioChosen + ")" : direccion);
+        // "{0} ({1})" (event.publish.reviewAddressWithBarrio): la frase sale del idioma,
+        // aca solo se completan los lugares.
+        var addressEl = form.querySelector("[data-review='address']");
+        var withBarrio = addressEl ? addressEl.getAttribute("data-with-barrio-template") || "{0} ({1})" : "{0} ({1})";
+        setReview("address", barrioChosen ? withBarrio.replace("{0}", direccion).replace("{1}", barrioChosen) : direccion);
 
         var precioField = form.querySelector("[name='price']");
         var precioValue = fieldValue("price");
-        setReview("price", precioField && !precioField.hidden && precioValue ? "$" + precioValue : precioValue);
+        // Con precio: el formato de format.price del idioma ("${0}" / "ARS {0}"). Sin precio
+        // (atajo "Gratis"): el texto del atajo tal cual.
+        var priceEl = form.querySelector("[data-review='price']");
+        var priceTemplate = priceEl ? priceEl.getAttribute("data-price-template") || "{0}" : "{0}";
+        setReview("price", precioField && !precioField.hidden && precioValue
+                ? priceTemplate.replace("{0}", priceNumberFormat.format(+precioValue))
+                : precioValue);
         setReview("cupo", fieldValue("maxCapacity"));
 
         // Checkboxes, no inputs de texto: no pasan por fieldValue (esa funcion

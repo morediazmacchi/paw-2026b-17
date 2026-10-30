@@ -17,7 +17,6 @@
 <%@ attribute name="pendiente" required="false" type="java.lang.Boolean" %>
 <%@ attribute name="rechazado" required="false" type="java.lang.Boolean" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
-<%@ taglib prefix="fmt" uri="http://java.sun.com/jsp/jstl/fmt" %>
 <%@ taglib prefix="paw" tagdir="/WEB-INF/tags" %>
 <%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
 
@@ -57,7 +56,7 @@
                     <span class="event-row-price">
                         <c:choose>
                             <c:when test="${precio == 0}"><spring:message code="event.price.free"/></c:when>
-                            <c:otherwise>$<fmt:formatNumber value="${precio}" type="number" minFractionDigits="0" maxFractionDigits="0" /></c:otherwise>
+                            <c:otherwise><paw:price value="${precio}"/></c:otherwise>
                         </c:choose>
                     </span>
                 </c:if>

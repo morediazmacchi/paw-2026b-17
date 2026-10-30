@@ -256,7 +256,7 @@
                 <span class="detail-meta-value">
                     <c:choose>
                         <c:when test="${event.free}"><spring:message code="event.price.free"/></c:when>
-                        <c:otherwise>$<fmt:formatNumber value="${event.price}" type="number" maxFractionDigits="0"/></c:otherwise>
+                        <c:otherwise><paw:price value="${event.price}"/></c:otherwise>
                     </c:choose>
                 </span>
             </div>
@@ -313,7 +313,7 @@
                         <p class="detail-address-sub"><c:out value="${event.addressDetails}"/></p>
                     </c:if>
                     <c:if test="${not empty event.neighborhood}">
-                        <p class="detail-address-sub"><c:out value="${event.neighborhood.displayName}"/>, Buenos Aires</p>
+                        <p class="detail-address-sub"><spring:message code="event.detail.neighborhoodInCity" htmlEscape="true"><spring:argument value="${event.neighborhood.displayName}"/></spring:message></p>
                     </c:if>
                 </div>
             </div>
@@ -502,7 +502,7 @@
                         <span class="detail-price-big">
                             <c:choose>
                                 <c:when test="${event.free}"><spring:message code="event.price.free"/></c:when>
-                                <c:otherwise>$<fmt:formatNumber value="${event.price}" type="number" maxFractionDigits="0"/></c:otherwise>
+                                <c:otherwise><paw:price value="${event.price}"/></c:otherwise>
                             </c:choose>
                         </span>
                         <span class="detail-price-sub"><spring:message code="event.detail.perPerson"/></span>

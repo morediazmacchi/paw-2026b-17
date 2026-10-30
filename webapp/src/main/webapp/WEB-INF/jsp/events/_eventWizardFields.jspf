@@ -45,6 +45,10 @@
 <spring:message code="event.publish.error.fieldRequired" var="fieldRequiredMsg"/>
 <spring:message code="event.publish.error.categoryRequired" var="categoryRequiredMsg"/>
 <spring:message code="event.publish.error.dateRequired" var="dateRequiredMsg"/>
+<spring:message code="format.price" var="priceTemplate"/>
+<spring:message code="event.publish.reviewAddressWithBarrio" var="addressWithBarrioTemplate"/>
+<spring:message code="event.publish.hoursPlaceholder" var="hoursPlaceholder"/>
+<spring:message code="event.publish.minutesPlaceholder" var="minutesPlaceholder"/>
 
 <form class="wizard-form" action="${formAction}" method="post"
       enctype="multipart/form-data" novalidate="novalidate">
@@ -138,10 +142,10 @@
                      (0-23 / 0-59) no tienen ese problema: son solo numeros. --%>
                 <div class="wizard-time-row">
                     <input type="number" id="eventDateHours" min="0" max="23"
-                           placeholder="HH" inputmode="numeric" required="required"/>
+                           placeholder="<c:out value='${hoursPlaceholder}'/>" inputmode="numeric" required="required"/>
                     <span class="wizard-time-separator">:</span>
                     <input type="number" id="eventDateMinutes" min="0" max="59"
-                           placeholder="MM" inputmode="numeric" required="required"/>
+                           placeholder="<c:out value='${minutesPlaceholder}'/>" inputmode="numeric" required="required"/>
                 </div>
             </div>
             <p class="wizard-field-hint"><spring:message code="event.publish.timeFormatHint"/></p>
@@ -417,11 +421,15 @@
             </div>
             <div class="wizard-review-row">
                 <span class="wizard-review-label"><c:out value="${addressLabel}"/></span>
-                <span class="wizard-review-value" data-review="address"></span>
+                <%-- "{0} ({1})": direccion y barrio; el JS completa los lugares (no arma la frase con +). --%>
+                <span class="wizard-review-value" data-review="address"
+                      data-with-barrio-template="<c:out value='${addressWithBarrioTemplate}'/>"></span>
             </div>
             <div class="wizard-review-row">
                 <span class="wizard-review-label"><c:out value="${priceLabel}"/></span>
-                <span class="wizard-review-value" data-review="price"></span>
+                <%-- "${0}" / "ARS {0}" (format.price): el mismo formato que usa price.tag. --%>
+                <span class="wizard-review-value" data-review="price"
+                      data-price-template="<c:out value='${priceTemplate}'/>"></span>
             </div>
             <div class="wizard-review-row">
                 <span class="wizard-review-label"><c:out value="${capacityLabel}"/></span>

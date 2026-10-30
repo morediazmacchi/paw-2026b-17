@@ -1,6 +1,5 @@
 <%@ page contentType="text/html;charset=UTF-8" pageEncoding="UTF-8" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
-<%@ taglib prefix="fmt" uri="http://java.sun.com/jsp/jstl/fmt" %>
 <%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
 <%@ taglib prefix="paw" tagdir="/WEB-INF/tags" %>
 <paw:layout title="${event.title}">
@@ -88,7 +87,7 @@
                 <span class="detail-meta-value">
                     <c:choose>
                         <c:when test="${event.free}"><spring:message code="event.price.free"/></c:when>
-                        <c:otherwise>$<fmt:formatNumber value="${event.price}" type="number" maxFractionDigits="0"/></c:otherwise>
+                        <c:otherwise><paw:price value="${event.price}"/></c:otherwise>
                     </c:choose>
                 </span>
             </div>
