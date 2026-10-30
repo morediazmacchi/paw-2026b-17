@@ -21,7 +21,11 @@ public interface InboxMessageDao {
 
     long countUnreadByUserId(long userId);
 
-    int markAllReadByUserId(long userId, Date when);
+    /**
+     * Marca como leidos los mensajes de esos ids que sean de ese usuario y sigan sin leer.
+     * Un id de un mensaje ajeno (o que no existe) se ignora. Devuelve cuantos marco.
+     */
+    int markReadByIds(long userId, List<Long> ids, Date when);
 
     /**
      * Reconciliacion (ver UserServiceImpl.register()): alguien que recibio

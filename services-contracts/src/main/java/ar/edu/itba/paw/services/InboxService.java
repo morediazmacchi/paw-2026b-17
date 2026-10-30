@@ -4,6 +4,8 @@ package ar.edu.itba.paw.services;
 import ar.edu.itba.paw.model.InboxMessage;
 import ar.edu.itba.paw.model.InboxMessageType;
 
+import java.util.List;
+
 public interface InboxService {
 
     /**
@@ -24,6 +26,10 @@ public interface InboxService {
 
     long countUnread(long userId);
 
-    /** Al abrir la bandeja se marcan todos como leidos. */
-    int markAllRead(long userId);
+    /**
+     * Marca como leidos los mensajes que el usuario tenia en pantalla (los ids de la pagina de
+     * la bandeja que estaba viendo), y solo esos: abrir la bandeja no marca nada, y lo que no se
+     * mostro sigue sin leer. Los ids que no son de ese usuario se ignoran. Devuelve cuantos marco.
+     */
+    int markRead(long userId, List<Long> ids);
 }

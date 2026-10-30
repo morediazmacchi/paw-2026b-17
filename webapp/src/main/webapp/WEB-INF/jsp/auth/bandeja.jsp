@@ -53,6 +53,24 @@
                 <p class="empty-state"><spring:message code="inbox.empty"/></p>
             </c:when>
             <c:otherwise>
+                <%-- "Marcar como leidas" (POST): solo los sin leer de ESTA pagina. Abrir la
+                     bandeja no marca nada; lo que esta en otra pagina sigue sin leer. --%>
+                <c:set var="hasUnread" value="false"/>
+                <c:forEach var="message" items="${messages}">
+                    <c:if test="${message.unread}"><c:set var="hasUnread" value="true"/></c:if>
+                </c:forEach>
+                <c:if test="${hasUnread}">
+                    <spring:message code="inbox.markRead" var="markReadLabel"/>
+                    <form action="<c:url value='/perfil/bandeja/marcar-leidas'/>" method="post">
+                        <c:forEach var="message" items="${messages}">
+                            <c:if test="${message.unread}">
+                                <input type="hidden" name="ids" value="${message.id}"/>
+                            </c:if>
+                        </c:forEach>
+                        <input type="hidden" name="page" value="${currentPage}"/>
+                        <paw:button text="${markReadLabel}"/>
+                    </form>
+                </c:if>
                 <ul class="inbox-list">
                     <c:forEach var="message" items="${messages}">
                         <c:set var="event" value="${eventsById[message.eventId]}"/>

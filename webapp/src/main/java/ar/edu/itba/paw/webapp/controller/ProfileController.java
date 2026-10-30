@@ -306,7 +306,6 @@ public class ProfileController {
                 .map(InboxMessage::getEventId).filter(Objects::nonNull).collect(Collectors.toList());
         final Map<Long, Event> eventsById = eventService.findByIds(eventIds).stream()
                 .collect(Collectors.toMap(Event::getId, event -> event));
-        inboxService.markAllRead(currentUser.getId());
 
         final ModelAndView mav = new ModelAndView("auth/bandeja");
         mav.addObject("user", currentUser);
@@ -320,6 +319,16 @@ public class ProfileController {
         mav.addObject("eventsCount", eventsCountFor(currentUser));
         mav.addObject("invitationsCount", invitationsCountFor(currentUser));
         return mav;
+    }
+
+    // "Marcar como leidas": solo los mensajes de la pagina que se estaba viendo (sus ids
+    // vienen en el formulario). El GET de la bandeja no marca nada: solo lee.
+    @RequestMapping(value = "/perfil/bandeja/marcar-leidas", method = RequestMethod.POST)
+    public ModelAndView markInboxRead(@RequestParam(value = "ids", required = false) final List<Long> ids,
+                                      @RequestParam(value = "page", required = false) final String page,
+                                      @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
+        inboxService.markRead(currentUser.getId(), ids);
+        return new ModelAndView("redirect:/perfil/bandeja?page=" + Paging.parsePage(page));
     }
 
     @RequestMapping(value = "/perfil/eventos", method = RequestMethod.GET)

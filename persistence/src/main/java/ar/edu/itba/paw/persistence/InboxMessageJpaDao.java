@@ -51,12 +51,16 @@ public class InboxMessageJpaDao implements InboxMessageDao {
     }
 
     @Override
-    public int markAllReadByUserId(final long userId, final Date when) {
+    public int markReadByIds(final long userId, final List<Long> ids, final Date when) {
         // UPDATE masivo (bulk JPQL): una sola sentencia, y devuelve cuantas filas cambio.
         // No actualiza las entidades que ya esten cargadas en el EntityManager.
+        // "m.user.id = :userId": los ids vienen del formulario, asi que un id de un mensaje
+        // ajeno no marca nada.
         return em.createQuery(
-                        "UPDATE InboxMessage m SET m.readAt = :when WHERE m.user.id = :userId AND m.readAt IS NULL")
+                        "UPDATE InboxMessage m SET m.readAt = :when "
+                                + "WHERE m.id IN :ids AND m.user.id = :userId AND m.readAt IS NULL")
                 .setParameter("when", when, TemporalType.TIMESTAMP)
+                .setParameter("ids", ids)
                 .setParameter("userId", userId)
                 .executeUpdate();
     }

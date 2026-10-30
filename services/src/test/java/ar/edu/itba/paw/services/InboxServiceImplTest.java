@@ -132,18 +132,37 @@ public class InboxServiceImplTest {
         assertEquals(3, result.getPage());
     }
 
-    // ---- markAllRead() ----
+    // ---- markRead() ----
 
     @Test
-    public void testMarkAllReadReturnsHowManyMessagesWereMarked() {
+    public void testMarkReadReturnsHowManyMessagesWereMarked() {
         // Arrange
-        when(inboxDao.markAllReadByUserId(eq(USER_ID), any(Date.class))).thenReturn(2);
+        final List<Long> ids = Arrays.asList(1L, 2L);
+        when(inboxDao.markReadByIds(eq(USER_ID), eq(ids), any(Date.class))).thenReturn(2);
 
         // Act
-        final int result = inboxService.markAllRead(USER_ID);
+        final int result = inboxService.markRead(USER_ID, ids);
 
         // Assert
         assertEquals(2, result);
+    }
+
+    @Test
+    public void testMarkReadWithoutIdsMarksNothing() {
+        // Act
+        final int result = inboxService.markRead(USER_ID, Collections.emptyList());
+
+        // Assert
+        assertEquals(0, result);
+    }
+
+    @Test
+    public void testMarkReadWithNullIdsMarksNothing() {
+        // Act
+        final int result = inboxService.markRead(USER_ID, null);
+
+        // Assert
+        assertEquals(0, result);
     }
 
     // ---- countUnread() ----

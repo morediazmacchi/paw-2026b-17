@@ -19,6 +19,7 @@ import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 import javax.sql.DataSource;
 import java.sql.Timestamp;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -278,50 +279,55 @@ public class InboxMessageJpaDaoTest {
         assertEquals(1, count);
     }
 
-    // ---- markAllReadByUserId() ----
+    // ---- markReadByIds() ----
 
     @Test
-    public void testMarkAllReadByUserIdSetsReadAtOnlyForThatUsersUnreadMessages() {
+    public void testMarkReadByIdsSetsReadAtOnlyForTheGivenMessages() {
+        // Arrange
+        final long userId = insertUser(EMAIL);
+        final long first = insertMessage(EMAIL, userId, InboxMessageType.NEW_REGISTRATION, eventId, null, null);
+        final long second = insertMessage(EMAIL, userId, InboxMessageType.NEW_PENDING, eventId, null, null);
+        final long notShown = insertMessage(EMAIL, userId, InboxMessageType.EVENT_UPDATED, eventId, null, null);
+
+        // Act
+        inboxMessageDao.markReadByIds(userId, Arrays.asList(first, second), new Date());
+
+        // Assert
+        assertEquals(2, JdbcTestUtils.countRowsInTableWhere(
+                jdbcTemplate, "inbox_message", "user_id = " + userId + " AND read_at IS NOT NULL"));
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
+                jdbcTemplate, "inbox_message", whereId(notShown) + " AND read_at IS NULL"));
+    }
+
+    @Test
+    public void testMarkReadByIdsIgnoresMessagesOfOtherUsers() {
         // Arrange
         final long userId = insertUser(EMAIL);
         final long otherUserId = insertUser(OTHER_EMAIL);
-        final long mine = insertMessage(EMAIL, userId, InboxMessageType.NEW_REGISTRATION, eventId, null, null);
-        final long other = insertMessage(OTHER_EMAIL, otherUserId, InboxMessageType.NEW_REGISTRATION, eventId, null, null);
+        final long others = insertMessage(OTHER_EMAIL, otherUserId, InboxMessageType.NEW_REGISTRATION, eventId, null, null);
 
         // Act
-        inboxMessageDao.markAllReadByUserId(userId, new Date());
+        inboxMessageDao.markReadByIds(userId, Arrays.asList(others), new Date());
 
         // Assert
-        assertEquals(0, JdbcTestUtils.countRowsInTableWhere(
-                jdbcTemplate, "inbox_message", whereId(mine) + " AND read_at IS NULL"));
         assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
-                jdbcTemplate, "inbox_message", whereId(other) + " AND read_at IS NULL"));
+                jdbcTemplate, "inbox_message", whereId(others) + " AND read_at IS NULL"));
     }
 
     @Test
-    public void testMarkAllReadByUserIdReturnsHowManyMessagesWereMarked() {
+    public void testMarkReadByIdsReturnsHowManyMessagesWereMarked() {
         // Arrange
         final long userId = insertUser(EMAIL);
-        insertMessage(EMAIL, userId, InboxMessageType.NEW_REGISTRATION, eventId, null, null);
-        insertMessage(EMAIL, userId, InboxMessageType.NEW_PENDING, eventId, null, null);
+        final long unread = insertMessage(EMAIL, userId, InboxMessageType.NEW_REGISTRATION, eventId, null, null);
+        final long alreadyRead = insertMessage(EMAIL, userId, InboxMessageType.NEW_PENDING, eventId, null, null);
+        jdbcTemplate.update("UPDATE inbox_message SET read_at = ? WHERE id = ?",
+                new Timestamp(System.currentTimeMillis()), alreadyRead);
 
         // Act
-        final int result = inboxMessageDao.markAllReadByUserId(userId, new Date());
+        final int result = inboxMessageDao.markReadByIds(userId, Arrays.asList(unread, alreadyRead), new Date());
 
         // Assert
-        assertEquals(2, result);
-    }
-
-    @Test
-    public void testMarkAllReadByUserIdReturnsZeroWhenThereIsNothingUnread() {
-        // Arrange
-        final long userId = insertUser(EMAIL);
-
-        // Act
-        final int result = inboxMessageDao.markAllReadByUserId(userId, new Date());
-
-        // Assert
-        assertEquals(0, result);
+        assertEquals(1, result);
     }
 
     @Test

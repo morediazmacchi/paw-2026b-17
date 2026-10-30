@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
+import java.util.List;
 
 @Service
 public class InboxServiceImpl implements InboxService {
@@ -68,7 +69,11 @@ public class InboxServiceImpl implements InboxService {
 
     @Override
     @Transactional
-    public int markAllRead(final long userId) {
-        return inboxMessageDao.markAllReadByUserId(userId, new Date());
+    public int markRead(final long userId, final List<Long> ids) {
+        // Sin ids no hay nada que marcar (y un "IN ()" vacio no es una consulta valida).
+        if (ids == null || ids.isEmpty()) {
+            return 0;
+        }
+        return inboxMessageDao.markReadByIds(userId, ids, new Date());
     }
 }
