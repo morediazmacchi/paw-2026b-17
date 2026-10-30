@@ -78,16 +78,16 @@ public interface RegistrationService {
     long countByUserId(long userId);
 
     /**
-     * Cancela una inscripcion propia. Devuelve NOT_FOUND (y no borra nada) si
-     * no existe o si es de otro usuario: cancelar la inscripcion de otra
-     * persona conociendo solo su id no tiene que ser posible. Si el evento ya
-     * paso devuelve FINISHED y tampoco borra nada.
+     * Cancela la inscripcion. Devuelve NOT_FOUND (y no borra nada) si no existe, y FINISHED
+     * (tampoco borra nada) si el evento ya paso.
+     * OJO: este metodo NO valida de quien es la inscripcion. Que solo se pueda cancelar la propia
+     * es AUTORIZACION y la resuelve @PreAuthorize en el controller (ver EventSecurity.isRegistrant).
      */
     @Transactional(rollbackFor = Exception.class)
-    UnregisterResult cancel(long registrationId, long userId);
+    UnregisterResult cancel(long registrationId);
 
     /**
-     * Como {@link #cancel(long, long)}, pero para quien no tiene el id de la
+     * Como {@link #cancel(long)}, pero para quien no tiene el id de la
      * inscripcion a mano, solo el del evento (ver EventRegistrationController.unregister(),
      * que da de baja desde el detalle en vez de desde "Mis inscripciones"): busca la
      * inscripcion propia de ese evento y la cancela.

@@ -9,14 +9,14 @@ import ar.edu.itba.paw.services.EventAccessService;
 import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.ImageService;
 import ar.edu.itba.paw.services.RegistrationService;
-import ar.edu.itba.paw.services.UserService;
+import ar.edu.itba.paw.webapp.auth.PlancitoUserDetails;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
-import org.springframework.security.authentication.TestingAuthenticationToken;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.core.Authentication;
 
@@ -24,7 +24,6 @@ import java.util.Optional;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -47,18 +46,12 @@ public class EventSecurityTest {
     private EventAccessService eventAccessService;
     @Mock
     private ImageService imageService;
-    @Mock
-    private UserService userService;
 
     private EventSecurity security;
-    private User otherUser;
 
     @Before
     public void setUp() {
-        security = new EventSecurity(eventService, registrationService, eventAccessService, imageService, userService);
-        lenient().when(userService.findByEmail(CREATOR_EMAIL)).thenReturn(Optional.of(user(CREATOR_ID)));
-        otherUser = user(OTHER_ID);
-        lenient().when(userService.findByEmail(OTHER_EMAIL)).thenReturn(Optional.of(otherUser));
+        security = new EventSecurity(eventService, registrationService, eventAccessService, imageService);
     }
 
     private static User user(final long id) {
@@ -67,10 +60,19 @@ public class EventSecurityTest {
         return user;
     }
 
-    private static Authentication auth(final String email) {
-        final Authentication authentication = new TestingAuthenticationToken(email, "x", "ROLE_USER");
-        authentication.setAuthenticated(true);
-        return authentication;
+    // Lo que hay en la sesion despues del login: el principal es un PlancitoUserDetails.
+    private static Authentication auth(final long id, final String email, final String... roles) {
+        final PlancitoUserDetails principal = new PlancitoUserDetails(id, email, "Nombre", "x", true,
+                AuthorityUtils.createAuthorityList(roles));
+        return new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
+    }
+
+    private static Authentication creator() {
+        return auth(CREATOR_ID, CREATOR_EMAIL, "ROLE_USER");
+    }
+
+    private static Authentication other() {
+        return auth(OTHER_ID, OTHER_EMAIL, "ROLE_USER");
     }
 
     private static Event event(final long id, final EventVisibility visibility) {
@@ -87,21 +89,21 @@ public class EventSecurityTest {
     public void testIsOwnerIsTrueForTheCreator() {
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event(EVENT_ID, EventVisibility.PUBLIC)));
 
-        assertTrue(security.isOwner(EVENT_ID, auth(CREATOR_EMAIL)));
+        assertTrue(security.isOwner(EVENT_ID, creator()));
     }
 
     @Test
     public void testIsOwnerIsFalseForAnotherUser() {
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event(EVENT_ID, EventVisibility.PUBLIC)));
 
-        assertFalse(security.isOwner(EVENT_ID, auth(OTHER_EMAIL)));
+        assertFalse(security.isOwner(EVENT_ID, other()));
     }
 
     @Test
     public void testIsOwnerIsFalseWhenTheEventDoesNotExist() {
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.empty());
 
-        assertFalse(security.isOwner(EVENT_ID, auth(CREATOR_EMAIL)));
+        assertFalse(security.isOwner(EVENT_ID, creator()));
     }
 
     @Test
@@ -118,10 +120,11 @@ public class EventSecurityTest {
     }
 
     @Test
-    public void testIsOwnerIsFalseWhenTheUserDoesNotExist() {
-        when(userService.findByEmail("ghost@test.com")).thenReturn(Optional.empty());
+    public void testIsOwnerIsFalseWhenThePrincipalIsNotAPlancitoUserDetails() {
+        final Authentication authentication = new UsernamePasswordAuthenticationToken(
+                "otro@test.com", null, AuthorityUtils.createAuthorityList("ROLE_USER"));
 
-        assertFalse(security.isOwner(EVENT_ID, auth("ghost@test.com")));
+        assertFalse(security.isOwner(EVENT_ID, authentication));
     }
 
     // ---- isOwnerOfPrivate() ----
@@ -130,21 +133,21 @@ public class EventSecurityTest {
     public void testIsOwnerOfPrivateIsTrueForTheCreatorOfAPrivateEvent() {
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event(EVENT_ID, EventVisibility.PRIVATE)));
 
-        assertTrue(security.isOwnerOfPrivate(EVENT_ID, auth(CREATOR_EMAIL)));
+        assertTrue(security.isOwnerOfPrivate(EVENT_ID, creator()));
     }
 
     @Test
     public void testIsOwnerOfPrivateIsFalseForAPublicEvent() {
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event(EVENT_ID, EventVisibility.PUBLIC)));
 
-        assertFalse(security.isOwnerOfPrivate(EVENT_ID, auth(CREATOR_EMAIL)));
+        assertFalse(security.isOwnerOfPrivate(EVENT_ID, creator()));
     }
 
     @Test
     public void testIsOwnerOfPrivateIsFalseForAnotherUser() {
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event(EVENT_ID, EventVisibility.PRIVATE)));
 
-        assertFalse(security.isOwnerOfPrivate(EVENT_ID, auth(OTHER_EMAIL)));
+        assertFalse(security.isOwnerOfPrivate(EVENT_ID, other()));
     }
 
     // ---- isOwnerOfRegistrationEvent() ----
@@ -161,7 +164,7 @@ public class EventSecurityTest {
         final Registration registration = registrationOfEvent(EVENT_ID);
         when(registrationService.findById(REGISTRATION_ID)).thenReturn(Optional.of(registration));
 
-        assertTrue(security.isOwnerOfRegistrationEvent(EVENT_ID, REGISTRATION_ID, auth(CREATOR_EMAIL)));
+        assertTrue(security.isOwnerOfRegistrationEvent(EVENT_ID, REGISTRATION_ID, creator()));
     }
 
     @Test
@@ -170,14 +173,14 @@ public class EventSecurityTest {
         final Registration registration = registrationOfEvent(OTHER_EVENT_ID);
         when(registrationService.findById(REGISTRATION_ID)).thenReturn(Optional.of(registration));
 
-        assertFalse(security.isOwnerOfRegistrationEvent(EVENT_ID, REGISTRATION_ID, auth(CREATOR_EMAIL)));
+        assertFalse(security.isOwnerOfRegistrationEvent(EVENT_ID, REGISTRATION_ID, creator()));
     }
 
     @Test
     public void testIsOwnerOfRegistrationEventIsFalseWhenTheUserDoesNotOwnTheEvent() {
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event(EVENT_ID, EventVisibility.PUBLIC)));
 
-        assertFalse(security.isOwnerOfRegistrationEvent(EVENT_ID, REGISTRATION_ID, auth(OTHER_EMAIL)));
+        assertFalse(security.isOwnerOfRegistrationEvent(EVENT_ID, REGISTRATION_ID, other()));
     }
 
     @Test
@@ -185,25 +188,77 @@ public class EventSecurityTest {
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event(EVENT_ID, EventVisibility.PUBLIC)));
         when(registrationService.findById(REGISTRATION_ID)).thenReturn(Optional.empty());
 
-        assertFalse(security.isOwnerOfRegistrationEvent(EVENT_ID, REGISTRATION_ID, auth(CREATOR_EMAIL)));
+        assertFalse(security.isOwnerOfRegistrationEvent(EVENT_ID, REGISTRATION_ID, creator()));
+    }
+
+    // ---- isRegistrant() ----
+
+    private Registration registrationOfUser(final long userId) {
+        final Registration registration = mock(Registration.class);
+        when(registration.getUserId()).thenReturn(userId);
+        return registration;
+    }
+
+    @Test
+    public void testIsRegistrantIsTrueForTheOwnerOfTheRegistration() {
+        final Registration registration = registrationOfUser(CREATOR_ID);
+        when(registrationService.findById(REGISTRATION_ID)).thenReturn(Optional.of(registration));
+
+        assertTrue(security.isRegistrant(REGISTRATION_ID, creator()));
+    }
+
+    @Test
+    public void testIsRegistrantIsFalseForTheRegistrationOfAnotherUser() {
+        final Registration registration = registrationOfUser(OTHER_ID);
+        when(registrationService.findById(REGISTRATION_ID)).thenReturn(Optional.of(registration));
+
+        assertFalse(security.isRegistrant(REGISTRATION_ID, creator()));
+    }
+
+    @Test
+    public void testIsRegistrantIsFalseWhenTheRegistrationDoesNotExist() {
+        when(registrationService.findById(REGISTRATION_ID)).thenReturn(Optional.empty());
+
+        assertFalse(security.isRegistrant(REGISTRATION_ID, creator()));
+    }
+
+    @Test
+    public void testIsRegistrantIsFalseWithoutAuthentication() {
+        assertFalse(security.isRegistrant(REGISTRATION_ID, null));
     }
 
     // ---- canView() ----
 
     @Test
-    public void testCanViewDelegatesToEventAccessService() {
+    public void testCanViewIsTrueWhenEventAccessServiceAllowsTheIdOfThePrincipal() {
         final Event event = event(EVENT_ID, EventVisibility.PRIVATE);
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event));
-        when(eventAccessService.canView(event, otherUser)).thenReturn(false);
+        // Solo responde que si se le pregunta por el id del usuario de la sesion y sin ser admin.
+        when(eventAccessService.canView(event, Long.valueOf(OTHER_ID), false)).thenReturn(true);
 
-        assertFalse(security.canView(EVENT_ID, auth(OTHER_EMAIL)));
+        assertTrue(security.canView(EVENT_ID, other()));
+    }
+
+    @Test
+    public void testCanViewTellsEventAccessServiceWhenThePrincipalIsAdmin() {
+        final Event event = event(EVENT_ID, EventVisibility.PRIVATE);
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        // Solo responde que si se le avisa que es admin (sale de las authorities del principal).
+        when(eventAccessService.canView(event, Long.valueOf(OTHER_ID), true)).thenReturn(true);
+
+        assertTrue(security.canView(EVENT_ID, auth(OTHER_ID, OTHER_EMAIL, "ROLE_USER", "ROLE_ADMIN")));
+    }
+
+    @Test
+    public void testCanViewIsFalseForAnAnonymousVisitor() {
+        assertFalse(security.canView(EVENT_ID, anonymous()));
     }
 
     @Test
     public void testCanViewIsFalseWhenTheEventDoesNotExist() {
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.empty());
 
-        assertFalse(security.canView(EVENT_ID, auth(OTHER_EMAIL)));
+        assertFalse(security.canView(EVENT_ID, other()));
     }
 
     // ---- canViewImage() ----
@@ -219,7 +274,7 @@ public class EventSecurityTest {
     public void testCanViewImageIsFalseWhenTheImageBelongsToNoEvent() {
         when(imageService.findOwnerEventAccess(IMAGE_ID)).thenReturn(Optional.empty());
 
-        assertFalse(security.canViewImage(IMAGE_ID, auth(CREATOR_EMAIL)));
+        assertFalse(security.canViewImage(IMAGE_ID, creator()));
     }
 
     @Test
@@ -245,9 +300,9 @@ public class EventSecurityTest {
         final EventAccessSummary access = new EventAccessSummary(EVENT_ID, CREATOR_ID, true, true);
         when(imageService.findOwnerEventAccess(IMAGE_ID)).thenReturn(Optional.of(access));
         when(eventAccessService.canView(access, null)).thenReturn(false);
-        when(eventAccessService.canView(access, otherUser)).thenReturn(true);
+        when(eventAccessService.canView(access, Long.valueOf(OTHER_ID), false)).thenReturn(true);
 
-        assertTrue(security.canViewImage(IMAGE_ID, auth(OTHER_EMAIL)));
+        assertTrue(security.canViewImage(IMAGE_ID, other()));
     }
 
     @Test
@@ -255,8 +310,8 @@ public class EventSecurityTest {
         final EventAccessSummary access = new EventAccessSummary(EVENT_ID, CREATOR_ID, true, true);
         when(imageService.findOwnerEventAccess(IMAGE_ID)).thenReturn(Optional.of(access));
         when(eventAccessService.canView(access, null)).thenReturn(false);
-        when(eventAccessService.canView(access, otherUser)).thenReturn(false);
+        when(eventAccessService.canView(access, Long.valueOf(OTHER_ID), false)).thenReturn(false);
 
-        assertFalse(security.canViewImage(IMAGE_ID, auth(OTHER_EMAIL)));
+        assertFalse(security.canViewImage(IMAGE_ID, other()));
     }
 }

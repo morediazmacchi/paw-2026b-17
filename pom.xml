@@ -183,9 +183,10 @@
         <artifactId>hsqldb</artifactId>
         <version>${hsqldb.version}</version>
       </dependency>
-      <!-- Autenticacion. spring-security-core (UserDetailsService, PasswordEncoder)
-           va en services; spring-security-web/config (filtros, @EnableWebSecurity)
-           van en webapp: services nunca depende de nada de servlets/web. -->
+      <!-- Autenticacion. spring-security-core (PasswordEncoder, AuthenticationException)
+           va en services/services-contracts; spring-security-web/config (filtros,
+           @EnableWebSecurity) van en webapp, donde tambien vive UserDetailsServiceImpl:
+           services nunca depende de nada de servlets/web. -->
       <dependency>
         <groupId>org.springframework.security</groupId>
         <artifactId>spring-security-core</artifactId>

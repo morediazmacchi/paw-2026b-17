@@ -6,6 +6,7 @@ import ar.edu.itba.paw.services.UserService;
 import ar.edu.itba.paw.webapp.util.SafeRedirect;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpMethod;
@@ -26,17 +27,20 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
+// RootConfig no escanea webapp: el paquete de autenticacion (webapp.auth) se descubre desde aca.
+@ComponentScan("ar.edu.itba.paw.webapp.auth")
 @Configuration
 @EnableWebSecurity
 public class WebAuthConfig {
 
-    // Los dos son beans de services, encontrados por el @ComponentScan de WebConfig.
-    // El encoder vive alla (ver PasswordEncoderConfig) porque tambien lo usa
-    // UserServiceImpl.register() para hashear al registrarse: es logica de
-    // negocio, no configuracion de filtros HTTP.
+    // Como Spring Security busca las credenciales (patron Strategy): UserDetailsServiceImpl,
+    // que esta en webapp.auth y lo encuentra el @ComponentScan de esta clase.
     @Autowired
     private UserDetailsService userDetailsService;
 
+    // Bean de services, encontrado por el @ComponentScan de RootConfig. Vive alla (ver
+    // PasswordEncoderConfig) porque tambien lo usa UserServiceImpl.register() para hashear
+    // al registrarse: es logica de negocio, no configuracion de filtros HTTP.
     @Autowired
     private PasswordEncoder passwordEncoder;
 
@@ -145,8 +149,6 @@ public class WebAuthConfig {
                         .antMatchers("/favicon.ico", "/favicon.svg").permitAll()
                         .antMatchers(HttpMethod.GET, "/", "/eventos").permitAll()
                         .antMatchers(HttpMethod.GET, "/eventos/{id:[0-9]+}").permitAll()
-                        // Comunidad (por ahora solo diseño con datos de ejemplo): publica.
-                        .antMatchers(HttpMethod.GET, "/comunidad", "/comunidad/**").permitAll()
                         // Mas especifico primero: Spring Security usa el PRIMER
                         // antMatcher que matchea, asi que gestion de roles (solo
                         // superadmin) tiene que ir antes del "/admin/**" general

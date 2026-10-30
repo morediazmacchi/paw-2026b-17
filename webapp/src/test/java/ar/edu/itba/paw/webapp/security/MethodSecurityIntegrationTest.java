@@ -29,7 +29,7 @@ public class MethodSecurityIntegrationTest {
     // corra o no depende de que el id de la URL haya llegado bien a la regla.
     static class FakeEventSecurity extends EventSecurity {
         FakeEventSecurity() {
-            super(null, null, null, null, null);
+            super(null, null, null, null);
         }
 
         @Override

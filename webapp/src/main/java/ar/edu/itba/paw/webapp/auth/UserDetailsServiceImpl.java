@@ -1,21 +1,26 @@
 // Puente entre nuestro User (email/password/roles) y el UserDetails que
-// Spring Security necesita para autenticar. Vive en services porque solo
-// depende de spring-security-core (nunca de spring-web/filtros).
-package ar.edu.itba.paw.services;
+// Spring Security necesita para autenticar. Vive en webapp porque es parte de la
+// capa de seguridad: services no sabe nada de como se autentica alguien, solo expone
+// UserService. Este paquete (webapp.auth) es el de AUTENTICACION: lo descubre el
+// @ComponentScan de WebAuthConfig (RootConfig no escanea webapp). La AUTORIZACION
+// (@PreAuthorize, EventSecurity) esta en webapp.security.
+package ar.edu.itba.paw.webapp.auth;
 
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.services.PasswordNotSetException;
+import ar.edu.itba.paw.services.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 
 import java.util.Collection;
 import java.util.stream.Collectors;
 
-@Service
+@Component
 public class UserDetailsServiceImpl implements UserDetailsService {
 
     private final UserService userService;
@@ -44,12 +49,9 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         // contraseña y tira DisabledException (WebAuthConfig.loginFailureHandler
         // distingue los dos casos, mirando el usuario de nuevo, para mandar a
         // "confirmá tu cuenta" o al aviso de cuenta suspendida segun corresponda).
-        return org.springframework.security.core.userdetails.User
-                .withUsername(user.getEmail())
-                .password(user.getPassword())
-                .disabled(!user.isVerified() || user.isSuspended())
-                .authorities(toAuthorities(user))
-                .build();
+        final boolean enabled = user.isVerified() && !user.isSuspended();
+        return new PlancitoUserDetails(user.getId(), user.getEmail(), user.getName(), user.getPassword(),
+                enabled, toAuthorities(user));
     }
 
     private Collection<GrantedAuthority> toAuthorities(final User user) {

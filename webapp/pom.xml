@@ -93,7 +93,7 @@
       <scope>provided</scope>
     </dependency>
     <!-- Autenticacion: filtros de servlet + configuracion (@EnableWebSecurity).
-         El nucleo (UserDetailsService, PasswordEncoder) esta en services. -->
+         UserDetailsServiceImpl vive en este modulo; PasswordEncoder esta en services. -->
     <dependency>
       <groupId>org.springframework.security</groupId>
       <artifactId>spring-security-web</artifactId>

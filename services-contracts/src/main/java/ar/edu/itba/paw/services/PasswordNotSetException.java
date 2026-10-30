@@ -1,4 +1,4 @@
-// Lanzada por UserDetailsServiceImpl (modulo services) cuando el email existe
+// Lanzada por UserDetailsServiceImpl (modulo webapp) cuando el email existe
 // pero es un usuario fantasma (sin password). Vive en services-contracts, no en
 // services: webapp la necesita en tiempo de compilacion (WebAuthConfig la
 // distingue via instanceof en el failure handler), y solo depende de

@@ -48,6 +48,14 @@ public interface EventAccessService {
     boolean canView(EventAccessData event, User user);
 
     /**
+     * Igual que {@link #canView(EventAccessData, User)}, pero para quien no tiene la entidad User
+     * a mano, solo su id y si es admin: es lo que lleva el principal de la sesion (ver
+     * PlancitoUserDetails), asi decidir no obliga a buscar al usuario en la base.
+     * {@code userId} null = sin sesion.
+     */
+    boolean canView(EventAccessData event, Long userId, boolean isAdmin);
+
+    /**
      * El evento, si existe y {@code user} puede verlo.
      *
      * @throws EventNotFoundException si no existe o no puede verlo. Es el mismo error en los dos casos:

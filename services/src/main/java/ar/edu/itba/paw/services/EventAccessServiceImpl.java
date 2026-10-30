@@ -31,12 +31,27 @@ public class EventAccessServiceImpl implements EventAccessService {
     @Override
     public boolean canView(final EventAccessData event, final User user,
                            final Optional<Registration> myRegistration) {
+        return isViewable(event, userIdOf(user), isAdmin(user), myRegistration);
+    }
+
+    private static Long userIdOf(final User user) {
+        return user == null ? null : user.getId();
+    }
+
+    private static boolean isAdmin(final User user) {
+        return user != null && user.getRoles().contains("ROLE_ADMIN");
+    }
+
+    // La regla de visibilidad, en un solo lugar. Trabaja con el id y con "es admin" (no con la
+    // entidad User) para que la usen tanto quien tiene el User como quien solo tiene el principal.
+    private boolean isViewable(final EventAccessData event, final Long userId, final boolean isAdmin,
+                               final Optional<Registration> myRegistration) {
         // El creador y un admin lo ven siempre, este aprobado o no (el admin
         // necesita verlo justamente para poder aprobarlo/rechazarlo).
-        if (user != null && Long.valueOf(user.getId()).equals(event.getCreatorId())) {
+        if (userId != null && userId.equals(event.getCreatorId())) {
             return true;
         }
-        if (user != null && user.getRoles().contains("ROLE_ADMIN")) {
+        if (isAdmin) {
             return true;
         }
         // Pendiente o rechazado: invisible para cualquier otra persona, sea
@@ -51,7 +66,7 @@ public class EventAccessServiceImpl implements EventAccessService {
         if (myRegistration.isPresent()) {
             return true;
         }
-        return user != null && eventInvitationService.isInvited(event.getId(), user.getId());
+        return userId != null && eventInvitationService.isInvited(event.getId(), userId);
     }
 
     @Override
@@ -66,17 +81,22 @@ public class EventAccessServiceImpl implements EventAccessService {
     @Override
     @Transactional(readOnly = true)
     public boolean canView(final EventAccessData event, final User user) {
-        // La regla real vive en la otra sobrecarga. Esta solo evita pedir la
-        // inscripcion propia cuando no hace falta: para un evento publico, la
-        // otra sobrecarga nunca mira "myRegistration" (solo importa para el
-        // caso privado), asi que pasarle Optional.empty() es siempre correcto.
+        return canView(event, userIdOf(user), isAdmin(user));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean canView(final EventAccessData event, final Long userId, final boolean isAdmin) {
+        // La regla real vive en isViewable(). Esto solo evita pedir la inscripcion propia cuando
+        // no hace falta: para un evento publico, la regla nunca mira "myRegistration" (solo
+        // importa para el caso privado), asi que pasarle Optional.empty() es siempre correcto.
         if (!event.isPrivate()) {
-            return canView(event, user, Optional.empty());
+            return isViewable(event, userId, isAdmin, Optional.empty());
         }
-        final Optional<Registration> myRegistration = user == null
+        final Optional<Registration> myRegistration = userId == null
                 ? Optional.empty()
-                : registrationService.findByEventAndUserId(event.getId(), user.getId());
-        return canView(event, user, myRegistration);
+                : registrationService.findByEventAndUserId(event.getId(), userId);
+        return isViewable(event, userId, isAdmin, myRegistration);
     }
 
     @Override

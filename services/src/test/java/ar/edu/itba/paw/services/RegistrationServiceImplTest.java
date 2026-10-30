@@ -703,7 +703,7 @@ public class RegistrationServiceImplTest {
     // ---- cancel() ----
 
     @Test
-    public void testCancelDeletesWhenTheUserOwnsTheRegistration() {
+    public void testCancelDeletesTheRegistration() {
         // Arrange
         final Registration registration = new Registration(ModelFixtures.event(EVENT_ID), null, NORMALIZED_EMAIL, NAME, RegistrationStatus.CONFIRMED);
         registration.setId(5L);
@@ -713,7 +713,7 @@ public class RegistrationServiceImplTest {
 
         when(mockRegistrationDao.delete(5)).thenReturn(true);
         // Act
-        final UnregisterResult result = registrationService.cancel(5, USER_ID);
+        final UnregisterResult result = registrationService.cancel(5);
 
         // Assert
         assertEquals(UnregisterResult.CANCELLED, result);
@@ -734,7 +734,7 @@ public class RegistrationServiceImplTest {
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(2)));
 
         // Act
-        final UnregisterResult result = registrationService.cancel(5, USER_ID);
+        final UnregisterResult result = registrationService.cancel(5);
 
         // Assert
         assertEquals(UnregisterResult.CANCELLED_PENDING, result);
@@ -750,7 +750,7 @@ public class RegistrationServiceImplTest {
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(finishedEvent()));
 
         // Act
-        final UnregisterResult result = registrationService.cancel(5, USER_ID);
+        final UnregisterResult result = registrationService.cancel(5);
 
         // Assert: no se llamo a delete() (sin stub devolveria false y el resultado seria otro)
         assertEquals(UnregisterResult.FINISHED, result);
@@ -766,7 +766,7 @@ public class RegistrationServiceImplTest {
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(10)));
 
         // Act
-        final UnregisterResult result = registrationService.cancel(5, USER_ID);
+        final UnregisterResult result = registrationService.cancel(5);
 
         // Assert
         assertEquals(UnregisterResult.REJECTED, result);
@@ -785,7 +785,7 @@ public class RegistrationServiceImplTest {
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(finishedEvent));
 
         // Act
-        final UnregisterResult result = registrationService.cancel(5, USER_ID);
+        final UnregisterResult result = registrationService.cancel(5);
 
         // Assert
         assertEquals(UnregisterResult.FINISHED, result);
@@ -797,22 +797,7 @@ public class RegistrationServiceImplTest {
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.empty());
 
         // Act
-        final UnregisterResult result = registrationService.cancel(5, USER_ID);
-
-        // Assert
-        assertEquals(UnregisterResult.NOT_FOUND, result);
-    }
-
-    @Test
-    public void testCancelReturnsNotFoundWhenTheRegistrationBelongsToSomeoneElse() {
-        // Arrange
-        final Registration registration = new Registration(ModelFixtures.event(EVENT_ID), null, "otro@mail.com", NAME, RegistrationStatus.CONFIRMED);
-        registration.setId(5L);
-        registration.setUser(ModelFixtures.user(OTHER_ID));
-        when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
-
-        // Act
-        final UnregisterResult result = registrationService.cancel(5, USER_ID);
+        final UnregisterResult result = registrationService.cancel(5);
 
         // Assert
         assertEquals(UnregisterResult.NOT_FOUND, result);

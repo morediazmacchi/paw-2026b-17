@@ -49,10 +49,8 @@ public class WebConfig implements WebMvcConfigurer {
     public EventSecurity eventSecurity(final EventService eventService,
                                        final RegistrationService registrationService,
                                        final EventAccessService eventAccessService,
-                                       final ImageService imageService,
-                                       final UserService userService) {
-        return new EventSecurity(eventService, registrationService, eventAccessService, imageService,
-                userService);
+                                       final ImageService imageService) {
+        return new EventSecurity(eventService, registrationService, eventAccessService, imageService);
     }
 
     // Se llama messageSource (no otro nombre): es el nombre de bean que Spring

@@ -1,6 +1,8 @@
-package ar.edu.itba.paw.services;
+package ar.edu.itba.paw.webapp.auth;
 
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.services.PasswordNotSetException;
+import ar.edu.itba.paw.services.UserService;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -30,6 +32,7 @@ public class UserDetailsServiceImplTest {
 
     private static final String EMAIL = "ana@mail.com";
     private static final String PASSWORD_HASH = "$2a$hash";
+    private static final long USER_ID = 7L;
 
     @Mock
     private UserService mockUserService;
@@ -43,6 +46,7 @@ public class UserDetailsServiceImplTest {
 
     private static User verifiedUser() {
         final User user = new User(EMAIL, "Ana");
+        user.setId(USER_ID);
         user.setPassword(PASSWORD_HASH);
         user.setVerified(true);
         user.setSuspended(false);
@@ -61,6 +65,21 @@ public class UserDetailsServiceImplTest {
         // Assert
         assertEquals(EMAIL, result.getUsername());
         assertEquals(PASSWORD_HASH, result.getPassword());
+    }
+
+    @Test
+    public void testLoadUserByUsernameReturnsAPlancitoUserDetailsWithTheIdEmailAndName() {
+        // Arrange
+        when(mockUserService.findByEmail(EMAIL)).thenReturn(Optional.of(verifiedUser()));
+
+        // Act
+        final UserDetails result = userDetailsService.loadUserByUsername(EMAIL);
+
+        // Assert
+        final PlancitoUserDetails principal = (PlancitoUserDetails) result;
+        assertEquals(USER_ID, principal.getId());
+        assertEquals(EMAIL, principal.getEmail());
+        assertEquals("Ana", principal.getName());
     }
 
     @Test

@@ -311,9 +311,9 @@ public class RegistrationServiceImpl implements RegistrationService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public UnregisterResult cancel(final long registrationId, final long userId) {
+    public UnregisterResult cancel(final long registrationId) {
         final Registration unlocked = registrationDao.findById(registrationId).orElse(null);
-        if (unlocked == null || !Long.valueOf(userId).equals(unlocked.getUserId())) {
+        if (unlocked == null) {
             return UnregisterResult.NOT_FOUND;
         }
         final long eventId = unlocked.getEventId();
@@ -385,7 +385,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         // implicito) no pasa por el proxy de Spring (mismo motivo que el
         // campo self de mas arriba).
         return registrationDao.findByEventAndUserId(eventId, userId)
-                .map(r -> self.cancel(r.getId(), userId))
+                .map(r -> self.cancel(r.getId()))
                 .orElse(UnregisterResult.NOT_FOUND);
     }
 

@@ -3,12 +3,11 @@ package ar.edu.itba.paw.webapp.security;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventAccessSummary;
 import ar.edu.itba.paw.model.Registration;
-import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.EventAccessService;
 import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.ImageService;
 import ar.edu.itba.paw.services.RegistrationService;
-import ar.edu.itba.paw.services.UserService;
+import ar.edu.itba.paw.webapp.auth.PlancitoUserDetails;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 
@@ -19,22 +18,21 @@ import java.util.Optional;
 // Solo responde si se puede o no; lo que pasa despues (cargar el evento, validar su estado) lo
 // hace el service. Un evento que no existe da false, igual que uno ajeno: ErrorAdvice convierte
 // los dos en el mismo 404, asi no se revela que un evento privado existe.
+// El usuario sale del principal de la sesion (PlancitoUserDetails, armado una sola vez en el
+// login): estas reglas no consultan al usuario en la base.
 public class EventSecurity {
 
     private final EventService eventService;
     private final RegistrationService registrationService;
     private final EventAccessService eventAccessService;
     private final ImageService imageService;
-    private final UserService userService;
 
     public EventSecurity(final EventService eventService, final RegistrationService registrationService,
-                         final EventAccessService eventAccessService, final ImageService imageService,
-                         final UserService userService) {
+                         final EventAccessService eventAccessService, final ImageService imageService) {
         this.eventService = eventService;
         this.registrationService = registrationService;
         this.eventAccessService = eventAccessService;
         this.imageService = imageService;
-        this.userService = userService;
     }
 
     // El usuario logueado es el creador del evento.
@@ -66,14 +64,23 @@ public class EventSecurity {
                 .orElse(false);
     }
 
+    // La inscripcion existe y es del usuario logueado. Una inscripcion que no existe da false,
+    // igual que una ajena: ErrorAdvice los convierte en el mismo 404 (no se revela cuales ids existen).
+    public boolean isRegistrant(final long registrationId, final Authentication authentication) {
+        return currentUser(authentication)
+                .flatMap(user -> registrationService.findById(registrationId)
+                        .map(registration -> Long.valueOf(user.getId()).equals(registration.getUserId())))
+                .orElse(false);
+    }
+
     // El usuario logueado puede ver el evento (ver EventAccessService.canView).
     public boolean canView(final long eventId, final Authentication authentication) {
-        final Optional<User> user = currentUser(authentication);
+        final Optional<PlancitoUserDetails> user = currentUser(authentication);
         if (!user.isPresent()) {
             return false;
         }
         return eventService.findById(eventId)
-                .map(event -> eventAccessService.canView(event, user.get()))
+                .map(event -> eventAccessService.canView(event, user.get().getId(), isAdmin(user.get())))
                 .orElse(false);
     }
 
@@ -87,26 +94,35 @@ public class EventSecurity {
             // No existe, o nunca se asocio a un evento: nadie la ve (mismo 404 en los dos casos).
             return false;
         }
-        // Sin usuario solo se ve lo publico y aprobado. Si ya da true, se ahorra buscar al usuario
+        // Sin usuario solo se ve lo publico y aprobado. Si ya da true, no hace falta mirar quien es
         // (con usuario nunca se ve menos que sin usuario).
         if (eventAccessService.canView(access.get(), null)) {
             return true;
         }
         return currentUser(authentication)
-                .map(user -> eventAccessService.canView(access.get(), user))
+                .map(user -> eventAccessService.canView(access.get(), user.getId(), isAdmin(user)))
                 .orElse(false);
     }
 
-    private Optional<User> currentUser(final Authentication authentication) {
-        // Un anonimo tambien llega "autenticado" (AnonymousAuthenticationToken): no es un usuario.
+    // El usuario de la sesion: el principal que armo UserDetailsServiceImpl en el login. Si no hay
+    // sesion, o el principal es otra cosa (un anonimo llega "autenticado" con un principal que es
+    // solo un String), no hay usuario.
+    private Optional<PlancitoUserDetails> currentUser(final Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()
                 || authentication instanceof AnonymousAuthenticationToken) {
             return Optional.empty();
         }
-        return userService.findByEmail(authentication.getName());
+        final Object principal = authentication.getPrincipal();
+        return principal instanceof PlancitoUserDetails
+                ? Optional.of((PlancitoUserDetails) principal)
+                : Optional.empty();
     }
 
-    private static boolean isCreator(final Event event, final User user) {
+    private static boolean isAdmin(final PlancitoUserDetails user) {
+        return user.getAuthorities().stream().anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()));
+    }
+
+    private static boolean isCreator(final Event event, final PlancitoUserDetails user) {
         return Long.valueOf(user.getId()).equals(event.getCreatorId());
     }
 }

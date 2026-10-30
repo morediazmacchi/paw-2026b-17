@@ -56,8 +56,8 @@
       <groupId>org.thymeleaf</groupId>
       <artifactId>thymeleaf</artifactId>
     </dependency>
-    <!-- Autenticacion: solo el nucleo (UserDetailsService, UserDetails,
-         PasswordEncoder). Nada de web/filtros aca, eso va en webapp. -->
+    <!-- Autenticacion: solo el nucleo (PasswordEncoder). Nada de web/filtros aca, eso va en
+         webapp (donde tambien esta UserDetailsServiceImpl). -->
     <dependency>
       <groupId>org.springframework.security</groupId>
       <artifactId>spring-security-core</artifactId>

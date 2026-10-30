@@ -220,11 +220,11 @@ public class ProfileController {
     // cartel volvia a salir cada vez que se recargaba o se volvia a esa pestania,
     // aunque despues hubiera pasado otra cosa (por ejemplo, que el organizador
     // cancelara el evento).
+    @PreAuthorize("@eventSecurity.isRegistrant(#id, authentication)")
     @RequestMapping(value = "/perfil/inscripciones/{id}/cancelar", method = RequestMethod.POST)
     public ModelAndView cancelarInscripcion(@PathVariable final long id,
-                                             @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
                                              final RedirectAttributes redirectAttributes) {
-        final UnregisterResult result = registrationService.cancel(id, currentUser.getId());
+        final UnregisterResult result = registrationService.cancel(id);
         redirectAttributes.addFlashAttribute("cancelled", wasCancelled(result));
         return new ModelAndView("redirect:/perfil/inscripciones");
     }

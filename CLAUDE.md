@@ -51,7 +51,7 @@ original no está a mano (no es citable textual) · `[acordado]` = lo decidió l
 - **Ownership y "quién puede hacer esto" van en Spring Security** (`@PreAuthorize`/`access(...)`), no como `if` a mano
   en controller/service, **y nunca duplicado** (Security + a mano) de forma redundante. [TP1][clase 4:L960-975]
 - **Qué existe hoy** [código]: `EventSecurity` (webapp/security) con `isOwner`, `isOwnerOfPrivate`,
-  `isOwnerOfRegistrationEvent`, `canView`, `canViewImage`. Se registra con `@Bean` en `WebConfig` (RootConfig solo
+  `isOwnerOfRegistrationEvent`, `isRegistrant`, `canView`, `canViewImage`. Se registra con `@Bean` en `WebConfig` (RootConfig solo
   escanea sus paquetes) donde también está `@EnableGlobalMethodSecurity(prePostEnabled, proxyTargetClass)`.
   `AccessDeniedException` → mismo 404 que un evento inexistente (`ErrorAdvice`; `ImageController` tiene su handler
   local que responde 404 sin cuerpo). Solo lee **services**, nunca DAOs.
@@ -127,6 +127,9 @@ original no está a mano (no es citable textual) · `[acordado]` = lo decidió l
 - **`findByIdForUpdate()` + chequeo de estado** antes de una transición que pueda chocar con otra concurrente. El lock
   evita la escritura simultánea; el chequeo de estado evita repetir la acción. Orden de locks: evento primero, luego registration.
 - `@PreAuthorize` va **sobre el handler del controller**; la regla vive en `EventSecurity`, no en el controller.
+- **Paquetes de seguridad en `webapp`:** `webapp.auth` = AUTENTICACION (`UserDetailsServiceImpl`, `PlancitoUserDetails`; como en
+  la clase 4:L1028-1070 de Sotuyo, que lo registra con `@ComponentScan` en `WebAuthConfig`); `webapp.security` = AUTORIZACION
+  (`EventSecurity`); `webapp.config` = `WebAuthConfig`/`WebConfig`/`RootConfig`.
 - Resúmenes de motivos de diseño para la defensa: ver §5.
 
 ## 3. Deuda conocida — dónde el código actual NO cumple las reglas de arriba
@@ -137,9 +140,9 @@ Registro honesto; no tapar ni "arreglar de pasada" sin avisar. Orden = prioridad
    `EventInvitationServiceImpl.invite/findByEvent`, `RegistrationServiceImpl` approve/reject/revoke/findPending/count/
    `ownsEvent`, `EventQuestionServiceImpl.answer`. Hoy conviven con `@PreAuthorize`. Decisión pendiente: sacarlos.
    *(Antes se había propuesto dejarlos como "segunda barrera"; la regla [TP1] dice que no.)*
-2. **`/perfil/inscripciones/{id}/cancelar`**: el "es tuya" está en `RegistrationServiceImpl.cancel`. Va a
-   `@PreAuthorize("@eventSecurity.isRegistrant(#id, authentication)")`. Por la regla "el id no existe no pasa de largo"
-   corresponde **404 también si no existe** (opción B), aunque el doble clic muestre 404. `RegistrationService.findById` ya existe.
+2. ~~`/perfil/inscripciones/{id}/cancelar`~~ **Resuelto**: `@PreAuthorize("@eventSecurity.isRegistrant(#id, authentication)")`;
+   la regla da `false` también si la inscripción no existe (404, opción B: el doble clic muestra 404, aceptado).
+   `RegistrationService.cancel(registrationId)` ya no recibe `userId` ni compara el dueño. Probado a mano con 2 cuentas.
 3. **Revocar `ROLE_ADMIN` no cierra sesiones** (error marcado en TP1, pendiente). Plan: `HttpSessionEventPublisher`
    (`SecurityWebApplicationInitializer`), `SessionRegistry` + `sessionManagement().maximumSessions(-1)` en `WebAuthConfig`,
    `UserRolesChangedEvent` (services-contracts), `UserServiceImpl` publica tras `grantAdmin/revokeAdmin`,
@@ -158,8 +161,6 @@ Registro honesto; no tapar ni "arreglar de pasada" sin avisar. Orden = prioridad
    `event_invitation(user_id)`, `event_question(event_id,created_at)`, `event(event_date)`; van en `schema.sql`, no en
    migrations); `EventSimilarityServiceImpl.findSimilar` usa `findAllMatching` sin criterio en cada detalle;
    `findByEmail` repetido ~4 veces por request (`ErrorAdvice`, 2 interceptores, `EventSecurity`) → usuario de sesión con id.
-9. `Comunidad` (`/comunidad/**`) es **solo diseño con datos hardcodeados**; la lógica no existe. Propuesta de partirla en 2
-   partes (perfil+seguir+descubrir primero, publicaciones después).
 
 ## 4. Entorno local (lo que ya costó tiempo)
 

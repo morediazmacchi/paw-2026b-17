@@ -181,6 +181,44 @@ public class EventAccessServiceImplTest {
         assertTrue(accessService.canView(new EventAccessSummary(EVENT_ID, CREATOR_ID, true, true), user(OTHER_ID)));
     }
 
+    // ---- canView(event, userId, isAdmin): lo que lleva el principal de la sesion ----
+
+    @Test
+    public void testCanViewByIdOfAPublicEventIsTrueWithoutSession() {
+        assertTrue(accessService.canView(event(EventVisibility.PUBLIC), null, false));
+    }
+
+    @Test
+    public void testCanViewByIdOfAPrivateEventIsFalseWithoutSession() {
+        assertFalse(accessService.canView(event(EventVisibility.PRIVATE), null, false));
+    }
+
+    @Test
+    public void testCanViewByIdOfAPrivateEventIsTrueForItsCreator() {
+        assertTrue(accessService.canView(event(EventVisibility.PRIVATE), CREATOR_ID, false));
+    }
+
+    @Test
+    public void testCanViewByIdOfAPrivateEventIsTrueForAnAdmin() {
+        assertTrue(accessService.canView(event(EventVisibility.PRIVATE), OTHER_ID, true));
+    }
+
+    @Test
+    public void testCanViewByIdOfAPrivateEventIsTrueForAnInvitedUser() {
+        when(registrationService.findByEventAndUserId(EVENT_ID, OTHER_ID)).thenReturn(Optional.empty());
+        when(eventInvitationService.isInvited(EVENT_ID, OTHER_ID)).thenReturn(true);
+
+        assertTrue(accessService.canView(event(EventVisibility.PRIVATE), OTHER_ID, false));
+    }
+
+    @Test
+    public void testCanViewByIdOfAPrivateEventIsFalseForAStranger() {
+        when(registrationService.findByEventAndUserId(EVENT_ID, OTHER_ID)).thenReturn(Optional.empty());
+        when(eventInvitationService.isInvited(EVENT_ID, OTHER_ID)).thenReturn(false);
+
+        assertFalse(accessService.canView(event(EventVisibility.PRIVATE), OTHER_ID, false));
+    }
+
     // ---- getViewableEvent() ----
 
     @Test
