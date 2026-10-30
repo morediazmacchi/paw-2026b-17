@@ -131,17 +131,11 @@
         </configuration>
       </plugin>
     </plugins>
-    <pluginManagement><!-- los plugins comunes (clean, compiler, surefire, etc.) estan en el pom padre -->
+    <pluginManagement><!-- las versiones de todos los plugins estan en el pom padre; aca solo la configuracion propia de webapp -->
       <plugins>
-        <!-- see http://maven.apache.org/ref/current/maven-core/default-bindings.html#Plugin_bindings_for_war_packaging -->
-        <plugin>
-          <artifactId>maven-war-plugin</artifactId>
-          <version>3.4.0</version>
-        </plugin>
         <plugin>
           <groupId>org.eclipse.jetty</groupId>
           <artifactId>jetty-maven-plugin</artifactId>
-          <version>9.4.58.v20250814</version>
           <configuration>
             <scanIntervalSeconds>10</scanIntervalSeconds>
             <port>8080</port>
