@@ -368,7 +368,7 @@
             <%-- Preguntar: logueado, no organizador, evento abierto. Anonimo: link al login
                  que vuelve aca. Cerrado: solo el aviso. --%>
             <c:choose>
-                <c:when test="${not questionsOpen}">
+                <c:when test="${not event.openForQuestions}">
                     <p class="creator-rating-empty"><spring:message code="event.questions.closed"/></p>
                 </c:when>
                 <c:when test="${isOwner}"></c:when>
@@ -587,7 +587,7 @@
                          sentido "darse de baja" de algo que ya sucedio. Que este lleno,
                          en cambio, ya no es un callejon sin salida: se avisa con el
                          cartel y el mismo boton pasa a ser el de la lista de espera. --%>
-                    <c:when test="${finished}">
+                    <c:when test="${event.finished}">
                         <p class="alert"><spring:message code="event.detail.eventFinished"/></p>
                     </c:when>
                     <%-- Rechazado es terminal: no hay boton que ofrecer, ni "darse de
@@ -676,7 +676,7 @@
                      se anota a su evento, asi que nunca lo ve). Quien ya es miembro ve el acceso
                      aunque el evento haya terminado o se haya cancelado: el chat queda de solo
                      lectura. Unirse, en cambio, solo mientras el evento sigue vigente. --%>
-                <c:if test="${chatMember or (chatConfirmed and not chatClosed)}">
+                <c:if test="${chatMember or (chatConfirmed and not (event.cancelled or event.finished))}">
                     <div class="detail-chat">
                         <c:choose>
                             <c:when test="${chatMember}">

@@ -54,12 +54,17 @@ public class ErrorAdvice {
         return new ModelAndView("errors/404");
     }
 
-    // @PreAuthorize de ownership (ver EventSecurity): mismo 404 que un evento inexistente, para no
-    // revelar que el evento existe pero no es tuyo. Un anonimo nunca llega aca: WebAuthConfig ya
-    // exige estar autenticado en esas rutas (los 403 por rol los resuelve el filtro, no este handler).
+    // @PreAuthorize (ver EventSecurity): con sesion, mismo 404 que un evento inexistente, para no
+    // revelar que el evento existe pero no es tuyo. Sin sesion (solo pasa en rutas publicas como el
+    // detalle de un evento) se relanza: lo toma el ExceptionTranslationFilter de Spring Security,
+    // que manda al login y despues devuelve a la pagina pedida (asi siguen andando los links de
+    // invitacion por mail). Los 403 por rol los resuelve el filtro, no este handler.
     @ExceptionHandler(AccessDeniedException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
-    public ModelAndView accessDenied(final AccessDeniedException e) {
+    public ModelAndView accessDenied(final AccessDeniedException e, final Principal principal) {
+        if (principal == null) {
+            throw e;
+        }
         return new ModelAndView("errors/404");
     }
 

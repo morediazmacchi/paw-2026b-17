@@ -803,6 +803,198 @@ public class RegistrationServiceImplTest {
         assertEquals(UnregisterResult.NOT_FOUND, result);
     }
 
+    // ---- findParticipation() ----
+
+    private static Registration participationRegistration(final RegistrationStatus status) {
+        return new Registration(ModelFixtures.event(EVENT_ID), null, NORMALIZED_EMAIL, NAME, status);
+    }
+
+    private static Event privateEvent() {
+        final Event event = eventWithCapacity(10);
+        event.setVisibility(EventVisibility.PRIVATE);
+        return event;
+    }
+
+    @Test(expected = EventNotFoundException.class)
+    public void testFindParticipationOfANonexistentEventThrowsEventNotFoundException() {
+        // Arrange
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.empty());
+
+        // Act
+        registrationService.findParticipation(EVENT_ID, USER_ID);
+
+        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
+    }
+
+    @Test
+    public void testFindParticipationOfSomeoneWithoutRegistrationInAPublicEventHasNothingSpecial() {
+        // Arrange
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(10)));
+        when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
+
+        // Act
+        final EventParticipation result = registrationService.findParticipation(EVENT_ID, USER_ID);
+
+        // Assert
+        assertFalse(result.isRegistered());
+        assertFalse(result.isOwner());
+        assertFalse(result.isAdminReviewOnly());
+        assertFalse(result.isViewOnly());
+    }
+
+    @Test
+    public void testFindParticipationOfAConfirmedRegistrationIsRegisteredAndOffersTheChat() {
+        // Arrange
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(10)));
+        when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID))
+                .thenReturn(Optional.of(participationRegistration(RegistrationStatus.CONFIRMED)));
+
+        // Act
+        final EventParticipation result = registrationService.findParticipation(EVENT_ID, USER_ID);
+
+        // Assert
+        assertTrue(result.isRegistered());
+        assertTrue(result.isChatConfirmed());
+    }
+
+    @Test
+    public void testFindParticipationOfAWaitlistedRegistrationIsRegisteredAndWaitlisted() {
+        // Arrange
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(10)));
+        when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID))
+                .thenReturn(Optional.of(participationRegistration(RegistrationStatus.WAITLISTED)));
+
+        // Act
+        final EventParticipation result = registrationService.findParticipation(EVENT_ID, USER_ID);
+
+        // Assert
+        assertTrue(result.isRegistered());
+        assertTrue(result.isWaitlisted());
+        assertFalse(result.isChatConfirmed());
+    }
+
+    @Test
+    public void testFindParticipationOfAPendingRegistrationIsRegisteredAndPendingApproval() {
+        // Arrange
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(10)));
+        when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID))
+                .thenReturn(Optional.of(participationRegistration(RegistrationStatus.PENDING)));
+
+        // Act
+        final EventParticipation result = registrationService.findParticipation(EVENT_ID, USER_ID);
+
+        // Assert
+        assertTrue(result.isRegistered());
+        assertTrue(result.isPendingApproval());
+    }
+
+    @Test
+    public void testFindParticipationOfARejectedRegistrationIsNotRegisteredButIsRejected() {
+        // Arrange
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(10)));
+        when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID))
+                .thenReturn(Optional.of(participationRegistration(RegistrationStatus.REJECTED)));
+
+        // Act
+        final EventParticipation result = registrationService.findParticipation(EVENT_ID, USER_ID);
+
+        // Assert
+        assertFalse(result.isRegistered());
+        assertTrue(result.isRejected());
+    }
+
+    @Test
+    public void testFindParticipationOfTheCreatorIsOwner() {
+        // Arrange
+        final Event event = eventWithCapacity(10);
+        event.setCreator(ModelFixtures.user(USER_ID));
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
+
+        // Act
+        final EventParticipation result = registrationService.findParticipation(EVENT_ID, USER_ID);
+
+        // Assert
+        assertTrue(result.isOwner());
+        assertFalse(result.isAdminReviewOnly());
+        assertFalse(result.isViewOnly());
+    }
+
+    @Test
+    public void testFindParticipationOfAnEventNotYetApprovedIsAdminReviewOnlyForANonOwner() {
+        // Arrange
+        final Event event = eventWithCapacity(10);
+        event.setApprovalStatus(EventApprovalStatus.PENDING);
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
+
+        // Act
+        final EventParticipation result = registrationService.findParticipation(EVENT_ID, USER_ID);
+
+        // Assert
+        assertTrue(result.isAdminReviewOnly());
+    }
+
+    @Test
+    public void testFindParticipationOfAnEventNotYetApprovedIsNotAdminReviewOnlyForItsCreator() {
+        // Arrange
+        final Event event = eventWithCapacity(10);
+        event.setApprovalStatus(EventApprovalStatus.PENDING);
+        event.setCreator(ModelFixtures.user(USER_ID));
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
+
+        // Act
+        final EventParticipation result = registrationService.findParticipation(EVENT_ID, USER_ID);
+
+        // Assert
+        assertFalse(result.isAdminReviewOnly());
+    }
+
+    @Test
+    public void testFindParticipationOfAPrivateEventWithoutRegistrationNorInvitationIsViewOnly() {
+        // Arrange
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
+        when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
+        when(mockInvitationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
+
+        // Act
+        final EventParticipation result = registrationService.findParticipation(EVENT_ID, USER_ID);
+
+        // Assert
+        assertTrue(result.isViewOnly());
+    }
+
+    @Test
+    public void testFindParticipationOfAPrivateEventWithAnInvitationIsNotViewOnly() {
+        // Arrange
+        final Event event = privateEvent();
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
+        when(mockInvitationDao.findByEventAndUserId(EVENT_ID, USER_ID))
+                .thenReturn(Optional.of(new EventInvitation(event, NORMALIZED_EMAIL, CREATOR_EMAIL)));
+
+        // Act
+        final EventParticipation result = registrationService.findParticipation(EVENT_ID, USER_ID);
+
+        // Assert
+        assertFalse(result.isViewOnly());
+    }
+
+    @Test
+    public void testFindParticipationOfAPrivateEventWithARegistrationIsNotViewOnly() {
+        // Arrange
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
+        when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID))
+                .thenReturn(Optional.of(participationRegistration(RegistrationStatus.CONFIRMED)));
+
+        // Act
+        final EventParticipation result = registrationService.findParticipation(EVENT_ID, USER_ID);
+
+        // Assert
+        assertFalse(result.isViewOnly());
+    }
+
     // ---- cancelOwnRegistration() ----
 
     @Test

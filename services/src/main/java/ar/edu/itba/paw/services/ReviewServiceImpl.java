@@ -13,10 +13,13 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class ReviewServiceImpl implements ReviewService {
@@ -98,5 +101,20 @@ public class ReviewServiceImpl implements ReviewService {
     @Transactional(readOnly = true)
     public List<Review> findByCreatorId(final long creatorId) {
         return reviewDao.findByCreatorId(creatorId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public CreatorReputation findCreatorReputation(final long creatorId) {
+        final List<Review> reviews = reviewDao.findByCreatorId(creatorId);
+        if (reviews.isEmpty()) {
+            return new CreatorReputation(reviews, 0, Collections.emptyMap());
+        }
+        // Una sola consulta para todos los eventos reseñados (findByIds()), en vez de un
+        // findById() por cada reseña.
+        final List<Long> eventIds = reviews.stream().map(Review::getEventId).distinct().collect(Collectors.toList());
+        final Map<Long, Event> eventsById = eventDao.findByIds(eventIds).stream()
+                .collect(Collectors.toMap(Event::getId, event -> event));
+        return new CreatorReputation(reviews, reviewDao.findAverageRatingByCreatorId(creatorId), eventsById);
     }
 }

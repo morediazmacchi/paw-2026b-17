@@ -31,17 +31,6 @@ public interface EventAccessService {
     boolean canView(EventAccessData event, User user, Optional<Registration> myRegistration);
 
     /**
-     * Como {@link #canView(EventAccessData, User, Optional)}, pero tira EventNotFoundException en vez de
-     * devolver false. Para quien ya tiene el Event y el Optional&lt;Registration&gt; en mano (ver
-     * EventController.detail(), que los necesita de nuevo mas abajo para la tarjeta de RSVP) y
-     * no quiere armar el if/throw el mismo -- esa decision le corresponde al service, no al
-     * controller.
-     *
-     * @throws EventNotFoundException si no puede verlo. Mismo error que si no existiera.
-     */
-    void requireViewable(Event event, User user, Optional<Registration> myRegistration);
-
-    /**
      * Igual que {@link #canView(EventAccessData, User, Optional)}, pero busca la inscripcion propia solo si hace
      * falta (un evento publico lo ve cualquiera, ni se consulta). {@code user} puede ser null (sin sesion).
      */

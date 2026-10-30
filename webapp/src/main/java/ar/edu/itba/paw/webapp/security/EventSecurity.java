@@ -73,14 +73,15 @@ public class EventSecurity {
                 .orElse(false);
     }
 
-    // El usuario logueado puede ver el evento (ver EventAccessService.canView).
+    // Se puede ver el evento (ver EventAccessService.canView). Un visitante sin sesion tambien
+    // puede: ve los eventos publicos y aprobados (el detalle es permitAll). Un evento que no
+    // existe da false, igual que uno que no se puede ver.
     public boolean canView(final long eventId, final Authentication authentication) {
         final Optional<PlancitoUserDetails> user = currentUser(authentication);
-        if (!user.isPresent()) {
-            return false;
-        }
+        final Long userId = user.map(PlancitoUserDetails::getId).orElse(null);
+        final boolean admin = user.map(EventSecurity::isAdmin).orElse(false);
         return eventService.findById(eventId)
-                .map(event -> eventAccessService.canView(event, user.get().getId(), isAdmin(user.get())))
+                .map(event -> eventAccessService.canView(event, userId, admin))
                 .orElse(false);
     }
 

@@ -105,6 +105,16 @@ public interface RegistrationService {
     Optional<Registration> findById(long registrationId);
 
     /**
+     * Para el detalle de evento: la relacion de esta persona con el evento, ya resuelta (si esta
+     * inscripta y en que estado, si es la dueña, y si la pantalla le ofrece inscribirse o solo
+     * verlo). Las reglas son las mismas que aplica register().
+     *
+     * @throws EventNotFoundException si el evento no existe.
+     */
+    @Transactional(readOnly = true)
+    EventParticipation findParticipation(long eventId, long userId);
+
+    /**
      * Para el detalle de evento: si el usuario logueado ya esta anotado a
      * este evento, para mostrar "Darme de baja" en vez de "Inscribirme".
      */

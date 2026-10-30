@@ -391,6 +391,21 @@ public class RegistrationServiceImpl implements RegistrationService {
 
     @Override
     @Transactional(readOnly = true)
+    public EventParticipation findParticipation(final long eventId, final long userId) {
+        final Event event = eventDao.findById(eventId).orElseThrow(() -> new EventNotFoundException(eventId));
+        final Optional<Registration> registration = registrationDao.findByEventAndUserId(eventId, userId);
+        final boolean owner = Long.valueOf(userId).equals(event.getCreatorId());
+        // Mismas reglas que register(): pendiente o rechazado, o privado sin invitacion, se tratan
+        // como un id inexistente. Un admin puede VER esos eventos pero no inscribirse.
+        final boolean adminReviewOnly = !owner && !event.isApproved();
+        final boolean viewOnly = event.isPrivate() && !owner && !registration.isPresent()
+                && !invitationDao.findByEventAndUserId(eventId, userId).isPresent();
+        return new EventParticipation(registration.map(Registration::getStatus).orElse(null),
+                owner, adminReviewOnly, viewOnly);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Optional<Registration> findById(final long registrationId) {
         return registrationDao.findById(registrationId);
     }

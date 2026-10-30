@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -309,5 +310,65 @@ public class ReviewServiceImplTest {
 
         // Assert
         assertEquals(Collections.emptyList(), result);
+    }
+
+    // ---- findCreatorReputation() ----
+
+    private static Review reviewOfEvent(final long eventId) {
+        return new Review(ModelFixtures.event(eventId), someUser(), RATING, COMMENT);
+    }
+
+    @Test
+    public void testFindCreatorReputationWithoutReviewsIsEmpty() {
+        // Arrange
+        when(reviewDao.findByCreatorId(CREATOR_ID)).thenReturn(Collections.emptyList());
+
+        // Act
+        final CreatorReputation result = reviewService.findCreatorReputation(CREATOR_ID);
+
+        // Assert
+        assertFalse(result.hasReviews());
+        assertEquals(0, result.getReviewCount());
+        assertEquals(0.0, result.getAverageRating(), 0.0001);
+        assertTrue(result.getEventsById().isEmpty());
+    }
+
+    @Test
+    public void testFindCreatorReputationReturnsTheReviewsAndTheAverage() {
+        // Arrange
+        final List<Review> reviews = Arrays.asList(reviewOfEvent(1), reviewOfEvent(2));
+        when(reviewDao.findByCreatorId(CREATOR_ID)).thenReturn(reviews);
+        when(reviewDao.findAverageRatingByCreatorId(CREATOR_ID)).thenReturn(4.5);
+        when(eventDao.findByIds(Arrays.asList(1L, 2L)))
+                .thenReturn(Arrays.asList(ModelFixtures.event(1), ModelFixtures.event(2)));
+
+        // Act
+        final CreatorReputation result = reviewService.findCreatorReputation(CREATOR_ID);
+
+        // Assert
+        assertTrue(result.hasReviews());
+        assertEquals(2, result.getReviewCount());
+        assertEquals(reviews, result.getReviews());
+        assertEquals(4.5, result.getAverageRating(), 0.0001);
+    }
+
+    @Test
+    public void testFindCreatorReputationAsksOnceForEachReviewedEventAndIndexesThemById() {
+        // Arrange: dos reseñas del mismo evento y una de otro. El dao solo responde si se le piden
+        // los ids sin repetir (1 y 2), asi que si el service pidiera de mas, el mapa quedaria vacio.
+        when(reviewDao.findByCreatorId(CREATOR_ID))
+                .thenReturn(Arrays.asList(reviewOfEvent(1), reviewOfEvent(2), reviewOfEvent(1)));
+        when(reviewDao.findAverageRatingByCreatorId(CREATOR_ID)).thenReturn(4.0);
+        final Event first = ModelFixtures.event(1);
+        final Event second = ModelFixtures.event(2);
+        when(eventDao.findByIds(Arrays.asList(1L, 2L))).thenReturn(Arrays.asList(first, second));
+
+        // Act
+        final CreatorReputation result = reviewService.findCreatorReputation(CREATOR_ID);
+
+        // Assert
+        assertEquals(2, result.getEventsById().size());
+        assertSame(first, result.getEventsById().get(1L));
+        assertSame(second, result.getEventsById().get(2L));
     }
 }

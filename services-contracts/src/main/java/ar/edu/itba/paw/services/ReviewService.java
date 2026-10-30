@@ -41,4 +41,12 @@ public interface ReviewService {
      */
     @Transactional(readOnly = true)
     List<Review> findByCreatorId(long creatorId);
+
+    /**
+     * La reputacion del organizador ya armada para el detalle de un evento: reseñas, promedio y
+     * los eventos reseñados (una sola consulta para todos). Sin reseñas, devuelve una reputacion
+     * vacia (promedio 0).
+     */
+    @Transactional(readOnly = true)
+    CreatorReputation findCreatorReputation(long creatorId);
 }

@@ -59,6 +59,9 @@ original no está a mano (no es citable textual) · `[acordado]` = lo decidió l
   implementan `Event` y la proyección `EventAccessSummary`). `getEditableEvent(id)` solo valida estado (no cancelado).
 - El orden de las reglas en `filterChain` importa: gana la primera que matchea; `anyRequest()` siempre última.
   [clase 4:L970-980]
+- **Criterio del docente (30/10): la seguridad va primero, aunque cueste una consulta repetida.** Si autorizar a la entrada
+  obliga a consultar algo que el handler vuelve a consultar después (ej. la inscripción en el detalle de un evento privado),
+  es aceptable. No contorsionar el diseño (ni mezclar autorización con carga de datos) para evitar esa consulta.
 - **"El id no existe" nunca devuelve `true`/pasa de largo**: bloquear (404/403) antes. [TP1]
 - **Revocar/degradar un rol tiene que afectar la sesión activa**, no solo el próximo login. [TP1] (pendiente, ver §3)
 - Dos ids relacionados en una URL → verificar que el segundo pertenezca al primero (`isOwnerOfRegistrationEvent`). [TP1]
@@ -147,9 +150,18 @@ Registro honesto; no tapar ni "arreglar de pasada" sin avisar. Orden = prioridad
    (`SecurityWebApplicationInitializer`), `SessionRegistry` + `sessionManagement().maximumSessions(-1)` en `WebAuthConfig`,
    `UserRolesChangedEvent` (services-contracts), `UserServiceImpl` publica tras `grantAdmin/revokeAdmin`,
    `SessionExpiringListener` (`@TransactionalEventListener`) hace `expireNow()`. Probar con dos navegadores.
-4. **`canView` a mano** en `EventController.detail` (necesita el evento + la inscripción; consulta repetida solo en
-   eventos privados), `EventQuestionServiceImpl:50`, `FavoriteServiceImpl:39/90`, `RegistrationServiceImpl`.
-   Pendiente de qué responda el docente sobre el detalle.
+4. **`canView` a mano en los services** (pendiente): `EventQuestionServiceImpl:50` (preguntar), `FavoriteServiceImpl:39/90`
+   (favorito), `RegistrationServiceImpl.register` L87-110 (quiero-ir; regla algo distinta: el admin ve pero no se anota).
+   Auditoría de controllers (30/10): también faltan chat (5 handlers; el JS espera 403), reglas de jerarquía de admin en
+   `UserServiceImpl.suspendByAdmin`/`EventServiceImpl.approve`, y los chequeos de dueño duplicados (ver punto 1).
+   ~~`EventController.detail`~~ **Resuelto**: `@PreAuthorize("@eventSecurity.canView(#id, authentication)")`; `canView` acepta
+   anónimos; `ErrorAdvice.accessDenied` relanza si no hay sesión (Spring Security manda a /login y vuelve; probado) y da 404
+   con sesión. `requireViewable` se borró. La consulta repetida de la inscripción en eventos privados (regla + handler) **la
+   aceptó el docente** (30/10): "siempre primero la seguridad".
+   También se limpió `detail` de lógica de negocio (corrección 06, solo para este método): las reglas de "estás inscripto /
+   podés inscribirte" salieron del controller a `RegistrationService.findParticipation` (objeto `EventParticipation`) y el armado
+   de la reputación del organizador a `ReviewService.findCreatorReputation` (objeto `CreatorReputation`). Verificado comparando
+   el HTML del detalle antes y después en 11 escenarios (idéntico). El resto de los controllers sigue pendiente.
 5. ~~Tests con `verify(`~~ **Resuelto** (se sacaron los 20 usos + 2 `verifyNoInteractions`; sin registros caseros).
    Se perdió cobertura a nivel service de "`findMessages` marca como leído" y "`send` guarda el cuerpo recortado"
    (efectos sin valor de retorno; `markRead` sí está en `EventChatJpaDaoTest`). **Sigue pendiente: reflection** en

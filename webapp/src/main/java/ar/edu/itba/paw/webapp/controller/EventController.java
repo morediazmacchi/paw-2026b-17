@@ -8,14 +8,12 @@ import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventQuestion;
 import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.EventSort;
-import ar.edu.itba.paw.model.Registration;
-import ar.edu.itba.paw.model.RegistrationStatus;
-import ar.edu.itba.paw.model.Review;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.CategoryService;
+import ar.edu.itba.paw.services.CreatorReputation;
 import ar.edu.itba.paw.services.EventAccessService;
 import ar.edu.itba.paw.services.EventChatService;
-import ar.edu.itba.paw.services.EventInvitationService;
+import ar.edu.itba.paw.services.EventParticipation;
 import ar.edu.itba.paw.services.EventQuestionService;
 import ar.edu.itba.paw.services.EventSimilarityService;
 import ar.edu.itba.paw.services.EventService;
@@ -52,7 +50,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Controller
@@ -67,7 +64,6 @@ public class EventController {
     private final ReviewService reviewService;
     private final EventQuestionService eventQuestionService;
     private final EventAccessService accessChecker;
-    private final EventInvitationService eventInvitationService;
     private final EventChatService eventChatService;
     private final EventSimilarityService eventSimilarityService;
     private final MessageSource messageSource;
@@ -77,7 +73,6 @@ public class EventController {
                             final RegistrationService registrationService,
                             final FavoriteService favoriteService, final ReviewService reviewService,
                             final EventQuestionService eventQuestionService, final EventAccessService accessChecker,
-                            final EventInvitationService eventInvitationService,
                             final EventChatService eventChatService,
                             final EventSimilarityService eventSimilarityService,
                             final MessageSource messageSource) {
@@ -88,7 +83,6 @@ public class EventController {
         this.reviewService = reviewService;
         this.eventQuestionService = eventQuestionService;
         this.accessChecker = accessChecker;
-        this.eventInvitationService = eventInvitationService;
         this.eventChatService = eventChatService;
         this.eventSimilarityService = eventSimilarityService;
         this.messageSource = messageSource;
@@ -185,24 +179,15 @@ public class EventController {
                 .collect(Collectors.toList());
     }
 
+    // Quien puede ver el evento lo decide @PreAuthorize antes de entrar (ver EventSecurity.canView):
+    // un evento inexistente o que no se puede ver nunca llega aca. Un anonimo que no puede verlo
+    // va al login (ErrorAdvice.accessDenied), un usuario con sesion ve el 404.
+    @PreAuthorize("@eventSecurity.canView(#id, authentication)")
     @RequestMapping(value = "/eventos/{id}", method = RequestMethod.GET)
     public ModelAndView detail(@PathVariable final long id,
                                 @RequestParam(value = "preguntasPage", required = false) final String preguntasPage,
                                 @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final Event event = eventService.findByIdOrThrow(id);
-        // Privado y sin sesion: todavia no sabemos quien sos.
-        if (event.isPrivate() && currentUser == null) {
-            return new ModelAndView("redirect:/login?redirect=/eventos/" + id);
-        }
-        // Para un evento privado, la inscripcion propia (si existe) no es solo
-        // dato para la tarjeta de RSVP: es tambien la prueba de que quien pide
-        // esto tiene algo que ver con el evento. Por eso se busca ANTES del
-        // chequeo de acceso, en vez de mas abajo como antes.
-        final Optional<Registration> myRegistration = currentUser == null
-                ? Optional.empty()
-                : registrationService.findByEventAndUserId(id, currentUser.getId());
-        accessChecker.requireViewable(event, currentUser, myRegistration);
-
         final ModelAndView mav = new ModelAndView("events/detail");
         mav.addObject("event", event);
         // Quien fue invitado a un evento privado tiene su lugar reservado: para esa
@@ -210,34 +195,22 @@ public class EventController {
         mav.addObject("full", currentUser != null
                 ? registrationService.isFullFor(id, currentUser.getId())
                 : registrationService.isFull(id));
-        mav.addObject("finished", event.isFinished());
         mav.addObject("availableSpots", registrationService.availableSpots(id));
         if (currentUser != null) {
+            // La relacion de esta persona con el evento ya viene resuelta por el service.
+            final EventParticipation participation = registrationService.findParticipation(id, currentUser.getId());
             mav.addObject("favorite", favoriteService.isFavorite(currentUser.getId(), id));
-            final RegistrationStatus myStatus = myRegistration.map(Registration::getStatus).orElse(null);
-            mav.addObject("registered", myRegistration.isPresent()
-                    && myStatus != RegistrationStatus.REJECTED);
-            mav.addObject("waitlisted", myStatus == RegistrationStatus.WAITLISTED);
-            mav.addObject("pendingApproval", myStatus == RegistrationStatus.PENDING);
-            mav.addObject("rejected", myStatus == RegistrationStatus.REJECTED);
+            mav.addObject("registered", participation.isRegistered());
+            mav.addObject("waitlisted", participation.isWaitlisted());
+            mav.addObject("pendingApproval", participation.isPendingApproval());
+            mav.addObject("rejected", participation.isRejected());
             // Grupo de chat: se ofrece "Unirme" a quien esta confirmado, y "Ir al chat" a quien ya
             // es miembro activo (aunque el evento ya haya terminado: queda de solo lectura).
-            mav.addObject("chatConfirmed", myStatus == RegistrationStatus.CONFIRMED);
+            mav.addObject("chatConfirmed", participation.isChatConfirmed());
             mav.addObject("chatMember", eventChatService.isMember(id, currentUser.getId()));
-            mav.addObject("chatClosed", event.isCancelled() || event.isFinished());
-            // El creador no se anota a su propio evento.
-            final boolean isOwner = Long.valueOf(currentUser.getId()).equals(event.getCreatorId());
-            mav.addObject("isOwner", isOwner);
-            // Un admin puede VER un evento todavia no aprobado (o ya rechazado) para
-            // revisarlo (ver EventAccessService.canView()), pero no inscribirse:
-            // register() lo trata como un id inexistente. Va antes (y separado) del
-            // viewOnly de abajo porque el mensaje es distinto (no es sobre invitacion).
-            mav.addObject("adminReviewOnly", !isOwner && !event.isApproved());
-            // Un admin puede VER un evento privado para moderarlo (ver EventAccessService.canView()),
-            // pero no inscribirse si nadie lo invito: register() lo trata como un id inexistente.
-            // La pantalla no le ofrece un boton que terminaria en un 404.
-            mav.addObject("viewOnly", event.isPrivate() && !isOwner && !myRegistration.isPresent()
-                    && !eventInvitationService.isInvited(id, currentUser.getId()));
+            mav.addObject("isOwner", participation.isOwner());
+            mav.addObject("adminReviewOnly", participation.isAdminReviewOnly());
+            mav.addObject("viewOnly", participation.isViewOnly());
         }
         if (event.getCreatorId() != null) {
             addCreatorReputation(mav, event.getCreatorId());
@@ -247,7 +220,6 @@ public class EventController {
         mav.addObject("questions", questions.getContent());
         mav.addObject("questionsPage", questions.getPage());
         mav.addObject("questionsTotalPages", questions.getTotalPages());
-        mav.addObject("questionsOpen", event.isOpenForQuestions());
         return mav;
     }
 
@@ -271,17 +243,12 @@ public class EventController {
     // completa para el popup "Ver reseñas de este promotor", con la mini info
     // del evento reseñado en cada una (reviewEventsById).
     private void addCreatorReputation(final ModelAndView mav, final long creatorId) {
-        final List<Review> creatorReviews = reviewService.findByCreatorId(creatorId);
-        mav.addObject("creatorReviewCount", creatorReviews.size());
-        if (!creatorReviews.isEmpty()) {
-            mav.addObject("creatorAverageRating", reviewService.findCreatorAverageRating(creatorId));
-            mav.addObject("creatorReviews", creatorReviews);
-            // Una sola consulta para todos los eventos reseñados (findByIds()),
-            // en vez de un findById() por cada reseña.
-            final List<Long> eventIds = creatorReviews.stream().map(Review::getEventId).distinct().collect(Collectors.toList());
-            final Map<Long, Event> reviewEventsById = eventService.findByIds(eventIds).stream()
-                    .collect(Collectors.toMap(Event::getId, e -> e));
-            mav.addObject("reviewEventsById", reviewEventsById);
+        final CreatorReputation reputation = reviewService.findCreatorReputation(creatorId);
+        mav.addObject("creatorReviewCount", reputation.getReviewCount());
+        if (reputation.hasReviews()) {
+            mav.addObject("creatorAverageRating", reputation.getAverageRating());
+            mav.addObject("creatorReviews", reputation.getReviews());
+            mav.addObject("reviewEventsById", reputation.getEventsById());
         }
     }
 

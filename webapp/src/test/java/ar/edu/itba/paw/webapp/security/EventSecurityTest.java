@@ -250,7 +250,28 @@ public class EventSecurityTest {
     }
 
     @Test
-    public void testCanViewIsFalseForAnAnonymousVisitor() {
+    public void testCanViewTreatsAnAnonymousVisitorAsSomeoneWithoutSession() {
+        final Event event = event(EVENT_ID, EventVisibility.PUBLIC);
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        // Solo responde que si se le pregunta sin usuario y sin admin.
+        when(eventAccessService.canView(event, null, false)).thenReturn(true);
+
+        assertTrue(security.canView(EVENT_ID, anonymous()));
+    }
+
+    @Test
+    public void testCanViewIsFalseForAnAnonymousVisitorWhenEventAccessServiceDenies() {
+        final Event event = event(EVENT_ID, EventVisibility.PRIVATE);
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        when(eventAccessService.canView(event, null, false)).thenReturn(false);
+
+        assertFalse(security.canView(EVENT_ID, anonymous()));
+    }
+
+    @Test
+    public void testCanViewIsFalseForAnAnonymousVisitorWhenTheEventDoesNotExist() {
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.empty());
+
         assertFalse(security.canView(EVENT_ID, anonymous()));
     }
 

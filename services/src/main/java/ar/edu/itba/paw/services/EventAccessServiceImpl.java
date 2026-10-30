@@ -70,15 +70,6 @@ public class EventAccessServiceImpl implements EventAccessService {
     }
 
     @Override
-    public void requireViewable(final Event event, final User user, final Optional<Registration> myRegistration) {
-        if (!canView(event, user, myRegistration)) {
-            // Mismo 404 que un id inexistente: no hay que revelar que el
-            // evento existe pero que no es para vos.
-            throw new EventNotFoundException(event.getId());
-        }
-    }
-
-    @Override
     @Transactional(readOnly = true)
     public boolean canView(final EventAccessData event, final User user) {
         return canView(event, userIdOf(user), isAdmin(user));
