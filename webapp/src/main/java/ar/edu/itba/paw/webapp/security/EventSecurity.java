@@ -3,6 +3,7 @@ package ar.edu.itba.paw.webapp.security;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventAccessSummary;
 import ar.edu.itba.paw.model.Registration;
+import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.services.EventAccessService;
 import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.ImageService;
@@ -119,7 +120,8 @@ public class EventSecurity {
     }
 
     private static boolean isAdmin(final PlancitoUserDetails user) {
-        return user.getAuthorities().stream().anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()));
+        return user.getAuthorities().stream()
+                .anyMatch(authority -> Role.ADMIN.getAuthority().equals(authority.getAuthority()));
     }
 
     private static boolean isCreator(final Event event, final PlancitoUserDetails user) {

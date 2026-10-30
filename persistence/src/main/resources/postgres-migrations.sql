@@ -54,3 +54,8 @@ WHERE LOWER(u.email) = LOWER(ei.email) AND ei.user_id IS NULL;
 UPDATE inbox_message im SET user_id = u.id
 FROM users u
 WHERE LOWER(u.email) = LOWER(im.recipient_email) AND im.user_id IS NULL;
+
+-- Roles como enum (correccion 13): en user_role se guarda el nombre del enum Role
+-- (USER / ADMIN / SUPERADMIN); el prefijo "ROLE_" lo agrega Role.getAuthority() para
+-- Spring Security. Idempotente y barato: solo toca las filas que todavia tienen el prefijo.
+UPDATE user_role SET role = SUBSTRING(role FROM 6) WHERE role LIKE 'ROLE\_%';

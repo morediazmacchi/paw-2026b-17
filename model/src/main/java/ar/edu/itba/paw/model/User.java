@@ -4,6 +4,8 @@ import javax.persistence.CollectionTable;
 import javax.persistence.Column;
 import javax.persistence.ElementCollection;
 import javax.persistence.Entity;
+import javax.persistence.EnumType;
+import javax.persistence.Enumerated;
 import javax.persistence.FetchType;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
@@ -34,8 +36,9 @@ public class User {
     // pide un usuario lo necesita ya cargado (autenticacion), no en un segundo paso.
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "user_role", joinColumns = @JoinColumn(name = "user_id"))
+    @Enumerated(EnumType.STRING)
     @Column(name = "role", length = 30, nullable = false)
-    private Set<String> roles = new HashSet<>();
+    private Set<Role> roles = new HashSet<>();
 
     // Cuentas creadas antes de este feature (o "fantasma", sin password) quedan
     // en true: solo un register() nuevo empieza en false y necesita confirmar el mail.
@@ -72,8 +75,11 @@ public class User {
     public void setName(final String name) { this.name = name; }
     public String getPassword() { return password; }
     public void setPassword(final String password) { this.password = password; }
-    public Set<String> getRoles() { return roles; }
-    public void setRoles(final Set<String> roles) { this.roles = roles; }
+    public Set<Role> getRoles() { return roles; }
+    public void setRoles(final Set<Role> roles) { this.roles = roles; }
+    // Para no preguntar por el rol con un literal en cada lugar (ver Role).
+    public boolean isAdmin() { return roles.contains(Role.ADMIN); }
+    public boolean isSuperadmin() { return roles.contains(Role.SUPERADMIN); }
     public boolean isVerified() { return verified; }
     public void setVerified(final boolean verified) { this.verified = verified; }
     public String getLocale() { return locale; }

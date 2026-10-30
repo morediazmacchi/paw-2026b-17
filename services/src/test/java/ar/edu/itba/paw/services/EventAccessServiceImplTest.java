@@ -4,6 +4,7 @@ import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventAccessSummary;
 import ar.edu.itba.paw.model.EventApprovalStatus;
 import ar.edu.itba.paw.model.Registration;
+import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.EventVisibility;
 import ar.edu.itba.paw.model.exception.EventCancelledException;
@@ -76,7 +77,7 @@ public class EventAccessServiceImplTest {
     public void testCanViewAPrivateEventIsTrueForAnAdminWhoIsNotInvited() {
         // Arrange
         final User admin = user(7);
-        admin.getRoles().add("ROLE_ADMIN");
+        admin.getRoles().add(Role.ADMIN);
 
         // Act
         final boolean result = accessService.canView(event(EventVisibility.PRIVATE), admin);
@@ -346,7 +347,7 @@ public class EventAccessServiceImplTest {
         final Event event = event(EventVisibility.PUBLIC);
         event.setApprovalStatus(EventApprovalStatus.PENDING);
         final User admin = user(OTHER_ID);
-        admin.getRoles().add("ROLE_ADMIN");
+        admin.getRoles().add(Role.ADMIN);
 
         // Act
         final boolean result = accessService.canView(event, admin);

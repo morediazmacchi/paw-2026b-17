@@ -54,9 +54,10 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                 enabled, toAuthorities(user));
     }
 
+    // El nombre que espera Spring Security ("ROLE_ADMIN") sale del enum (Role.getAuthority()).
     private Collection<GrantedAuthority> toAuthorities(final User user) {
         return user.getRoles().stream()
-                .map(SimpleGrantedAuthority::new)
+                .map(role -> new SimpleGrantedAuthority(role.getAuthority()))
                 .collect(Collectors.toList());
     }
 }

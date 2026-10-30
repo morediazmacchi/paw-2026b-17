@@ -31,7 +31,7 @@ public interface UserService {
     Optional<User> findByEmail(String email);
 
     /**
-     * Registro propio (login/registro). Hashea rawPassword y asigna ROLE_USER.
+     * Registro propio (login/registro). Hashea rawPassword y asigna el rol USER.
      * Si el email ya existe pero es un usuario "fantasma" (fila sin password,
      * que nunca pudo loguearse: puede quedar de datos viejos) reclama esa misma
      * fila en vez de rechazar el registro. Si el email ya tiene password, EMAIL_TAKEN.
@@ -139,17 +139,17 @@ public interface UserService {
     boolean reactivate(long userId);
 
     /**
-     * Le da ROLE_ADMIN a un usuario. Quien puede invocar esto (solo un
+     * Le da el rol ADMIN a un usuario. Quien puede invocar esto (solo un
      * superadmin) lo controla la seguridad HTTP (ver WebAuthConfig), no este
      * metodo: es una simple asignacion de rol, ya autorizada al llegar aca.
      */
     boolean grantAdmin(long userId);
 
     /**
-     * Le saca ROLE_ADMIN a un usuario (no toca ROLE_SUPERADMIN). Quien puede
+     * Le saca el rol ADMIN a un usuario (no toca SUPERADMIN). Quien puede
      * invocar esto lo controla la seguridad HTTP, igual que grantAdmin() --
      * salvo una cosa que un antMatcher no puede expresar: un superadmin no se
-     * puede sacar ROLE_ADMIN a si mismo (ver AdminController.revocar()), porque
+     * puede sacar ADMIN a si mismo (ver AdminController.revocar()), porque
      * lo dejaria afuera de /admin/** sin ninguna forma de deshacerlo el mismo.
      *
      * @throws InvalidAdminActionException si targetId es el propio callerId.

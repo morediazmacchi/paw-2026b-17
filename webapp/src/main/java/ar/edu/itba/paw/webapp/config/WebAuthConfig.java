@@ -1,5 +1,6 @@
 package ar.edu.itba.paw.webapp.config;
 
+import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.PasswordNotSetException;
 import ar.edu.itba.paw.services.UserService;
@@ -154,8 +155,8 @@ public class WebAuthConfig {
                         // superadmin) tiene que ir antes del "/admin/**" general
                         // (cualquier admin), si no el general lo captura primero.
                         .antMatchers("/admin/usuarios/*/promover", "/admin/usuarios/*/revocar")
-                            .hasRole("SUPERADMIN")
-                        .antMatchers("/admin/**").hasRole("ADMIN")
+                            .hasRole(Role.SUPERADMIN.name())
+                        .antMatchers("/admin/**").hasRole(Role.ADMIN.name())
                         // Todo lo demas exige sesion. QUIEN puede hacer que sobre un evento (ser el
                         // organizador, poder verlo...) no se decide aca sino con @PreAuthorize en los
                         // controllers (ver EventSecurity y WebConfig, donde se activa).

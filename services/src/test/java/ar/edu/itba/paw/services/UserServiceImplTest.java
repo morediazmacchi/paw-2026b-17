@@ -1,6 +1,7 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.dto.UserRegistrationDTO;
+import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.model.TokenPurpose;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.VerificationToken;
@@ -198,7 +199,7 @@ public class UserServiceImplTest {
     public void testRegisterGivesTheNewUserTheUserRole() {
         // Arrange
         newUserFlow();
-        when(userDao.addRole(USER_ID, "ROLE_USER")).thenReturn(true);
+        when(userDao.addRole(USER_ID, Role.USER)).thenReturn(true);
 
         // Act
         final UserRegistrationResult result = userService.register(registrationData());
@@ -256,7 +257,7 @@ public class UserServiceImplTest {
         ghostFlow();
         when(passwordEncoder.encode(RAW_PASSWORD)).thenReturn(HASHED_PASSWORD);
         when(userDao.setPassword(USER_ID, HASHED_PASSWORD)).thenReturn(true);
-        when(userDao.addRole(USER_ID, "ROLE_USER")).thenReturn(true);
+        when(userDao.addRole(USER_ID, Role.USER)).thenReturn(true);
 
         // Act
         final UserRegistrationResult result = userService.register(registrationData());
@@ -711,7 +712,7 @@ public class UserServiceImplTest {
 
     // ---- suspendByAdmin() ----
 
-    private static User adminWithId(final long id, final String... roles) {
+    private static User adminWithId(final long id, final Role... roles) {
         final User admin = new User("admin@mail.com", "Admin");
         admin.setId(id);
         admin.setRoles(new HashSet<>(Arrays.asList(roles)));
@@ -721,7 +722,7 @@ public class UserServiceImplTest {
     @Test(expected = InvalidAdminActionException.class)
     public void testSuspendByAdminThrowsWhenTargetIsTheCallerThemselves() {
         // Arrange
-        final User caller = adminWithId(USER_ID, "ROLE_ADMIN");
+        final User caller = adminWithId(USER_ID, Role.ADMIN);
 
         // Act
         userService.suspendByAdmin(USER_ID, caller);
@@ -732,8 +733,8 @@ public class UserServiceImplTest {
     @Test(expected = InvalidAdminActionException.class)
     public void testSuspendByAdminThrowsWhenTargetIsAdminAndCallerIsNotSuperadmin() {
         // Arrange: USER_ID es el admin objetivo, el caller es otro admin comun.
-        when(userDao.findById(USER_ID)).thenReturn(Optional.of(adminWithId(USER_ID, "ROLE_ADMIN")));
-        final User caller = adminWithId(2L, "ROLE_ADMIN");
+        when(userDao.findById(USER_ID)).thenReturn(Optional.of(adminWithId(USER_ID, Role.ADMIN)));
+        final User caller = adminWithId(2L, Role.ADMIN);
 
         // Act
         userService.suspendByAdmin(USER_ID, caller);
@@ -744,9 +745,9 @@ public class UserServiceImplTest {
     @Test
     public void testSuspendByAdminSucceedsWhenCallerIsSuperadminAndTargetIsAdmin() {
         // Arrange
-        when(userDao.findById(USER_ID)).thenReturn(Optional.of(adminWithId(USER_ID, "ROLE_ADMIN")));
+        when(userDao.findById(USER_ID)).thenReturn(Optional.of(adminWithId(USER_ID, Role.ADMIN)));
         when(userDao.setSuspended(USER_ID, true)).thenReturn(true);
-        final User caller = adminWithId(2L, "ROLE_ADMIN", "ROLE_SUPERADMIN");
+        final User caller = adminWithId(2L, Role.ADMIN, Role.SUPERADMIN);
 
         // Act
         final boolean result = userService.suspendByAdmin(USER_ID, caller);
@@ -760,7 +761,7 @@ public class UserServiceImplTest {
         // Arrange: USER_ID no es staff, el caller es un admin comun.
         when(userDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
         when(userDao.setSuspended(USER_ID, true)).thenReturn(true);
-        final User caller = adminWithId(2L, "ROLE_ADMIN");
+        final User caller = adminWithId(2L, Role.ADMIN);
 
         // Act
         final boolean result = userService.suspendByAdmin(USER_ID, caller);
@@ -800,7 +801,7 @@ public class UserServiceImplTest {
     @Test
     public void testGrantAdminReturnsTrueWhenTheRoleWasAdded() {
         // Arrange
-        when(userDao.addRole(USER_ID, "ROLE_ADMIN")).thenReturn(true);
+        when(userDao.addRole(USER_ID, Role.ADMIN)).thenReturn(true);
 
         // Act
         final boolean result = userService.grantAdmin(USER_ID);
@@ -812,7 +813,7 @@ public class UserServiceImplTest {
     @Test
     public void testGrantAdminReturnsFalseWhenTheUserWasAlreadyAdmin() {
         // Arrange
-        when(userDao.addRole(USER_ID, "ROLE_ADMIN")).thenReturn(false);
+        when(userDao.addRole(USER_ID, Role.ADMIN)).thenReturn(false);
 
         // Act
         final boolean result = userService.grantAdmin(USER_ID);
@@ -824,7 +825,7 @@ public class UserServiceImplTest {
     @Test
     public void testRevokeAdminReturnsTrueWhenTheRoleWasRemoved() {
         // Arrange
-        when(userDao.removeRole(USER_ID, "ROLE_ADMIN")).thenReturn(true);
+        when(userDao.removeRole(USER_ID, Role.ADMIN)).thenReturn(true);
 
         // Act
         final boolean result = userService.revokeAdmin(USER_ID, 2L);
@@ -836,7 +837,7 @@ public class UserServiceImplTest {
     @Test
     public void testRevokeAdminReturnsFalseWhenTheUserWasNotAdmin() {
         // Arrange
-        when(userDao.removeRole(USER_ID, "ROLE_ADMIN")).thenReturn(false);
+        when(userDao.removeRole(USER_ID, Role.ADMIN)).thenReturn(false);
 
         // Act
         final boolean result = userService.revokeAdmin(USER_ID, 2L);

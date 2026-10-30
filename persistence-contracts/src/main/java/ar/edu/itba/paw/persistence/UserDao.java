@@ -1,6 +1,7 @@
 // Contrato de persistencia para User. Implementacion: UserJdbcDao (modulo persistence).
 package ar.edu.itba.paw.persistence;
 
+import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.model.User;
 
 import java.util.List;
@@ -31,11 +32,11 @@ public interface UserDao {
     // silencio; el orden del resultado no esta garantizado.
     List<User> findByIds(List<Long> ids);
 
-    boolean addRole(long userId, String role);
+    boolean addRole(long userId, Role role);
 
-    // Complemento de addRole(): usado para revocar ROLE_ADMIN (ver
+    // Complemento de addRole(): usado para revocar ADMIN (ver
     // UserService.revokeAdmin()). No falla si el usuario no tenia ese rol.
-    boolean removeRole(long userId, String role);
+    boolean removeRole(long userId, Role role);
 
     boolean setPassword(long userId, String passwordHash);
 

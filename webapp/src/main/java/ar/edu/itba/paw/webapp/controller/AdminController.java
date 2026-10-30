@@ -199,7 +199,7 @@ public class AdminController {
         mav.addObject("currentPage", result.getPage());
         mav.addObject("totalPages", result.getTotalPages());
         mav.addObject("currentUserId", currentUser.getId());
-        mav.addObject("isSuperadmin", currentUser.getRoles().contains("ROLE_SUPERADMIN"));
+        mav.addObject("isSuperadmin", currentUser.isSuperadmin());
         return mav;
     }
 

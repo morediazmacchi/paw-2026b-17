@@ -79,7 +79,7 @@
         </sec:authorize>
         <%-- Banner de /eventos (ver EventController.eventos()): un admin elige
              que eventos van ahi. La accion vive bajo /admin/** (ver
-             AdminController), que ya exige ROLE_ADMIN. --%>
+             AdminController), que ya exige el rol ADMIN. --%>
         <sec:authorize access="hasRole('ADMIN')">
             <c:choose>
                 <c:when test="${event.featured}">
@@ -435,7 +435,7 @@
                             </c:choose>
                             <%-- Moderacion: borra la pregunta (y su respuesta, si tenia).
                                  La accion vive bajo /admin/** (ver AdminController), que
-                                 ya exige ROLE_ADMIN. --%>
+                                 ya exige el rol ADMIN. --%>
                             <sec:authorize access="hasRole('ADMIN')">
                                 <spring:message code="admin.questions.deleteButton" var="deleteQuestionLabel"/>
                                 <button type="button" class="btn-link" data-open-modal="deleteQuestionModal-${question.id}">

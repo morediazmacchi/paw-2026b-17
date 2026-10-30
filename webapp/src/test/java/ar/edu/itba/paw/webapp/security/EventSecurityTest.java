@@ -4,6 +4,7 @@ import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventAccessSummary;
 import ar.edu.itba.paw.model.EventVisibility;
 import ar.edu.itba.paw.model.Registration;
+import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.EventAccessService;
 import ar.edu.itba.paw.services.EventService;
@@ -68,11 +69,11 @@ public class EventSecurityTest {
     }
 
     private static Authentication creator() {
-        return auth(CREATOR_ID, CREATOR_EMAIL, "ROLE_USER");
+        return auth(CREATOR_ID, CREATOR_EMAIL, Role.USER.getAuthority());
     }
 
     private static Authentication other() {
-        return auth(OTHER_ID, OTHER_EMAIL, "ROLE_USER");
+        return auth(OTHER_ID, OTHER_EMAIL, Role.USER.getAuthority());
     }
 
     private static Event event(final long id, final EventVisibility visibility) {
@@ -122,7 +123,7 @@ public class EventSecurityTest {
     @Test
     public void testIsOwnerIsFalseWhenThePrincipalIsNotAPlancitoUserDetails() {
         final Authentication authentication = new UsernamePasswordAuthenticationToken(
-                "otro@test.com", null, AuthorityUtils.createAuthorityList("ROLE_USER"));
+                "otro@test.com", null, AuthorityUtils.createAuthorityList(Role.USER.getAuthority()));
 
         assertFalse(security.isOwner(EVENT_ID, authentication));
     }
@@ -246,7 +247,7 @@ public class EventSecurityTest {
         // Solo responde que si se le avisa que es admin (sale de las authorities del principal).
         when(eventAccessService.canView(event, Long.valueOf(OTHER_ID), true)).thenReturn(true);
 
-        assertTrue(security.canView(EVENT_ID, auth(OTHER_ID, OTHER_EMAIL, "ROLE_USER", "ROLE_ADMIN")));
+        assertTrue(security.canView(EVENT_ID, auth(OTHER_ID, OTHER_EMAIL, Role.USER.getAuthority(), Role.ADMIN.getAuthority())));
     }
 
     @Test

@@ -1,5 +1,6 @@
 package ar.edu.itba.paw.persistence;
 
+import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.model.User;
 import org.junit.Before;
 import org.junit.Test;
@@ -213,18 +214,18 @@ public class UserJpaDaoTest {
     public void testFindByIdReturnsRolesWhenTheUserHasThem() {
         // Arrange
         final long id = insertUser(EMAIL, NAME);
-        insertRole(id, "ROLE_USER");
-        insertRole(id, "ROLE_ADMIN");
+        insertRole(id, "USER");
+        insertRole(id, "ADMIN");
 
         // Act
         final Optional<User> found = userDao.findById(id);
 
         // Assert
         assertTrue(found.isPresent());
-        final Set<String> roles = found.get().getRoles();
+        final Set<Role> roles = found.get().getRoles();
         assertEquals(2, roles.size());
-        assertTrue(roles.contains("ROLE_USER"));
-        assertTrue(roles.contains("ROLE_ADMIN"));
+        assertTrue(roles.contains(Role.USER));
+        assertTrue(roles.contains(Role.ADMIN));
     }
 
     @Test
@@ -251,13 +252,13 @@ public class UserJpaDaoTest {
         final long id = insertUser(EMAIL, NAME);
 
         // Act
-        userDao.addRole(id, "ROLE_USER");
+        userDao.addRole(id, Role.USER);
         // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
         em.flush();
 
         // Assert
         assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
-                jdbcTemplate, "user_role", "user_id = " + id + " AND role = 'ROLE_USER'"));
+                jdbcTemplate, "user_role", "user_id = " + id + " AND role = 'USER'"));
     }
 
     @Test
@@ -266,16 +267,16 @@ public class UserJpaDaoTest {
         // No hay ON CONFLICT (no es portable a HSQLDB): addRole() depende de
         // que el PRIMARY KEY compuesto absorba el duplicado sin explotar.
         final long id = insertUser(EMAIL, NAME);
-        insertRole(id, "ROLE_USER");
+        insertRole(id, "USER");
 
         // Act
-        userDao.addRole(id, "ROLE_USER");
+        userDao.addRole(id, Role.USER);
         // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
         em.flush();
 
         // Assert
         assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
-                jdbcTemplate, "user_role", "user_id = " + id + " AND role = 'ROLE_USER'"));
+                jdbcTemplate, "user_role", "user_id = " + id + " AND role = 'USER'"));
     }
 
     // ---- removeRole() ----
@@ -284,35 +285,35 @@ public class UserJpaDaoTest {
     public void testRemoveRoleTakesJustThatRoleAway() {
         // Arrange
         final long id = insertUser(EMAIL, NAME);
-        insertRole(id, "ROLE_USER");
-        insertRole(id, "ROLE_ADMIN");
+        insertRole(id, "USER");
+        insertRole(id, "ADMIN");
 
         // Act
-        userDao.removeRole(id, "ROLE_ADMIN");
+        userDao.removeRole(id, Role.ADMIN);
         // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
         em.flush();
 
         // Assert
         assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
-                jdbcTemplate, "user_role", "user_id = " + id + " AND role = 'ROLE_USER'"));
+                jdbcTemplate, "user_role", "user_id = " + id + " AND role = 'USER'"));
         assertEquals(0, JdbcTestUtils.countRowsInTableWhere(
-                jdbcTemplate, "user_role", "user_id = " + id + " AND role = 'ROLE_ADMIN'"));
+                jdbcTemplate, "user_role", "user_id = " + id + " AND role = 'ADMIN'"));
     }
 
     @Test
     public void testRemoveRoleOnAUserWithoutThatRoleIsANoop() {
         // Arrange
         final long id = insertUser(EMAIL, NAME);
-        insertRole(id, "ROLE_USER");
+        insertRole(id, "USER");
 
         // Act
-        userDao.removeRole(id, "ROLE_ADMIN");
+        userDao.removeRole(id, Role.ADMIN);
         // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
         em.flush();
 
         // Assert
         assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
-                jdbcTemplate, "user_role", "user_id = " + id + " AND role = 'ROLE_USER'"));
+                jdbcTemplate, "user_role", "user_id = " + id + " AND role = 'USER'"));
     }
 
     // ---- setPassword() ----
@@ -448,8 +449,8 @@ public class UserJpaDaoTest {
     public void testCountAllCountsEveryUserNotEveryRole() {
         // Arrange
         final long first = insertUser(EMAIL, NAME);
-        insertRole(first, "ROLE_USER");
-        insertRole(first, "ROLE_ADMIN");
+        insertRole(first, "USER");
+        insertRole(first, "ADMIN");
         insertUser("otro@mail.com", "Beto");
 
         // Act
@@ -480,8 +481,8 @@ public class UserJpaDaoTest {
     public void testFindPageCountsAUserWithTwoRolesAsOneRowOfTheLimit() {
         // Arrange: el primero tiene dos roles (dos filas en el JOIN); el limite es de usuarios, no de filas.
         final long first = insertUser(EMAIL, NAME);
-        insertRole(first, "ROLE_USER");
-        insertRole(first, "ROLE_ADMIN");
+        insertRole(first, "USER");
+        insertRole(first, "ADMIN");
         final long second = insertUser("otro@mail.com", "Beto");
 
         // Act
@@ -500,10 +501,10 @@ public class UserJpaDaoTest {
     public void testFindAllReturnsEveryUserWithTheirOwnRoles() {
         // Arrange
         final long first = insertUser(EMAIL, NAME);
-        insertRole(first, "ROLE_USER");
+        insertRole(first, "USER");
         final long second = insertUser("otro@mail.com", "Beto");
-        insertRole(second, "ROLE_USER");
-        insertRole(second, "ROLE_ADMIN");
+        insertRole(second, "USER");
+        insertRole(second, "ADMIN");
 
         // Act
         final List<User> all = userDao.findAll();
@@ -549,14 +550,14 @@ public class UserJpaDaoTest {
     public void testFindByIdsLoadsTheRolesOfEachUser() {
         // Arrange
         final long id = insertUser("uno@mail.com", "Uno");
-        insertRole(id, "ROLE_USER");
-        insertRole(id, "ROLE_ADMIN");
+        insertRole(id, "USER");
+        insertRole(id, "ADMIN");
 
         // Act
         final List<User> result = userDao.findByIds(Collections.singletonList(id));
 
         // Assert
-        assertEquals(new HashSet<>(Arrays.asList("ROLE_USER", "ROLE_ADMIN")), result.get(0).getRoles());
+        assertEquals(new HashSet<>(Arrays.asList(Role.USER, Role.ADMIN)), result.get(0).getRoles());
     }
 
     @Test
@@ -577,7 +578,7 @@ public class UserJpaDaoTest {
         final long id = insertUser(EMAIL, NAME);
 
         // Act
-        final boolean result = userDao.addRole(id, "ROLE_USER");
+        final boolean result = userDao.addRole(id, Role.USER);
 
         // Assert
         assertTrue(result);
@@ -587,10 +588,10 @@ public class UserJpaDaoTest {
     public void testAddRoleReturnsFalseWhenTheUserAlreadyHadIt() {
         // Arrange
         final long id = insertUser(EMAIL, NAME);
-        insertRole(id, "ROLE_USER");
+        insertRole(id, "USER");
 
         // Act
-        final boolean result = userDao.addRole(id, "ROLE_USER");
+        final boolean result = userDao.addRole(id, Role.USER);
 
         // Assert
         assertFalse(result);
@@ -600,10 +601,10 @@ public class UserJpaDaoTest {
     public void testRemoveRoleReturnsTrueWhenTheRoleWasRemoved() {
         // Arrange
         final long id = insertUser(EMAIL, NAME);
-        insertRole(id, "ROLE_ADMIN");
+        insertRole(id, "ADMIN");
 
         // Act
-        final boolean result = userDao.removeRole(id, "ROLE_ADMIN");
+        final boolean result = userDao.removeRole(id, Role.ADMIN);
 
         // Assert
         assertTrue(result);
@@ -615,7 +616,7 @@ public class UserJpaDaoTest {
         final long id = insertUser(EMAIL, NAME);
 
         // Act
-        final boolean result = userDao.removeRole(id, "ROLE_ADMIN");
+        final boolean result = userDao.removeRole(id, Role.ADMIN);
 
         // Assert
         assertFalse(result);
