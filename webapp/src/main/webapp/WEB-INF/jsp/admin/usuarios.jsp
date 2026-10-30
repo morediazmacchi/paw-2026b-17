@@ -1,6 +1,5 @@
 <%@ page contentType="text/html;charset=UTF-8" pageEncoding="UTF-8" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
-<%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions" %>
 <%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
 <%@ taglib prefix="paw" tagdir="/WEB-INF/tags" %>
 <paw:layout titleCode="admin.users.title">
@@ -82,7 +81,7 @@
                             </td>
                             <td class="admin-report-actions">
                                 <%-- Nadie actua sobre su propia fila (ver AdminController): ni
-                                     suspenderse ni sacarse su propio ROLE_ADMIN. --%>
+                                     suspenderse ni sacarse su propio rol ADMIN. --%>
                                 <c:if test="${targetUser.id != currentUserId}">
                                     <c:choose>
                                         <c:when test="${targetUser.suspended}">
@@ -91,7 +90,7 @@
                                             </form>
                                         </c:when>
                                         <%-- A un admin solo lo suspende un superadmin (ver AdminController.suspender). --%>
-                                        <c:when test="${isSuperadmin or not (fn:contains(targetUser.roles, 'ROLE_ADMIN') or fn:contains(targetUser.roles, 'ROLE_SUPERADMIN'))}">
+                                        <c:when test="${isSuperadmin or not (targetUser.admin or targetUser.superadmin)}">
                                             <form action="<c:url value='/admin/usuarios/${targetUser.id}/suspender'/>" method="post">
                                                 <paw:button text="${suspendButtonLabel}" cssClass="btn-danger"/>
                                             </form>
@@ -102,7 +101,7 @@
                                          solo evita ofrecer un boton que el POST va a rechazar). --%>
                                     <c:if test="${isSuperadmin}">
                                         <c:choose>
-                                            <c:when test="${fn:contains(targetUser.roles, 'ROLE_ADMIN')}">
+                                            <c:when test="${targetUser.admin}">
                                                 <form action="<c:url value='/admin/usuarios/${targetUser.id}/revocar'/>" method="post">
                                                     <paw:button text="${revokeButtonLabel}"/>
                                                 </form>

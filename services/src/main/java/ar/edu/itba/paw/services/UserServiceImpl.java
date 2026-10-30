@@ -4,6 +4,7 @@ package ar.edu.itba.paw.services;
 import ar.edu.itba.paw.dto.UserRegistrationDTO;
 import ar.edu.itba.paw.model.InboxMessage;
 import ar.edu.itba.paw.model.InboxMessageType;
+import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.model.TokenPurpose;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.exception.InvalidAdminActionException;
@@ -29,9 +30,6 @@ import java.util.UUID;
 public class UserServiceImpl implements UserService {
 
     static final int PAGE_SIZE = 20;
-
-    private static final String ROLE_USER = "ROLE_USER";
-    private static final String ROLE_ADMIN = "ROLE_ADMIN";
 
     // Cuanto dura cada tipo de link antes de que haya que pedir uno nuevo.
     private static final long VERIFY_TOKEN_TTL_MILLIS = 24 * 60 * 60 * 1000L; // 24hs
@@ -135,7 +133,7 @@ public class UserServiceImpl implements UserService {
         // El hash recien aca, despues del chequeo de EMAIL_TAKEN: BCrypt es lento
         // a proposito y no tiene sentido pagarlo si el registro se rechaza.
         userDao.setPassword(userId, passwordEncoder.encode(data.getRawPassword()));
-        userDao.addRole(userId, ROLE_USER);
+        userDao.addRole(userId, Role.USER);
         // Toda cuenta nueva (o fantasma recien completada) tiene que confirmar
         // el mail antes de poder loguearse: ver UserDetailsServiceImpl.
         userDao.setVerified(userId, false);
@@ -281,9 +279,9 @@ public class UserServiceImpl implements UserService {
             throw new InvalidAdminActionException(InvalidAdminActionException.Reason.SELF);
         }
         final boolean targetIsStaff = userDao.findById(targetId)
-                .map(target -> target.getRoles().contains("ROLE_ADMIN") || target.getRoles().contains("ROLE_SUPERADMIN"))
+                .map(target -> target.isAdmin() || target.isSuperadmin())
                 .orElse(false);
-        if (targetIsStaff && !caller.getRoles().contains("ROLE_SUPERADMIN")) {
+        if (targetIsStaff && !caller.isSuperadmin()) {
             throw new InvalidAdminActionException(InvalidAdminActionException.Reason.ADMIN_TARGET);
         }
         return suspend(targetId);
@@ -303,7 +301,7 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public boolean grantAdmin(final long userId) {
-        return userDao.addRole(userId, ROLE_ADMIN);
+        return userDao.addRole(userId, Role.ADMIN);
     }
 
     @Override
@@ -312,7 +310,7 @@ public class UserServiceImpl implements UserService {
         if (targetId == callerId) {
             throw new InvalidAdminActionException(InvalidAdminActionException.Reason.SELF);
         }
-        return userDao.removeRole(targetId, ROLE_ADMIN);
+        return userDao.removeRole(targetId, Role.ADMIN);
     }
 
     // Igual que InboxServiceImpl.add(), pero sin pasar por ese service (evitaria

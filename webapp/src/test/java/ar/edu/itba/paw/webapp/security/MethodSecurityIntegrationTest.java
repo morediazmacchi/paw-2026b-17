@@ -1,5 +1,6 @@
 package ar.edu.itba.paw.webapp.security;
 
+import ar.edu.itba.paw.model.Role;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -67,7 +68,7 @@ public class MethodSecurityIntegrationTest {
         context = new AnnotationConfigApplicationContext(SecurityConfig.class);
         controller = context.getBean(GuardedController.class);
         final TestingAuthenticationToken authentication =
-                new TestingAuthenticationToken("user@test.com", "x", "ROLE_USER");
+                new TestingAuthenticationToken("user@test.com", "x", Role.USER.getAuthority());
         authentication.setAuthenticated(true);
         SecurityContextHolder.getContext().setAuthentication(authentication);
     }

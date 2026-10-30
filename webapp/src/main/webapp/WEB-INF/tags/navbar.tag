@@ -95,7 +95,7 @@
                 </summary>
                 <div class="navbar-dropdown-panel navbar-dropdown-panel-right">
                     <a class="navbar-dropdown-item" href="<c:url value='/perfil'/>"><paw:icon name="user"/> <c:out value="${profileLabel}"/></a>
-                    <%-- Solo admins (y superadmins, que tambien tienen ROLE_ADMIN, ver
+                    <%-- Solo admins (y superadmins, que tambien tienen el rol ADMIN, ver
                          data.sql): mismo gate que WebAuthConfig usa para /admin/**. --%>
                     <sec:authorize access="hasRole('ADMIN')">
                         <spring:message code="admin.nav.link" var="adminLabel"/>

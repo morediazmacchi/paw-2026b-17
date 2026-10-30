@@ -1,5 +1,6 @@
 package ar.edu.itba.paw.webapp.auth;
 
+import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.PasswordNotSetException;
 import ar.edu.itba.paw.services.UserService;
@@ -50,7 +51,7 @@ public class UserDetailsServiceImplTest {
         user.setPassword(PASSWORD_HASH);
         user.setVerified(true);
         user.setSuspended(false);
-        user.setRoles(new HashSet<>(Arrays.asList("ROLE_USER")));
+        user.setRoles(new HashSet<>(Arrays.asList(Role.USER)));
         return user;
     }
 
@@ -86,7 +87,7 @@ public class UserDetailsServiceImplTest {
     public void testLoadUserByUsernameReturnsTheRolesOfTheUserAsAuthorities() {
         // Arrange
         final User admin = verifiedUser();
-        admin.setRoles(new HashSet<>(Arrays.asList("ROLE_USER", "ROLE_ADMIN")));
+        admin.setRoles(new HashSet<>(Arrays.asList(Role.USER, Role.ADMIN)));
         when(mockUserService.findByEmail(EMAIL)).thenReturn(Optional.of(admin));
 
         // Act

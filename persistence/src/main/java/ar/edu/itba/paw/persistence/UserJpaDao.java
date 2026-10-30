@@ -1,6 +1,7 @@
 // Implementa el contrato UserDao (modulo persistence-contracts) con JPA/Hibernate.
 package ar.edu.itba.paw.persistence;
 
+import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.model.User;
 import org.springframework.stereotype.Repository;
 
@@ -75,7 +76,7 @@ public class UserJpaDao implements UserDao {
     }
 
     @Override
-    public boolean addRole(final long userId, final String role) {
+    public boolean addRole(final long userId, final Role role) {
         final User user = em.find(User.class, userId);
         if (user == null) {
             return false;
@@ -86,7 +87,7 @@ public class UserJpaDao implements UserDao {
     }
 
     @Override
-    public boolean removeRole(final long userId, final String role) {
+    public boolean removeRole(final long userId, final Role role) {
         final User user = em.find(User.class, userId);
         return user != null && user.getRoles().remove(role);
     }

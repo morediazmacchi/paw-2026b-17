@@ -39,7 +39,7 @@ public class EventAccessServiceImpl implements EventAccessService {
     }
 
     private static boolean isAdmin(final User user) {
-        return user != null && user.getRoles().contains("ROLE_ADMIN");
+        return user != null && user.isAdmin();
     }
 
     // La regla de visibilidad, en un solo lugar. Trabaja con el id y con "es admin" (no con la
