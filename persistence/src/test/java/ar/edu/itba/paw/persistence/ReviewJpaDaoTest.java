@@ -197,6 +197,14 @@ public class ReviewJpaDaoTest {
 
     // ---- findByCreatorId() ----
 
+    // Como insertReview(), pero con la fecha elegida: para los tests que miran el orden.
+    private long insertReviewAt(final long eventId, final long userId, final int rating, final Timestamp createdAt) {
+        jdbcTemplate.update(
+                "INSERT INTO review (event_id, user_id, rating, comment, created_at) VALUES (?, ?, ?, ?, ?)",
+                eventId, userId, rating, null, createdAt);
+        return jdbcTemplate.queryForObject("SELECT id FROM review ORDER BY id DESC LIMIT 1", Long.class);
+    }
+
     @Test
     public void testFindByCreatorIdReturnsReviewsAcrossAllTheirEvents() {
         // Arrange
@@ -207,7 +215,7 @@ public class ReviewJpaDaoTest {
         insertReview(unrelatedEventId, userId, 1, "No cuenta");
 
         // Act
-        final List<Review> found = reviewDao.findByCreatorId(creatorId);
+        final List<Review> found = reviewDao.findByCreatorId(creatorId, 1, 10);
 
         // Assert
         assertEquals(2, found.size());
@@ -216,14 +224,77 @@ public class ReviewJpaDaoTest {
     }
 
     @Test
+    public void testFindByCreatorIdReturnsTheNewestFirst() {
+        // Arrange: dos reseñas del mismo creador, la segunda un minuto mas nueva.
+        final long otherEventId = insertEvent("Torneo", CREATOR_EMAIL, creatorId);
+        final long now = System.currentTimeMillis();
+        final long older = insertReviewAt(eventId, userId, 3, new Timestamp(now - 60_000));
+        final long newer = insertReviewAt(otherEventId, userId, 5, new Timestamp(now));
+
+        // Act
+        final List<Review> found = reviewDao.findByCreatorId(creatorId, 1, 10);
+
+        // Assert
+        assertEquals(newer, found.get(0).getId().longValue());
+        assertEquals(older, found.get(1).getId().longValue());
+    }
+
+    @Test
+    public void testFindByCreatorIdReturnsOnlyThePageAsked() {
+        // Arrange: 3 reseñas del creador. De a 2, la pagina 2 tiene solo la mas vieja.
+        final long secondEventId = insertEvent("Torneo", CREATOR_EMAIL, creatorId);
+        final long thirdEventId = insertEvent("Feria", CREATOR_EMAIL, creatorId);
+        final long now = System.currentTimeMillis();
+        final long oldest = insertReviewAt(eventId, userId, 3, new Timestamp(now - 120_000));
+        insertReviewAt(secondEventId, userId, 4, new Timestamp(now - 60_000));
+        insertReviewAt(thirdEventId, userId, 5, new Timestamp(now));
+
+        // Act
+        final List<Review> page = reviewDao.findByCreatorId(creatorId, 2, 2);
+
+        // Assert
+        assertEquals(1, page.size());
+        assertEquals(oldest, page.get(0).getId().longValue());
+    }
+
+    @Test
     public void testFindByCreatorIdReturnsEmptyWhenNoReviews() {
         // Arrange: no se inserta ninguna reseña.
 
         // Act
-        final List<Review> found = reviewDao.findByCreatorId(creatorId);
+        final List<Review> found = reviewDao.findByCreatorId(creatorId, 1, 10);
 
         // Assert
         assertTrue(found.isEmpty());
+    }
+
+    // ---- countByCreatorId() ----
+
+    @Test
+    public void testCountByCreatorIdCountsOnlyTheReviewsOfThatCreatorsEvents() {
+        // Arrange
+        final long otherEventId = insertEvent("Torneo", CREATOR_EMAIL, creatorId);
+        final long unrelatedEventId = insertEvent("Muestra", "otro@mail.com", null);
+        insertReview(eventId, userId, 5, "Buenisimo");
+        insertReview(otherEventId, userId, 3, "Regular");
+        insertReview(unrelatedEventId, userId, 1, "No cuenta");
+
+        // Act
+        final long count = reviewDao.countByCreatorId(creatorId);
+
+        // Assert
+        assertEquals(2, count);
+    }
+
+    @Test
+    public void testCountByCreatorIdIsZeroWhenNoReviews() {
+        // Arrange: no se inserta ninguna reseña.
+
+        // Act
+        final long count = reviewDao.countByCreatorId(creatorId);
+
+        // Assert
+        assertEquals(0, count);
     }
 
     // ---- findAverageRatingByCreatorId() ----

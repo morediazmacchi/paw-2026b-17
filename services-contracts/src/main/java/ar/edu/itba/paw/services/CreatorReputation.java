@@ -1,6 +1,6 @@
-// La reputacion de un organizador, ya armada para el detalle de un evento: sus reseñas, el
-// promedio, y los eventos reseñados (para mostrar de que evento es cada reseña).
-// Lo devuelve ReviewService.findCreatorReputation().
+// La reputacion de un organizador, ya armada para el detalle de un evento y "Mis eventos": una
+// pagina de sus reseñas, cuantas tiene en total, el promedio, y los eventos de las reseñas de esa
+// pagina (para mostrar de que evento es cada una). Lo devuelve ReviewService.findCreatorReputation().
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
@@ -11,27 +11,37 @@ import java.util.Map;
 
 public class CreatorReputation {
 
-    private final List<Review> reviews;
+    private final PageResult<Review> reviews;
     private final double averageRating;
     private final Map<Long, Event> eventsById;
 
-    public CreatorReputation(final List<Review> reviews, final double averageRating,
+    public CreatorReputation(final PageResult<Review> reviews, final double averageRating,
                              final Map<Long, Event> eventsById) {
         this.reviews = reviews;
         this.averageRating = averageRating;
         this.eventsById = eventsById;
     }
 
-    public int getReviewCount() {
-        return reviews.size();
+    // El total de reseñas (COUNT en la base), no solo las de esta pagina.
+    public long getReviewCount() {
+        return reviews.getTotalElements();
     }
 
     public boolean hasReviews() {
-        return !reviews.isEmpty();
+        return reviews.getTotalElements() > 0;
     }
 
+    // Las reseñas de esta pagina.
     public List<Review> getReviews() {
-        return reviews;
+        return reviews.getContent();
+    }
+
+    public int getPage() {
+        return reviews.getPage();
+    }
+
+    public int getTotalPages() {
+        return reviews.getTotalPages();
     }
 
     // 0 si no tiene reseñas.
@@ -39,7 +49,7 @@ public class CreatorReputation {
         return averageRating;
     }
 
-    // Los eventos de esas reseñas, por id. Vacio si no tiene reseñas.
+    // Los eventos de las reseñas de esta pagina, por id. Vacio si no tiene reseñas.
     public Map<Long, Event> getEventsById() {
         return eventsById;
     }

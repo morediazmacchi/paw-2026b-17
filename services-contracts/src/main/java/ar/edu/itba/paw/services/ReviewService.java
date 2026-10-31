@@ -31,22 +31,12 @@ public interface ReviewService {
     @Transactional(rollbackFor = Exception.class)
     ReviewResult create(long eventId, User user, int rating, String comment);
 
-    /** Puntaje del promotor: promedio de todas las reseñas de sus eventos (0 si no tiene). */
-    @Transactional(readOnly = true)
-    double findCreatorAverageRating(long creatorId);
-
     /**
-     * Todas las reseñas de todos los eventos que creo ese usuario: el promedio
-     * (para el detalle de evento y "Mis eventos") sale de promediar esta lista.
+     * La reputacion del organizador ya armada para el detalle de un evento y "Mis eventos": una
+     * pagina de sus reseñas (page empieza en 1; fuera de rango se ajusta), el total (COUNT), el
+     * promedio (AVG) y los eventos de esa pagina (una sola consulta para todos). Sin reseñas,
+     * devuelve una reputacion vacia (promedio 0).
      */
     @Transactional(readOnly = true)
-    List<Review> findByCreatorId(long creatorId);
-
-    /**
-     * La reputacion del organizador ya armada para el detalle de un evento: reseñas, promedio y
-     * los eventos reseñados (una sola consulta para todos). Sin reseñas, devuelve una reputacion
-     * vacia (promedio 0).
-     */
-    @Transactional(readOnly = true)
-    CreatorReputation findCreatorReputation(long creatorId);
+    CreatorReputation findCreatorReputation(long creatorId, int page);
 }

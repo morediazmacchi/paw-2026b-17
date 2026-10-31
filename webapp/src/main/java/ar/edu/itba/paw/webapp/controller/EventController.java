@@ -186,6 +186,7 @@ public class EventController {
     @RequestMapping(value = "/eventos/{id}", method = RequestMethod.GET)
     public ModelAndView detail(@PathVariable final long id,
                                 @RequestParam(value = "preguntasPage", required = false) final String preguntasPage,
+                                @RequestParam(value = "resenasPage", required = false) final String resenasPage,
                                 @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final Event event = eventService.findByIdOrThrow(id);
         final ModelAndView mav = new ModelAndView("events/detail");
@@ -213,7 +214,7 @@ public class EventController {
             mav.addObject("viewOnly", participation.isViewOnly());
         }
         if (event.getCreatorId() != null) {
-            addCreatorReputation(mav, event.getCreatorId());
+            addCreatorReputation(mav, event.getCreatorId(), Paging.parsePage(resenasPage));
         }
         addRelatedEvents(mav, event, currentUser);
         final PageResult<EventQuestion> questions = eventQuestionService.findPage(id, Paging.parsePage(preguntasPage));
@@ -239,16 +240,19 @@ public class EventController {
         }
     }
 
-    // Puntaje del promotor (todas sus reseñas, de todos sus eventos) + la lista
-    // completa para el popup "Ver reseñas de este promotor", con la mini info
-    // del evento reseñado en cada una (reviewEventsById).
-    private void addCreatorReputation(final ModelAndView mav, final long creatorId) {
-        final CreatorReputation reputation = reviewService.findCreatorReputation(creatorId);
+    // Puntaje del promotor (todas sus reseñas, de todos sus eventos: COUNT y AVG en la base) +
+    // UNA pagina de reseñas para el popup "Ver reseñas de este promotor", con la mini info del
+    // evento reseñado en cada una (reviewEventsById). Los links del popup piden otra pagina
+    // con ?resenasPage=N, igual que las preguntas con ?preguntasPage=N.
+    private void addCreatorReputation(final ModelAndView mav, final long creatorId, final int reviewsPage) {
+        final CreatorReputation reputation = reviewService.findCreatorReputation(creatorId, reviewsPage);
         mav.addObject("creatorReviewCount", reputation.getReviewCount());
         if (reputation.hasReviews()) {
             mav.addObject("creatorAverageRating", reputation.getAverageRating());
             mav.addObject("creatorReviews", reputation.getReviews());
             mav.addObject("reviewEventsById", reputation.getEventsById());
+            mav.addObject("creatorReviewsPage", reputation.getPage());
+            mav.addObject("creatorReviewsTotalPages", reputation.getTotalPages());
         }
     }
 

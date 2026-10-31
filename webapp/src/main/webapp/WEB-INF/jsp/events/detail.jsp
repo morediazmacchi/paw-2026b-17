@@ -761,7 +761,9 @@
 </c:if>
 
 <c:if test="${creatorReviewCount > 0}">
-    <div class="modal-overlay" id="creatorReviewsModal" hidden>
+    <%-- Abierto si se pidio una pagina de reseñas (los links de abajo): asi pasar de pagina no
+         lo cierra. Sin ese parametro arranca cerrado y lo abre el boton (modal.js). --%>
+    <div class="modal-overlay" id="creatorReviewsModal" <c:if test="${empty param.resenasPage}">hidden</c:if>>
         <div class="modal-box">
             <div class="modal-header">
                 <h2><spring:message code="event.detail.creatorReviewsHeading"/></h2>
@@ -786,6 +788,21 @@
                         </c:if>
                     </div>
                 </c:forEach>
+                <c:if test="${creatorReviewsTotalPages > 1}">
+                    <nav class="pager">
+                        <c:if test="${creatorReviewsPage > 1}">
+                            <a class="pager-arrow" href="<c:url value='/eventos/${event.id}'><c:param name='resenasPage' value='${creatorReviewsPage - 1}'/></c:url>">
+                                <spring:message code="event.list.prevPage"/>
+                            </a>
+                        </c:if>
+                        <span class="pager-number pager-number-active"><c:out value="${creatorReviewsPage}"/> / <c:out value="${creatorReviewsTotalPages}"/></span>
+                        <c:if test="${creatorReviewsPage < creatorReviewsTotalPages}">
+                            <a class="pager-arrow" href="<c:url value='/eventos/${event.id}'><c:param name='resenasPage' value='${creatorReviewsPage + 1}'/></c:url>">
+                                <spring:message code="event.list.nextPage"/>
+                            </a>
+                        </c:if>
+                    </nav>
+                </c:if>
             </div>
         </div>
     </div>

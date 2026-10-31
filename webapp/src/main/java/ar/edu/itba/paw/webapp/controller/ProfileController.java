@@ -7,6 +7,7 @@ import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.Review;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.ApprovalResult;
+import ar.edu.itba.paw.services.CreatorReputation;
 import ar.edu.itba.paw.services.EventInvitationResult;
 import ar.edu.itba.paw.services.EventInvitationService;
 import ar.edu.itba.paw.services.EventChatService;
@@ -333,10 +334,12 @@ public class ProfileController {
 
     @RequestMapping(value = "/perfil/eventos", method = RequestMethod.GET)
     public ModelAndView misEventos(@RequestParam(value = "page", required = false) final String page,
+                                   @RequestParam(value = "resenasPage", required = false) final String resenasPage,
                                    @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final PageResult<Event> result = eventService.findPageByCreatorId(currentUser.getId(), Paging.parsePage(page));
         final List<Event> createdEvents = result.getContent();
-        final List<Review> myReviews = reviewService.findByCreatorId(currentUser.getId());
+        final CreatorReputation reputation =
+                reviewService.findCreatorReputation(currentUser.getId(), Paging.parsePage(resenasPage));
 
         final ModelAndView mav = new ModelAndView("auth/eventos");
         mav.addObject("user", currentUser);
@@ -347,18 +350,15 @@ public class ProfileController {
         mav.addObject("favoritesCount", favoritesCountFor(currentUser));
         mav.addObject("eventsCount", (int) result.getTotalElements());
         mav.addObject("invitationsCount", invitationsCountFor(currentUser));
-        mav.addObject("creatorAverageRating", reviewService.findCreatorAverageRating(currentUser.getId()));
-        mav.addObject("creatorReviewCount", myReviews.size());
-        if (!myReviews.isEmpty()) {
-            // Para el popup "Ver mis reseñas": mismo patron que
-            // EventController.addCreatorReputation, pero disparado desde ac.
-            mav.addObject("myCreatorReviews", myReviews);
-            // Una sola consulta para todos los eventos reseñados (findByIds()),
-            // en vez de un findById() por cada reseña.
-            final List<Long> eventIds = myReviews.stream().map(Review::getEventId).distinct().collect(Collectors.toList());
-            final Map<Long, Event> reviewEventsById = eventService.findByIds(eventIds).stream()
-                    .collect(Collectors.toMap(Event::getId, e -> e));
-            mav.addObject("reviewEventsById", reviewEventsById);
+        // Popup "Ver mis reseñas": lo mismo que EventController.addCreatorReputation (total y
+        // promedio en la base, una pagina de reseñas con ?resenasPage=N).
+        mav.addObject("creatorAverageRating", reputation.getAverageRating());
+        mav.addObject("creatorReviewCount", reputation.getReviewCount());
+        if (reputation.hasReviews()) {
+            mav.addObject("myCreatorReviews", reputation.getReviews());
+            mav.addObject("reviewEventsById", reputation.getEventsById());
+            mav.addObject("creatorReviewsPage", reputation.getPage());
+            mav.addObject("creatorReviewsTotalPages", reputation.getTotalPages());
         }
         // Badge "N pendientes" por evento en eventRow.tag: solo tiene sentido
         // para eventos con requiresApproval, no vale la pena consultar el resto.

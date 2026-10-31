@@ -17,9 +17,13 @@ public interface ReviewDao {
     // reseñas propias en vez de un findByEventAndUser() por evento finalizado.
     List<Review> findByEventsAndUser(List<Long> eventIds, long userId);
 
-    // Para el promedio del promotor y el popup "Ver reseñas de este promotor":
-    // todas las reseñas de todos los eventos que creo ese usuario.
-    List<Review> findByCreatorId(long creatorId);
+    // Para el popup "Ver reseñas de este promotor" (detalle de evento y "Mis eventos"): una
+    // pagina de las reseñas de todos los eventos que creo ese usuario, de la mas nueva a la mas
+    // vieja. El corte se hace en la base (page empieza en 1).
+    List<Review> findByCreatorId(long creatorId, int page, int pageSize);
+
+    // Cuantas reseñas tienen en total los eventos de ese creador: COUNT en la base, sin traer las filas.
+    long countByCreatorId(long creatorId);
 
     // Promedio de estrellas de todas las reseñas de los eventos de ese creador
     // (0 si no tiene ninguna). Es el UNICO lugar donde se calcula el promedio que
