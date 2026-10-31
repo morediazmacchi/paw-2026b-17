@@ -7,7 +7,6 @@ import ar.edu.itba.paw.model.ChatMessage;
 import ar.edu.itba.paw.model.User;
 
 import java.util.List;
-import java.util.Optional;
 
 public interface EventChatService {
 
@@ -23,9 +22,9 @@ public interface EventChatService {
     boolean isMember(long eventId, long userId);
 
     // Los mensajes del grupo: con afterId <= 0 los ultimos que haya, y si no los
-    // posteriores a afterId. Optional vacio si no es miembro activo. Marca el chat
-    // como leido para esa persona.
-    Optional<List<ChatMessage>> findMessages(long eventId, long userId, long afterId);
+    // posteriores a afterId. Marca el chat como leido para esa persona. Que sea miembro lo decide
+    // @PreAuthorize en el controller (ver EventSecurity.isChatMember).
+    List<ChatMessage> findMessages(long eventId, long userId, long afterId);
 
     ChatSendResult send(long eventId, User user, String text);
 

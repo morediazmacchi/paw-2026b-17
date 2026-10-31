@@ -3,6 +3,7 @@ package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationStatus;
+import ar.edu.itba.paw.model.User;
 import org.springframework.stereotype.Repository;
 
 import javax.persistence.EntityManager;
@@ -24,6 +25,12 @@ public class RegistrationJpaDao implements RegistrationDao {
     public Registration create(final Registration registration) {
         // Con IDENTITY el INSERT corre aca mismo: si viola UNIQUE(event_id, email) la
         // excepcion sale de este metodo (traducida a DataIntegrityViolationException).
+        // El User que llega puede ser uno armado a mano desde la sesion (solo id, email, nombre y
+        // roles): para la relacion alcanza con el id, asi que se apunta a una referencia, sin leer
+        // al usuario de la base. (user es null en una inscripcion que no tiene cuenta asociada.)
+        if (registration.getUser() != null) {
+            registration.setUser(em.getReference(User.class, registration.getUser().getId()));
+        }
         em.persist(registration);
         return registration;
     }

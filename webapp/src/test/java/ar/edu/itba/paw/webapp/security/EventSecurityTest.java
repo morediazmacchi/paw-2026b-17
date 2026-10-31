@@ -4,9 +4,12 @@ import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventAccessSummary;
 import ar.edu.itba.paw.model.EventVisibility;
 import ar.edu.itba.paw.model.Registration;
+import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.EventAccessService;
+import ar.edu.itba.paw.services.EventChatService;
+import ar.edu.itba.paw.services.EventQuestionService;
 import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.ImageService;
 import ar.edu.itba.paw.services.RegistrationService;
@@ -25,6 +28,7 @@ import java.util.Optional;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -47,12 +51,17 @@ public class EventSecurityTest {
     private EventAccessService eventAccessService;
     @Mock
     private ImageService imageService;
+    @Mock
+    private EventChatService eventChatService;
+    @Mock
+    private EventQuestionService eventQuestionService;
 
     private EventSecurity security;
 
     @Before
     public void setUp() {
-        security = new EventSecurity(eventService, registrationService, eventAccessService, imageService);
+        security = new EventSecurity(eventService, registrationService, eventAccessService, imageService, eventChatService,
+                eventQuestionService);
     }
 
     private static User user(final long id) {
@@ -228,6 +237,36 @@ public class EventSecurityTest {
         assertFalse(security.isRegistrant(REGISTRATION_ID, null));
     }
 
+    // ---- canAnswerQuestion() ----
+
+    private static final long QUESTION_ID = 40L;
+
+    @Test
+    public void testCanAnswerQuestionIsTrueForTheCreatorOfTheQuestionsEvent() {
+        when(eventQuestionService.findEventCreatorId(QUESTION_ID)).thenReturn(Optional.of(CREATOR_ID));
+
+        assertTrue(security.canAnswerQuestion(QUESTION_ID, creator()));
+    }
+
+    @Test
+    public void testCanAnswerQuestionIsFalseForSomeoneElse() {
+        when(eventQuestionService.findEventCreatorId(QUESTION_ID)).thenReturn(Optional.of(CREATOR_ID));
+
+        assertFalse(security.canAnswerQuestion(QUESTION_ID, other()));
+    }
+
+    @Test
+    public void testCanAnswerQuestionIsFalseWhenTheQuestionDoesNotExist() {
+        when(eventQuestionService.findEventCreatorId(QUESTION_ID)).thenReturn(Optional.empty());
+
+        assertFalse(security.canAnswerQuestion(QUESTION_ID, creator()));
+    }
+
+    @Test
+    public void testCanAnswerQuestionIsFalseWithoutAuthentication() {
+        assertFalse(security.canAnswerQuestion(QUESTION_ID, null));
+    }
+
     // ---- canView() ----
 
     @Test
@@ -281,6 +320,135 @@ public class EventSecurityTest {
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.empty());
 
         assertFalse(security.canView(EVENT_ID, other()));
+    }
+
+    // ---- canRegister() ----
+
+    @Test
+    public void testCanRegisterIsTrueWhenEventAccessServiceAllowsItWithoutTheAdminException() {
+        final Event event = event(EVENT_ID, EventVisibility.PUBLIC);
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        // Solo responde que si se le pregunta sin privilegio de admin.
+        when(eventAccessService.canView(event, Long.valueOf(OTHER_ID), false)).thenReturn(true);
+
+        assertTrue(security.canRegister(EVENT_ID, other()));
+    }
+
+    @Test
+    public void testCanRegisterIsTrueForAnAdminWhoWasInvitedToAPrivateEvent() {
+        final Event event = event(EVENT_ID, EventVisibility.PRIVATE);
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        // Sin privilegio de admin, la invitacion le alcanza: el access service dice que si.
+        when(eventAccessService.canView(event, Long.valueOf(OTHER_ID), false)).thenReturn(true);
+
+        assertTrue(security.canRegister(EVENT_ID, auth(OTHER_ID, OTHER_EMAIL, "ROLE_USER", "ROLE_ADMIN")));
+    }
+
+    @Test
+    public void testCanRegisterIsFalseForAnAdminWithoutInvitationEvenThoughAnAdminCouldViewTheEvent() {
+        final Event event = event(EVENT_ID, EventVisibility.PRIVATE);
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        // Con privilegio de admin el access service diria que si (puede VER): si canRegister se lo
+        // pasara, el test fallaria. Sin privilegio y sin invitacion, no.
+        lenient().when(eventAccessService.canView(event, Long.valueOf(OTHER_ID), true)).thenReturn(true);
+        when(eventAccessService.canView(event, Long.valueOf(OTHER_ID), false)).thenReturn(false);
+
+        assertFalse(security.canRegister(EVENT_ID, auth(OTHER_ID, OTHER_EMAIL, "ROLE_USER", "ROLE_ADMIN")));
+    }
+
+    @Test
+    public void testCanRegisterIsFalseWhenTheEventDoesNotExist() {
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.empty());
+
+        assertFalse(security.canRegister(EVENT_ID, other()));
+    }
+
+    @Test
+    public void testCanRegisterIsFalseWithoutSession() {
+        assertFalse(security.canRegister(EVENT_ID, anonymous()));
+    }
+
+    // ---- isConfirmedAttendee() ----
+
+    private Registration registrationWithStatus(final RegistrationStatus status) {
+        final Registration registration = mock(Registration.class);
+        when(registration.getStatus()).thenReturn(status);
+        return registration;
+    }
+
+    @Test
+    public void testIsConfirmedAttendeeIsTrueForAConfirmedRegistration() {
+        final Registration registration = registrationWithStatus(RegistrationStatus.CONFIRMED);
+        when(registrationService.findByEventAndUserId(EVENT_ID, OTHER_ID)).thenReturn(Optional.of(registration));
+
+        assertTrue(security.isConfirmedAttendee(EVENT_ID, other()));
+    }
+
+    @Test
+    public void testIsConfirmedAttendeeIsFalseForAPendingRegistration() {
+        final Registration registration = registrationWithStatus(RegistrationStatus.PENDING);
+        when(registrationService.findByEventAndUserId(EVENT_ID, OTHER_ID)).thenReturn(Optional.of(registration));
+
+        assertFalse(security.isConfirmedAttendee(EVENT_ID, other()));
+    }
+
+    @Test
+    public void testIsConfirmedAttendeeIsFalseForAWaitlistedRegistration() {
+        final Registration registration = registrationWithStatus(RegistrationStatus.WAITLISTED);
+        when(registrationService.findByEventAndUserId(EVENT_ID, OTHER_ID)).thenReturn(Optional.of(registration));
+
+        assertFalse(security.isConfirmedAttendee(EVENT_ID, other()));
+    }
+
+    @Test
+    public void testIsConfirmedAttendeeIsFalseForARejectedRegistration() {
+        final Registration registration = registrationWithStatus(RegistrationStatus.REJECTED);
+        when(registrationService.findByEventAndUserId(EVENT_ID, OTHER_ID)).thenReturn(Optional.of(registration));
+
+        assertFalse(security.isConfirmedAttendee(EVENT_ID, other()));
+    }
+
+    @Test
+    public void testIsConfirmedAttendeeIsFalseWithoutRegistration() {
+        when(registrationService.findByEventAndUserId(EVENT_ID, OTHER_ID)).thenReturn(Optional.empty());
+
+        assertFalse(security.isConfirmedAttendee(EVENT_ID, other()));
+    }
+
+    @Test
+    public void testIsConfirmedAttendeeIsFalseWithoutSession() {
+        assertFalse(security.isConfirmedAttendee(EVENT_ID, anonymous()));
+    }
+
+    // ---- isChatMember() ----
+
+    @Test
+    public void testIsChatMemberIsTrueForAnActiveMemberOfTheGroup() {
+        when(eventChatService.isMember(EVENT_ID, OTHER_ID)).thenReturn(true);
+
+        assertTrue(security.isChatMember(EVENT_ID, other()));
+    }
+
+    @Test
+    public void testIsChatMemberIsFalseForSomeoneWhoIsNotAMember() {
+        when(eventChatService.isMember(EVENT_ID, OTHER_ID)).thenReturn(false);
+
+        assertFalse(security.isChatMember(EVENT_ID, other()));
+    }
+
+    @Test
+    public void testIsChatMemberLooksUpTheIdOfThePrincipalNotAnotherUsersId() {
+        // El creador es miembro, pero quien pregunta es otra persona: si la regla mirara cualquier
+        // otro id, el test daria true.
+        lenient().when(eventChatService.isMember(EVENT_ID, CREATOR_ID)).thenReturn(true);
+        when(eventChatService.isMember(EVENT_ID, OTHER_ID)).thenReturn(false);
+
+        assertFalse(security.isChatMember(EVENT_ID, other()));
+    }
+
+    @Test
+    public void testIsChatMemberIsFalseWithoutSession() {
+        assertFalse(security.isChatMember(EVENT_ID, anonymous()));
     }
 
     // ---- canViewImage() ----

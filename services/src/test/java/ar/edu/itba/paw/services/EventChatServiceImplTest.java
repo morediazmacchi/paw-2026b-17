@@ -5,6 +5,7 @@ import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import ar.edu.itba.paw.persistence.EventChatDao;
 import org.junit.Before;
 import org.junit.Test;
@@ -13,7 +14,6 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -21,8 +21,6 @@ import java.util.Optional;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.when;
 
 @RunWith(MockitoJUnitRunner.class)
@@ -97,43 +95,28 @@ public class EventChatServiceImplTest {
         assertEquals(ChatJoinResult.ALREADY_MEMBER, result);
     }
 
-    @Test
-    public void testJoinWithoutRegistrationIsNotAllowed() {
-        // Arrange
+    @Test(expected = EventNotFoundException.class)
+    public void testJoinWithoutRegistrationThrowsEventNotFoundException() {
+        // Arrange: el permiso lo decide @PreAuthorize; si la inscripcion ya no esta (se dio de baja
+        // justo entre medio), no hay id con que agregar al miembro.
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
         when(registrationService.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
 
         // Act
-        final ChatJoinResult result = chatService.join(EVENT_ID, user());
+        chatService.join(EVENT_ID, user());
 
-        // Assert
-        assertEquals(ChatJoinResult.NOT_ALLOWED, result);
+        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
 
-    @Test
-    public void testJoinWithAPendingRegistrationIsNotAllowed() {
-        // Arrange
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
-        when(registrationService.findByEventAndUserId(EVENT_ID, USER_ID))
-                .thenReturn(Optional.of(registration(RegistrationStatus.PENDING)));
-
-        // Act
-        final ChatJoinResult result = chatService.join(EVENT_ID, user());
-
-        // Assert
-        assertEquals(ChatJoinResult.NOT_ALLOWED, result);
-    }
-
-    @Test
-    public void testJoinForAMissingEventIsNotAllowed() {
+    @Test(expected = EventNotFoundException.class)
+    public void testJoinForAMissingEventThrowsEventNotFoundException() {
         // Arrange
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
-        final ChatJoinResult result = chatService.join(EVENT_ID, user());
+        chatService.join(EVENT_ID, user());
 
-        // Assert
-        assertEquals(ChatJoinResult.NOT_ALLOWED, result);
+        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
 
     @Test
@@ -189,43 +172,29 @@ public class EventChatServiceImplTest {
     // ---- findMessages() ----
 
     @Test
-    public void testFindMessagesForANonMemberIsEmpty() {
-        // Arrange
-        when(chatDao.isMember(EVENT_ID, USER_ID)).thenReturn(false);
-
-        // Act
-        final Optional<List<ChatMessage>> result = chatService.findMessages(EVENT_ID, USER_ID, 0);
-
-        // Assert
-        assertFalse(result.isPresent());
-    }
-
-    @Test
     public void testFindMessagesWithoutCursorReturnsTheLatest() {
         // Arrange
         final List<ChatMessage> latest = Arrays.asList(new ChatMessage(EVENT_ID, 5, "hola"));
-        when(chatDao.isMember(EVENT_ID, USER_ID)).thenReturn(true);
         when(chatDao.findLatest(EVENT_ID, EventChatServiceImpl.INITIAL_MESSAGES)).thenReturn(latest);
 
         // Act
-        final Optional<List<ChatMessage>> result = chatService.findMessages(EVENT_ID, USER_ID, 0);
+        final List<ChatMessage> result = chatService.findMessages(EVENT_ID, USER_ID, 0);
 
         // Assert
-        assertEquals(latest, result.get());
+        assertEquals(latest, result);
     }
 
     @Test
     public void testFindMessagesWithCursorReturnsOnlyNewerOnes() {
         // Arrange
         final List<ChatMessage> newer = Arrays.asList(new ChatMessage(EVENT_ID, 5, "nuevo"));
-        when(chatDao.isMember(EVENT_ID, USER_ID)).thenReturn(true);
         when(chatDao.findAfter(EVENT_ID, 40, EventChatServiceImpl.MAX_NEW_MESSAGES)).thenReturn(newer);
 
         // Act
-        final Optional<List<ChatMessage>> result = chatService.findMessages(EVENT_ID, USER_ID, 40);
+        final List<ChatMessage> result = chatService.findMessages(EVENT_ID, USER_ID, 40);
 
         // Assert
-        assertEquals(newer, result.get());
+        assertEquals(newer, result);
     }
 
     // ---- send() ----
@@ -234,7 +203,6 @@ public class EventChatServiceImplTest {
     public void testSendByAMemberOfAnOpenChatReturnsSent() {
         // Arrange
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
-        when(chatDao.isMember(EVENT_ID, USER_ID)).thenReturn(true);
 
         // Act
         final ChatSendResult result = chatService.send(EVENT_ID, user(), "  hola grupo  ");
@@ -244,23 +212,9 @@ public class EventChatServiceImplTest {
     }
 
     @Test
-    public void testSendByANonMemberIsNotAllowed() {
-        // Arrange
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
-        when(chatDao.isMember(EVENT_ID, USER_ID)).thenReturn(false);
-
-        // Act
-        final ChatSendResult result = chatService.send(EVENT_ID, user(), "hola");
-
-        // Assert
-        assertEquals(ChatSendResult.NOT_ALLOWED, result);
-    }
-
-    @Test
     public void testSendInAFinishedEventIsClosed() {
         // Arrange
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(-1)));
-        when(chatDao.isMember(EVENT_ID, USER_ID)).thenReturn(true);
 
         // Act
         final ChatSendResult result = chatService.send(EVENT_ID, user(), "hola");
@@ -275,7 +229,6 @@ public class EventChatServiceImplTest {
         final Event cancelled = eventInHours(48);
         cancelled.setCancelledAt(new Date());
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(cancelled));
-        when(chatDao.isMember(EVENT_ID, USER_ID)).thenReturn(true);
 
         // Act
         final ChatSendResult result = chatService.send(EVENT_ID, user(), "hola");
@@ -288,7 +241,6 @@ public class EventChatServiceImplTest {
     public void testSendABlankMessageIsInvalid() {
         // Arrange
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
-        when(chatDao.isMember(EVENT_ID, USER_ID)).thenReturn(true);
 
         // Act
         final ChatSendResult result = chatService.send(EVENT_ID, user(), "   ");
@@ -303,7 +255,6 @@ public class EventChatServiceImplTest {
         final char[] chars = new char[EventChatService.MAX_MESSAGE_LENGTH + 1];
         Arrays.fill(chars, 'a');
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
-        when(chatDao.isMember(EVENT_ID, USER_ID)).thenReturn(true);
 
         // Act
         final ChatSendResult result = chatService.send(EVENT_ID, user(), new String(chars));
@@ -312,15 +263,12 @@ public class EventChatServiceImplTest {
         assertEquals(ChatSendResult.INVALID, result);
     }
 
-    @Test
-    public void testSendForAMissingEventIsNotAllowed() {
+    @Test(expected = EventNotFoundException.class)
+    public void testSendForAMissingEventThrowsEventNotFoundException() {
         // Arrange
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
-        final ChatSendResult result = chatService.send(EVENT_ID, user(), "hola");
-
-        // Assert
-        assertEquals(ChatSendResult.NOT_ALLOWED, result);
+        chatService.send(EVENT_ID, user(), "hola");
     }
 }

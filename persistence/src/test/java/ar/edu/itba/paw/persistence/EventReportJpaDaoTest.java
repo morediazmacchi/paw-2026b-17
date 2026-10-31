@@ -2,6 +2,7 @@ package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.EventReport;
 import ar.edu.itba.paw.model.ReportStatus;
+import ar.edu.itba.paw.model.ReportTarget;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.User;
 import org.junit.Before;
@@ -25,6 +26,7 @@ import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(SpringJUnit4ClassRunner.class)
@@ -76,6 +78,12 @@ public class EventReportJpaDaoTest {
 
     private long insertPendingReport(final long eventId, final long reporterId, final String reason) {
         return insertPendingReportAt(eventId, reporterId, reason, new Timestamp(System.currentTimeMillis()));
+    }
+
+    private long insertEventCreatedBy(final long creatorId) {
+        final long id = insertEvent();
+        jdbcTemplate.update("UPDATE event SET creator_id = ? WHERE id = ?", creatorId, id);
+        return id;
     }
 
     private long insertResolvedReport(final long eventId, final long reporterId, final String reason,
@@ -130,6 +138,22 @@ public class EventReportJpaDaoTest {
         assertEquals(eventId, ((Number) row.get("event_id")).longValue());
         assertEquals(reporterId, ((Number) row.get("reporter_user_id")).longValue());
         assertEquals(REASON, row.get("reason"));
+    }
+
+    @Test
+    public void testCreateWithAReporterBuiltFromTheSessionStoresItsId() {
+        // Arrange
+        final User fromSession = new User("reporter@mail.com", "Rita");
+        fromSession.setId(reporterId);
+        final EventReport toCreate = new EventReport(em.getReference(Event.class, eventId), fromSession, REASON);
+
+        // Act
+        final EventReport created = eventReportDao.create(toCreate);
+
+        // Assert
+        final Long storedReporterId = jdbcTemplate.queryForObject(
+                "SELECT reporter_user_id FROM event_report WHERE id = ?", Long.class, created.getId());
+        assertEquals(reporterId, storedReporterId.longValue());
     }
 
     @Test
@@ -565,5 +589,59 @@ public class EventReportJpaDaoTest {
 
         // Assert
         assertEquals(2, result);
+    }
+
+    // ---- findTargetById() ----
+
+    @Test
+    public void testFindTargetByIdReturnsTheEventAndItsCreator() {
+        // Arrange
+        final long creatorId = insertUser("creador2@mail.com");
+        final long reportedEvent = insertEventCreatedBy(creatorId);
+        final long reportId = insertPendingReport(reportedEvent, reporterId, REASON);
+
+        // Act
+        final Optional<ReportTarget> target = eventReportDao.findTargetById(reportId);
+
+        // Assert
+        assertTrue(target.isPresent());
+        assertEquals(reportedEvent, target.get().getEventId());
+        assertEquals(Long.valueOf(creatorId), target.get().getCreatorId());
+    }
+
+    @Test
+    public void testFindTargetByIdOfAnEventWithoutCreatorHasNoCreatorId() {
+        // Arrange: insertEvent() no le pone creador (una fila vieja).
+        final long reportId = insertPendingReport(eventId, reporterId, REASON);
+
+        // Act
+        final Optional<ReportTarget> target = eventReportDao.findTargetById(reportId);
+
+        // Assert
+        assertTrue(target.isPresent());
+        assertNull(target.get().getCreatorId());
+    }
+
+    @Test
+    public void testFindTargetByIdAlsoFindsAReportThatWasAlreadyResolved() {
+        // Arrange: el estado del reporte no importa, solo a que evento apunta.
+        final long adminId = insertUser("admin2@mail.com");
+        final long reportId = insertResolvedReport(eventId, reporterId, REASON, ReportStatus.DISMISSED, adminId);
+
+        // Act
+        final Optional<ReportTarget> target = eventReportDao.findTargetById(reportId);
+
+        // Assert
+        assertTrue(target.isPresent());
+        assertEquals(eventId, target.get().getEventId());
+    }
+
+    @Test
+    public void testFindTargetByIdReturnsEmptyWhenTheReportDoesNotExist() {
+        // Act
+        final Optional<ReportTarget> target = eventReportDao.findTargetById(-1);
+
+        // Assert
+        assertFalse(target.isPresent());
     }
 }

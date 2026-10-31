@@ -16,7 +16,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -88,26 +87,11 @@ public class RegistrationServiceImpl implements RegistrationService {
             return RegistrationResult.of(RegistrationResult.Status.OWN_EVENT);
         }
 
-        // Pendiente o rechazado (ver EventApprovalStatus): nadie se anota todavia,
-        // ni siquiera un admin que lo esta revisando para decidir -- mismo motivo
-        // y mismo error que el chequeo de abajo, y va primero porque
-        // EventAccessServiceImpl.canView() tambien chequea esto antes que lo
-        // privado/publico (sin el bypass de admin que canView() si tiene: un admin
-        // puede VER el evento para revisarlo, pero no inscribirse).
-        if (!event.isApproved()) {
-            throw new EventNotFoundException(eventId);
-        }
-
-        // Mismo chequeo que EventAccessService.canView(), salvo el bypass de admin (un
-        // admin puede VER un privado para moderarlo, pero no anotarse): quien ya tenia
-        // inscripcion o es el creador ya salio por los ifs de arriba, asi que lo
-        // unico que falta es la invitacion. Mismo error que un id inexistente:
-        // a quien no tiene acceso no se le revela ni que el evento existe, ni si
-        // esta cancelado o finalizado -- por eso va ANTES de esos chequeos.
+        // Que se pueda anotar a este evento (aprobado y, si es privado, con invitacion; el admin
+        // no tiene excepcion) NO se valida aca: lo decide @PreAuthorize en el controller antes de
+        // entrar (ver EventSecurity.canRegister). Aca solo hace falta saber si tiene invitacion,
+        // porque eso le reserva el lugar (ver mas abajo).
         final boolean invited = invitationDao.findByEventAndUserId(eventId, user.getId()).isPresent();
-        if (event.isPrivate() && !invited) {
-            throw new EventNotFoundException(eventId);
-        }
 
         // Un evento que ya paso no admite inscripciones. La pantalla esconde el
         // boton (ver detail.jsp), pero un POST directo no tiene que poder anotar
@@ -395,8 +379,9 @@ public class RegistrationServiceImpl implements RegistrationService {
         final Event event = eventDao.findById(eventId).orElseThrow(() -> new EventNotFoundException(eventId));
         final Optional<Registration> registration = registrationDao.findByEventAndUserId(eventId, userId);
         final boolean owner = Long.valueOf(userId).equals(event.getCreatorId());
-        // Mismas reglas que register(): pendiente o rechazado, o privado sin invitacion, se tratan
-        // como un id inexistente. Un admin puede VER esos eventos pero no inscribirse.
+        // Mismas reglas que EventSecurity.canRegister(): pendiente o rechazado, o privado sin
+        // invitacion, no se puede inscribir nadie (404). Un admin puede VER esos eventos pero no
+        // inscribirse, salvo que lo hayan invitado a un privado.
         final boolean adminReviewOnly = !owner && !event.isApproved();
         final boolean viewOnly = event.isPrivate() && !owner && !registration.isPresent()
                 && !invitationDao.findByEventAndUserId(eventId, userId).isPresent();
@@ -430,26 +415,20 @@ public class RegistrationServiceImpl implements RegistrationService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<Registration> findPendingByEvent(final long eventId, final long creatorId) {
-        if (!ownsEvent(eventId, creatorId)) {
-            return Collections.emptyList();
-        }
+    public List<Registration> findPendingByEvent(final long eventId) {
         return registrationDao.findPendingByEvent(eventId);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public long countPendingByEvent(final long eventId, final long creatorId) {
-        if (!ownsEvent(eventId, creatorId)) {
-            return 0;
-        }
+    public long countPendingByEvent(final long eventId) {
         return registrationDao.countPending(eventId);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public ApprovalResult approve(final long registrationId, final long creatorId) {
-        final Registration unlocked = pendingOwnedBy(registrationId, creatorId).orElse(null);
+    public ApprovalResult approve(final long registrationId) {
+        final Registration unlocked = pendingRegistration(registrationId).orElse(null);
         if (unlocked == null) {
             return ApprovalResult.of(ApprovalResult.Status.NOT_FOUND);
         }
@@ -501,8 +480,8 @@ public class RegistrationServiceImpl implements RegistrationService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean reject(final long registrationId, final long creatorId) {
-        final Registration unlocked = pendingOwnedBy(registrationId, creatorId).orElse(null);
+    public boolean reject(final long registrationId) {
+        final Registration unlocked = pendingRegistration(registrationId).orElse(null);
         if (unlocked == null) {
             return false;
         }
@@ -535,7 +514,7 @@ public class RegistrationServiceImpl implements RegistrationService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean revoke(final long registrationId, final long creatorId) {
+    public boolean revoke(final long registrationId) {
         final Registration unlocked = registrationDao.findById(registrationId).orElse(null);
         if (unlocked == null) {
             return false;
@@ -547,7 +526,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         final long eventId = unlocked.getEventId();
         final Event event = eventDao.findByIdForUpdate(eventId).orElse(null);
         // Idem approve(): con el evento cancelado o ya pasado tampoco se revoca a nadie.
-        if (event == null || event.isCancelled() || event.isFinished() || !Long.valueOf(creatorId).equals(event.getCreatorId())) {
+        if (event == null || event.isCancelled() || event.isFinished()) {
             return false;
         }
         // Se vuelve a leer ya con el lock (otra operacion pudo cambiarla mientras esperaba).
@@ -611,20 +590,12 @@ public class RegistrationServiceImpl implements RegistrationService {
         return next.size();
     }
 
-    // Busca una inscripcion pendiente y confirma, en el mismo paso, que quien
-    // pide aprobarla/rechazarla es el creador del evento al que pertenece.
-    // Optional.empty() cubre los tres motivos de "no" (no existe, no esta
-    // pending, o es de otro creador) sin distinguirlos: a quien llama no le
-    // interesa por que no se pudo, solo que no se pudo.
-    private Optional<Registration> pendingOwnedBy(final long registrationId, final long creatorId) {
+    // Busca una inscripcion pendiente. Optional.empty() cubre los dos motivos de "no" (no existe, o no
+    // esta pending) sin distinguirlos: a quien llama no le interesa por que no se pudo, solo que no
+    // se pudo. (Que quien lo pide sea el creador del evento lo decide @PreAuthorize en el controller,
+    // ver EventSecurity.isOwnerOfRegistrationEvent.)
+    private Optional<Registration> pendingRegistration(final long registrationId) {
         return registrationDao.findById(registrationId)
-                .filter(r -> r.getStatus() == RegistrationStatus.PENDING)
-                .filter(r -> ownsEvent(r.getEventId(), creatorId));
-    }
-
-    private boolean ownsEvent(final long eventId, final long creatorId) {
-        return eventDao.findById(eventId)
-                .map(event -> Long.valueOf(creatorId).equals(event.getCreatorId()))
-                .orElse(false);
+                .filter(r -> r.getStatus() == RegistrationStatus.PENDING);
     }
 }

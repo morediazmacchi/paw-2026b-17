@@ -234,19 +234,6 @@ public class RegistrationServiceImplTest {
 
     // ---- register(): eventos privados ----
 
-    @Test(expected = EventNotFoundException.class)
-    public void testRegisterOnAPrivateEventWithoutAccessThrowsEventNotFoundException() {
-        // Arrange: mismo error que un id inexistente, no se revela que existe.
-        final Event privateEvent = eventWithCapacity(10);
-        privateEvent.setVisibility(EventVisibility.PRIVATE);
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent));
-
-        // Act
-        registrationService.register(EVENT_ID, someUser());
-
-        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
-    }
-
     @Test
     public void testRegisterOnAPrivateEventWithAnInvitationSucceeds() {
         // Arrange
@@ -295,35 +282,6 @@ public class RegistrationServiceImplTest {
         // OWN_EVENT solo se devuelve ANTES de crear la inscripcion o notificar a
         // nadie (early return): el resultado ya prueba que nada de eso paso.
         assertEquals(RegistrationResult.Status.OWN_EVENT, result.getStatus());
-    }
-
-    // ---- register(): revision previa a publicarse (ver EventApprovalStatus) ----
-
-    @Test(expected = EventNotFoundException.class)
-    public void testRegisterOnAPendingApprovalEventThrowsEventNotFoundException() {
-        // Arrange: mismo error que un id inexistente o un privado sin invitacion --
-        // ni siquiera un admin que lo este revisando se tiene que poder anotar.
-        final Event pendingEvent = eventWithCapacity(10);
-        pendingEvent.setApprovalStatus(EventApprovalStatus.PENDING);
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(pendingEvent));
-
-        // Act
-        registrationService.register(EVENT_ID, someUser());
-
-        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
-    }
-
-    @Test(expected = EventNotFoundException.class)
-    public void testRegisterOnARejectedEventThrowsEventNotFoundException() {
-        // Arrange
-        final Event rejectedEvent = eventWithCapacity(10);
-        rejectedEvent.setApprovalStatus(EventApprovalStatus.REJECTED);
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(rejectedEvent));
-
-        // Act
-        registrationService.register(EVENT_ID, someUser());
-
-        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
 
     // ---- register() con requiresApproval ----
@@ -1100,88 +1058,31 @@ public class RegistrationServiceImplTest {
     // ---- findPendingByEvent() ----
 
     @Test
-    public void testFindPendingByEventDelegatesToTheDaoWhenTheCreatorAsks() {
+    public void testFindPendingByEventDelegatesToTheDao() {
         // Arrange
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(null)));
         final List<Registration> pending = Collections.singletonList(
                 new Registration(ModelFixtures.event(EVENT_ID), null, NORMALIZED_EMAIL, NAME, RegistrationStatus.PENDING));
         when(mockRegistrationDao.findPendingByEvent(EVENT_ID)).thenReturn(pending);
 
         // Act
-        final List<Registration> result = registrationService.findPendingByEvent(EVENT_ID, CREATOR_ID);
+        final List<Registration> result = registrationService.findPendingByEvent(EVENT_ID);
 
         // Assert
         assertEquals(pending, result);
     }
 
-    @Test
-    public void testFindPendingByEventReturnsEmptyWhenAskedBySomeoneElse() {
-        // Arrange
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(null)));
-        // El dao SI tiene un pendiente: si el service lo consultara para cualquiera,
-        // el resultado no estaria vacio.
-        lenient().when(mockRegistrationDao.findPendingByEvent(EVENT_ID))
-                .thenReturn(Collections.singletonList(pendingRegistration(5, NORMALIZED_EMAIL)));
-
-        // Act
-        final List<Registration> result = registrationService.findPendingByEvent(EVENT_ID, OTHER_ID);
-
-        // Assert
-        assertTrue(result.isEmpty());
-    }
-
-    @Test
-    public void testFindPendingByEventReturnsEmptyWhenTheEventDoesNotExist() {
-        // Arrange
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.empty());
-
-        // Act
-        final List<Registration> result = registrationService.findPendingByEvent(EVENT_ID, CREATOR_ID);
-
-        // Assert
-        assertTrue(result.isEmpty());
-    }
-
     // ---- countPendingByEvent() ----
 
     @Test
-    public void testCountPendingByEventDelegatesToTheDaoWhenTheCreatorAsks() {
+    public void testCountPendingByEventDelegatesToTheDao() {
         // Arrange
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(null)));
         when(mockRegistrationDao.countPending(EVENT_ID)).thenReturn(2L);
 
         // Act
-        final long result = registrationService.countPendingByEvent(EVENT_ID, CREATOR_ID);
+        final long result = registrationService.countPendingByEvent(EVENT_ID);
 
         // Assert
         assertEquals(2L, result);
-    }
-
-    @Test
-    public void testCountPendingByEventReturnsZeroWhenAskedBySomeoneElse() {
-        // Arrange
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(null)));
-        // El dao SI tiene un pendiente: si el service lo consultara para cualquiera,
-        // el resultado no seria cero.
-        lenient().when(mockRegistrationDao.countPending(EVENT_ID)).thenReturn(1L);
-
-        // Act
-        final long result = registrationService.countPendingByEvent(EVENT_ID, OTHER_ID);
-
-        // Assert
-        assertEquals(0L, result);
-    }
-
-    @Test
-    public void testCountPendingByEventReturnsZeroWhenTheEventDoesNotExist() {
-        // Arrange
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.empty());
-
-        // Act
-        final long result = registrationService.countPendingByEvent(EVENT_ID, CREATOR_ID);
-
-        // Assert
-        assertEquals(0L, result);
     }
 
     // ---- approve() ----
@@ -1193,33 +1094,19 @@ public class RegistrationServiceImplTest {
     }
 
     @Test
-    public void testApproveConfirmsAPendingRegistrationOwnedByTheCreator() {
+    public void testApproveConfirmsAPendingRegistration() {
         // Arrange
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(pendingRegistration(5, NORMALIZED_EMAIL)));
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(null)));
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(null)));
 
         when(mockRegistrationDao.updateStatus(5, RegistrationStatus.CONFIRMED)).thenReturn(true);
         // Act
-        final ApprovalResult result = registrationService.approve(5, CREATOR_ID);
+        final ApprovalResult result = registrationService.approve(5);
 
         // Assert
         assertEquals(ApprovalResult.Status.APPROVED, result.getStatus());
         // Sin tope de cupo el evento nunca se llena: no hay nada que anunciar.
         assertFalse(result.isNotificationSent());
-    }
-
-    @Test
-    public void testApproveReturnsNotFoundWhenTheEventBelongsToSomeoneElse() {
-        // Arrange
-        when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(pendingRegistration(5, NORMALIZED_EMAIL)));
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(null)));
-
-        // Act
-        final ApprovalResult result = registrationService.approve(5, OTHER_ID);
-
-        // Assert
-        assertEquals(ApprovalResult.Status.NOT_FOUND, result.getStatus());
     }
 
     // Con el evento cancelado no se acepta a nadie (ni sale el mail de "confirmado").
@@ -1229,11 +1116,10 @@ public class RegistrationServiceImplTest {
         final Event cancelled = eventRequiringApproval(null);
         cancelled.setCancelledAt(new Date());
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(pendingRegistration(5, NORMALIZED_EMAIL)));
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(cancelled));
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(cancelled));
 
         // Act
-        final ApprovalResult result = registrationService.approve(5, CREATOR_ID);
+        final ApprovalResult result = registrationService.approve(5);
 
         // Assert
         assertEquals(ApprovalResult.Status.NOT_FOUND, result.getStatus());
@@ -1246,11 +1132,10 @@ public class RegistrationServiceImplTest {
         final Event past = eventRequiringApproval(null);
         past.setEventDate(new Date(System.currentTimeMillis() - ONE_DAY_MILLIS));
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(pendingRegistration(5, NORMALIZED_EMAIL)));
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(past));
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(past));
 
         // Act
-        final ApprovalResult result = registrationService.approve(5, CREATOR_ID);
+        final ApprovalResult result = registrationService.approve(5);
 
         // Assert
         assertEquals(ApprovalResult.Status.NOT_FOUND, result.getStatus());
@@ -1264,7 +1149,7 @@ public class RegistrationServiceImplTest {
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
 
         // Act
-        final ApprovalResult result = registrationService.approve(5, CREATOR_ID);
+        final ApprovalResult result = registrationService.approve(5);
 
         // Assert
         assertEquals(ApprovalResult.Status.NOT_FOUND, result.getStatus());
@@ -1276,7 +1161,7 @@ public class RegistrationServiceImplTest {
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.empty());
 
         // Act
-        final ApprovalResult result = registrationService.approve(5, CREATOR_ID);
+        final ApprovalResult result = registrationService.approve(5);
 
         // Assert
         assertEquals(ApprovalResult.Status.NOT_FOUND, result.getStatus());
@@ -1287,12 +1172,11 @@ public class RegistrationServiceImplTest {
     public void testApproveReturnsFullAndChangesNothingWhenThereIsNoRoomLeft() {
         // Arrange
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(pendingRegistration(5, NORMALIZED_EMAIL)));
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(2)));
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(2)));
         when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(2L);
 
         // Act
-        final ApprovalResult result = registrationService.approve(5, CREATOR_ID);
+        final ApprovalResult result = registrationService.approve(5);
 
         // Assert
         assertEquals(ApprovalResult.Status.FULL, result.getStatus());
@@ -1304,13 +1188,12 @@ public class RegistrationServiceImplTest {
     public void testApproveReturnsFullWhenTheLastSpotIsHeldByAnInvitation() {
         // Arrange
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(pendingRegistration(5, NORMALIZED_EMAIL)));
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(2)));
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(2)));
         when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(1L);
         when(mockInvitationDao.countOutstanding(EVENT_ID)).thenReturn(1L);
 
         // Act
-        final ApprovalResult result = registrationService.approve(5, CREATOR_ID);
+        final ApprovalResult result = registrationService.approve(5);
 
         // Assert
         assertEquals(ApprovalResult.Status.FULL, result.getStatus());
@@ -1322,7 +1205,6 @@ public class RegistrationServiceImplTest {
     public void testApproveTakingTheLastSpotMovesTheRemainingPendingToTheWaitlist() {
         // Arrange
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(pendingRegistration(5, NORMALIZED_EMAIL)));
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(2)));
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(2)));
         // Antes de aceptar quedaba 1 lugar (1 confirmado); despues, 2 de 2.
         when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(1L, 2L);
@@ -1332,7 +1214,7 @@ public class RegistrationServiceImplTest {
         when(mockRegistrationDao.updateStatus(5, RegistrationStatus.CONFIRMED)).thenReturn(true);
         when(mockRegistrationDao.updateStatus(6, RegistrationStatus.WAITLISTED)).thenReturn(true);
         // Act
-        final ApprovalResult result = registrationService.approve(5, CREATOR_ID);
+        final ApprovalResult result = registrationService.approve(5);
 
         // Assert
         assertEquals(ApprovalResult.Status.APPROVED, result.getStatus());
@@ -1345,7 +1227,6 @@ public class RegistrationServiceImplTest {
     public void testApproveWithSpotsStillLeftKeepsTheOtherRequestsPending() {
         // Arrange
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(pendingRegistration(5, NORMALIZED_EMAIL)));
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(5)));
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(5)));
         when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(1L, 2L);
         // Hay otro pedido pendiente: como todavia hay lugar, no debe pasar a la lista de espera.
@@ -1354,7 +1235,7 @@ public class RegistrationServiceImplTest {
 
         when(mockRegistrationDao.updateStatus(5, RegistrationStatus.CONFIRMED)).thenReturn(true);
         // Act
-        final ApprovalResult result = registrationService.approve(5, CREATOR_ID);
+        final ApprovalResult result = registrationService.approve(5);
 
         // Assert
         assertEquals(ApprovalResult.Status.APPROVED, result.getStatus());
@@ -1365,17 +1246,16 @@ public class RegistrationServiceImplTest {
     // ---- reject() ----
 
     @Test
-    public void testRejectMarksAPendingRegistrationOwnedByTheCreatorAsRejected() {
+    public void testRejectMarksAPendingRegistrationAsRejected() {
         // Arrange
         final Registration registration = new Registration(ModelFixtures.event(EVENT_ID), null, NORMALIZED_EMAIL, NAME, RegistrationStatus.PENDING);
         registration.setId(5L);
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(null)));
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(null)));
 
         when(mockRegistrationDao.updateStatus(5, RegistrationStatus.REJECTED)).thenReturn(true);
         // Act
-        final boolean result = registrationService.reject(5, CREATOR_ID);
+        final boolean result = registrationService.reject(5);
 
         // Assert
         assertTrue(result);
@@ -1391,30 +1271,14 @@ public class RegistrationServiceImplTest {
         final Registration registration = new Registration(ModelFixtures.event(EVENT_ID), null, NORMALIZED_EMAIL, NAME, RegistrationStatus.PENDING);
         registration.setId(5L);
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(2)));
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(2)));
         when(mockRegistrationDao.updateStatus(5, RegistrationStatus.REJECTED)).thenReturn(true);
 
         // Act
-        final boolean result = registrationService.reject(5, CREATOR_ID);
+        final boolean result = registrationService.reject(5);
 
         // Assert
         assertTrue(result);
-    }
-
-    @Test
-    public void testRejectReturnsFalseWhenTheEventBelongsToSomeoneElse() {
-        // Arrange
-        final Registration registration = new Registration(ModelFixtures.event(EVENT_ID), null, NORMALIZED_EMAIL, NAME, RegistrationStatus.PENDING);
-        registration.setId(5L);
-        when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(null)));
-
-        // Act
-        final boolean result = registrationService.reject(5, OTHER_ID);
-
-        // Assert
-        assertFalse(result);
     }
 
     // Idem approve(): con el evento cancelado no se rechaza a nadie.
@@ -1424,11 +1288,10 @@ public class RegistrationServiceImplTest {
         final Event cancelled = eventRequiringApproval(null);
         cancelled.setCancelledAt(new Date());
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(pendingRegistration(5, NORMALIZED_EMAIL)));
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(cancelled));
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(cancelled));
 
         // Act
-        final boolean result = registrationService.reject(5, CREATOR_ID);
+        final boolean result = registrationService.reject(5);
 
         // Assert
         assertFalse(result);
@@ -1440,11 +1303,10 @@ public class RegistrationServiceImplTest {
         final Event past = eventRequiringApproval(null);
         past.setEventDate(new Date(System.currentTimeMillis() - ONE_DAY_MILLIS));
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(pendingRegistration(5, NORMALIZED_EMAIL)));
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(past));
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(past));
 
         // Act
-        final boolean result = registrationService.reject(5, CREATOR_ID);
+        final boolean result = registrationService.reject(5);
 
         // Assert
         assertFalse(result);
@@ -1458,7 +1320,7 @@ public class RegistrationServiceImplTest {
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
 
         // Act
-        final boolean result = registrationService.reject(5, CREATOR_ID);
+        final boolean result = registrationService.reject(5);
 
         // Assert
         assertFalse(result);
@@ -1480,7 +1342,7 @@ public class RegistrationServiceImplTest {
 
         when(mockRegistrationDao.updateStatus(7, RegistrationStatus.REJECTED)).thenReturn(true);
         // Act
-        final boolean result = registrationService.revoke(7, CREATOR_ID);
+        final boolean result = registrationService.revoke(7);
 
         // Assert
         assertTrue(result);
@@ -1492,7 +1354,7 @@ public class RegistrationServiceImplTest {
         when(mockRegistrationDao.findById(7)).thenReturn(Optional.of(pendingRegistration(7, NORMALIZED_EMAIL)));
 
         // Act
-        final boolean result = registrationService.revoke(7, CREATOR_ID);
+        final boolean result = registrationService.revoke(7);
 
         // Assert
         assertFalse(result);
@@ -1508,7 +1370,7 @@ public class RegistrationServiceImplTest {
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(cancelled));
 
         // Act
-        final boolean result = registrationService.revoke(7, CREATOR_ID);
+        final boolean result = registrationService.revoke(7);
 
         // Assert
         assertFalse(result);
@@ -1523,20 +1385,7 @@ public class RegistrationServiceImplTest {
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(past));
 
         // Act
-        final boolean result = registrationService.revoke(7, CREATOR_ID);
-
-        // Assert
-        assertFalse(result);
-    }
-
-    @Test
-    public void testRevokeReturnsFalseWhenTheEventBelongsToSomeoneElse() {
-        // Arrange
-        when(mockRegistrationDao.findById(7)).thenReturn(Optional.of(confirmedRegistration(7, NORMALIZED_EMAIL)));
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(10)));
-
-        // Act
-        final boolean result = registrationService.revoke(7, OTHER_ID);
+        final boolean result = registrationService.revoke(7);
 
         // Assert
         assertFalse(result);

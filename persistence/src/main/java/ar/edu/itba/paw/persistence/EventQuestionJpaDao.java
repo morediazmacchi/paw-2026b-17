@@ -2,6 +2,7 @@
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.EventQuestion;
+import ar.edu.itba.paw.model.User;
 import org.springframework.stereotype.Repository;
 
 import javax.persistence.EntityManager;
@@ -19,6 +20,8 @@ public class EventQuestionJpaDao implements EventQuestionDao {
 
     @Override
     public EventQuestion create(final EventQuestion question) {
+        // Ver RegistrationJpaDao.create(): de quien pregunta solo hace falta el id para la relacion.
+        question.setUser(em.getReference(User.class, question.getUser().getId()));
         em.persist(question);
         return question;
     }
@@ -53,6 +56,14 @@ public class EventQuestionJpaDao implements EventQuestionDao {
         return em.createQuery("SELECT COUNT(q) FROM EventQuestion q WHERE q.event.id = :eventId", Long.class)
                 .setParameter("eventId", eventId)
                 .getSingleResult();
+    }
+
+    @Override
+    public Optional<Long> findEventCreatorId(final long questionId) {
+        // Una sola columna (event.creator_id): ni la pregunta, ni el evento, ni el usuario.
+        return em.createQuery("SELECT q.event.creator.id FROM EventQuestion q WHERE q.id = :id", Long.class)
+                .setParameter("id", questionId)
+                .getResultList().stream().findFirst();
     }
 
     @Override

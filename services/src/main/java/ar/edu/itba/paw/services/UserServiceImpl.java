@@ -7,7 +7,6 @@ import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.model.TokenPurpose;
 import ar.edu.itba.paw.model.User;
-import ar.edu.itba.paw.model.exception.InvalidAdminActionException;
 import ar.edu.itba.paw.model.VerificationToken;
 import ar.edu.itba.paw.persistence.EventInvitationDao;
 import ar.edu.itba.paw.persistence.InboxMessageDao;
@@ -18,7 +17,6 @@ import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
@@ -274,21 +272,6 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public boolean suspendByAdmin(final long targetId, final User caller) {
-        if (targetId == caller.getId()) {
-            throw new InvalidAdminActionException(InvalidAdminActionException.Reason.SELF);
-        }
-        final boolean targetIsStaff = userDao.findById(targetId)
-                .map(target -> target.isAdmin() || target.isSuperadmin())
-                .orElse(false);
-        if (targetIsStaff && !caller.isSuperadmin()) {
-            throw new InvalidAdminActionException(InvalidAdminActionException.Reason.ADMIN_TARGET);
-        }
-        return suspend(targetId);
-    }
-
-    @Override
-    @Transactional
     public boolean reactivate(final long userId) {
         final boolean changed = userDao.setSuspended(userId, false);
         userDao.findById(userId).ifPresent(user -> {
@@ -306,10 +289,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public boolean revokeAdmin(final long targetId, final long callerId) {
-        if (targetId == callerId) {
-            throw new InvalidAdminActionException(InvalidAdminActionException.Reason.SELF);
-        }
+    public boolean revokeAdmin(final long targetId) {
         return userDao.removeRole(targetId, Role.ADMIN);
     }
 

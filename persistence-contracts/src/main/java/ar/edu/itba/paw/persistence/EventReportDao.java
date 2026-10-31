@@ -2,6 +2,7 @@
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.EventReport;
+import ar.edu.itba.paw.model.ReportTarget;
 import ar.edu.itba.paw.model.ReportStatus;
 
 import java.util.List;
@@ -11,6 +12,11 @@ public interface EventReportDao {
     EventReport create(EventReport report);
 
     Optional<EventReport> findById(long id);
+
+    // A que evento apunta el reporte y de quien es, en una consulta de dos columnas (sin cargar el
+    // reporte ni el evento). Vale para un reporte en CUALQUIER estado, incluso ya resuelto; vacio
+    // solo si el reporte no existe.
+    Optional<ReportTarget> findTargetById(long reportId);
 
     // Cola de moderacion: los PENDING, mas viejo primero (ver AdminController).
     // Una pagina (page empieza en 1); countPending() es el total para armar el paginador.

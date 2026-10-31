@@ -2,6 +2,7 @@
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.EventReport;
+import ar.edu.itba.paw.model.ReportTarget;
 import ar.edu.itba.paw.model.ReportStatus;
 import ar.edu.itba.paw.model.User;
 import org.springframework.stereotype.Repository;
@@ -26,6 +27,8 @@ public class EventReportJpaDao implements EventReportDao {
 
     @Override
     public EventReport create(final EventReport report) {
+        // Ver RegistrationJpaDao.create(): de quien reporta solo hace falta el id.
+        report.setReporter(em.getReference(User.class, report.getReporter().getId()));
         em.persist(report);
         return report;
     }
@@ -33,6 +36,19 @@ public class EventReportJpaDao implements EventReportDao {
     @Override
     public Optional<EventReport> findById(final long id) {
         return Optional.ofNullable(em.find(EventReport.class, id));
+    }
+
+    @Override
+    public Optional<ReportTarget> findTargetById(final long reportId) {
+        // Proyeccion: solo el id del evento y el de su creador, no el reporte ni el evento. El
+        // creator.id no hace JOIN con users: es la propia columna creator_id del evento.
+        final List<Object[]> rows = em.createQuery(
+                        "SELECT r.event.id, r.event.creator.id FROM EventReport r WHERE r.id = :id", Object[].class)
+                .setParameter("id", reportId)
+                .getResultList();
+        return rows.stream()
+                .map(row -> new ReportTarget((Long) row[0], (Long) row[1]))
+                .findFirst();
     }
 
     @Override

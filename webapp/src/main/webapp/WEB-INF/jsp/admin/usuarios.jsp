@@ -22,17 +22,6 @@
         <span class="pill pill-active auth-tab"><c:out value="${usersTabLabel}"/></span>
     </div>
 
-    <c:if test="${not empty adminError}">
-        <c:choose>
-            <c:when test="${adminError == 'ADMIN_TARGET'}">
-                <p class="alert"><spring:message code="admin.users.cannotSuspendAdmin"/></p>
-            </c:when>
-            <c:otherwise>
-                <p class="alert"><spring:message code="admin.users.cannotActOnSelf"/></p>
-            </c:otherwise>
-        </c:choose>
-    </c:if>
-
     <c:choose>
         <c:when test="${empty users}">
             <p class="empty-state"><spring:message code="admin.users.empty"/></p>

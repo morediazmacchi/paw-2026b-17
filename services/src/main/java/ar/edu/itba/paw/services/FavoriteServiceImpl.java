@@ -34,9 +34,7 @@ public class FavoriteServiceImpl implements FavoriteService {
     @Override
     @Transactional
     public boolean add(final User user, final long eventId) {
-        // Mismo chequeo que el detalle: si no podes ver el evento, tampoco podes
-        // guardarlo
-        accessChecker.getViewableEvent(eventId, user);
+        // Que se pueda ver el evento lo decide @PreAuthorize en el controller (ver EventSecurity).
         return favoriteDao.add(user.getId(), eventId);
     }
 

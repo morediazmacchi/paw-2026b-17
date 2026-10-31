@@ -5,6 +5,7 @@ import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventReport;
 import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.ReportStatus;
+import ar.edu.itba.paw.model.ReportTarget;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import ar.edu.itba.paw.persistence.EventReportDao;
@@ -12,7 +13,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -73,6 +73,12 @@ public class ModerationServiceImpl implements ModerationService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public Optional<ReportTarget> findReportTarget(final long reportId) {
+        return eventReportDao.findTargetById(reportId);
+    }
+
+    @Override
     @Transactional
     public ReportResolutionResult requestChanges(final long reportId, final long adminUserId, final String message) {
         // Solo desde PENDING (no isOpen): no tiene sentido "pedir cambios" de
@@ -90,11 +96,6 @@ public class ModerationServiceImpl implements ModerationService {
             eventReportDao.resolve(reportId, ReportStatus.ACTIONED, adminUserId);
             return ReportResolutionResult.RESOLVED;
         }
-        // Mismo conflicto de intereses que report() con OWN_EVENT: el creador
-        // del evento no puede ser tambien quien resuelve el reporte sobre el.
-        if (Long.valueOf(adminUserId).equals(event.get().getCreatorId())) {
-            return ReportResolutionResult.OWN_EVENT;
-        }
         eventReportDao.requestChanges(reportId, message, adminUserId);
         notificationService.notifyEventChangesRequested(event.get(), message);
         inboxService.add(event.get().getCreatorEmail(), InboxMessageType.EVENT_CHANGES_REQUESTED,
@@ -108,12 +109,6 @@ public class ModerationServiceImpl implements ModerationService {
         final Optional<EventReport> report = eventReportDao.findById(reportId).filter(EventReport::isOpen);
         if (!report.isPresent()) {
             return ReportResolutionResult.NOT_FOUND;
-        }
-        // Mismo conflicto de intereses que requestChanges()/removeEvent(): si
-        // el evento ya no existe no hay nada que chequear, se deja descartar.
-        final Optional<Event> event = eventService.findById(report.get().getEventId());
-        if (event.isPresent() && Long.valueOf(adminUserId).equals(event.get().getCreatorId())) {
-            return ReportResolutionResult.OWN_EVENT;
         }
         eventReportDao.resolve(reportId, ReportStatus.DISMISSED, adminUserId);
         return ReportResolutionResult.RESOLVED;
@@ -136,12 +131,8 @@ public class ModerationServiceImpl implements ModerationService {
             eventReportDao.resolve(reportId, ReportStatus.ACTIONED, adminUserId);
             return ReportResolutionResult.RESOLVED;
         }
-        // Mismo conflicto de intereses que dismiss()/requestChanges(): sin
-        // esto, un admin podria dar de baja (y hasta suspenderse a si mismo
-        // via suspendOrganizer) su propio evento reportado.
-        if (Long.valueOf(adminUserId).equals(event.get().getCreatorId())) {
-            return ReportResolutionResult.OWN_EVENT;
-        }
+        // (Que un admin no resuelva un reporte sobre SU propio evento, ni se suspenda a si mismo via
+        // suspendOrganizer, lo decide @PreAuthorize en AdminController: ver AdminSecurity.canResolveReport.)
         // Ya cancelado (el organizador lo dio de baja el mismo mientras se
         // revisaba, o un admin ya actuo sobre otro reporte del mismo evento):
         // no hay nada que remover, pero el reporte igual queda resuelto.

@@ -3,6 +3,7 @@ package ar.edu.itba.paw.services;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventQuestion;
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import ar.edu.itba.paw.persistence.EventQuestionDao;
 import org.junit.Before;
 import org.junit.Test;
@@ -20,7 +21,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 /**
@@ -56,10 +56,9 @@ public class EventQuestionServiceImplTest {
     @Before
     public void setUp() {
         questionService = new EventQuestionServiceImpl(
-                questionDao, eventService, inboxService, notificationService, accessChecker);
+                questionDao, eventService, inboxService, notificationService);
         // Default para los tests que no son sobre el chequeo de acceso en si:
         // "puede verlo", para que la unica rama en juego sea la que cada uno testea.
-        lenient().when(accessChecker.canView(any(Event.class), any(User.class))).thenReturn(true);
     }
 
     private static Event eventInHours(final long hours) {
@@ -122,20 +121,6 @@ public class EventQuestionServiceImplTest {
     }
 
     @Test
-    public void testCannotAskWhenTheAskerCannotViewTheEvent() {
-        // Arrange: mismo resultado que un evento inexistente -- no se revela
-        // cual de las dos paso.
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
-        when(accessChecker.canView(any(Event.class), any(User.class))).thenReturn(false);
-
-        // Act
-        final QuestionResult result = questionService.ask(EVENT_ID, asker(), "Hola?");
-
-        // Assert
-        assertEquals(QuestionResult.NOT_ALLOWED, result);
-    }
-
-    @Test
     public void testCannotAskOnAPastEvent() {
         // Arrange
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(-2)));
@@ -188,23 +173,10 @@ public class EventQuestionServiceImplTest {
         answerableQuestion("Si, en la esquina", true);
 
         // Act
-        final AnswerResult result = questionService.answer(EVENT_ID, QUESTION_ID, CREATOR_ID, " Si, en la esquina ");
+        final AnswerResult result = questionService.answer(QUESTION_ID, " Si, en la esquina ");
 
         // Assert
         assertEquals(AnswerResult.ANSWERED, result);
-    }
-
-    @Test
-    public void testSomeoneElseCannotAnswer() {
-        // Arrange
-        when(questionDao.findById(QUESTION_ID)).thenReturn(Optional.of(questionOf(EVENT_ID)));
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
-
-        // Act
-        final AnswerResult result = questionService.answer(EVENT_ID, QUESTION_ID, OTHER_ID, "Si");
-
-        // Assert
-        assertEquals(AnswerResult.NOT_ALLOWED, result);
     }
 
     @Test
@@ -213,48 +185,58 @@ public class EventQuestionServiceImplTest {
         answerableQuestion("Si", false);
 
         // Act
-        final AnswerResult result = questionService.answer(EVENT_ID, QUESTION_ID, CREATOR_ID, "Si");
+        final AnswerResult result = questionService.answer(QUESTION_ID, "Si");
 
         // Assert
         assertEquals(AnswerResult.ALREADY_ANSWERED, result);
     }
 
-    /** Una pregunta de otro evento no se responde desde la URL de este. */
     @Test
-    public void testAQuestionOfAnotherEventCannotBeAnsweredFromThisOne() {
-        // Arrange
-        when(questionDao.findById(QUESTION_ID)).thenReturn(Optional.of(questionOf(99)));
-
-        // Act
-        final AnswerResult result = questionService.answer(EVENT_ID, QUESTION_ID, CREATOR_ID, "Si");
-
-        // Assert
-        assertEquals(AnswerResult.NOT_ALLOWED, result);
-    }
-
-    @Test
-    public void testAQuestionThatDoesNotExistCannotBeAnswered() {
+    public void testAQuestionThatDoesNotExistIsNotFound() {
         // Arrange
         when(questionDao.findById(QUESTION_ID)).thenReturn(Optional.empty());
 
         // Act
-        final AnswerResult result = questionService.answer(EVENT_ID, QUESTION_ID, CREATOR_ID, "Si");
+        final AnswerResult result = questionService.answer(QUESTION_ID, "Si");
 
         // Assert
-        assertEquals(AnswerResult.NOT_ALLOWED, result);
+        assertEquals(AnswerResult.NOT_FOUND, result);
     }
 
-    @Test
-    public void testAQuestionOfAnEventThatDoesNotExistCannotBeAnswered() {
+    @Test(expected = EventNotFoundException.class)
+    public void testAQuestionOfAnEventThatDoesNotExistThrowsEventNotFoundException() {
         // Arrange
         when(questionDao.findById(QUESTION_ID)).thenReturn(Optional.of(questionOf(EVENT_ID)));
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
-        final AnswerResult result = questionService.answer(EVENT_ID, QUESTION_ID, CREATOR_ID, "Si");
+        questionService.answer(QUESTION_ID, "Si");
+    }
+
+    // ---- findEventCreatorId() ----
+
+    @Test
+    public void testFindEventCreatorIdReturnsTheCreatorTheDaoFound() {
+        // Arrange
+        when(questionDao.findEventCreatorId(QUESTION_ID)).thenReturn(Optional.of(CREATOR_ID));
+
+        // Act
+        final Optional<Long> result = questionService.findEventCreatorId(QUESTION_ID);
 
         // Assert
-        assertEquals(AnswerResult.NOT_ALLOWED, result);
+        assertEquals(Optional.of(CREATOR_ID), result);
+    }
+
+    @Test
+    public void testFindEventCreatorIdIsEmptyWhenTheQuestionDoesNotExist() {
+        // Arrange
+        when(questionDao.findEventCreatorId(QUESTION_ID)).thenReturn(Optional.empty());
+
+        // Act
+        final Optional<Long> result = questionService.findEventCreatorId(QUESTION_ID);
+
+        // Assert
+        assertFalse(result.isPresent());
     }
 
     // ---- findPage() ----

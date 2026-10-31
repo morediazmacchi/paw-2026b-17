@@ -5,12 +5,14 @@ import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventQuestion;
 import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import ar.edu.itba.paw.persistence.EventQuestionDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
+import java.util.Optional;
 
 @Service
 public class EventQuestionServiceImpl implements EventQuestionService {
@@ -21,18 +23,15 @@ public class EventQuestionServiceImpl implements EventQuestionService {
     private final EventService eventService;
     private final InboxService inboxService;
     private final NotificationService notificationService;
-    private final EventAccessService accessChecker;
 
     @Autowired
     public EventQuestionServiceImpl(final EventQuestionDao questionDao, final EventService eventService,
                                     final InboxService inboxService,
-                                    final NotificationService notificationService,
-                                    final EventAccessService accessChecker) {
+                                    final NotificationService notificationService) {
         this.questionDao = questionDao;
         this.eventService = eventService;
         this.inboxService = inboxService;
         this.notificationService = notificationService;
-        this.accessChecker = accessChecker;
     }
 
     @Override
@@ -40,14 +39,6 @@ public class EventQuestionServiceImpl implements EventQuestionService {
     public QuestionResult ask(final long eventId, final User asker, final String text) {
         final Event event = eventService.findById(eventId).orElse(null);
         if (event == null) {
-            return QuestionResult.NOT_ALLOWED;
-        }
-        // El controller ya chequea esto antes de llamar aca (EventQuestionController.ask()),
-        // para que un formulario invalido en un evento privado sin acceso siga dando el mismo
-        // "no existe" en vez de revelar que el evento existe por la rama de error de
-        // validacion. Esto de aca es la misma regla, para quien llame a este metodo
-        // directamente sin pasar por ese controller.
-        if (!accessChecker.canView(event, asker)) {
             return QuestionResult.NOT_ALLOWED;
         }
         if (Long.valueOf(asker.getId()).equals(event.getCreatorId())) {
@@ -60,32 +51,39 @@ public class EventQuestionServiceImpl implements EventQuestionService {
 
         inboxService.add(event.getCreatorEmail(), InboxMessageType.NEW_QUESTION, eventId,
                 displayName(asker.getName(), asker.getEmail()), null);
-        notificationService.notifyNewQuestion(event, question);
+        notificationService.notifyNewQuestion(event, question, asker.getName(), asker.getEmail());
         return QuestionResult.CREATED;
     }
 
     @Override
     @Transactional
-    public AnswerResult answer(final long eventId, final long questionId, final long answererId,
-                               final String text) {
+    public AnswerResult answer(final long questionId, final String text) {
+        // Que quien responde sea el organizador del evento de la pregunta lo decide @PreAuthorize en
+        // el controller (ver EventSecurity.canAnswerQuestion). El evento es el de la pregunta.
         final EventQuestion question = questionDao.findById(questionId).orElse(null);
-        // Que la pregunta sea DE ESTE evento: si no, con un POST armado a mano se
-        // podria responder una pregunta de otro evento desde la URL de uno propio.
-        if (question == null || question.getEventId() != eventId) {
-            return AnswerResult.NOT_ALLOWED;
+        if (question == null) {
+            return AnswerResult.NOT_FOUND;
         }
-        final Event event = eventService.findById(eventId).orElse(null);
-        if (event == null || !Long.valueOf(answererId).equals(event.getCreatorId())) {
-            return AnswerResult.NOT_ALLOWED;
-        }
+        final long eventId = question.getEventId();
+        final Event event = eventService.findById(eventId).orElseThrow(() -> new EventNotFoundException(eventId));
         if (!questionDao.answer(questionId, text.trim(), new Date())) {
             return AnswerResult.ALREADY_ANSWERED;
         }
         question.setAnswer(text.trim());
 
-        inboxService.add(question.getAskerEmail(), InboxMessageType.QUESTION_ANSWERED, eventId, null, null);
-        notificationService.notifyQuestionAnswered(event, question);
+        // El nombre y el mail se leen ahora, con la pregunta en sesion (viene con JOIN FETCH), y se
+        // pasan al envio @Async: no debe leer la relacion desde otro hilo.
+        final String askerName = question.getAskerName();
+        final String askerEmail = question.getAskerEmail();
+        inboxService.add(askerEmail, InboxMessageType.QUESTION_ANSWERED, eventId, null, null);
+        notificationService.notifyQuestionAnswered(event, question, askerName, askerEmail);
         return AnswerResult.ANSWERED;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<Long> findEventCreatorId(final long questionId) {
+        return questionDao.findEventCreatorId(questionId);
     }
 
     @Override

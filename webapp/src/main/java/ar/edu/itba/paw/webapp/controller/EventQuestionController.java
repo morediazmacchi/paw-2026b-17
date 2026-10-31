@@ -29,7 +29,8 @@ public class EventQuestionController {
         this.eventQuestionService = eventQuestionService;
     }
 
-    // Preguntar.
+    // Preguntar. Quien puede ver el evento lo decide @PreAuthorize antes de entrar (ver EventSecurity).
+    @PreAuthorize("@eventSecurity.canView(#id, authentication)")
     @RequestMapping(value = "/eventos/{id}/preguntas", method = RequestMethod.POST)
     public ModelAndView ask(@PathVariable final long id, @Valid final QuestionForm form,
                             final BindingResult errors, @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
@@ -43,17 +44,18 @@ public class EventQuestionController {
         return new ModelAndView("redirect:/eventos/" + id + "#preguntas");
     }
 
-    // Responder.
-    @PreAuthorize("@eventSecurity.isOwner(#id, authentication)")
+    // Responder. Quien puede lo decide @PreAuthorize antes de entrar, por la pregunta: el organizador del
+    // evento al que ella pertenece (ver EventSecurity.canAnswerQuestion). El id del evento de la URL es
+    // solo ruteo (a donde se vuelve), no autoriza nada.
+    @PreAuthorize("@eventSecurity.canAnswerQuestion(#questionId, authentication)")
     @RequestMapping(value = "/eventos/{id}/preguntas/{questionId}/responder", method = RequestMethod.POST)
     public ModelAndView answer(@PathVariable final long id, @PathVariable final long questionId,
                                @Valid final QuestionForm form, final BindingResult errors,
-                               @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
                                final RedirectAttributes redirectAttributes) {
         if (errors.hasErrors()) {
             redirectAttributes.addFlashAttribute("questionMessage", "INVALID");
         } else {
-            final AnswerResult result = eventQuestionService.answer(id, questionId, currentUser.getId(), form.getText());
+            final AnswerResult result = eventQuestionService.answer(questionId, form.getText());
             redirectAttributes.addFlashAttribute("questionMessage", result.name());
         }
         return new ModelAndView("redirect:/eventos/" + id + "#preguntas");

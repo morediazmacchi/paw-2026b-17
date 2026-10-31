@@ -408,7 +408,7 @@ public class EventServiceImplTest {
         dto.setMaxCapacity(20);
 
         // Act
-        final EventUpdateOutcome result = eventService.update(EVENT_ID, dto, CREATOR_ID);
+        final EventUpdateOutcome result = eventService.update(EVENT_ID, dto);
 
         // Assert
         assertEquals(Integer.valueOf(20), result.getEvent().getMaxCapacity());
@@ -423,21 +423,10 @@ public class EventServiceImplTest {
         dto.setMaxCapacity(20);
 
         // Act
-        final EventUpdateOutcome result = eventService.update(EVENT_ID, dto, CREATOR_ID);
+        final EventUpdateOutcome result = eventService.update(EVENT_ID, dto);
 
         // Assert
         assertEquals(EVENT_ID, result.getEvent().getId().longValue());
-    }
-
-    @Test(expected = EventNotFoundException.class)
-    public void testUpdateWhenCallerIsNotTheCreatorThrowsEventNotFoundException() {
-        // Arrange
-        existingForUpdate(someEvent());
-
-        // Act
-        eventService.update(EVENT_ID, someDto(), OTHER_ID);
-
-        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
 
     @Test(expected = EventNotFoundException.class)
@@ -446,7 +435,7 @@ public class EventServiceImplTest {
         when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
-        eventService.update(EVENT_ID, someDto(), CREATOR_ID);
+        eventService.update(EVENT_ID, someDto());
 
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
@@ -457,7 +446,7 @@ public class EventServiceImplTest {
         existingForUpdate(cancelledEvent());
 
         // Act
-        eventService.update(EVENT_ID, someDto(), CREATOR_ID);
+        eventService.update(EVENT_ID, someDto());
 
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
@@ -471,7 +460,7 @@ public class EventServiceImplTest {
 
         // Act
         final InvalidEventException thrown = assertThrows(InvalidEventException.class,
-                () -> eventService.update(EVENT_ID, dto, CREATOR_ID));
+                () -> eventService.update(EVENT_ID, dto));
 
         // Assert
         assertEquals("cupo.muyBajo", thrown.getMessageKey());
@@ -486,7 +475,7 @@ public class EventServiceImplTest {
         dto.setMaxCapacity(5);
 
         // Act
-        final EventUpdateOutcome result = eventService.update(EVENT_ID, dto, CREATOR_ID);
+        final EventUpdateOutcome result = eventService.update(EVENT_ID, dto);
 
         // Assert: el limite exacto (cupo == ocupados) es valido y el cupo nuevo queda guardado.
         assertEquals(Integer.valueOf(5), result.getEvent().getMaxCapacity());
@@ -502,7 +491,7 @@ public class EventServiceImplTest {
         dto.setMaxCapacity(null);
 
         // Act
-        final EventUpdateOutcome result = eventService.update(EVENT_ID, dto, CREATOR_ID);
+        final EventUpdateOutcome result = eventService.update(EVENT_ID, dto);
 
         // Assert: se guarda sin cupo (ilimitado).
         assertNull(result.getEvent().getMaxCapacity());
@@ -518,7 +507,7 @@ public class EventServiceImplTest {
         when(registrationService.promoteFromWaitlist(EVENT_ID)).thenReturn(2);
 
         // Act
-        final EventUpdateOutcome result = eventService.update(EVENT_ID, dto, CREATOR_ID);
+        final EventUpdateOutcome result = eventService.update(EVENT_ID, dto);
 
         // Assert
         assertEquals(2, result.getPromotedFromWaitlist());
@@ -533,21 +522,10 @@ public class EventServiceImplTest {
         when(eventDao.cancel(EVENT_ID)).thenReturn(true);
 
         // Act
-        final EventCancelResult result = eventService.cancel(EVENT_ID, CREATOR_ID);
+        final EventCancelResult result = eventService.cancel(EVENT_ID);
 
         // Assert
         assertEquals(EventCancelResult.CANCELLED, result);
-    }
-
-    @Test(expected = EventNotFoundException.class)
-    public void testCancelWhenCallerIsNotTheCreatorThrowsEventNotFoundException() {
-        // Arrange
-        existingForUpdate(someEvent());
-
-        // Act
-        eventService.cancel(EVENT_ID, OTHER_ID);
-
-        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
 
     @Test(expected = EventNotFoundException.class)
@@ -556,7 +534,7 @@ public class EventServiceImplTest {
         when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
-        eventService.cancel(EVENT_ID, CREATOR_ID);
+        eventService.cancel(EVENT_ID);
 
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
@@ -567,7 +545,7 @@ public class EventServiceImplTest {
         existingForUpdate(cancelledEvent());
 
         // Act
-        final EventCancelResult result = eventService.cancel(EVENT_ID, CREATOR_ID);
+        final EventCancelResult result = eventService.cancel(EVENT_ID);
 
         // Assert
         assertEquals(EventCancelResult.ALREADY_CANCELLED, result);
@@ -624,7 +602,7 @@ public class EventServiceImplTest {
         when(eventDao.approve(EVENT_ID)).thenReturn(true);
 
         // Act
-        final EventApprovalResult result = eventService.approve(EVENT_ID, OTHER_ID);
+        final EventApprovalResult result = eventService.approve(EVENT_ID);
 
         // Assert
         assertEquals(EventApprovalResult.OK, result);
@@ -636,7 +614,7 @@ public class EventServiceImplTest {
         when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
-        final EventApprovalResult result = eventService.approve(EVENT_ID, OTHER_ID);
+        final EventApprovalResult result = eventService.approve(EVENT_ID);
 
         // Assert
         assertEquals(EventApprovalResult.NOT_FOUND, result);
@@ -650,7 +628,7 @@ public class EventServiceImplTest {
         existingForUpdate(event);
 
         // Act
-        final EventApprovalResult result = eventService.approve(EVENT_ID, OTHER_ID);
+        final EventApprovalResult result = eventService.approve(EVENT_ID);
 
         // Assert
         assertEquals(EventApprovalResult.ALREADY_DECIDED, result);
@@ -664,23 +642,10 @@ public class EventServiceImplTest {
         existingForUpdate(event);
 
         // Act
-        final EventApprovalResult result = eventService.approve(EVENT_ID, OTHER_ID);
+        final EventApprovalResult result = eventService.approve(EVENT_ID);
 
         // Assert
         assertEquals(EventApprovalResult.ALREADY_DECIDED, result);
-    }
-
-    // Mismo conflicto de intereses que ModerationServiceImplTest con OWN_EVENT.
-    @Test
-    public void testApproveOnOwnEventReturnsOwnEvent() {
-        // Arrange: someEvent() tiene como creador a CREATOR_ID.
-        existingForUpdate(someEvent());
-
-        // Act
-        final EventApprovalResult result = eventService.approve(EVENT_ID, CREATOR_ID);
-
-        // Assert
-        assertEquals(EventApprovalResult.OWN_EVENT, result);
     }
 
     @Test
@@ -690,7 +655,7 @@ public class EventServiceImplTest {
         when(eventDao.reject(EVENT_ID, "Contenido inapropiado")).thenReturn(true);
 
         // Act
-        final EventApprovalResult result = eventService.reject(EVENT_ID, "Contenido inapropiado", OTHER_ID);
+        final EventApprovalResult result = eventService.reject(EVENT_ID, "Contenido inapropiado");
 
         // Assert
         assertEquals(EventApprovalResult.OK, result);
@@ -702,7 +667,7 @@ public class EventServiceImplTest {
         when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
-        final EventApprovalResult result = eventService.reject(EVENT_ID, "motivo", OTHER_ID);
+        final EventApprovalResult result = eventService.reject(EVENT_ID, "motivo");
 
         // Assert
         assertEquals(EventApprovalResult.NOT_FOUND, result);
@@ -716,22 +681,10 @@ public class EventServiceImplTest {
         existingForUpdate(event);
 
         // Act
-        final EventApprovalResult result = eventService.reject(EVENT_ID, "motivo", OTHER_ID);
+        final EventApprovalResult result = eventService.reject(EVENT_ID, "motivo");
 
         // Assert
         assertEquals(EventApprovalResult.ALREADY_DECIDED, result);
-    }
-
-    @Test
-    public void testRejectOnOwnEventReturnsOwnEvent() {
-        // Arrange
-        existingForUpdate(someEvent());
-
-        // Act
-        final EventApprovalResult result = eventService.reject(EVENT_ID, "motivo", CREATOR_ID);
-
-        // Assert
-        assertEquals(EventApprovalResult.OWN_EVENT, result);
     }
 
     // ---- findFeatured() / setFeatured() (banner de /eventos) ----

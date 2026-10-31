@@ -66,25 +66,27 @@ public interface EventService {
      * ya tenia; si no, las nuevas imagenes se suben (dentro de esta misma
      * transaccion) y reemplazan toda la galeria vieja.
      *
-     * @throws EventNotFoundException si el evento no existe o quien lo edita no
-     *         es su creador (mismo error en los dos casos: no se revela si existe).
+     * Que quien lo edita sea el creador NO se valida aca: lo decide @PreAuthorize en el
+     * controller (ver EventSecurity.isOwner).
+     *
+     * @throws EventNotFoundException si el evento no existe.
      * @throws EventCancelledException si el evento ya esta cancelado (se cancelo justo
      *         entre medio: quien llama ya deberia haber chequeado esto antes, ver
      *         EventAccessService#getEditableEvent).
      * @throws InvalidEventException si el cupo nuevo es menor a los lugares ya ocupados.
      */
     @Transactional(rollbackFor = Exception.class)
-    EventUpdateOutcome update(long eventId, EventDTO dto, long callerId);
+    EventUpdateOutcome update(long eventId, EventDTO dto);
 
     /**
      * Cancela (soft-delete) un evento existente y avisa por mail a cada
-     * inscripto confirmado.
+     * inscripto confirmado. Que quien lo cancela sea el creador NO se valida aca: lo decide
+     * @PreAuthorize en el controller (ver EventSecurity.isOwner).
      *
-     * @throws EventNotFoundException si el evento no existe o quien lo cancela no
-     *         es su creador (mismo error en los dos casos: no se revela si existe).
+     * @throws EventNotFoundException si el evento no existe.
      */
     @Transactional(rollbackFor = Exception.class)
-    EventCancelResult cancel(long eventId, long callerId);
+    EventCancelResult cancel(long eventId);
 
     /**
      * Baja por moderacion (ver ModerationService): mismo efecto que cancel()
@@ -98,11 +100,11 @@ public interface EventService {
     /**
      * Un admin revisa y aprueba un evento recien creado (ver EventApprovalStatus):
      * recien ahi se vuelve visible publicamente. Avisa al creador.
-     * adminUserId: mismo conflicto de intereses que ModerationService -- un
-     * admin no puede aprobar/rechazar su propio evento.
+     * Que un admin no pueda aprobar/rechazar su propio evento (conflicto de intereses) NO se valida
+     * aca: lo decide @PreAuthorize en AdminController (ver AdminSecurity.canModerateEvent).
      */
     @Transactional(rollbackFor = Exception.class)
-    EventApprovalResult approve(long eventId, long adminUserId);
+    EventApprovalResult approve(long eventId);
 
     /**
      * Un admin rechaza un evento recien creado: queda invisible para siempre
@@ -110,7 +112,7 @@ public interface EventService {
      * Avisa al creador con el motivo.
      */
     @Transactional(rollbackFor = Exception.class)
-    EventApprovalResult reject(long eventId, String reason, long adminUserId);
+    EventApprovalResult reject(long eventId, String reason);
 
     /**
      * Cola de aprobacion del admin: los eventos PENDING, mas viejo primero

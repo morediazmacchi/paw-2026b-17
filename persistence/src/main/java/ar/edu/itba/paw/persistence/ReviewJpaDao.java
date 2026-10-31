@@ -2,6 +2,7 @@
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.Review;
+import ar.edu.itba.paw.model.User;
 import org.springframework.stereotype.Repository;
 
 import javax.persistence.EntityManager;
@@ -20,6 +21,8 @@ public class ReviewJpaDao implements ReviewDao {
     public Review create(final Review review) {
         // Con IDENTITY el INSERT corre aca mismo: si viola UNIQUE(event_id, user_id) la
         // excepcion sale de este metodo (traducida a DataIntegrityViolationException).
+        // Ver RegistrationJpaDao.create(): de quien reseña solo hace falta el id.
+        review.setUser(em.getReference(User.class, review.getUser().getId()));
         em.persist(review);
         return review;
     }

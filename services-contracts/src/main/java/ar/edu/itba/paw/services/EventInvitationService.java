@@ -11,11 +11,12 @@ public interface EventInvitationService {
     /**
      * El creador invita a alguien a su evento privado: genera un token y le
      * manda un mail con el link. No hace nada (y devuelve NOT_ALLOWED) si el
-     * evento no existe, no es de ese creador, o no es privado -- invitar solo
+     * evento no existe, no es privado, esta cancelado o ya paso -- invitar solo
      * tiene sentido ahi, un evento publico ya tiene un link que se puede
-     * compartir sin necesitar esto.
+     * compartir sin necesitar esto. Que quien invita sea el creador NO se valida aca: lo decide
+     * @PreAuthorize en el controller (ver EventSecurity.isOwnerOfPrivate).
      */
-    EventInvitationResult invite(long eventId, long creatorId, String inviteeEmail);
+    EventInvitationResult invite(long eventId, String inviteeEmail);
 
     /**
      * Si a este usuario se le mando una invitacion a este evento. Es lo que
@@ -27,10 +28,10 @@ public interface EventInvitationService {
     boolean isInvited(long eventId, long userId);
 
     /**
-     * Pantalla "a quien invite" del creador. Vacia si el evento no existe o
-     * no es de ese creador (no revela cual de las dos cosas paso).
+     * Pantalla "a quien invite" del creador. Que quien la pide sea el creador NO se
+     * valida aca: lo decide @PreAuthorize en el controller (ver EventSecurity.isOwnerOfPrivate).
      */
-    List<EventInvitation> findByEvent(long eventId, long creatorId);
+    List<EventInvitation> findByEvent(long eventId);
 
     /**
      * "Mis invitaciones": los eventos privados a los que invitaron a este

@@ -143,13 +143,13 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public EventUpdateOutcome update(final long eventId, final EventDTO dto, final long callerId) {
+    public EventUpdateOutcome update(final long eventId, final EventDTO dto) {
         Objects.requireNonNull(dto, "dto");
         // Con lock (SELECT ... FOR UPDATE), igual que register(): mientras se
         // chequea y se cambia el cupo, nadie se puede anotar. Sin esto, alguien
         // podia confirmarse entre el chequeo y el UPDATE y quedar mas gente que cupo.
         final Optional<Event> existing = eventDao.findByIdForUpdate(eventId);
-        if (!existing.isPresent() || !Long.valueOf(callerId).equals(existing.get().getCreatorId())) {
+        if (!existing.isPresent()) {
             throw new EventNotFoundException(eventId);
         }
         if (existing.get().isCancelled()) {
@@ -193,10 +193,10 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public EventCancelResult cancel(final long eventId, final long callerId) {
+    public EventCancelResult cancel(final long eventId) {
         // Con for update.
         final Optional<Event> existing = eventDao.findByIdForUpdate(eventId);
-        if (!existing.isPresent() || !Long.valueOf(callerId).equals(existing.get().getCreatorId())) {
+        if (!existing.isPresent()) {
             throw new EventNotFoundException(eventId);
         }
         final Event event = existing.get();
@@ -234,17 +234,12 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public EventApprovalResult approve(final long eventId, final long adminUserId) {
+    public EventApprovalResult approve(final long eventId) {
         final Optional<Event> existing = eventDao.findByIdForUpdate(eventId);
         if (!existing.isPresent()) {
             return EventApprovalResult.NOT_FOUND;
         }
         final Event event = existing.get();
-        // Mismo conflicto de intereses que ModerationServiceImpl: el creador
-        // del evento no puede ser tambien quien lo aprueba.
-        if (Long.valueOf(adminUserId).equals(event.getCreatorId())) {
-            return EventApprovalResult.OWN_EVENT;
-        }
         if (!event.isPendingApproval()) {
             return EventApprovalResult.ALREADY_DECIDED;
         }
@@ -256,16 +251,12 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public EventApprovalResult reject(final long eventId, final String reason, final long adminUserId) {
+    public EventApprovalResult reject(final long eventId, final String reason) {
         final Optional<Event> existing = eventDao.findByIdForUpdate(eventId);
         if (!existing.isPresent()) {
             return EventApprovalResult.NOT_FOUND;
         }
         final Event event = existing.get();
-        // Mismo conflicto de intereses que approve().
-        if (Long.valueOf(adminUserId).equals(event.getCreatorId())) {
-            return EventApprovalResult.OWN_EVENT;
-        }
         if (!event.isPendingApproval()) {
             return EventApprovalResult.ALREADY_DECIDED;
         }

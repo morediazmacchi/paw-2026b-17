@@ -1,9 +1,13 @@
 package ar.edu.itba.paw.webapp.auth;
 
+import ar.edu.itba.paw.model.Role;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.User;
 
 import java.util.Collection;
+import java.util.Optional;
 
 // El usuario autenticado, tal como lo guarda Spring Security en la sesion (el "principal").
 // Extiende el User de Spring Security para llevar, ademas de email/clave/roles, los datos que
@@ -29,6 +33,24 @@ public class PlancitoUserDetails extends User {
         super(email, passwordHash, enabled, true, true, true, authorities);
         this.id = id;
         this.name = name;
+    }
+
+    // El usuario autenticado de esta sesion, o vacio si no hay uno: sin sesion, no autenticado, o un
+    // anonimo (llega "autenticado" con un principal que es solo un String, no un PlancitoUserDetails).
+    public static Optional<PlancitoUserDetails> from(final Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()
+                || authentication instanceof AnonymousAuthenticationToken) {
+            return Optional.empty();
+        }
+        final Object principal = authentication.getPrincipal();
+        return principal instanceof PlancitoUserDetails
+                ? Optional.of((PlancitoUserDetails) principal)
+                : Optional.empty();
+    }
+
+    // Tiene ese rol (sale de las authorities que armo el login, ver Role.getAuthority()).
+    public boolean hasRole(final Role role) {
+        return getAuthorities().stream().anyMatch(authority -> role.getAuthority().equals(authority.getAuthority()));
     }
 
     public long getId() {

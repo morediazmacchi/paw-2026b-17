@@ -1,11 +1,15 @@
 package ar.edu.itba.paw.webapp.config;
 
 import ar.edu.itba.paw.services.EventAccessService;
+import ar.edu.itba.paw.services.EventChatService;
+import ar.edu.itba.paw.services.EventQuestionService;
 import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.ImageService;
 import ar.edu.itba.paw.services.InboxService;
+import ar.edu.itba.paw.services.ModerationService;
 import ar.edu.itba.paw.services.RegistrationService;
 import ar.edu.itba.paw.services.UserService;
+import ar.edu.itba.paw.webapp.security.AdminSecurity;
 import ar.edu.itba.paw.webapp.security.EventSecurity;
 import ar.edu.itba.paw.webapp.interceptor.CurrentLocaleInterceptor;
 import ar.edu.itba.paw.webapp.interceptor.SuspendedUserInterceptor;
@@ -49,8 +53,18 @@ public class WebConfig implements WebMvcConfigurer {
     public EventSecurity eventSecurity(final EventService eventService,
                                        final RegistrationService registrationService,
                                        final EventAccessService eventAccessService,
-                                       final ImageService imageService) {
-        return new EventSecurity(eventService, registrationService, eventAccessService, imageService);
+                                       final ImageService imageService,
+                                       final EventChatService eventChatService,
+                                       final EventQuestionService eventQuestionService) {
+        return new EventSecurity(eventService, registrationService, eventAccessService, imageService,
+                eventChatService, eventQuestionService);
+    }
+
+    // Reglas de admin sobre otros usuarios para @PreAuthorize en AdminController (ver AdminSecurity).
+    @Bean
+    public AdminSecurity adminSecurity(final UserService userService, final EventService eventService,
+                                       final ModerationService moderationService) {
+        return new AdminSecurity(userService, eventService, moderationService);
     }
 
     // Se llama messageSource (no otro nombre): es el nombre de bean que Spring

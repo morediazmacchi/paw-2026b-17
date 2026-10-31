@@ -51,7 +51,8 @@ original no está a mano (no es citable textual) · `[acordado]` = lo decidió l
 - **Ownership y "quién puede hacer esto" van en Spring Security** (`@PreAuthorize`/`access(...)`), no como `if` a mano
   en controller/service, **y nunca duplicado** (Security + a mano) de forma redundante. [TP1][clase 4:L960-975]
 - **Qué existe hoy** [código]: `EventSecurity` (webapp/security) con `isOwner`, `isOwnerOfPrivate`,
-  `isOwnerOfRegistrationEvent`, `isRegistrant`, `canView`, `canViewImage`. Se registra con `@Bean` en `WebConfig` (RootConfig solo
+  `isOwnerOfRegistrationEvent`, `isRegistrant`, `canView`, `canRegister`, `isChatMember`, `isConfirmedAttendee`, `canViewImage`;
+  `AdminSecurity` (`canSuspend`, `canRevokeAdmin`, `canModerateEvent`, `canResolveReport`). El usuario de la sesión se lee con `PlancitoUserDetails.from(authentication)` y `hasRole(Role.X)`. Se registra con `@Bean` en `WebConfig` (RootConfig solo
   escanea sus paquetes) donde también está `@EnableGlobalMethodSecurity(prePostEnabled, proxyTargetClass)`.
   `AccessDeniedException` → mismo 404 que un evento inexistente (`ErrorAdvice`; `ImageController` tiene su handler
   local que responde 404 sin cuerpo). Solo lee **services**, nunca DAOs.
@@ -139,21 +140,48 @@ original no está a mano (no es citable textual) · `[acordado]` = lo decidió l
 
 Registro honesto; no tapar ni "arreglar de pasada" sin avisar. Orden = prioridad sugerida.
 
-1. **Ownership duplicado en services** (rompe "nunca duplicado"): `EventServiceImpl` update/cancel,
-   `EventInvitationServiceImpl.invite/findByEvent`, `RegistrationServiceImpl` approve/reject/revoke/findPending/count/
-   `ownsEvent`, `EventQuestionServiceImpl.answer`. Hoy conviven con `@PreAuthorize`. Decisión pendiente: sacarlos.
-   *(Antes se había propuesto dejarlos como "segunda barrera"; la regla [TP1] dice que no.)*
+1. ~~**Ownership duplicado en services**~~ **Resuelto** (30/10): `EventService.update/cancel`, `EventInvitationService.invite/findByEvent`,
+   `RegistrationService.approve/reject/revoke/findPendingByEvent/countPendingByEvent` y `EventQuestionService.answer` ya no reciben
+   el id del dueño ni lo comparan; lo decide solo `@PreAuthorize` (`isOwner`/`isOwnerOfPrivate`/`isOwnerOfRegistrationEvent`).
+   Los services siguen validando estado (evento cancelado/terminado, inscripción PENDING, pregunta del evento). Se borraron los
+   tests de "no es el dueño". Probado en la app: dueña 200; extraño 404 en editar/cancelar/responder/aceptar/rechazar/revocar/invitar.
 2. ~~`/perfil/inscripciones/{id}/cancelar`~~ **Resuelto**: `@PreAuthorize("@eventSecurity.isRegistrant(#id, authentication)")`;
    la regla da `false` también si la inscripción no existe (404, opción B: el doble clic muestra 404, aceptado).
    `RegistrationService.cancel(registrationId)` ya no recibe `userId` ni compara el dueño. Probado a mano con 2 cuentas.
+3a. **`currentUser` sale del principal, sin consulta** (31/10): `ErrorAdvice.currentUserFromPrincipal` arma un `User` con id, email, nombre y roles de `PlancitoUserDetails` (sin `findByEmail`; sin sesión es `null`). Es un `User` "de sesión": solo trae esos 4 datos. Los 4 `create` de DAO que reciben ese usuario (`RegistrationJpaDao`, `EventQuestionJpaDao`, `EventReportJpaDao`, `ReviewJpaDao`) lo reemplazan por `em.getReference(User.class, id)` antes de persistir (`NotificationService.notifyNewQuestion` recibe `askerName`/`askerEmail` ya resueltos desde `currentUser`: el envío es `@Async` y no debe leer la relación lazy; `register` copia nombre/mail en la fila y las notificaciones solo leen esas copias y el id del usuario).
+   **Limitaciones conocidas (aceptadas, no arregladas a propósito):** (1) el **nombre** del principal es el del login: si se edita el perfil se sigue viendo el viejo (form de `/perfil`, copias en inscripciones y bandeja) hasta el próximo login; (2) los **roles** también son los del login: revocar `ROLE_ADMIN` no afecta la sesión activa (ver punto 3). Siguen pendientes los interceptores `UnreadInbox` y `Suspended` (hacen `findByEmail` por request).
 3. **Revocar `ROLE_ADMIN` no cierra sesiones** (error marcado en TP1, pendiente). Plan: `HttpSessionEventPublisher`
    (`SecurityWebApplicationInitializer`), `SessionRegistry` + `sessionManagement().maximumSessions(-1)` en `WebAuthConfig`,
    `UserRolesChangedEvent` (services-contracts), `UserServiceImpl` publica tras `grantAdmin/revokeAdmin`,
    `SessionExpiringListener` (`@TransactionalEventListener`) hace `expireNow()`. Probar con dos navegadores.
-4. **`canView` a mano en los services** (pendiente): `EventQuestionServiceImpl:50` (preguntar), `FavoriteServiceImpl:39/90`
-   (favorito), `RegistrationServiceImpl.register` L87-110 (quiero-ir; regla algo distinta: el admin ve pero no se anota).
-   Auditoría de controllers (30/10): también faltan chat (5 handlers; el JS espera 403), reglas de jerarquía de admin en
-   `UserServiceImpl.suspendByAdmin`/`EventServiceImpl.approve`, y los chequeos de dueño duplicados (ver punto 1).
+4. **Visibilidad decidida en los services**: ~~preguntar~~ y ~~favorito~~ **resueltos** (30/10): `@PreAuthorize(canView)` en
+   `ask` y `addFavorite`; se sacó el chequeo de `EventQuestionServiceImpl.ask` y de `FavoriteServiceImpl.add`, y se borró
+   `EventAccessService.getViewableEvent` (ya no lo usaba nadie). `FavoriteServiceImpl.viewableFavorites` sigue usando `canView`
+   a propósito: filtra una lista de resultados, no es una puerta de entrada. ~~`quiero-ir`~~ **resuelto** (30/10):
+   `@PreAuthorize("@eventSecurity.canRegister(#id, authentication)")` (= `canView` SIN la excepción de admin: el admin ve pero
+   no se anota, salvo que lo hayan invitado a un privado) y `RegistrationServiceImpl.register` ya no decide visibilidad (solo
+   usa la invitación para reservar el lugar). Probado con admin invitado (se anota) y sin invitación (404).
+   Auditoría de controllers (30/10): ~~chat~~ **resuelto para la pantalla, la consulta y el envío** (`@PreAuthorize(isChatMember)`;
+   quien no es miembro ve 404; `event-chat.js` ahora trata 404 igual que 403 en la consulta y en el envío; verificado ejecutando
+   el JS real en Node con un DOM de mentira, que falla contra el JS anterior). ~~`chat/unirse`~~ **resuelto**:
+   `@PreAuthorize(isConfirmedAttendee)` (lugar CONFIRMADO; el organizador no entra); `EventChatServiceImpl.join` ya no decide el
+   permiso (solo busca la inscripción por su id; si no está, `EventNotFoundException`) y se borró `ChatJoinResult.NOT_ALLOWED`
+   con sus textos i18n. `chat/salir` no necesita nada (borra tu propia membresía). **Chat completo.** **Responder una pregunta** (31/10): `@PreAuthorize("@eventSecurity.canAnswerQuestion(#questionId, authentication)")`, se decide solo por el id de la pregunta (el `{id}` del evento en la URL es ruteo, no autoriza); lectura acotada `EventQuestionDao.findEventCreatorId` (una columna: `event.creator_id`). `EventQuestionService.answer(questionId, text)` ya no recibe el evento (usa el de la pregunta); se borró `AnswerResult.NOT_ALLOWED` (queda `NOT_FOUND` por si un admin borra la pregunta justo en el medio). (30/10, 2ª pasada) `EventChatServiceImpl.send/findMessages` ya no vuelven a chequear la membresía: se borró `ChatSendResult.NOT_ALLOWED`; `findMessages` devuelve `List` (no `Optional`); `send` lanza `EventNotFoundException` si el evento no existe. Probado en la app: miembro 200/204, no miembro y ex-miembro 404.
+   **Admin tipo A resuelto** (30/10): quién suspende / quita el rol a quién ahora es `@PreAuthorize` (`AdminSecurity.canSuspend`,
+   `canRevokeAdmin`; no a sí mismo, a otro admin solo un superadmin, id inexistente = denegado). Se borraron
+   `UserService.suspendByAdmin`, `InvalidAdminActionException`, su handler en `ErrorAdvice` y el cartel `adminError`;
+   `revokeAdmin` ya no recibe `callerId`. En el área de admin un permiso denegado responde **403** (handler local en
+   `AdminController` + `errors/403.jsp` nueva; en el resto de la app es 404 a propósito). **Admin tipo B resuelto** (30/10): un admin no aprueba/rechaza ni resuelve reportes (descartar, pedir cambios, dar
+   de baja) de SU propio evento ahora es `@PreAuthorize` (`AdminSecurity.canModerateEvent` / `canResolveReport`). Para los reportes
+   la regla mira solo de quién es el evento, **no el estado del reporte** (uno ya resuelto por otro admin sigue llegando al
+   service y muestra su cartel; id inexistente = 403); usa una lectura acotada nueva, `ModerationService.findReportTarget` →
+   `EventReportDao.findTargetById` (proyección `ReportTarget`, 2 columnas). Se borraron los 5 chequeos `OWN_EVENT` de los
+   services, `EventApprovalResult.OWN_EVENT`, `ReportResolutionResult.OWN_EVENT` y sus carteles; `EventService.approve/reject` ya
+   no reciben `adminUserId`. Las 3 JSP de admin esconden los botones en eventos propios (id leído de
+   `<sec:authentication property="principal.id"/>`) y muestran la nota. `ReportResult.OWN_EVENT` (un usuario no reporta su propio
+   evento) **no se tocó**. La invariante "un admin no se suspende a sí mismo" sigue garantizada por `canSuspend` (target ≠ yo) y por
+   `canResolveReport` (el organizador suspendido vía `suspendOrganizer` nunca es el admin). Siguen los chequeos de dueño
+   duplicados (ver punto 1).
    ~~`EventController.detail`~~ **Resuelto**: `@PreAuthorize("@eventSecurity.canView(#id, authentication)")`; `canView` acepta
    anónimos; `ErrorAdvice.accessDenied` relanza si no hay sesión (Spring Security manda a /login y vuelve; probado) y da 404
    con sesión. `requireViewable` se borró. La consulta repetida de la inscripción en eventos privados (regla + handler) **la

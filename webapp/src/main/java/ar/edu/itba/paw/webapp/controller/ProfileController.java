@@ -366,7 +366,7 @@ public class ProfileController {
         for (final Event event : createdEvents) {
             if (event.isRequiresApproval()) {
                 pendingCountsByEventId.put(event.getId(),
-                        registrationService.countPendingByEvent(event.getId(), currentUser.getId()));
+                        registrationService.countPendingByEvent(event.getId()));
             }
         }
         mav.addObject("pendingCountsByEventId", pendingCountsByEventId);
@@ -396,7 +396,7 @@ public class ProfileController {
         final ModelAndView mav = new ModelAndView("auth/inscriptos");
         mav.addObject("user", currentUser);
         mav.addObject("event", event);
-        mav.addObject("pendingRegistrations", registrationService.findPendingByEvent(id, currentUser.getId()));
+        mav.addObject("pendingRegistrations", registrationService.findPendingByEvent(id));
         mav.addObject("approved", approvedParam != null);
         mav.addObject("rejected", rejectedParam != null);
         mav.addObject("fullNotice", fullParam != null);
@@ -414,9 +414,8 @@ public class ProfileController {
 
     @PreAuthorize("@eventSecurity.isOwnerOfRegistrationEvent(#id, #registrationId, authentication)")
     @RequestMapping(value = "/perfil/eventos/{id}/inscriptos/{registrationId}/aceptar", method = RequestMethod.POST)
-    public ModelAndView approveRegistration(@PathVariable final long id, @PathVariable final long registrationId,
-                                             @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final ApprovalResult result = registrationService.approve(registrationId, currentUser.getId());
+    public ModelAndView approveRegistration(@PathVariable final long id, @PathVariable final long registrationId) {
+        final ApprovalResult result = registrationService.approve(registrationId);
         return new ModelAndView("redirect:/perfil/eventos/" + id + "/inscriptos" + approveParam(result.getStatus()));
     }
 
@@ -433,18 +432,16 @@ public class ProfileController {
 
     @PreAuthorize("@eventSecurity.isOwnerOfRegistrationEvent(#id, #registrationId, authentication)")
     @RequestMapping(value = "/perfil/eventos/{id}/inscriptos/{registrationId}/rechazar", method = RequestMethod.POST)
-    public ModelAndView rejectRegistration(@PathVariable final long id, @PathVariable final long registrationId,
-                                            @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final boolean rejected = registrationService.reject(registrationId, currentUser.getId());
+    public ModelAndView rejectRegistration(@PathVariable final long id, @PathVariable final long registrationId) {
+        final boolean rejected = registrationService.reject(registrationId);
         return new ModelAndView("redirect:/perfil/eventos/" + id + "/inscriptos" + (rejected ? "?rejected" : ""));
     }
 
     // Volver de "Ver inscriptos" (donde esta el boton Revocar) a esa misma lista.
     @PreAuthorize("@eventSecurity.isOwnerOfRegistrationEvent(#id, #registrationId, authentication)")
     @RequestMapping(value = "/perfil/eventos/{id}/inscriptos/{registrationId}/revocar", method = RequestMethod.POST)
-    public ModelAndView revokeRegistration(@PathVariable final long id, @PathVariable final long registrationId,
-                                            @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final boolean revoked = registrationService.revoke(registrationId, currentUser.getId());
+    public ModelAndView revokeRegistration(@PathVariable final long id, @PathVariable final long registrationId) {
+        final boolean revoked = registrationService.revoke(registrationId);
         return new ModelAndView("redirect:/eventos/" + id + "/inscriptos" + (revoked ? "?revoked" : ""));
     }
 
@@ -471,7 +468,7 @@ public class ProfileController {
             return inviteFormView(event, currentUser, form, errors, false, false);
         }
         // Que el evento sea privado (y de quien invita) ya lo valida el service: si no, NOT_ALLOWED.
-        final EventInvitationResult result = eventInvitationService.invite(id, currentUser.getId(), form.getEmail());
+        final EventInvitationResult result = eventInvitationService.invite(id, form.getEmail());
         if (result == EventInvitationResult.NOT_ALLOWED) {
             return new ModelAndView("redirect:/perfil/eventos");
         }
@@ -493,7 +490,7 @@ public class ProfileController {
 
     private ModelAndView inviteFormView(final Event event, final User currentUser, final InviteForm form,
                                          final BindingResult errors, final boolean sent, final boolean alreadyInvited) {
-        final List<EventInvitation> invitations = eventInvitationService.findByEvent(event.getId(), currentUser.getId());
+        final List<EventInvitation> invitations = eventInvitationService.findByEvent(event.getId());
         final ModelAndView mav = new ModelAndView("auth/invitar");
         mav.addObject("user", currentUser);
         mav.addObject("event", event);

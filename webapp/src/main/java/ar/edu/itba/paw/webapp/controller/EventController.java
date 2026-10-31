@@ -368,8 +368,7 @@ public class EventController {
     // corrio con @Valid, (tiene validaciones con srvice).
     @PreAuthorize("@eventSecurity.isOwner(#id, authentication)")
     @RequestMapping(value = "/eventos/{id}/editar", method = RequestMethod.POST)
-    public ModelAndView editar(@PathVariable final long id, @Valid final EventForm form, final BindingResult errors,
-                                @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
+    public ModelAndView editar(@PathVariable final long id, @Valid final EventForm form, final BindingResult errors) {
         accessChecker.getEditableEvent(id);
         if (errors.hasErrors()) {
             return editarFormWithErrors(id, form, errors, null);
@@ -388,7 +387,7 @@ public class EventController {
         final EventDTO dto = form.toDTO();
         dto.setNewImages(newImages);
         try {
-            eventService.update(id, dto, currentUser.getId());
+            eventService.update(id, dto);
         } catch (final InvalidImageException e) {
             return editarFormWithErrors(id, form, errors, message(e.getMessageKey()));
         } catch (final InvalidEventException e) {
@@ -417,8 +416,8 @@ public class EventController {
 
     @PreAuthorize("@eventSecurity.isOwner(#id, authentication)")
     @RequestMapping(value = "/eventos/{id}/cancelar", method = RequestMethod.POST)
-    public ModelAndView cancelar(@PathVariable final long id, @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        eventService.cancel(id, currentUser.getId());
+    public ModelAndView cancelar(@PathVariable final long id) {
+        eventService.cancel(id);
         return new ModelAndView("redirect:/perfil/eventos");
     }
 }

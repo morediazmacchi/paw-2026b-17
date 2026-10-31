@@ -1,15 +1,15 @@
 package ar.edu.itba.paw.webapp.controller;
 
+import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.model.User;
-import ar.edu.itba.paw.services.UserService;
+import ar.edu.itba.paw.webapp.auth.PlancitoUserDetails;
 import ar.edu.itba.paw.model.exception.EventCancelledException;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
-import ar.edu.itba.paw.model.exception.InvalidAdminActionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -19,9 +19,11 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.servlet.ModelAndView;
-import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.security.Principal;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.stream.Collectors;
 
 /**
  * Maneja los errores de TODOS los controllers desde un solo lugar.
@@ -31,21 +33,23 @@ public class ErrorAdvice {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ErrorAdvice.class);
 
-    private final UserService userService;
-
-    @Autowired
-    public ErrorAdvice(final UserService userService) {
-        this.userService = userService;
+    // Corre antes de CUALQUIER metodo de CUALQUIER controller (ControllerAdvice
+    // es global) y deja "currentUser" en el Model de cada request. Sale del principal de la sesion
+    // (PlancitoUserDetails: id, email, nombre y roles, armado una sola vez en el login), sin ir a la
+    // base. Es un User "de sesion": solo trae esos cuatro datos. El nombre es el del login: si se edita
+    // el perfil se ve el viejo hasta el proximo login. Sin sesion es null.
+    @ModelAttribute("currentUser")
+    public User currentUserFromPrincipal(final Authentication authentication) {
+        return PlancitoUserDetails.from(authentication).map(ErrorAdvice::toUser).orElse(null);
     }
 
-    // Corre antes de CUALQUIER metodo de CUALQUIER controller (ControllerAdvice
-    // es global) y deja "currentUser" en el Model de cada request.
-    @ModelAttribute("currentUser")
-    public User currentUserFromPrincipal(final Principal principal) {
-        if (principal == null) {
-            return null;
-        }
-        return userService.findByEmail(principal.getName()).orElse(null);
+    private static User toUser(final PlancitoUserDetails principal) {
+        final User user = new User(principal.getEmail(), principal.getName());
+        user.setId(principal.getId());
+        user.setRoles(Arrays.stream(Role.values())
+                .filter(principal::hasRole)
+                .collect(Collectors.toCollection(HashSet::new)));
+        return user;
     }
 
     @ExceptionHandler(EventNotFoundException.class)
@@ -71,16 +75,6 @@ public class ErrorAdvice {
     @ExceptionHandler(EventCancelledException.class)
     public ModelAndView eventCancelled(final EventCancelledException e) {
         return new ModelAndView("redirect:/perfil/eventos");
-    }
-
-    // La UI ya esconde el boton en todos los casos (ver UserServiceImpl.suspendByAdmin()/
-    // revokeAdmin()): esto solo se llega con un POST armado a mano. adminError es el
-    // mismo flash attribute que ya leia admin/usuarios.jsp cuando el chequeo vivia en
-    // cada controller por separado.
-    @ExceptionHandler(InvalidAdminActionException.class)
-    public ModelAndView invalidAdminAction(final InvalidAdminActionException e, final RedirectAttributes redirectAttributes) {
-        redirectAttributes.addFlashAttribute("adminError", e.getReason().name());
-        return new ModelAndView("redirect:/admin/usuarios");
     }
 
     // Un @PathVariable numerico (ej. "long id") que llega con algo que no es

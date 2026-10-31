@@ -136,6 +136,39 @@ public class RegistrationJpaDaoTest {
                         + " AND email = '" + EMAIL + "' AND name = '" + NAME + "' AND status = 'CONFIRMED'"));
     }
 
+    @Test
+    public void testCreateWithAUserBuiltFromTheSessionStoresItsId() {
+        // Arrange
+        final User fromSession = new User(EMAIL, NAME);
+        fromSession.setId(userId);
+        final Registration toCreate = new Registration(em.getReference(Event.class, eventId), fromSession, EMAIL, NAME, RegistrationStatus.CONFIRMED);
+
+        // Act
+        final Registration created = registrationDao.create(toCreate);
+
+        // Assert
+        final Long storedUserId = jdbcTemplate.queryForObject(
+                "SELECT user_id FROM registration WHERE id = ?", Long.class, created.getId());
+        assertEquals(userId, storedUserId.longValue());
+    }
+
+    // Los avisos por mail (@Async, otro hilo y sin sesion) leen el id del usuario de la inscripcion:
+    // tiene que poder leerse aunque la relacion sea solo una referencia.
+    @Test
+    public void testCreateReturnsARegistrationWhoseUserIdIsReadableOutsideTheSession() {
+        // Arrange
+        final User fromSession = new User(EMAIL, NAME);
+        fromSession.setId(userId);
+        final Registration toCreate = new Registration(em.getReference(Event.class, eventId), fromSession, EMAIL, NAME, RegistrationStatus.CONFIRMED);
+
+        // Act
+        final Registration created = registrationDao.create(toCreate);
+        em.clear();
+
+        // Assert
+        assertEquals(Long.valueOf(userId), created.getUserId());
+    }
+
     @Test(expected = DataAccessException.class)
     public void testCreateWithDuplicateEventAndEmailThrowsDataAccessException() {
         // Arrange

@@ -2,7 +2,6 @@ package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.User;
-import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import ar.edu.itba.paw.persistence.FavoriteDao;
 import org.junit.Before;
 import org.junit.Test;
@@ -17,7 +16,6 @@ import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.when;
 
@@ -54,9 +52,6 @@ public class FavoriteServiceImplTest {
         // Arrange: User no tiene equals(), asi que se arma una sola instancia y se
         // reusa -- dos someUser() serian "distintos" para el stub de Mockito.
         final User user = someUser();
-        final Event event = new Event();
-        event.setId(EVENT_ID);
-        when(accessChecker.getViewableEvent(EVENT_ID, user)).thenReturn(event);
         when(favoriteDao.add(USER_ID, EVENT_ID)).thenReturn(true);
 
         // Act
@@ -70,9 +65,6 @@ public class FavoriteServiceImplTest {
     public void testAddReturnsFalseWhenTheEventWasAlreadyAFavorite() {
         // Arrange
         final User user = someUser();
-        final Event event = new Event();
-        event.setId(EVENT_ID);
-        when(accessChecker.getViewableEvent(EVENT_ID, user)).thenReturn(event);
         when(favoriteDao.add(USER_ID, EVENT_ID)).thenReturn(false);
 
         // Act
@@ -80,16 +72,6 @@ public class FavoriteServiceImplTest {
 
         // Assert
         assertFalse(result);
-    }
-
-    @Test
-    public void testAddThrowsEventNotFoundExceptionWhenTheUserCannotViewTheEvent() {
-        // Arrange
-        final User user = someUser();
-        when(accessChecker.getViewableEvent(EVENT_ID, user)).thenThrow(new EventNotFoundException(EVENT_ID));
-
-        // Act & Assert
-        assertThrows(EventNotFoundException.class, () -> favoriteService.add(user, EVENT_ID));
     }
 
     @Test

@@ -3,6 +3,7 @@ package ar.edu.itba.paw.services;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventReport;
 import ar.edu.itba.paw.model.ReportStatus;
+import ar.edu.itba.paw.model.ReportTarget;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import ar.edu.itba.paw.persistence.EventReportDao;
@@ -18,6 +19,8 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
@@ -201,19 +204,6 @@ public class ModerationServiceImplTest {
         assertEquals(ReportResolutionResult.RESOLVED, result);
     }
 
-    @Test
-    public void testRequestChangesOnTheAdminsOwnEventReturnsOwnEvent() {
-        // Arrange
-        reportOf(somePendingReport());
-        eventExists(someEvent());
-
-        // Act
-        final ReportResolutionResult result = moderationService.requestChanges(REPORT_ID, CREATOR_ID, CHANGES_MESSAGE);
-
-        // Assert
-        assertEquals(ReportResolutionResult.OWN_EVENT, result);
-    }
-
     // ---- findChangesRequestedPage() ----
 
     @Test
@@ -284,7 +274,6 @@ public class ModerationServiceImplTest {
     public void testDismissResolvesAPendingReportAsDismissed() {
         // Arrange
         reportOf(somePendingReport());
-        eventExists(someEvent());
         when(reportDao.resolve(REPORT_ID, ReportStatus.DISMISSED, ADMIN_ID)).thenReturn(true);
 
         // Act
@@ -299,7 +288,6 @@ public class ModerationServiceImplTest {
         // Arrange
         // El creador ya corrigio: el admin descarta el pedido de cambios.
         reportOf(someChangesRequestedReport());
-        eventExists(someEvent());
         when(reportDao.resolve(REPORT_ID, ReportStatus.DISMISSED, ADMIN_ID)).thenReturn(true);
 
         // Act
@@ -333,19 +321,6 @@ public class ModerationServiceImplTest {
 
         // Assert
         assertEquals(ReportResolutionResult.NOT_FOUND, result);
-    }
-
-    @Test
-    public void testDismissOnTheAdminsOwnEventReturnsOwnEvent() {
-        // Arrange
-        reportOf(somePendingReport());
-        eventExists(someEvent());
-
-        // Act
-        final ReportResolutionResult result = moderationService.dismiss(REPORT_ID, CREATOR_ID);
-
-        // Assert
-        assertEquals(ReportResolutionResult.OWN_EVENT, result);
     }
 
     // ---- removeEvent() ----
@@ -442,19 +417,6 @@ public class ModerationServiceImplTest {
         assertEquals(ReportResolutionResult.RESOLVED, result);
     }
 
-    @Test
-    public void testRemoveEventOnTheAdminsOwnEventReturnsOwnEvent() {
-        // Arrange
-        reportOf(somePendingReport());
-        eventExists(someEvent());
-
-        // Act
-        final ReportResolutionResult result = moderationService.removeEvent(REPORT_ID, CREATOR_ID, false);
-
-        // Assert
-        assertEquals(ReportResolutionResult.OWN_EVENT, result);
-    }
-
     // ---- findPendingPage() ----
 
     @Test
@@ -517,5 +479,32 @@ public class ModerationServiceImplTest {
         assertEquals(1, result.getPage());
         assertEquals(0, result.getTotalPages());
         assertTrue(result.getContent().isEmpty());
+    }
+
+    // ---- findReportTarget() ----
+
+    @Test
+    public void testFindReportTargetReturnsWhatTheDaoFinds() {
+        // Arrange
+        final ReportTarget target = new ReportTarget(EVENT_ID, CREATOR_ID);
+        when(reportDao.findTargetById(REPORT_ID)).thenReturn(Optional.of(target));
+
+        // Act
+        final Optional<ReportTarget> result = moderationService.findReportTarget(REPORT_ID);
+
+        // Assert
+        assertSame(target, result.get());
+    }
+
+    @Test
+    public void testFindReportTargetOfAReportThatDoesNotExistIsEmpty() {
+        // Arrange
+        when(reportDao.findTargetById(REPORT_ID)).thenReturn(Optional.empty());
+
+        // Act
+        final Optional<ReportTarget> result = moderationService.findReportTarget(REPORT_ID);
+
+        // Assert
+        assertFalse(result.isPresent());
     }
 }

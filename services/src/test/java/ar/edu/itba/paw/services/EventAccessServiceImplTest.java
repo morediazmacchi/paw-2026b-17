@@ -133,17 +133,6 @@ public class EventAccessServiceImplTest {
         assertFalse(result);
     }
 
-    // ---- canView() sin inscripcion ----
-
-    @Test
-    public void testCanViewWithoutRegistrationIsTrueForAPublicEvent() {
-        // Act
-        final boolean result = accessService.canView(event(EventVisibility.PUBLIC), null, Optional.empty());
-
-        // Assert
-        assertTrue(result);
-    }
-
     // ---- canView() con la proyeccion EventAccessSummary (la que usa el acceso a imagenes) ----
 
     @Test
@@ -210,45 +199,6 @@ public class EventAccessServiceImplTest {
         when(eventInvitationService.isInvited(EVENT_ID, OTHER_ID)).thenReturn(false);
 
         assertFalse(accessService.canView(event(EventVisibility.PRIVATE), OTHER_ID, false));
-    }
-
-    // ---- getViewableEvent() ----
-
-    @Test
-    public void testGetViewableEventReturnsThePublicEvent() {
-        // Arrange
-        final Event event = event(EventVisibility.PUBLIC);
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event));
-
-        // Act
-        final Event result = accessService.getViewableEvent(EVENT_ID, user(OTHER_ID));
-
-        // Assert
-        assertSame(event, result);
-    }
-
-    @Test(expected = EventNotFoundException.class)
-    public void testGetViewableEventWhenTheEventDoesNotExistThrowsEventNotFoundException() {
-        // Arrange
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.empty());
-
-        // Act
-        accessService.getViewableEvent(EVENT_ID, user(OTHER_ID));
-
-        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
-    }
-
-    @Test(expected = EventNotFoundException.class)
-    public void testGetViewableEventOfAPrivateEventTheUserCannotSeeThrowsEventNotFoundException() {
-        // Arrange
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event(EventVisibility.PRIVATE)));
-        when(registrationService.findByEventAndUserId(EVENT_ID, OTHER_ID)).thenReturn(Optional.empty());
-        when(eventInvitationService.isInvited(EVENT_ID, OTHER_ID)).thenReturn(false);
-
-        // Act
-        accessService.getViewableEvent(EVENT_ID, user(OTHER_ID));
-
-        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
 
     // ---- getEditableEvent() ----

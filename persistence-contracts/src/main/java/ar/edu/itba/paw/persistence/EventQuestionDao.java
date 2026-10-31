@@ -17,6 +17,11 @@ public interface EventQuestionDao {
 
     long countByEvent(long eventId);
 
+    // Lectura acotada para autorizar (ver EventSecurity.canAnswerQuestion): solo el id del
+    // organizador del evento al que pertenece la pregunta, sin cargar la pregunta ni el evento.
+    // Vacio si la pregunta no existe (o su evento no tiene organizador cargado).
+    Optional<Long> findEventCreatorId(long questionId);
+
     // true solo si ESTA llamada la respondio: si ya tenia respuesta devuelve
     // false y no la pisa (mismo truco que markReminderSent).
     boolean answer(long id, String answer, Date when);

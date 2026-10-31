@@ -39,6 +39,9 @@ public class EventRegistrationController {
         this.moderationService = moderationService;
     }
 
+    // Quien se puede anotar (evento aprobado y, si es privado, con invitacion; sin excepcion de
+    // admin) lo decide @PreAuthorize antes de entrar (ver EventSecurity.canRegister).
+    @PreAuthorize("@eventSecurity.canRegister(#id, authentication)")
     @RequestMapping(value = "/eventos/{id}/quiero-ir", method = RequestMethod.POST)
     public ModelAndView rsvp(@PathVariable final long id,
                               @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
@@ -101,11 +104,12 @@ public class EventRegistrationController {
         return new ModelAndView("redirect:/eventos/" + id);
     }
 
+    // Si no podes ver el evento, tampoco podes guardarlo: lo decide @PreAuthorize antes de entrar.
+    @PreAuthorize("@eventSecurity.canView(#id, authentication)")
     @RequestMapping(value = "/eventos/{id}/favorito", method = RequestMethod.POST)
     public ModelAndView addFavorite(@PathVariable final long id,
                                      @RequestParam(value = "returnTo", required = false) final String returnTo,
                                      @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        // El chequeo de acceso ya lo hace favoriteService.add() el mismo.
         favoriteService.add(currentUser, id);
         return new ModelAndView("redirect:" + safeReturnTo(returnTo, id));
     }

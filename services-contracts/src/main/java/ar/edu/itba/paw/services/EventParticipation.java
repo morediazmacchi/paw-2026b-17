@@ -1,7 +1,7 @@
 // La relacion de una persona con un evento, ya resuelta para el detalle: si esta inscripta (y en
 // que estado), si es la dueña, y si la pantalla le tiene que ofrecer inscribirse o solo mostrarle
-// el evento. Lo devuelve RegistrationService.findParticipation(); las reglas viven en el service,
-// junto a register(), para que el detalle no repita en el controller lo que register() decide.
+// el evento. Lo devuelve RegistrationService.findParticipation(); las reglas viven en el service
+// (las mismas de EventSecurity.canRegister) para que el detalle no las repita en el controller.
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.RegistrationStatus;
@@ -50,13 +50,13 @@ public class EventParticipation {
     }
 
     // Un admin puede VER un evento todavia no aprobado (o ya rechazado) para revisarlo, pero no
-    // inscribirse: register() lo trata como un id inexistente.
+    // inscribirse: @PreAuthorize (EventSecurity.canRegister) lo trata como un 404.
     public boolean isAdminReviewOnly() {
         return adminReviewOnly;
     }
 
     // Un admin puede VER un evento privado para moderarlo, pero no inscribirse si nadie lo invito:
-    // register() lo trata como un id inexistente. La pantalla no le ofrece un boton que terminaria en 404.
+    // lo trata como un 404 (con invitacion si puede). La pantalla no le ofrece un boton que terminaria en 404.
     public boolean isViewOnly() {
         return viewOnly;
     }

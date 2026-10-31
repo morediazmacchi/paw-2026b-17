@@ -28,12 +28,6 @@ public class EventAccessServiceImpl implements EventAccessService {
         this.eventInvitationService = eventInvitationService;
     }
 
-    @Override
-    public boolean canView(final EventAccessData event, final User user,
-                           final Optional<Registration> myRegistration) {
-        return isViewable(event, userIdOf(user), isAdmin(user), myRegistration);
-    }
-
     private static Long userIdOf(final User user) {
         return user == null ? null : user.getId();
     }
@@ -88,16 +82,6 @@ public class EventAccessServiceImpl implements EventAccessService {
                 ? Optional.empty()
                 : registrationService.findByEventAndUserId(event.getId(), userId);
         return isViewable(event, userId, isAdmin, myRegistration);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public Event getViewableEvent(final long eventId, final User user) {
-        final Event event = eventService.findById(eventId).orElseThrow(() -> new EventNotFoundException(eventId));
-        if (!canView(event, user)) {
-            throw new EventNotFoundException(eventId);
-        }
-        return event;
     }
 
     @Override

@@ -471,12 +471,13 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Async
     @Override
-    public void notifyNewQuestion(final Event event, final EventQuestion question) {
+    public void notifyNewQuestion(final Event event, final EventQuestion question,
+                                  final String askerName, final String askerEmail) {
         try {
             final Locale locale = localeForUserId(event.getCreatorId());
             final Map<String, Object> variables = eventVariables(event, locale);
             variables.put("personName", displayName(null, event.getCreatorEmail()));
-            variables.put("askerName", displayName(question.getAskerName(), question.getAskerEmail()));
+            variables.put("askerName", displayName(askerName, askerEmail));
             variables.put("questionText", question.getText());
             // Directo a la sección de preguntas del detalle.
             variables.put("eventUrl", baseUrl + "/eventos/" + event.getId() + "#preguntas");
@@ -494,16 +495,17 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Async
     @Override
-    public void notifyQuestionAnswered(final Event event, final EventQuestion question) {
+    public void notifyQuestionAnswered(final Event event, final EventQuestion question,
+                                       final String askerName, final String askerEmail) {
         try {
             final Locale locale = localeForUserId(question.getUserId());
             final Map<String, Object> variables = eventVariables(event, locale);
-            variables.put("personName", displayName(question.getAskerName(), question.getAskerEmail()));
+            variables.put("personName", displayName(askerName, askerEmail));
             variables.put("questionText", question.getText());
             variables.put("answerText", question.getAnswer());
             variables.put("eventUrl", baseUrl + "/eventos/" + event.getId() + "#preguntas");
 
-            mailService.send(question.getAskerEmail(),
+            mailService.send(askerEmail,
                     "question-answered",
                     "mail.questionAnswered.subject",
                     new Object[]{ event.getTitle() },

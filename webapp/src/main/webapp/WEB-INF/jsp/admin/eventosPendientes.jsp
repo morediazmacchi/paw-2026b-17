@@ -1,6 +1,7 @@
 <%@ page contentType="text/html;charset=UTF-8" pageEncoding="UTF-8" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
+<%@ taglib prefix="sec" uri="http://www.springframework.org/security/tags" %>
 <%@ taglib prefix="paw" tagdir="/WEB-INF/tags" %>
 <paw:layout titleCode="admin.pendingEvents.title">
 <jsp:attribute name="head">
@@ -29,9 +30,6 @@
                     <c:when test="${adminApprovalError == 'ALREADY_DECIDED'}">
                         <spring:message code="admin.pendingEvents.alreadyDecided"/>
                     </c:when>
-                    <c:when test="${adminApprovalError == 'OWN_EVENT'}">
-                        <spring:message code="admin.pendingEvents.ownEvent"/>
-                    </c:when>
                     <c:otherwise>
                         <spring:message code="admin.pendingEvents.invalid"/>
                     </c:otherwise>
@@ -39,6 +37,8 @@
             </p>
         </c:if>
 
+        <%-- El id del admin que mira: sale del principal de la sesion (PlancitoUserDetails). --%>
+        <sec:authentication property="principal.id" var="myId"/>
         <c:choose>
             <c:when test="${empty pendingEvents}">
                 <p class="empty-state"><spring:message code="admin.pendingEvents.empty"/></p>
@@ -68,12 +68,20 @@
                                 <td><paw:date value="${pendingEvent.createdAt}" format="dateTimeTable"/></td>
                                 <td class="admin-report-actions">
                                     <a class="btn btn-medium" href="<c:url value='/eventos/${pendingEvent.id}'/>"><c:out value="${viewEventButtonLabel}"/></a>
-                                    <form action="<c:url value='/admin/eventos-pendientes/${pendingEvent.id}/aprobar'/>" method="post">
-                                        <paw:button text="${approveButtonLabel}"/>
-                                    </form>
-                                    <button type="button" class="btn btn-medium btn-danger" data-open-modal="rejectModal-${pendingEvent.id}">
-                                        <c:out value="${rejectButtonLabel}"/>
-                                    </button>
+                                    <c:choose>
+                                        <%-- Un admin no revisa su propio evento: no se le ofrecen los botones. --%>
+                                        <c:when test="${pendingEvent.creatorId == myId}">
+                                            <em><spring:message code="admin.pendingEvents.ownEvent"/></em>
+                                        </c:when>
+                                        <c:otherwise>
+                                            <form action="<c:url value='/admin/eventos-pendientes/${pendingEvent.id}/aprobar'/>" method="post">
+                                                <paw:button text="${approveButtonLabel}"/>
+                                            </form>
+                                            <button type="button" class="btn btn-medium btn-danger" data-open-modal="rejectModal-${pendingEvent.id}">
+                                                <c:out value="${rejectButtonLabel}"/>
+                                            </button>
+                                        </c:otherwise>
+                                    </c:choose>
                                 </td>
                             </tr>
                         </c:forEach>

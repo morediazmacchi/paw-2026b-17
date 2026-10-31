@@ -11,7 +11,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Collections;
 import java.util.List;
 
 @Service
@@ -42,14 +41,13 @@ public class EventInvitationServiceImpl implements EventInvitationService {
 
     @Override
     @Transactional
-    public EventInvitationResult invite(final long eventId, final long creatorId, final String inviteeEmail) {
+    public EventInvitationResult invite(final long eventId, final String inviteeEmail) {
         // Con lock: dos invitaciones simultaneas no pueden pasar el cupo (cada una
         // reserva un lugar y se cuenta contra el cupo).
         final Event event = eventDao.findByIdForUpdate(eventId).orElse(null);
         // Un evento cancelado o que ya paso tampoco invita a nadie (saldria el mail de
         // invitacion a algo que ya no va a pasar, o que ya paso).
-        if (event == null || event.isCancelled() || !event.isPrivate()
-                || !Long.valueOf(creatorId).equals(event.getCreatorId()) || event.isFinished()) {
+        if (event == null || event.isCancelled() || !event.isPrivate() || event.isFinished()) {
             return EventInvitationResult.NOT_ALLOWED;
         }
 
@@ -92,11 +90,8 @@ public class EventInvitationServiceImpl implements EventInvitationService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<EventInvitation> findByEvent(final long eventId, final long creatorId) {
-        return eventDao.findById(eventId)
-                .filter(event -> Long.valueOf(creatorId).equals(event.getCreatorId()))
-                .map(event -> invitationDao.findByEvent(eventId))
-                .orElse(Collections.emptyList());
+    public List<EventInvitation> findByEvent(final long eventId) {
+        return invitationDao.findByEvent(eventId);
     }
 
     @Override

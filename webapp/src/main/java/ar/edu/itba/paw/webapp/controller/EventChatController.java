@@ -9,6 +9,7 @@ import ar.edu.itba.paw.services.EventChatService;
 import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.webapp.form.ChatMessageForm;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -22,9 +23,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
-import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 
 // Grupo de chat de un evento. Sin WebSockets: la pagina pide los mensajes nuevos cada
 // pocos segundos (js/event-chat.js) y los recibe como un fragmento de HTML ya escapado.
@@ -42,7 +41,9 @@ public class EventChatController {
         this.eventService = eventService;
     }
 
-    // Unirse al grupo. Si sale bien, directo al chat.
+    // Unirse al grupo. Si sale bien, directo al chat. Solo con el lugar confirmado en el evento: lo
+    // decide @PreAuthorize antes de entrar (ver EventSecurity.isConfirmedAttendee).
+    @PreAuthorize("@eventSecurity.isConfirmedAttendee(#id, authentication)")
     @RequestMapping(value = "/eventos/{id}/chat/unirse", method = RequestMethod.POST)
     public ModelAndView join(@PathVariable final long id,
                              @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
@@ -65,47 +66,43 @@ public class EventChatController {
         return new ModelAndView("redirect:/eventos/" + id);
     }
 
-    // La pantalla del chat. Quien no es miembro activo (nunca se unio, se dio de baja o
-    // lo sacaron) vuelve al detalle del evento.
+    // La pantalla del chat. Es solo para miembros: quien no es miembro activo (nunca se unio, se dio
+    // de baja o lo sacaron) lo corta @PreAuthorize antes de entrar (ver EventSecurity.isChatMember) y
+    // ve el 404.
+    @PreAuthorize("@eventSecurity.isChatMember(#id, authentication)")
     @RequestMapping(value = "/eventos/{id}/chat", method = RequestMethod.GET)
     public ModelAndView chat(@PathVariable final long id,
                              @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final Event event = eventService.findByIdOrThrow(id);
-        final Optional<List<ChatMessage>> messages = chatService.findMessages(id, currentUser.getId(), 0);
-        if (!messages.isPresent()) {
-            return new ModelAndView("redirect:/eventos/" + id);
-        }
+        final List<ChatMessage> messages = chatService.findMessages(id, currentUser.getId(), 0);
         final ModelAndView mav = new ModelAndView("events/chat");
         mav.addObject("event", event);
-        mav.addObject("messages", messages.get());
-        mav.addObject("lastId", lastId(messages.get()));
+        mav.addObject("messages", messages);
+        mav.addObject("lastId", lastId(messages));
         mav.addObject("currentUserId", currentUser.getId());
         mav.addObject("chatClosed", event.isCancelled() || event.isFinished());
         return mav;
     }
 
-    // Los mensajes posteriores a "despues", como fragmento de HTML (lo pide el JS cada
-    // pocos segundos). 403 si ya no es miembro: el JS deja de preguntar.
+    // Los mensajes posteriores a "despues", como fragmento de HTML (lo pide el JS cada pocos
+    // segundos). Solo para miembros: @PreAuthorize corta con 404 a quien ya no lo es (ver
+    // EventSecurity.isChatMember) y el JS (event-chat.js) deja de preguntar al recibir 404 o 403.
+    @PreAuthorize("@eventSecurity.isChatMember(#id, authentication)")
     @RequestMapping(value = "/eventos/{id}/chat/mensajes", method = RequestMethod.GET)
     public ModelAndView messages(@PathVariable final long id,
                                  @RequestParam(value = "despues", required = false, defaultValue = "0") final long after,
-                                 @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
-                                 final HttpServletResponse response) {
-        final Optional<List<ChatMessage>> messages = chatService.findMessages(id, currentUser.getId(), after);
+                                 @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final ModelAndView mav = new ModelAndView("events/chatMessages");
         mav.addObject("currentUserId", currentUser.getId());
-        if (!messages.isPresent()) {
-            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-            mav.addObject("messages", Collections.emptyList());
-            return mav;
-        }
-        mav.addObject("messages", messages.get());
+        mav.addObject("messages", chatService.findMessages(id, currentUser.getId(), after));
         return mav;
     }
 
-    // Mandar un mensaje. El JS lo manda por XHR y mira solo el codigo de estado
-    // (204 ok, 400 invalido, 403 ya no es miembro, 409 el chat se cerro); un POST normal
+    // Mandar un mensaje. Solo para miembros: @PreAuthorize corta con 404 a quien no lo es (ver
+    // EventSecurity.isChatMember). El JS lo manda por XHR y mira solo el codigo de estado
+    // (204 ok, 400 invalido, 409 el chat se cerro, 404 ya no es miembro); un POST normal
     // (sin JS) vuelve a la pantalla del chat.
+    @PreAuthorize("@eventSecurity.isChatMember(#id, authentication)")
     @RequestMapping(value = "/eventos/{id}/chat/mensajes", method = RequestMethod.POST)
     public ModelAndView send(@PathVariable final long id, @Valid final ChatMessageForm form,
                              final BindingResult errors,
@@ -122,16 +119,11 @@ public class EventChatController {
     }
 
     private static int statusFor(final ChatSendResult result) {
-        switch (result) {
-            case SENT:
-                return HttpServletResponse.SC_NO_CONTENT;
-            case INVALID:
-                return HttpServletResponse.SC_BAD_REQUEST;
-            case CLOSED:
-                return HttpServletResponse.SC_CONFLICT;
-            default:
-                return HttpServletResponse.SC_FORBIDDEN;
-        }
+        return switch (result) {
+            case SENT -> HttpServletResponse.SC_NO_CONTENT;
+            case INVALID -> HttpServletResponse.SC_BAD_REQUEST;
+            case CLOSED -> HttpServletResponse.SC_CONFLICT;
+        };
     }
 
     private static long lastId(final List<ChatMessage> messages) {

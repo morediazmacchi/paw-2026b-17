@@ -5,7 +5,6 @@ import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.model.TokenPurpose;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.VerificationToken;
-import ar.edu.itba.paw.model.exception.InvalidAdminActionException;
 import ar.edu.itba.paw.persistence.EventInvitationDao;
 import ar.edu.itba.paw.persistence.InboxMessageDao;
 import ar.edu.itba.paw.persistence.UserDao;
@@ -22,7 +21,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -710,65 +708,7 @@ public class UserServiceImplTest {
         assertFalse(result);
     }
 
-    // ---- suspendByAdmin() ----
-
-    private static User adminWithId(final long id, final Role... roles) {
-        final User admin = new User("admin@mail.com", "Admin");
-        admin.setId(id);
-        admin.setRoles(new HashSet<>(Arrays.asList(roles)));
-        return admin;
-    }
-
-    @Test(expected = InvalidAdminActionException.class)
-    public void testSuspendByAdminThrowsWhenTargetIsTheCallerThemselves() {
-        // Arrange
-        final User caller = adminWithId(USER_ID, Role.ADMIN);
-
-        // Act
-        userService.suspendByAdmin(USER_ID, caller);
-
-        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
-    }
-
-    @Test(expected = InvalidAdminActionException.class)
-    public void testSuspendByAdminThrowsWhenTargetIsAdminAndCallerIsNotSuperadmin() {
-        // Arrange: USER_ID es el admin objetivo, el caller es otro admin comun.
-        when(userDao.findById(USER_ID)).thenReturn(Optional.of(adminWithId(USER_ID, Role.ADMIN)));
-        final User caller = adminWithId(2L, Role.ADMIN);
-
-        // Act
-        userService.suspendByAdmin(USER_ID, caller);
-
-        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
-    }
-
-    @Test
-    public void testSuspendByAdminSucceedsWhenCallerIsSuperadminAndTargetIsAdmin() {
-        // Arrange
-        when(userDao.findById(USER_ID)).thenReturn(Optional.of(adminWithId(USER_ID, Role.ADMIN)));
-        when(userDao.setSuspended(USER_ID, true)).thenReturn(true);
-        final User caller = adminWithId(2L, Role.ADMIN, Role.SUPERADMIN);
-
-        // Act
-        final boolean result = userService.suspendByAdmin(USER_ID, caller);
-
-        // Assert
-        assertTrue(result);
-    }
-
-    @Test
-    public void testSuspendByAdminSucceedsForANormalUser() {
-        // Arrange: USER_ID no es staff, el caller es un admin comun.
-        when(userDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
-        when(userDao.setSuspended(USER_ID, true)).thenReturn(true);
-        final User caller = adminWithId(2L, Role.ADMIN);
-
-        // Act
-        final boolean result = userService.suspendByAdmin(USER_ID, caller);
-
-        // Assert
-        assertTrue(result);
-    }
+    // ---- suspend() / reactivate() ----
 
     @Test
     public void testReactivateReturnsTrueWhenTheUserWasMarkedNotSuspended() {
@@ -828,7 +768,7 @@ public class UserServiceImplTest {
         when(userDao.removeRole(USER_ID, Role.ADMIN)).thenReturn(true);
 
         // Act
-        final boolean result = userService.revokeAdmin(USER_ID, 2L);
+        final boolean result = userService.revokeAdmin(USER_ID);
 
         // Assert
         assertTrue(result);
@@ -840,18 +780,10 @@ public class UserServiceImplTest {
         when(userDao.removeRole(USER_ID, Role.ADMIN)).thenReturn(false);
 
         // Act
-        final boolean result = userService.revokeAdmin(USER_ID, 2L);
+        final boolean result = userService.revokeAdmin(USER_ID);
 
         // Assert
         assertFalse(result);
-    }
-
-    @Test(expected = InvalidAdminActionException.class)
-    public void testRevokeAdminThrowsWhenTargetIsTheCallerThemselves() {
-        // Act
-        userService.revokeAdmin(USER_ID, USER_ID);
-
-        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
 
     // ---- findAll() ----

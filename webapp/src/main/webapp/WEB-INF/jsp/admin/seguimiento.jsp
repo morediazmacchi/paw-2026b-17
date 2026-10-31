@@ -1,6 +1,7 @@
 <%@ page contentType="text/html;charset=UTF-8" pageEncoding="UTF-8" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
+<%@ taglib prefix="sec" uri="http://www.springframework.org/security/tags" %>
 <%@ taglib prefix="paw" tagdir="/WEB-INF/tags" %>
 <paw:layout titleCode="admin.tracking.title">
 <jsp:attribute name="head">
@@ -24,18 +25,11 @@
     </div>
 
         <c:if test="${not empty adminReportError}">
-            <p class="alert">
-                <c:choose>
-                    <c:when test="${adminReportError == 'OWN_EVENT'}">
-                        <spring:message code="admin.reports.ownEvent"/>
-                    </c:when>
-                    <c:otherwise>
-                        <spring:message code="admin.reports.alreadyResolved"/>
-                    </c:otherwise>
-                </c:choose>
-            </p>
+            <p class="alert"><spring:message code="admin.reports.alreadyResolved"/></p>
         </c:if>
 
+        <%-- El id del admin que mira: sale del principal de la sesion (PlancitoUserDetails). --%>
+        <sec:authentication property="principal.id" var="myId"/>
         <c:choose>
             <c:when test="${empty reports}">
                 <p class="empty-state"><spring:message code="admin.tracking.empty"/></p>
@@ -89,13 +83,21 @@
                                     <c:if test="${not empty reportedEvent}">
                                         <a class="btn btn-medium" href="<c:url value='/eventos/${reportedEvent.id}'/>"><c:out value="${viewEventButtonLabel}"/></a>
                                     </c:if>
-                                    <form action="<c:url value='/admin/reportes/${report.id}/descartar'/>" method="post">
-                                        <input type="hidden" name="origen" value="seguimiento"/>
-                                        <paw:button text="${dismissButtonLabel}"/>
-                                    </form>
-                                    <button type="button" class="btn btn-medium btn-danger" data-open-modal="removeModal-${report.id}">
-                                        <c:out value="${removeButtonLabel}"/>
-                                    </button>
+                                    <c:choose>
+                                        <%-- Un admin no resuelve un reporte sobre su propio evento: no se le ofrecen los botones. --%>
+                                        <c:when test="${not empty reportedEvent and reportedEvent.creatorId == myId}">
+                                            <em><spring:message code="admin.reports.ownEvent"/></em>
+                                        </c:when>
+                                        <c:otherwise>
+                                            <form action="<c:url value='/admin/reportes/${report.id}/descartar'/>" method="post">
+                                                <input type="hidden" name="origen" value="seguimiento"/>
+                                                <paw:button text="${dismissButtonLabel}"/>
+                                            </form>
+                                            <button type="button" class="btn btn-medium btn-danger" data-open-modal="removeModal-${report.id}">
+                                                <c:out value="${removeButtonLabel}"/>
+                                            </button>
+                                        </c:otherwise>
+                                    </c:choose>
                                 </td>
                             </tr>
                         </c:forEach>

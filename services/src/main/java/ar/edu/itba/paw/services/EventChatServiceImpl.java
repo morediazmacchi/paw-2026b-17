@@ -5,7 +5,7 @@ import ar.edu.itba.paw.model.ChatGroup;
 import ar.edu.itba.paw.model.ChatMessage;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.Registration;
-import ar.edu.itba.paw.model.RegistrationStatus;
+import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.persistence.EventChatDao;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,7 +13,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Optional;
 
 @Service
 public class EventChatServiceImpl implements EventChatService {
@@ -41,14 +40,13 @@ public class EventChatServiceImpl implements EventChatService {
     @Override
     @Transactional
     public ChatJoinResult join(final long eventId, final User user) {
-        final Event event = eventService.findById(eventId).orElse(null);
-        if (event == null) {
-            return ChatJoinResult.NOT_ALLOWED;
-        }
-        final Registration registration = registrationService.findByEventAndUserId(eventId, user.getId()).orElse(null);
-        if (registration == null || registration.getStatus() != RegistrationStatus.CONFIRMED) {
-            return ChatJoinResult.NOT_ALLOWED;
-        }
+        // Que la persona pueda unirse (lugar confirmado en el evento) lo decide @PreAuthorize en el
+        // controller (ver EventSecurity.isConfirmedAttendee). La inscripcion se busca aca solo
+        // porque hace falta su id para agregar al miembro: si no esta (justo se dio de baja entre
+        // medio) es lo mismo que un id inexistente.
+        final Event event = eventService.findById(eventId).orElseThrow(() -> new EventNotFoundException(eventId));
+        final Registration registration = registrationService.findByEventAndUserId(eventId, user.getId())
+                .orElseThrow(() -> new EventNotFoundException(eventId));
         if (chatDao.isMember(eventId, user.getId())) {
             return ChatJoinResult.ALREADY_MEMBER;
         }
@@ -78,26 +76,22 @@ public class EventChatServiceImpl implements EventChatService {
 
     @Override
     @Transactional
-    public Optional<List<ChatMessage>> findMessages(final long eventId, final long userId, final long afterId) {
-        if (!chatDao.isMember(eventId, userId)) {
-            return Optional.empty();
-        }
+    public List<ChatMessage> findMessages(final long eventId, final long userId, final long afterId) {
         final List<ChatMessage> messages = afterId <= 0
                 ? chatDao.findLatest(eventId, INITIAL_MESSAGES)
                 : chatDao.findAfter(eventId, afterId, MAX_NEW_MESSAGES);
         if (afterId <= 0 || !messages.isEmpty()) {
             chatDao.markRead(eventId, userId);
         }
-        return Optional.of(messages);
+        return messages;
     }
 
     @Override
     @Transactional
     public ChatSendResult send(final long eventId, final User user, final String text) {
-        final Event event = eventService.findById(eventId).orElse(null);
-        if (event == null || !chatDao.isMember(eventId, user.getId())) {
-            return ChatSendResult.NOT_ALLOWED;
-        }
+        // Que sea miembro del grupo lo decide @PreAuthorize en el controller (ver
+        // EventSecurity.isChatMember). Un evento que no existe es lo mismo que un id inexistente.
+        final Event event = eventService.findById(eventId).orElseThrow(() -> new EventNotFoundException(eventId));
         if (isClosed(event)) {
             return ChatSendResult.CLOSED;
         }

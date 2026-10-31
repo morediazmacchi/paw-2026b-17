@@ -8,8 +8,7 @@ public enum ChatSendResult {
     INVALID,
 
     // El evento ya paso o se cancelo: el chat es de solo lectura.
-    CLOSED,
-
-    // No es miembro activo del grupo (nunca se unio, se dio de baja o lo sacaron).
-    NOT_ALLOWED
+    // (Que sea miembro activo del grupo NO es un resultado: lo decide @PreAuthorize en el
+    // controller, ver EventSecurity.isChatMember.)
+    CLOSED
 }

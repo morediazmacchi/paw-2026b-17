@@ -14,6 +14,11 @@ import ar.edu.itba.paw.webapp.form.RejectEventForm;
 import ar.edu.itba.paw.webapp.form.RequestChangesForm;
 import ar.edu.itba.paw.webapp.util.Paging;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -100,6 +105,10 @@ public class AdminController {
                 ? "redirect:/admin/reportes/seguimiento" : "redirect:/admin/reportes");
     }
 
+    // Resolver un reporte (descartar, pedir cambios, dar de baja): un admin no puede si el evento reportado
+    // es suyo (conflicto de intereses). Lo decide @PreAuthorize antes de entrar (ver
+    // AdminSecurity.canResolveReport); la pantalla ya esconde los botones en ese caso.
+    @PreAuthorize("@adminSecurity.canResolveReport(#id, authentication)")
     @RequestMapping(value = "/reportes/{id}/descartar", method = RequestMethod.POST)
     public ModelAndView descartar(@PathVariable final long id,
                                    @RequestParam(value = "origen", required = false) final String origen,
@@ -107,14 +116,13 @@ public class AdminController {
                                    final RedirectAttributes redirectAttributes) {
         final ReportResolutionResult result = moderationService.dismiss(id, currentUser.getId());
         // NOT_FOUND: otro admin ya lo resolvio mientras este lo tenia abierto.
-        // OWN_EVENT: el reporte es sobre un evento propio (conflicto de
-        // intereses).
         if (result != ReportResolutionResult.RESOLVED) {
             redirectAttributes.addFlashAttribute("adminReportError", result.name());
         }
         return redirectToOrigin(origen);
     }
 
+    @PreAuthorize("@adminSecurity.canResolveReport(#id, authentication)")
     @RequestMapping(value = "/reportes/{id}/dar-de-baja", method = RequestMethod.POST)
     public ModelAndView darDeBaja(@PathVariable final long id,
                                    @RequestParam(value = "suspenderOrganizador", required = false)
@@ -130,6 +138,7 @@ public class AdminController {
         return redirectToOrigin(origen);
     }
 
+    @PreAuthorize("@adminSecurity.canResolveReport(#id, authentication)")
     @RequestMapping(value = "/reportes/{id}/pedir-cambios", method = RequestMethod.POST)
     public ModelAndView pedirCambios(@PathVariable final long id, @Valid final RequestChangesForm form,
                                       final BindingResult errors, @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
@@ -158,29 +167,28 @@ public class AdminController {
         return mav;
     }
 
+    // Aprobar/rechazar: un admin no puede si el evento es suyo (conflicto de intereses). Lo decide
+    // @PreAuthorize antes de entrar (ver AdminSecurity.canModerateEvent); la pantalla ya esconde los botones.
+    @PreAuthorize("@adminSecurity.canModerateEvent(#id, authentication)")
     @RequestMapping(value = "/eventos-pendientes/{id}/aprobar", method = RequestMethod.POST)
-    public ModelAndView aprobarEvento(@PathVariable final long id,
-                                       @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
-                                       final RedirectAttributes redirectAttributes) {
-        final EventApprovalResult result = eventService.approve(id, currentUser.getId());
-        // ALREADY_DECIDED: otro admin ya lo aprobo o rechazo mientras este lo
-        // tenia abierto. OWN_EVENT: el evento es propio (conflicto de intereses).
+    public ModelAndView aprobarEvento(@PathVariable final long id, final RedirectAttributes redirectAttributes) {
+        final EventApprovalResult result = eventService.approve(id);
+        // ALREADY_DECIDED: otro admin ya lo aprobo o rechazo mientras este lo tenia abierto.
         if (result != EventApprovalResult.OK) {
             redirectAttributes.addFlashAttribute("adminApprovalError", result.name());
         }
         return new ModelAndView("redirect:/admin/eventos-pendientes");
     }
 
+    @PreAuthorize("@adminSecurity.canModerateEvent(#id, authentication)")
     @RequestMapping(value = "/eventos-pendientes/{id}/rechazar", method = RequestMethod.POST)
     public ModelAndView rechazarEvento(@PathVariable final long id, @Valid final RejectEventForm form,
-                                        final BindingResult errors,
-                                        @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
-                                        final RedirectAttributes redirectAttributes) {
+                                        final BindingResult errors, final RedirectAttributes redirectAttributes) {
         if (errors.hasErrors()) {
             redirectAttributes.addFlashAttribute("adminApprovalError", "INVALID");
             return new ModelAndView("redirect:/admin/eventos-pendientes");
         }
-        final EventApprovalResult result = eventService.reject(id, form.getMotivo(), currentUser.getId());
+        final EventApprovalResult result = eventService.reject(id, form.getMotivo());
         if (result != EventApprovalResult.OK) {
             redirectAttributes.addFlashAttribute("adminApprovalError", result.name());
         }
@@ -203,9 +211,13 @@ public class AdminController {
         return mav;
     }
 
+    // Quien puede suspender a quien (no a si mismo; a otro admin solo un superadmin) lo decide
+    // @PreAuthorize antes de entrar (ver AdminSecurity.canSuspend). La pantalla ya esconde el boton
+    // cuando no corresponde: esto solo se llega con un POST armado a mano.
+    @PreAuthorize("@adminSecurity.canSuspend(#id, authentication)")
     @RequestMapping(value = "/usuarios/{id}/suspender", method = RequestMethod.POST)
-    public ModelAndView suspender(@PathVariable final long id, @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        userService.suspendByAdmin(id, currentUser);
+    public ModelAndView suspender(@PathVariable final long id) {
+        userService.suspend(id);
         return new ModelAndView("redirect:/admin/usuarios");
     }
 
@@ -221,10 +233,21 @@ public class AdminController {
         return new ModelAndView("redirect:/admin/usuarios");
     }
 
+    // Nadie se saca el rol ADMIN a si mismo: lo decide @PreAuthorize (ver AdminSecurity.canRevokeAdmin).
+    @PreAuthorize("@adminSecurity.canRevokeAdmin(#id, authentication)")
     @RequestMapping(value = "/usuarios/{id}/revocar", method = RequestMethod.POST)
-    public ModelAndView revocar(@PathVariable final long id, @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        userService.revokeAdmin(id, currentUser.getId());
+    public ModelAndView revocar(@PathVariable final long id) {
+        userService.revokeAdmin(id);
         return new ModelAndView("redirect:/admin/usuarios");
+    }
+
+    // Un @PreAuthorize denegado en el area de admin responde 403 con la pagina de "sin permiso". En el
+    // resto de la app es un 404 (ver ErrorAdvice) para no revelar que un evento privado existe; aca
+    // quien actua es un admin y el usuario existe, asi que un 404 solo confundiria.
+    @ExceptionHandler(AccessDeniedException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public ModelAndView accessDenied() {
+        return new ModelAndView("errors/403");
     }
 
     // Banner

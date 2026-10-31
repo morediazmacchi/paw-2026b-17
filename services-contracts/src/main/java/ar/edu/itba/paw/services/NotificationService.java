@@ -103,11 +103,17 @@ public interface NotificationService {
     /** El evento empieza en menos de 24 hs -> recordatorio a su organizador. */
     void notifyOrganizerEventReminder(Event event);
 
-    /** Alguien pregunto en el evento -> mail al organizador. */
-    void notifyNewQuestion(Event event, EventQuestion question);
+    /**
+     * Alguien pregunto en el evento -> mail al organizador. El nombre y el mail de quien pregunto
+     * llegan ya resueltos (no se leen de la pregunta): el envio es @Async, otro hilo y sin sesion.
+     */
+    void notifyNewQuestion(Event event, EventQuestion question, String askerName, String askerEmail);
 
-    /** El organizador respondio -> mail a quien pregunto. */
-    void notifyQuestionAnswered(Event event, EventQuestion question);
+    /**
+     * El organizador respondio -> mail a quien pregunto. El nombre y el mail de quien pregunto llegan
+     * ya resueltos (no se leen de la pregunta): el envio es @Async, otro hilo y sin sesion.
+     */
+    void notifyQuestionAnswered(Event event, EventQuestion question, String askerName, String askerEmail);
 
     /** Un admin dio de baja el evento (tras revisar un reporte) -> le avisa al creador. */
     void notifyEventRemovedByAdmin(Event event, String reason);

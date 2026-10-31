@@ -3,13 +3,16 @@ package ar.edu.itba.paw.webapp.security;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventAccessSummary;
 import ar.edu.itba.paw.model.Registration;
+import ar.edu.itba.paw.model.RegistrationStatus;
+import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.services.EventAccessService;
+import ar.edu.itba.paw.services.EventChatService;
+import ar.edu.itba.paw.services.EventQuestionService;
 import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.ImageService;
 import ar.edu.itba.paw.services.RegistrationService;
 import ar.edu.itba.paw.webapp.auth.PlancitoUserDetails;
-import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 
 import java.util.Optional;
@@ -27,26 +30,43 @@ public class EventSecurity {
     private final RegistrationService registrationService;
     private final EventAccessService eventAccessService;
     private final ImageService imageService;
+    private final EventChatService eventChatService;
+    private final EventQuestionService eventQuestionService;
 
     public EventSecurity(final EventService eventService, final RegistrationService registrationService,
-                         final EventAccessService eventAccessService, final ImageService imageService) {
+                         final EventAccessService eventAccessService, final ImageService imageService,
+                         final EventChatService eventChatService,
+                         final EventQuestionService eventQuestionService) {
         this.eventService = eventService;
         this.registrationService = registrationService;
         this.eventAccessService = eventAccessService;
         this.imageService = imageService;
+        this.eventChatService = eventChatService;
+        this.eventQuestionService = eventQuestionService;
     }
 
     // El usuario logueado es el creador del evento.
     public boolean isOwner(final long eventId, final Authentication authentication) {
-        return currentUser(authentication)
+        return PlancitoUserDetails.from(authentication)
                 .flatMap(user -> eventService.findById(eventId).map(event -> isCreator(event, user)))
+                .orElse(false);
+    }
+
+    // El usuario logueado es el organizador del evento AL QUE PERTENECE la pregunta. Se decide solo con
+    // el id de la pregunta (el id del evento de la URL es solo ruteo y no se usa para autorizar). Una
+    // pregunta que no existe da false, igual que una de un evento ajeno. Lectura acotada: solo el id
+    // del organizador.
+    public boolean canAnswerQuestion(final long questionId, final Authentication authentication) {
+        return PlancitoUserDetails.from(authentication)
+                .flatMap(user -> eventQuestionService.findEventCreatorId(questionId)
+                        .map(creatorId -> creatorId == user.getId()))
                 .orElse(false);
     }
 
     // Igual que isOwner, pero ademas el evento tiene que ser privado: solo a esos se invita
     // (uno publico ya tiene un link que se puede compartir).
     public boolean isOwnerOfPrivate(final long eventId, final Authentication authentication) {
-        return currentUser(authentication)
+        return PlancitoUserDetails.from(authentication)
                 .flatMap(user -> eventService.findById(eventId)
                         .map(event -> event.isPrivate() && isCreator(event, user)))
                 .orElse(false);
@@ -68,7 +88,7 @@ public class EventSecurity {
     // La inscripcion existe y es del usuario logueado. Una inscripcion que no existe da false,
     // igual que una ajena: ErrorAdvice los convierte en el mismo 404 (no se revela cuales ids existen).
     public boolean isRegistrant(final long registrationId, final Authentication authentication) {
-        return currentUser(authentication)
+        return PlancitoUserDetails.from(authentication)
                 .flatMap(user -> registrationService.findById(registrationId)
                         .map(registration -> Long.valueOf(user.getId()).equals(registration.getUserId())))
                 .orElse(false);
@@ -78,11 +98,43 @@ public class EventSecurity {
     // puede: ve los eventos publicos y aprobados (el detalle es permitAll). Un evento que no
     // existe da false, igual que uno que no se puede ver.
     public boolean canView(final long eventId, final Authentication authentication) {
-        final Optional<PlancitoUserDetails> user = currentUser(authentication);
+        final Optional<PlancitoUserDetails> user = PlancitoUserDetails.from(authentication);
         final Long userId = user.map(PlancitoUserDetails::getId).orElse(null);
-        final boolean admin = user.map(EventSecurity::isAdmin).orElse(false);
+        final boolean admin = user.map(u -> u.hasRole(Role.ADMIN)).orElse(false);
         return eventService.findById(eventId)
                 .map(event -> eventAccessService.canView(event, userId, admin))
+                .orElse(false);
+    }
+
+    // La persona se puede anotar al evento: igual que canView pero SIN la excepcion de admin. Un
+    // admin puede VER un evento privado o pendiente para moderarlo, pero no inscribirse; si lo
+    // invitaron a un privado, la invitacion cuenta como a cualquiera. Un evento que no existe da
+    // false. Hace falta sesion (la URL ya la exige).
+    public boolean canRegister(final long eventId, final Authentication authentication) {
+        final Optional<PlancitoUserDetails> user = PlancitoUserDetails.from(authentication);
+        if (!user.isPresent()) {
+            return false;
+        }
+        return eventService.findById(eventId)
+                .map(event -> eventAccessService.canView(event, user.get().getId(), false))
+                .orElse(false);
+    }
+
+    // La persona tiene su lugar CONFIRMADO en el evento (no pendiente, ni en espera, ni rechazado):
+    // es lo que hace falta para unirse al grupo de chat. Sin inscripcion, o sin sesion, da false;
+    // tampoco el organizador (no se anota a su propio evento).
+    public boolean isConfirmedAttendee(final long eventId, final Authentication authentication) {
+        return PlancitoUserDetails.from(authentication)
+                .flatMap(user -> registrationService.findByEventAndUserId(eventId, user.getId()))
+                .map(registration -> registration.getStatus() == RegistrationStatus.CONFIRMED)
+                .orElse(false);
+    }
+
+    // La persona es miembro activo del grupo de chat del evento (la pantalla del chat, la consulta
+    // de mensajes y el envio son solo para miembros). Sin sesion o sin ser miembro da false.
+    public boolean isChatMember(final long eventId, final Authentication authentication) {
+        return PlancitoUserDetails.from(authentication)
+                .map(user -> eventChatService.isMember(eventId, user.getId()))
                 .orElse(false);
     }
 
@@ -101,28 +153,9 @@ public class EventSecurity {
         if (eventAccessService.canView(access.get(), null)) {
             return true;
         }
-        return currentUser(authentication)
-                .map(user -> eventAccessService.canView(access.get(), user.getId(), isAdmin(user)))
+        return PlancitoUserDetails.from(authentication)
+                .map(user -> eventAccessService.canView(access.get(), user.getId(), user.hasRole(Role.ADMIN)))
                 .orElse(false);
-    }
-
-    // El usuario de la sesion: el principal que armo UserDetailsServiceImpl en el login. Si no hay
-    // sesion, o el principal es otra cosa (un anonimo llega "autenticado" con un principal que es
-    // solo un String), no hay usuario.
-    private Optional<PlancitoUserDetails> currentUser(final Authentication authentication) {
-        if (authentication == null || !authentication.isAuthenticated()
-                || authentication instanceof AnonymousAuthenticationToken) {
-            return Optional.empty();
-        }
-        final Object principal = authentication.getPrincipal();
-        return principal instanceof PlancitoUserDetails
-                ? Optional.of((PlancitoUserDetails) principal)
-                : Optional.empty();
-    }
-
-    private static boolean isAdmin(final PlancitoUserDetails user) {
-        return user.getAuthorities().stream()
-                .anyMatch(authority -> Role.ADMIN.getAuthority().equals(authority.getAuthority()));
     }
 
     private static boolean isCreator(final Event event, final PlancitoUserDetails user) {

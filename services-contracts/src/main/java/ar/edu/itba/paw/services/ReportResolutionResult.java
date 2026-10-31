@@ -6,10 +6,5 @@ public enum ReportResolutionResult {
     RESOLVED,
 
     /** No existe ese reporte, o ya estaba resuelto de antes. */
-    NOT_FOUND,
-
-    // Quien modera es el creador del evento reportado: mismo conflicto de
-    // intereses que ReportResult.OWN_EVENT en report(), pero del lado de
-    // quien resuelve en vez de quien reporta.
-    OWN_EVENT
+    NOT_FOUND
 }

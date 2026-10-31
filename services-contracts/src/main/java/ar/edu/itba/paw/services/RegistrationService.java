@@ -28,6 +28,11 @@ public interface RegistrationService {
      * al evento privado entra directo confirmada: su lugar ya estaba reservado.
      *
      * Si el evento ya paso devuelve FINISHED y no crea nada.
+     * OJO: este metodo NO valida que el evento se pueda ver ni que la persona pueda anotarse
+     * (aprobado y, si es privado, con invitacion). Eso es AUTORIZACION y la resuelve
+     * @PreAuthorize en el controller (ver EventSecurity.canRegister).
+     *
+     * @throws EventNotFoundException si el evento no existe.
      */
     @Transactional(rollbackFor = Exception.class)
     RegistrationResult register(long eventId, User user);
@@ -107,7 +112,7 @@ public interface RegistrationService {
     /**
      * Para el detalle de evento: la relacion de esta persona con el evento, ya resuelta (si esta
      * inscripta y en que estado, si es la dueña, y si la pantalla le ofrece inscribirse o solo
-     * verlo). Las reglas son las mismas que aplica register().
+     * verlo). Las reglas de "se puede inscribir" son las de EventSecurity.canRegister().
      *
      * @throws EventNotFoundException si el evento no existe.
      */
@@ -153,47 +158,49 @@ public interface RegistrationService {
     /**
      * Pantalla de "aceptar o rechazar inscriptos" del creador: las pendientes
      * de este evento, de la que espera hace mas tiempo a la mas reciente.
-     * Devuelve vacio si el evento no existe o no es de ese creador (no revela
-     * cual de las dos cosas paso).
+     * Que quien lo pide sea el creador NO se valida aca: lo decide @PreAuthorize en el
+     * controller (ver EventSecurity.isOwner).
      */
     @Transactional(readOnly = true)
-    List<Registration> findPendingByEvent(long eventId, long creatorId);
+    List<Registration> findPendingByEvent(long eventId);
 
     /**
      * Como findPendingByEvent(), pero solo el conteo (badge de "N pendientes"
-     * en "Mis eventos", ver ProfileController): mismo chequeo de dueño, 0 en
-     * vez de lista vacia si el evento no existe o no es de ese creador.
+     * en "Mis eventos", ver ProfileController).
      */
     @Transactional(readOnly = true)
-    long countPendingByEvent(long eventId, long creatorId);
+    long countPendingByEvent(long eventId);
 
     /**
      * El creador acepta una inscripcion pendiente: pasa a "confirmed" y se le
      * avisa a la persona por mail. Solo se puede mientras quede lugar: si el
      * evento ya esta lleno devuelve FULL sin tocar nada. Cuando esta aceptacion
      * ocupa el ultimo lugar, todos los pedidos que seguian pendientes pasan solos
-     * a la lista de espera.
+     * a la lista de espera. Que quien lo hace sea el creador del evento NO se valida aca: lo decide
+     * @PreAuthorize en el controller (ver EventSecurity.isOwnerOfRegistrationEvent).
      */
     @Transactional(rollbackFor = Exception.class)
-    ApprovalResult approve(long registrationId, long creatorId);
+    ApprovalResult approve(long registrationId);
 
     /**
      * El creador rechaza una inscripcion pendiente: pasa a "rejected" (queda
      * la fila, no se puede volver a pedir lugar en este evento con esa cuenta)
      * y se le avisa a la persona por mail. Devuelve false (sin tocar nada) si la
-     * inscripcion no existe, no esta pendiente, o el evento no es de ese creador.
+     * inscripcion no existe o no esta pendiente. Que quien lo hace sea el creador NO se valida
+     * aca: lo decide @PreAuthorize en el controller.
      */
     @Transactional(rollbackFor = Exception.class)
-    boolean reject(long registrationId, long creatorId);
+    boolean reject(long registrationId);
 
     /**
      * El creador le saca el lugar a alguien ya confirmado: pasa a "rejected"
      * (no puede volver a anotarse), se le avisa por mail y el lugar libre le
      * toca al siguiente de la lista de espera. Devuelve false (sin tocar nada) si
-     * la inscripcion no existe, no esta confirmada, o el evento no es de ese creador.
+     * la inscripcion no existe o no esta confirmada. Que quien lo hace sea el creador NO se valida
+     * aca: lo decide @PreAuthorize en el controller.
      */
     @Transactional(rollbackFor = Exception.class)
-    boolean revoke(long registrationId, long creatorId);
+    boolean revoke(long registrationId);
 
     /**
      * Si el evento tiene lugares libres, saca de la lista de espera (en orden de

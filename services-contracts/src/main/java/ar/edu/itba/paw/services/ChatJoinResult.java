@@ -8,9 +8,7 @@ public enum ChatJoinResult {
     ALREADY_MEMBER,
 
     // El evento ya paso o se cancelo: el chat quedo de solo lectura, no se suman miembros.
-    CLOSED,
-
-    // El evento no existe o la persona no tiene una inscripcion CONFIRMED (incluye al
-    // organizador, que no se anota a su propio evento).
-    NOT_ALLOWED
+    // (Que la persona tenga el lugar confirmado NO es un resultado: lo decide @PreAuthorize en el
+    // controller, ver EventSecurity.isConfirmedAttendee.)
+    CLOSED
 }

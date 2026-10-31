@@ -3,12 +3,9 @@ package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventAccessData;
-import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.exception.EventCancelledException;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
-
-import java.util.Optional;
 
 public interface EventAccessService {
 
@@ -27,12 +24,8 @@ public interface EventAccessService {
      * OJO: esto es VISIBILIDAD (quien puede ver un evento). La AUTORIZACION de las acciones del
      * organizador (editar, cancelar, ver inscriptos, invitar...) no esta aca: la resuelve
      * @PreAuthorize en los controllers (ver EventSecurity).
-     */
-    boolean canView(EventAccessData event, User user, Optional<Registration> myRegistration);
-
-    /**
-     * Igual que {@link #canView(EventAccessData, User, Optional)}, pero busca la inscripcion propia solo si hace
-     * falta (un evento publico lo ve cualquiera, ni se consulta). {@code user} puede ser null (sin sesion).
+     * La inscripcion propia se busca solo si hace falta (un evento publico lo ve cualquiera, ni se
+     * consulta). {@code user} puede ser null (sin sesion).
      */
     boolean canView(EventAccessData event, User user);
 
@@ -43,14 +36,6 @@ public interface EventAccessService {
      * {@code userId} null = sin sesion.
      */
     boolean canView(EventAccessData event, Long userId, boolean isAdmin);
-
-    /**
-     * El evento, si existe y {@code user} puede verlo.
-     *
-     * @throws EventNotFoundException si no existe o no puede verlo. Es el mismo error en los dos casos:
-     *                                no se le confirma a nadie que un evento privado existe.
-     */
-    Event getViewableEvent(long eventId, User user);
 
     /**
      * El evento, si no esta cancelado: uno cancelado no se edita. Lo comparten el GET y el POST de

@@ -3,7 +3,6 @@ package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.User;
-import ar.edu.itba.paw.model.exception.EventNotFoundException;
 
 import java.util.List;
 
@@ -12,9 +11,8 @@ public interface FavoriteService {
     /**
      * Guarda el evento como favorito de ese usuario. Idempotente (ver {@link #remove}):
      * si ya era favorito, no hace nada y devuelve false.
-     *
-     * @throws EventNotFoundException si el evento no existe o {@code user} no puede
-     *                                verlo (mismo chequeo que EventAccessService#getViewableEvent).
+     * Que {@code user} pueda ver el evento NO se valida aca: lo decide @PreAuthorize en el
+     * controller (ver EventSecurity.canView).
      */
     boolean add(User user, long eventId);
 

@@ -5,7 +5,10 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.EventReport;
+import ar.edu.itba.paw.model.ReportTarget;
+import org.springframework.transaction.annotation.Transactional;
 import ar.edu.itba.paw.model.User;
+import java.util.Optional;
 
 public interface ModerationService {
 
@@ -40,16 +43,15 @@ public interface ModerationService {
      * descarte o lo accione (dismiss()/removeEvent(), que tambien aceptan un
      * reporte en este estado). NOT_FOUND si el reporte no existe o ya no
      * estaba PENDING (ya se le habian pedido cambios, o ya estaba resuelto).
-     * OWN_EVENT si quien modera es el creador del evento reportado (conflicto
-     * de intereses: no puede resolver un reporte sobre su propio contenido).
+     * Que quien modera no sea el creador del evento reportado (conflicto de intereses) NO se
+     * valida aca: lo decide @PreAuthorize en AdminController (ver AdminSecurity.canResolveReport).
      */
     ReportResolutionResult requestChanges(long reportId, long adminUserId, String message);
 
     /**
      * Descarta un reporte sin tocar el evento: no era para tanto (o, si tenia
      * cambios pedidos, el creador ya corrigio). NOT_FOUND si no existe o ya
-     * no estaba abierto (otro admin ya actuo mientras se revisaba). OWN_EVENT
-     * si quien modera es el creador del evento reportado.
+     * no estaba abierto (otro admin ya actuo mientras se revisaba).
      */
     ReportResolutionResult dismiss(long reportId, long adminUserId);
 
@@ -61,9 +63,15 @@ public interface ModerationService {
      * no tiene sentido seguir mostrandolo en la cola o en el seguimiento).
      * suspendOrganizer: si ademas hay que suspender al creador del evento en el
      * mismo paso (ver UserService.suspend()). NOT_FOUND si el reporte no existe
-     * o ya no estaba abierto; OWN_EVENT si quien modera es el creador del
-     * evento reportado (asi tampoco puede suspenderse a si mismo via
-     * suspendOrganizer).
+     * o ya no estaba abierto.
      */
     ReportResolutionResult removeEvent(long reportId, long adminUserId, boolean suspendOrganizer);
+
+    /**
+     * A que evento apunta el reporte y de quien es (consulta de dos columnas), en CUALQUIER estado
+     * del reporte, incluso ya resuelto. Vacio solo si el reporte no existe. Lo usa la capa web
+     * (AdminSecurity) para decidir si un admin puede resolverlo.
+     */
+    @Transactional(readOnly = true)
+    Optional<ReportTarget> findReportTarget(long reportId);
 }

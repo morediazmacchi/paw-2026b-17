@@ -234,6 +234,22 @@ public class EventQuestionJpaDaoTest {
     // ---- countByEvent() ----
 
     @Test
+    public void testCreateWithAnAskerBuiltFromTheSessionStoresItsId() {
+        // Arrange
+        final User fromSession = new User("pregunta@mail.com", "Ana");
+        fromSession.setId(userId);
+        final EventQuestion toCreate = new EventQuestion(em.getReference(Event.class, eventId), fromSession, "Hay lugar?");
+
+        // Act
+        final EventQuestion created = questionDao.create(toCreate);
+
+        // Assert
+        final Long storedUserId = jdbcTemplate.queryForObject(
+                "SELECT user_id FROM event_question WHERE id = ?", Long.class, created.getId());
+        assertEquals(userId, storedUserId.longValue());
+    }
+
+    @Test
     public void testCountByEventCountsOnlyThatEventsQuestions() {
         // Arrange
         insertQuestion(eventId, userId, "Primera");
@@ -247,6 +263,39 @@ public class EventQuestionJpaDaoTest {
 
         // Assert
         assertEquals(3, count);
+    }
+
+    // ---- findEventCreatorId() ----
+
+    private long insertEventCreatedBy(final String title, final long creatorId) {
+        jdbcTemplate.update(
+                "INSERT INTO event (title, event_date, address, creator_email, creator_id) VALUES (?, ?, ?, ?, ?)",
+                title, new Timestamp(System.currentTimeMillis()), "Corrientes 1234", CREATOR_EMAIL, creatorId);
+        return jdbcTemplate.queryForObject("SELECT id FROM event WHERE title = ?", Long.class, title);
+    }
+
+    @Test
+    public void testFindEventCreatorIdReturnsTheCreatorOfTheQuestionsEvent() {
+        // Arrange
+        final long creatorId = insertUser("organizador@mail.com", "Ola");
+        final long otherCreatorId = insertUser("otro@mail.com", "Beto");
+        final long questionId = insertQuestion(insertEventCreatedBy("Del organizador", creatorId), userId, "Hay lugar?");
+        insertQuestion(insertEventCreatedBy("De otro", otherCreatorId), userId, "Señuelo");
+
+        // Act
+        final Optional<Long> result = questionDao.findEventCreatorId(questionId);
+
+        // Assert
+        assertEquals(Optional.of(creatorId), result);
+    }
+
+    @Test
+    public void testFindEventCreatorIdIsEmptyWhenTheQuestionDoesNotExist() {
+        // Act
+        final Optional<Long> result = questionDao.findEventCreatorId(987654L);
+
+        // Assert
+        assertFalse(result.isPresent());
     }
 
     // ---- answer() ----

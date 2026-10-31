@@ -76,7 +76,9 @@
             credentials: 'same-origin',
             headers: {'X-Requested-With': 'XMLHttpRequest'}
         }).then(function (response) {
-            if (response.status === 403) {
+            // 404 o 403: el servidor corta con 404 a quien ya no es miembro (@PreAuthorize); el 403
+            // es el codigo de antes y queda por si el servidor lo devuelve.
+            if (response.status === 403 || response.status === 404) {
                 removedFromGroup();
                 return null;
             }
@@ -116,8 +118,8 @@
                 input.dispatchEvent(new Event('input'));
                 return poll().then(scrollToBottom);
             }
-            if (response.status === 403 || response.status === 409) {
-                // Ya no es miembro o el chat se cerro: la pantalla del servidor lo explica.
+            if (response.status === 403 || response.status === 404 || response.status === 409) {
+                // Ya no es miembro (404/403) o el chat se cerro (409): la pantalla del servidor lo explica.
                 window.location.reload();
                 return null;
             }

@@ -120,20 +120,10 @@ public interface UserService {
     /**
      * Suspende la cuenta (ver UserDetailsServiceImpl): no va a poder loguearse
      * hasta que un admin la reactive. Le avisa por mail y por la bandeja.
+     * Quien puede suspender a quien (no a si mismo; a otro admin solo un superadmin) NO se valida
+     * aca: lo decide @PreAuthorize en AdminController (ver AdminSecurity.canSuspend).
      */
     boolean suspend(long userId);
-
-    /**
-     * Como {@link #suspend(long)}, pero valida primero que {@code caller} pueda
-     * suspender a {@code targetId} (ver AdminController.suspender()): nadie se
-     * suspende a si mismo, y un admin comun no puede suspender a otro admin ni
-     * al superadmin (a diferencia de promover/revocar, esto depende de QUIEN es
-     * el objetivo puntual, no solo de que rol tiene quien llama -- eso no lo
-     * puede expresar un antMatcher de WebAuthConfig).
-     *
-     * @throws InvalidAdminActionException si la suspension no esta permitida.
-     */
-    boolean suspendByAdmin(long targetId, User caller);
 
     /** Levanta una suspension. Le avisa por mail y por la bandeja. */
     boolean reactivate(long userId);
@@ -146,13 +136,9 @@ public interface UserService {
     boolean grantAdmin(long userId);
 
     /**
-     * Le saca el rol ADMIN a un usuario (no toca SUPERADMIN). Quien puede
-     * invocar esto lo controla la seguridad HTTP, igual que grantAdmin() --
-     * salvo una cosa que un antMatcher no puede expresar: un superadmin no se
-     * puede sacar ADMIN a si mismo (ver AdminController.revocar()), porque
-     * lo dejaria afuera de /admin/** sin ninguna forma de deshacerlo el mismo.
-     *
-     * @throws InvalidAdminActionException si targetId es el propio callerId.
+     * Le saca el rol ADMIN a un usuario (no toca SUPERADMIN). Quien puede invocar esto, y que nadie se
+     * lo saque a si mismo, lo controla la seguridad (WebAuthConfig y @PreAuthorize en AdminController,
+     * ver AdminSecurity), no este metodo: es una simple asignacion de rol, ya autorizada al llegar aca.
      */
-    boolean revokeAdmin(long targetId, long callerId);
+    boolean revokeAdmin(long targetId);
 }

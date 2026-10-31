@@ -110,6 +110,23 @@ public class ReviewJpaDaoTest {
         assertEquals("Muy bueno", row.get("comment"));
     }
 
+    // El User que llega de la web es uno armado desde la sesion (solo id, email, nombre): no esta cargado.
+    @Test
+    public void testCreateWithAUserBuiltFromTheSessionStoresItsId() {
+        // Arrange
+        final User fromSession = new User("asistente@mail.com", "Ana");
+        fromSession.setId(userId);
+        final Review toCreate = new Review(em.getReference(Event.class, eventId), fromSession, 4, "Muy bueno");
+
+        // Act
+        final Review created = reviewDao.create(toCreate);
+
+        // Assert
+        final Long storedUserId = jdbcTemplate.queryForObject(
+                "SELECT user_id FROM review WHERE id = ?", Long.class, created.getId());
+        assertEquals(userId, storedUserId.longValue());
+    }
+
     @Test
     public void testCreateAllowsZeroRating() {
         // Arrange
