@@ -33,23 +33,20 @@ final class ModelFixtures {
     }
 
     // Category no tiene setId (el id lo pone la base) ni constructor publico vacio. Para que un test
-    // pueda decir "existe la categoria con tal id" se arma una Category real y se le escribe el id
-    // por reflection. Se hace asi (y no con un mock) porque Mockito no puede mockear clases
-    // concretas en las versiones nuevas de Java (ej. 26).
+    // pueda decir "existe la categoria con tal id" se arma una Category que devuelve ese id desde su
+    // getId() publico, sin tocar el campo privado (nada de reflection). No es un mock porque Mockito
+    // no puede mockear clases concretas en las versiones nuevas de Java (ej. 26).
     static Category category(final long id) {
         return category(id, "categoria-" + id);
     }
 
     // Igual, pero con el nombre elegido (para tests que dependen de el, como la categoria "Otros").
     static Category category(final long id, final String name) {
-        try {
-            final Category category = new Category(name);
-            final java.lang.reflect.Field idField = Category.class.getDeclaredField("id");
-            idField.setAccessible(true);
-            idField.set(category, id);
-            return category;
-        } catch (final ReflectiveOperationException e) {
-            throw new IllegalStateException("No se pudo armar la categoria de prueba", e);
-        }
+        return new Category(name) {
+            @Override
+            public Long getId() {
+                return id;
+            }
+        };
     }
 }
