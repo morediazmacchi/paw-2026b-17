@@ -24,6 +24,9 @@ import java.util.stream.Collectors;
 @Service
 public class ReviewServiceImpl implements ReviewService {
 
+    // De a cuantas reseñas se muestran en el popup del organizador.
+    static final int REVIEWS_PAGE_SIZE = 5;
+
     private final ReviewDao reviewDao;
     // EventDao directo (no EventService): hace falta findByIdForUpdate() para
     // el lock de create(), mismo criterio que RegistrationServiceImpl.register().
@@ -93,28 +96,21 @@ public class ReviewServiceImpl implements ReviewService {
 
     @Override
     @Transactional(readOnly = true)
-    public double findCreatorAverageRating(final long creatorId) {
-        return reviewDao.findAverageRatingByCreatorId(creatorId);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<Review> findByCreatorId(final long creatorId) {
-        return reviewDao.findByCreatorId(creatorId);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public CreatorReputation findCreatorReputation(final long creatorId) {
-        final List<Review> reviews = reviewDao.findByCreatorId(creatorId);
-        if (reviews.isEmpty()) {
-            return new CreatorReputation(reviews, 0, Collections.emptyMap());
+    public CreatorReputation findCreatorReputation(final long creatorId, final int page) {
+        // El total sale de un COUNT en la base: no hace falta traer las reseñas para contarlas.
+        final long total = reviewDao.countByCreatorId(creatorId);
+        if (total == 0) {
+            return new CreatorReputation(new PageResult<>(Collections.emptyList(), 0, 1, REVIEWS_PAGE_SIZE),
+                    0, Collections.emptyMap());
         }
-        // Una sola consulta para todos los eventos reseñados (findByIds()), en vez de un
-        // findById() por cada reseña.
+        final int effectivePage = PageResult.clampPage(page, total, REVIEWS_PAGE_SIZE);
+        final List<Review> reviews = reviewDao.findByCreatorId(creatorId, effectivePage, REVIEWS_PAGE_SIZE);
+        // Una sola consulta para los eventos de las reseñas de esta pagina (findByIds()), en vez de
+        // un findById() por cada reseña.
         final List<Long> eventIds = reviews.stream().map(Review::getEventId).distinct().collect(Collectors.toList());
         final Map<Long, Event> eventsById = eventDao.findByIds(eventIds).stream()
                 .collect(Collectors.toMap(Event::getId, event -> event));
-        return new CreatorReputation(reviews, reviewDao.findAverageRatingByCreatorId(creatorId), eventsById);
+        return new CreatorReputation(new PageResult<>(reviews, total, effectivePage, REVIEWS_PAGE_SIZE),
+                reviewDao.findAverageRatingByCreatorId(creatorId), eventsById);
     }
 }
