@@ -70,7 +70,7 @@
                                     <a class="btn btn-medium" href="<c:url value='/eventos/${pendingEvent.id}'/>"><c:out value="${viewEventButtonLabel}"/></a>
                                     <c:choose>
                                         <%-- Un admin no revisa su propio evento: no se le ofrecen los botones. --%>
-                                        <c:when test="${pendingEvent.creatorId == myId}">
+                                        <c:when test="${not pendingEvent.canBeModeratedBy(myId)}">
                                             <em><spring:message code="admin.pendingEvents.ownEvent"/></em>
                                         </c:when>
                                         <c:otherwise>

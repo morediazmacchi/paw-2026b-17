@@ -1,6 +1,7 @@
 // Implementa el contrato EventInvitationDao (modulo persistence-contracts) con JPA/Hibernate.
 package ar.edu.itba.paw.persistence;
 
+import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventInvitation;
 import ar.edu.itba.paw.model.User;
 import org.springframework.stereotype.Repository;
@@ -74,10 +75,10 @@ public class EventInvitationJpaDao implements EventInvitationDao {
     }
 
     @Override
-    public List<EventInvitation> findByUserId(final long userId, final int page, final int pageSize) {
+    public List<Event> findInvitedEventsByUserId(final long userId, final int page, final int pageSize) {
         return em.createQuery(
-                        "FROM EventInvitation i WHERE i.user.id = :userId ORDER BY i.createdAt DESC, i.id DESC",
-                        EventInvitation.class)
+                        "SELECT e FROM EventInvitation i JOIN i.event e WHERE i.user.id = :userId "
+                                + "ORDER BY i.createdAt DESC, i.id DESC", Event.class)
                 .setParameter("userId", userId)
                 .setFirstResult((page - 1) * pageSize)
                 .setMaxResults(pageSize)

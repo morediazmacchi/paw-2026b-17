@@ -153,6 +153,10 @@ public class LoginController {
         }
         final UserRegistrationResult result = userService.register(
                 form.toDTO(SafeRedirect.isSafe(redirect) ? redirect : null));
+        if (result == UserRegistrationResult.WEAK_PASSWORD) {
+            errors.rejectValue("password", "Size.setPasswordForm.password");
+            return setPasswordFormWithErrors(form, errors, redirect);
+        }
 
         final String suffix = SafeRedirect.isSafe(redirect)
                 ? "&redirect=" + URLEncoder.encode(redirect, StandardCharsets.UTF_8) : "";

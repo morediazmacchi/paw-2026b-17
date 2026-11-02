@@ -12,4 +12,13 @@ public interface FavoriteDao {
 
     // Mas recientes primero.
     List<Long> findEventIdsByUser(long userId);
+
+    // Cuantos favoritos tiene, de cualquier evento (un COUNT, sin traer las filas). Es lo que ve un admin,
+    // que puede ver todos los eventos.
+    long countByUserId(long userId);
+
+    // Cuantos de sus favoritos puede ver una persona que NO es admin (un COUNT): la misma regla de
+    // EventAccessService.canView en SQL. Es el creador del evento, o el evento esta aprobado y es publico,
+    // o es privado y tiene una inscripcion (del estado que sea) o una invitacion.
+    long countViewableByUserId(long userId);
 }

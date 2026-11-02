@@ -1,20 +1,28 @@
 package ar.edu.itba.paw.model.exception;
 
 /**
- * La imagen subida no se puede guardar (vacia, muy pesada o no es una imagen).
+ * La imagen subida no se puede guardar (vacia, muy pesada, no es una imagen) o se subieron mas de las permitidas.
  * Unchecked: si el service la lanza dentro de una transaccion, Spring hace rollback solo.
- * Lleva la clave de i18n del mensaje para que la vista le muestre al usuario que corregir.
+ * Lleva un codigo de motivo (Reason), NO un mensaje: el texto que ve el usuario (y su idioma) lo elige la capa
+ * web a partir del motivo.
  */
 public class InvalidImageException extends RuntimeException {
 
-    private final String messageKey;
-
-    public InvalidImageException(final String messageKey) {
-        super(messageKey);
-        this.messageKey = messageKey;
+    public enum Reason {
+        EMPTY,
+        TOO_LARGE,
+        NOT_AN_IMAGE,
+        TOO_MANY
     }
 
-    public String getMessageKey() {
-        return messageKey;
+    private final Reason reason;
+
+    public InvalidImageException(final Reason reason) {
+        super(reason.name());
+        this.reason = reason;
+    }
+
+    public Reason getReason() {
+        return reason;
     }
 }

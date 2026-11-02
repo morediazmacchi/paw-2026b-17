@@ -417,6 +417,86 @@ public class ModerationServiceImplTest {
         assertEquals(ReportResolutionResult.RESOLVED, result);
     }
 
+    // ---- findPendingQueue() / findChangesRequestedQueue() ----
+
+    private void pendingQueueOf(final EventReport report) {
+        when(reportDao.countPending()).thenReturn(1L);
+        when(reportDao.findPending(1, ModerationServiceImpl.PAGE_SIZE)).thenReturn(Collections.singletonList(report));
+    }
+
+    @Test
+    public void testFindPendingQueueHoldsTheReportedEventsById() {
+        // Arrange
+        final Event event = someEvent();
+        pendingQueueOf(somePendingReport());
+        when(eventService.findByIds(Collections.singletonList(EVENT_ID))).thenReturn(Collections.singletonList(event));
+
+        // Act
+        final ReportQueuePage result = moderationService.findPendingQueue(1);
+
+        // Assert
+        assertEquals(Collections.singletonMap(EVENT_ID, event), result.getEventsById());
+    }
+
+    @Test
+    public void testFindPendingQueueHoldsTheReportersById() {
+        // Arrange
+        final User reporter = someUser(REPORTER_ID);
+        pendingQueueOf(somePendingReport());
+        when(userService.findByIds(Collections.singletonList(REPORTER_ID))).thenReturn(Collections.singletonList(reporter));
+
+        // Act
+        final ReportQueuePage result = moderationService.findPendingQueue(1);
+
+        // Assert
+        assertEquals(Collections.singletonMap(REPORTER_ID, reporter), result.getReportersById());
+    }
+
+    @Test
+    public void testFindPendingQueueKeepsThePageOfReports() {
+        // Arrange
+        final EventReport report = somePendingReport();
+        pendingQueueOf(report);
+
+        // Act
+        final ReportQueuePage result = moderationService.findPendingQueue(1);
+
+        // Assert
+        assertEquals(Collections.singletonList(report), result.getReports().getContent());
+        assertEquals(1, result.getReports().getPage());
+    }
+
+    @Test
+    public void testFindChangesRequestedQueueHoldsTheAdminsWhoAskedForChanges() {
+        // Arrange
+        final User admin = someUser(ADMIN_ID);
+        final EventReport report = someChangesRequestedReport();
+        report.setChangesRequestedBy(admin);
+        when(reportDao.countChangesRequested()).thenReturn(1L);
+        when(reportDao.findChangesRequested(1, ModerationServiceImpl.PAGE_SIZE))
+                .thenReturn(Collections.singletonList(report));
+        when(userService.findByIds(Collections.singletonList(ADMIN_ID))).thenReturn(Collections.singletonList(admin));
+
+        // Act
+        final ReportQueuePage result = moderationService.findChangesRequestedQueue(1);
+
+        // Assert
+        assertEquals(Collections.singletonMap(ADMIN_ID, admin), result.getRequestedByUsersById());
+    }
+
+    @Test
+    public void testFindChangesRequestedQueueWithoutReportsIsEmpty() {
+        // Arrange
+        when(reportDao.countChangesRequested()).thenReturn(0L);
+
+        // Act
+        final ReportQueuePage result = moderationService.findChangesRequestedQueue(1);
+
+        // Assert
+        assertTrue(result.getReports().getContent().isEmpty());
+        assertTrue(result.getEventsById().isEmpty());
+    }
+
     // ---- findPendingPage() ----
 
     @Test

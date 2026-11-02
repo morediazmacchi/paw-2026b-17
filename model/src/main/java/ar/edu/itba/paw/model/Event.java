@@ -311,6 +311,23 @@ public class Event implements EventAccessData {
         return eventDate.before(new Date());
     }
 
+    // Vigente: ni cancelado ni pasado. Es lo que habilita unirse al chat, darse de baja, etc.
+    public boolean isActive() {
+        return !isCancelled() && !isFinished();
+    }
+
+    // Se puede editar: ni cancelado (uno cancelado no se edita) ni rechazado (el rechazo es definitivo, no
+    // hay reenvio a revision). Un evento pendiente de aprobacion si se edita.
+    public boolean isEditable() {
+        return !isCancelled() && !isRejected();
+    }
+
+    // Se puede reseñar: ya paso y no se cancelo (uno cancelado no sucedio). Falta ademas que quien reseña haya
+    // tenido su lugar confirmado y no haya reseñado ya (ver ReviewService.create()).
+    public boolean isReviewable() {
+        return isFinished() && !isCancelled();
+    }
+
     // Pasado o cancelado ya no recibe preguntas nuevas.
     public boolean isOpenForQuestions() {
         return !isCancelled() && eventDate.after(new Date());

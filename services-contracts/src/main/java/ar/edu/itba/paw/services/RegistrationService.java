@@ -70,14 +70,14 @@ public interface RegistrationService {
     long occupiedSpots(long eventId);
 
     /**
-     * "Mis inscripciones": las de ese usuario, de a una pagina. Primero las de
-     * eventos que todavia no pasaron (el mas proximo primero) y despues las de
-     * eventos pasados (el mas reciente primero). Una pagina mayor a la ultima
-     * devuelve la ultima, una menor a 1 la primera; sin inscripciones, la
-     * pagina 1 vacia.
+     * "Mis inscripciones": las proximas y las pasadas del usuario, cada grupo paginado por su cuenta (con su
+     * propio indice de pagina, que empieza en 1), cada inscripcion con su evento y, en las pasadas, la reseña
+     * propia. Proximas: eventos que todavia no pasaron, el mas proximo primero. Pasadas: el mas reciente
+     * primero. La division se hace en la base, con el mismo "ahora" para los dos grupos. Un indice mayor a la
+     * ultima pagina de su grupo devuelve la ultima, uno menor a 1 la primera; un grupo vacio, la pagina 1 vacia.
      */
     @Transactional(readOnly = true)
-    PageResult<Registration> findPageByUserId(long userId, int page);
+    MyRegistrationsView findMyRegistrations(long userId, int upcomingPage, int pastPage);
 
     /** Para el badge de "Mis inscripciones" (ver ProfileController): sin traer las filas. */
     @Transactional(readOnly = true)
@@ -120,16 +120,6 @@ public interface RegistrationService {
     Optional<RegistrationAccess> findAccessByEventAndUserId(long eventId, long userId);
 
     /**
-     * Para el detalle de evento: la relacion de esta persona con el evento, ya resuelta (si esta
-     * inscripta y en que estado, si es la dueña, y si la pantalla le ofrece inscribirse o solo
-     * verlo). Las reglas de "se puede inscribir" son las de EventSecurity.canRegister().
-     *
-     * @throws EventNotFoundException si el evento no existe.
-     */
-    @Transactional(readOnly = true)
-    EventParticipation findParticipation(long eventId, long userId);
-
-    /**
      * Para el detalle de evento: si el usuario logueado ya esta anotado a
      * este evento, para mostrar "Darme de baja" en vez de "Inscribirme".
      */
@@ -159,13 +149,6 @@ public interface RegistrationService {
     List<Registration> findByEventId(long eventId);
 
     /**
-     * Como findByEventId(), pero solo cuenta confirmados (ver "Mis eventos" en
-     * ProfileController): mismo OJO de arriba, no valida quien pregunta.
-     */
-    @Transactional(readOnly = true)
-    long countConfirmed(long eventId);
-
-    /**
      * Pantalla de "aceptar o rechazar inscriptos" del creador: las pendientes
      * de este evento, de la que espera hace mas tiempo a la mas reciente.
      * Que quien lo pide sea el creador NO se valida aca: lo decide @PreAuthorize en el
@@ -175,11 +158,22 @@ public interface RegistrationService {
     List<Registration> findPendingByEvent(long eventId);
 
     /**
-     * Como findPendingByEvent(), pero solo el conteo (badge de "N pendientes"
-     * en "Mis eventos", ver ProfileController).
+     * La pantalla de aceptar o rechazar inscriptos: las pendientes (como findPendingByEvent()), los
+     * lugares libres y si el evento ya esta lleno, en una sola llamada. Mismo OJO que findPendingByEvent().
      */
     @Transactional(readOnly = true)
-    long countPendingByEvent(long eventId);
+    PendingRegistrations findPendingSummary(long eventId);
+
+    /**
+     * Cuantos pedidos pendientes tiene cada uno de esos eventos, en una sola consulta (un GROUP BY). Un
+     * evento sin pendientes no aparece en el mapa.
+     */
+    @Transactional(readOnly = true)
+    Map<Long, Long> countPendingByEvents(Collection<Long> eventIds);
+
+    /** Igual que countPendingByEvents(), pero de confirmados. */
+    @Transactional(readOnly = true)
+    Map<Long, Long> countConfirmedByEvents(Collection<Long> eventIds);
 
     /**
      * El creador acepta una inscripcion pendiente: pasa a "confirmed" y se le

@@ -47,7 +47,12 @@ public class EventQuestionServiceImpl implements EventQuestionService {
         if (!event.isOpenForQuestions()) {
             return QuestionResult.CLOSED;
         }
-        final EventQuestion question = questionDao.create(new EventQuestion(event, asker, text.trim()));
+        // El form ya lo valida para dar feedback; esto es la defensa del service (como el chat con su largo).
+        final String body = text == null ? "" : text.trim();
+        if (body.isEmpty() || body.length() > MAX_QUESTION_LENGTH) {
+            return QuestionResult.INVALID;
+        }
+        final EventQuestion question = questionDao.create(new EventQuestion(event, asker, body));
 
         inboxService.add(event.getCreatorEmail(), InboxMessageType.NEW_QUESTION, eventId,
                 displayName(asker.getName(), asker.getEmail()), null);
@@ -98,8 +103,12 @@ public class EventQuestionServiceImpl implements EventQuestionService {
 
     @Override
     @Transactional
-    public boolean deleteByAdmin(final long questionId) {
-        return questionDao.delete(questionId);
+    public Optional<Long> deleteByAdmin(final long questionId) {
+        final Optional<Long> eventId = questionDao.findById(questionId).map(EventQuestion::getEventId);
+        if (eventId.isPresent()) {
+            questionDao.delete(questionId);
+        }
+        return eventId;
     }
 
     // Para la bandeja del organizador: el nombre, o el mail si no cargo nombre.

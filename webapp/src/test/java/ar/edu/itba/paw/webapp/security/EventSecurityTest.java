@@ -322,8 +322,8 @@ public class EventSecurityTest {
     public void testCanRegisterIsTrueWhenEventAccessServiceAllowsItWithoutTheAdminException() {
         final EventAccessSummary event = event(EVENT_ID, EventVisibility.PUBLIC);
         when(eventService.findAccessById(EVENT_ID)).thenReturn(Optional.of(event));
-        // Solo responde que si se le pregunta sin privilegio de admin.
-        when(eventAccessService.canView(event, Long.valueOf(OTHER_ID), false)).thenReturn(true);
+        // La regla (canView sin la excepcion de admin) vive en EventAccessService.canRegister().
+        when(eventAccessService.canRegister(event, Long.valueOf(OTHER_ID))).thenReturn(true);
 
         assertTrue(security.canRegister(EVENT_ID, other()));
     }
@@ -332,8 +332,8 @@ public class EventSecurityTest {
     public void testCanRegisterIsTrueForAnAdminWhoWasInvitedToAPrivateEvent() {
         final EventAccessSummary event = event(EVENT_ID, EventVisibility.PRIVATE);
         when(eventService.findAccessById(EVENT_ID)).thenReturn(Optional.of(event));
-        // Sin privilegio de admin, la invitacion le alcanza: el access service dice que si.
-        when(eventAccessService.canView(event, Long.valueOf(OTHER_ID), false)).thenReturn(true);
+        // La invitacion le alcanza: EventAccessService.canRegister() dice que si.
+        when(eventAccessService.canRegister(event, Long.valueOf(OTHER_ID))).thenReturn(true);
 
         assertTrue(security.canRegister(EVENT_ID, auth(OTHER_ID, OTHER_EMAIL, "ROLE_USER", "ROLE_ADMIN")));
     }
@@ -345,7 +345,7 @@ public class EventSecurityTest {
         // Con privilegio de admin el access service diria que si (puede VER): si canRegister se lo
         // pasara, el test fallaria. Sin privilegio y sin invitacion, no.
         lenient().when(eventAccessService.canView(event, Long.valueOf(OTHER_ID), true)).thenReturn(true);
-        when(eventAccessService.canView(event, Long.valueOf(OTHER_ID), false)).thenReturn(false);
+        when(eventAccessService.canRegister(event, Long.valueOf(OTHER_ID))).thenReturn(false);
 
         assertFalse(security.canRegister(EVENT_ID, auth(OTHER_ID, OTHER_EMAIL, "ROLE_USER", "ROLE_ADMIN")));
     }

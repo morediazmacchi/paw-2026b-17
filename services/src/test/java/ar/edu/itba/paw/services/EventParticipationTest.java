@@ -9,7 +9,7 @@ import static org.junit.Assert.assertTrue;
 public class EventParticipationTest {
 
     private static EventParticipation withStatus(final RegistrationStatus status) {
-        return new EventParticipation(status, false, false, false);
+        return new EventParticipation(status, false, true);
     }
 
     @Test
@@ -40,11 +40,13 @@ public class EventParticipationTest {
     }
 
     @Test
-    public void testTheOwnerAdminReviewOnlyAndViewOnlyFlagsAreKeptAsGiven() {
-        final EventParticipation participation = new EventParticipation(null, true, true, true);
+    public void testTheOwnerAndCanRegisterFlagsAreKeptAsGiven() {
+        final EventParticipation owner = new EventParticipation(null, true, false);
+        final EventParticipation visitor = new EventParticipation(null, false, true);
 
-        assertTrue(participation.isOwner());
-        assertTrue(participation.isAdminReviewOnly());
-        assertTrue(participation.isViewOnly());
+        assertTrue(owner.isOwner());
+        assertFalse(owner.canRegister());
+        assertFalse(visitor.isOwner());
+        assertTrue(visitor.canRegister());
     }
 }

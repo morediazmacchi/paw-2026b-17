@@ -330,7 +330,7 @@ public class EventInvitationJpaDaoTest {
         assertEquals(0, count);
     }
 
-    // ---- findByUserId() ----
+    // ---- findInvitedEventsByUserId() ----
 
     private void insertInvitationAt(final long eventId, final String email, final long userId,
                                     final Timestamp createdAt) {
@@ -341,23 +341,25 @@ public class EventInvitationJpaDaoTest {
     }
 
     @Test
-    public void testFindByUserIdReturnsOnlyTheInvitationsOfThatUser() {
-        // Arrange
+    public void testFindInvitedEventsByUserIdReturnsOnlyTheEventsThatUserWasInvitedTo() {
+        // Arrange: el evento de otra persona invitada y un evento sin invitaciones son los senuelos
         final long inviteeId = insertUser(INVITEE_EMAIL);
         final long otherUserId = insertUser("otro@mail.com");
+        final long otherEventId = insertEvent();
+        insertEvent();
         insertInvitation(eventId, INVITEE_EMAIL, inviteeId);
-        insertInvitation(eventId, "otro@mail.com", otherUserId);
+        insertInvitation(otherEventId, "otro@mail.com", otherUserId);
 
         // Act
-        final List<EventInvitation> found = invitationDao.findByUserId(inviteeId, 1, 10);
+        final List<Event> found = invitationDao.findInvitedEventsByUserId(inviteeId, 1, 10);
 
         // Assert
         assertEquals(1, found.size());
-        assertEquals(INVITEE_EMAIL, found.get(0).getEmail());
+        assertEquals(Long.valueOf(eventId), found.get(0).getId());
     }
 
     @Test
-    public void testFindByUserIdOrdersNewestFirst() {
+    public void testFindInvitedEventsByUserIdOrdersMostRecentInvitationFirst() {
         // Arrange
         final long inviteeId = insertUser(INVITEE_EMAIL);
         final long otherEventId = insertEvent();
@@ -365,28 +367,28 @@ public class EventInvitationJpaDaoTest {
         insertInvitationAt(otherEventId, INVITEE_EMAIL, inviteeId, new Timestamp(System.currentTimeMillis()));
 
         // Act
-        final List<EventInvitation> found = invitationDao.findByUserId(inviteeId, 1, 10);
+        final List<Event> found = invitationDao.findInvitedEventsByUserId(inviteeId, 1, 10);
 
         // Assert
-        assertEquals(otherEventId, found.get(0).getEventId());
-        assertEquals(eventId, found.get(1).getEventId());
+        assertEquals(Long.valueOf(otherEventId), found.get(0).getId());
+        assertEquals(Long.valueOf(eventId), found.get(1).getId());
     }
 
     @Test
-    public void testFindByUserIdIgnoresInvitationsNotLinkedToAnAccountYet() {
+    public void testFindInvitedEventsByUserIdIgnoresInvitationsNotLinkedToAnAccountYet() {
         // Arrange
         final long inviteeId = insertUser(INVITEE_EMAIL);
         insertInvitation(eventId, INVITEE_EMAIL, null);
 
         // Act
-        final List<EventInvitation> found = invitationDao.findByUserId(inviteeId, 1, 10);
+        final List<Event> found = invitationDao.findInvitedEventsByUserId(inviteeId, 1, 10);
 
         // Assert
         assertTrue(found.isEmpty());
     }
 
     @Test
-    public void testFindByUserIdReturnsTheSecondPageNewestFirst() {
+    public void testFindInvitedEventsByUserIdReturnsTheSecondPageMostRecentFirst() {
         // Arrange: 3 invitaciones de a 2 por pagina -> la pagina 2 es solo la mas vieja
         final long inviteeId = insertUser(INVITEE_EMAIL);
         final long oldestEvent = insertEvent();
@@ -398,21 +400,21 @@ public class EventInvitationJpaDaoTest {
         insertInvitationAt(newestEvent, INVITEE_EMAIL, inviteeId, new Timestamp(now - 1000));
 
         // Act
-        final List<EventInvitation> page = invitationDao.findByUserId(inviteeId, 2, 2);
+        final List<Event> page = invitationDao.findInvitedEventsByUserId(inviteeId, 2, 2);
 
         // Assert
         assertEquals(1, page.size());
-        assertEquals(oldestEvent, page.get(0).getEventId());
+        assertEquals(Long.valueOf(oldestEvent), page.get(0).getId());
     }
 
     @Test
-    public void testFindByUserIdReturnsNothingForAPageBeyondTheLast() {
+    public void testFindInvitedEventsByUserIdReturnsNothingForAPageBeyondTheLast() {
         // Arrange
         final long inviteeId = insertUser(INVITEE_EMAIL);
         insertInvitation(eventId, INVITEE_EMAIL, inviteeId);
 
         // Act
-        final List<EventInvitation> page = invitationDao.findByUserId(inviteeId, 5, 2);
+        final List<Event> page = invitationDao.findInvitedEventsByUserId(inviteeId, 5, 2);
 
         // Assert
         assertTrue(page.isEmpty());

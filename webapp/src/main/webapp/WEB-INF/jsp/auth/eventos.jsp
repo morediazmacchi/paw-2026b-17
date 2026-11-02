@@ -12,7 +12,7 @@
 <paw:navbar backToEvents="true"/>
 
 <div class="account-layout">
-    <paw:accountSidebar active="events" registrationsCount="${registrationsCount}" favoritesCount="${favoritesCount}" eventsCount="${eventsCount}" invitationsCount="${invitationsCount}"/>
+    <paw:accountSidebar active="events" registrationsCount="${accountCounts.registrations}" favoritesCount="${accountCounts.favorites}" eventsCount="${accountCounts.events}" invitationsCount="${accountCounts.invitations}"/>
 
     <main class="account-main">
         <h1><spring:message code="auth.events.heading"/></h1>
@@ -56,7 +56,8 @@
                 <spring:message code="auth.events.cancelConfirmSubmitButton" var="cancelConfirmSubmitButtonLabel"/>
                 <spring:message code="event.detail.closeButton" var="closeButtonLabel"/>
                 <div class="event-row-list">
-                    <c:forEach var="event" items="${createdEvents}">
+                    <c:forEach var="stats" items="${createdEvents}">
+                        <c:set var="event" value="${stats.event}"/>
                         <paw:eventRow id="${event.id}" nombre="${event.title}" fecha="${event.eventDate}"
                                       ubicacion="${event.neighborhood.displayName}" precio="${event.price}"
                                       imagenId="${event.imageId}" privado="${event.visibility == 'PRIVATE'}"
@@ -77,13 +78,13 @@
                             <c:if test="${event.requiresApproval}">
                                 <a class="btn btn-medium btn-accent" href="<c:url value='/perfil/eventos/${event.id}/inscriptos'/>">
                                     <c:out value="${pendingButtonLabel}"/>
-                                    <c:if test="${pendingCountsByEventId[event.id] > 0}">
-                                        (<c:out value="${pendingCountsByEventId[event.id]}"/>)
+                                    <c:if test="${stats.pendingCount > 0}">
+                                        (<c:out value="${stats.pendingCount}"/>)
                                     </c:if>
                                 </a>
                             </c:if>
                             <%-- Rechazado es definitivo, mismo criterio que detail.jsp: no se edita. --%>
-                            <c:if test="${!event.cancelled && !event.rejected}">
+                            <c:if test="${event.editable}">
                                 <a class="btn btn-medium btn-accent" href="<c:url value='/eventos/${event.id}/editar'/>">
                                     <c:out value="${editButtonLabel}"/>
                                 </a>
@@ -110,7 +111,7 @@
                                         <p><strong><c:out value="${event.title}"/></strong></p>
                                         <p>
                                             <spring:message code="auth.events.cancelConfirmBody"
-                                                             arguments="${confirmedCountsByEventId[event.id]}"/>
+                                                             arguments="${stats.confirmedCount}"/>
                                         </p>
                                         <div class="modal-confirm-actions">
                                             <button type="button" class="btn btn-medium" data-close-modal>

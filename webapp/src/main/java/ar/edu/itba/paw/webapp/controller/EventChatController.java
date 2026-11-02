@@ -1,12 +1,10 @@
 package ar.edu.itba.paw.webapp.controller;
 
-import ar.edu.itba.paw.model.ChatMessage;
-import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.ChatJoinResult;
+import ar.edu.itba.paw.services.ChatRoom;
 import ar.edu.itba.paw.services.ChatSendResult;
 import ar.edu.itba.paw.services.EventChatService;
-import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.webapp.form.ChatMessageForm;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -23,7 +21,6 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
-import java.util.List;
 
 // Grupo de chat de un evento. Sin WebSockets: la pagina pide los mensajes nuevos cada
 // pocos segundos (js/event-chat.js) y los recibe como un fragmento de HTML ya escapado.
@@ -33,12 +30,10 @@ public class EventChatController {
     private static final String XHR_HEADER = "X-Requested-With";
 
     private final EventChatService chatService;
-    private final EventService eventService;
 
     @Autowired
-    public EventChatController(final EventChatService chatService, final EventService eventService) {
+    public EventChatController(final EventChatService chatService) {
         this.chatService = chatService;
-        this.eventService = eventService;
     }
 
     // Unirse al grupo. Si sale bien, directo al chat. Solo con el lugar confirmado en el evento: lo
@@ -73,14 +68,13 @@ public class EventChatController {
     @RequestMapping(value = "/eventos/{id}/chat", method = RequestMethod.GET)
     public ModelAndView chat(@PathVariable final long id,
                              @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final Event event = eventService.findByIdOrThrow(id);
-        final List<ChatMessage> messages = chatService.findMessages(id, currentUser.getId(), 0);
+        final ChatRoom room = chatService.openRoom(id, currentUser.getId());
         final ModelAndView mav = new ModelAndView("events/chat");
-        mav.addObject("event", event);
-        mav.addObject("messages", messages);
-        mav.addObject("lastId", lastId(messages));
+        mav.addObject("event", room.getEvent());
+        mav.addObject("messages", room.getMessages());
+        mav.addObject("lastId", room.getLastId());
         mav.addObject("currentUserId", currentUser.getId());
-        mav.addObject("chatClosed", event.isCancelled() || event.isFinished());
+        mav.addObject("chatClosed", room.isClosed());
         return mav;
     }
 
@@ -124,9 +118,5 @@ public class EventChatController {
             case INVALID -> HttpServletResponse.SC_BAD_REQUEST;
             case CLOSED -> HttpServletResponse.SC_CONFLICT;
         };
-    }
-
-    private static long lastId(final List<ChatMessage> messages) {
-        return messages.isEmpty() ? 0 : messages.get(messages.size() - 1).getId();
     }
 }

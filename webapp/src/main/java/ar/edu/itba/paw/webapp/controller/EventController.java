@@ -7,20 +7,18 @@ import ar.edu.itba.paw.model.Category;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventQuestion;
 import ar.edu.itba.paw.model.EventSearchCriteria;
-import ar.edu.itba.paw.model.EventSort;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.CategoryService;
 import ar.edu.itba.paw.services.CreatorReputation;
 import ar.edu.itba.paw.services.EventAccessService;
-import ar.edu.itba.paw.services.EventChatService;
+import ar.edu.itba.paw.services.EventDetail;
+import ar.edu.itba.paw.services.EventDetailService;
 import ar.edu.itba.paw.services.EventParticipation;
-import ar.edu.itba.paw.services.EventQuestionService;
-import ar.edu.itba.paw.services.EventSimilarityService;
+import ar.edu.itba.paw.services.EventSearchResult;
 import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.FavoriteService;
 import ar.edu.itba.paw.services.PageResult;
 import ar.edu.itba.paw.services.RegistrationService;
-import ar.edu.itba.paw.services.ReviewService;
 import ar.edu.itba.paw.model.exception.InvalidEventException;
 import ar.edu.itba.paw.model.exception.InvalidImageException;
 import ar.edu.itba.paw.webapp.form.EventForm;
@@ -45,7 +43,6 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import javax.validation.Valid;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -61,30 +58,21 @@ public class EventController {
     private final CategoryService categoryService;
     private final RegistrationService registrationService;
     private final FavoriteService favoriteService;
-    private final ReviewService reviewService;
-    private final EventQuestionService eventQuestionService;
+    private final EventDetailService eventDetailService;
     private final EventAccessService accessChecker;
-    private final EventChatService eventChatService;
-    private final EventSimilarityService eventSimilarityService;
     private final MessageSource messageSource;
 
     @Autowired
     public EventController(final EventService eventService, final CategoryService categoryService,
                             final RegistrationService registrationService,
-                            final FavoriteService favoriteService, final ReviewService reviewService,
-                            final EventQuestionService eventQuestionService, final EventAccessService accessChecker,
-                            final EventChatService eventChatService,
-                            final EventSimilarityService eventSimilarityService,
-                            final MessageSource messageSource) {
+                            final FavoriteService favoriteService, final EventDetailService eventDetailService,
+                            final EventAccessService accessChecker, final MessageSource messageSource) {
         this.eventService = eventService;
         this.categoryService = categoryService;
         this.registrationService = registrationService;
         this.favoriteService = favoriteService;
-        this.reviewService = reviewService;
-        this.eventQuestionService = eventQuestionService;
+        this.eventDetailService = eventDetailService;
         this.accessChecker = accessChecker;
-        this.eventChatService = eventChatService;
-        this.eventSimilarityService = eventSimilarityService;
         this.messageSource = messageSource;
     }
 
@@ -113,15 +101,12 @@ public class EventController {
             filterErrors.put("fechaHasta", message("event.list.dateRangeInvalid"));
         }
 
-        // Quien navega: sus propios eventos no se listan (el banner si los muestra), y si ya asistio a
-        // algo el orden por defecto pasa a ser RECOMENDADOS (ver EventSimilarityService).
-        final Long viewerId = currentUser == null ? null : currentUser.getId();
-        final boolean hasHistory = viewerId != null && eventSimilarityService.hasAttendanceHistory(viewerId);
-        final EventSort sort = effectiveSort(filters, hasHistory);
+        // Quien navega: sus propios eventos no se listan (el banner si los muestra). El orden que se aplica
+        // y los que se ofrecen los decide el service (ver EventService.search()).
         final EventSearchCriteria criteria = filters.toCriteria();
-        criteria.setViewerId(viewerId);
-        criteria.setSort(sort);
-        final PageResult<Event> result = eventService.search(criteria);
+        criteria.setViewerId(currentUser == null ? null : currentUser.getId());
+        final EventSearchResult searchResult = eventService.search(criteria);
+        final PageResult<Event> result = searchResult.getPage();
 
         // Banner destacado
         final List<Event> featured = eventService.findFeatured(FEATURED_COUNT);
@@ -145,9 +130,9 @@ public class EventController {
         mav.addObject("pocosCupos", filters.getPocosCupos());
         mav.addObject("agotados", filters.getAgotados());
         mav.addObject("hasActiveFilters", filters.hasActiveFilters());
-        mav.addObject("sort", sort.name());
+        mav.addObject("sort", searchResult.getEffectiveSort().name());
         mav.addObject("filterQuery", filters.toFilterQuery());
-        mav.addObject("sortOptions", sortOptions(hasHistory));
+        mav.addObject("sortOptions", searchResult.getAvailableSorts());
         mav.addObject("filterErrors", filterErrors);
         // Anonimo no ve el corazon de favorito ni las etiquetas de estado.
         if (currentUser != null) {
@@ -160,25 +145,6 @@ public class EventController {
         return mav;
     }
 
-    // El orden que pidio la persona; si no pidio ninguno, RECOMENDADOS para quien ya asistio a
-    // algo y FECHA_ASC para el resto. RECOMENDADOS pedido a mano sin historial no dice nada, asi
-    // que cae a FECHA_ASC.
-    private static EventSort effectiveSort(final EventSearchForm filters, final boolean hasHistory) {
-        if (!filters.isSortExplicit()) {
-            return hasHistory ? EventSort.RECOMENDADOS : EventSort.FECHA_ASC;
-        }
-        final EventSort requested = filters.getParsedSort();
-        return requested == EventSort.RECOMENDADOS && !hasHistory ? EventSort.FECHA_ASC : requested;
-    }
-
-    // RECOMENDADOS solo se ofrece a quien tiene historial: sin el, el orden seria identico a
-    // "Mas proximos" y la opcion no diria nada.
-    private static List<EventSort> sortOptions(final boolean hasHistory) {
-        return Arrays.stream(EventSort.values())
-                .filter(option -> hasHistory || option != EventSort.RECOMENDADOS)
-                .collect(Collectors.toList());
-    }
-
     // Quien puede ver el evento lo decide @PreAuthorize antes de entrar (ver EventSecurity.canView):
     // un evento inexistente o que no se puede ver nunca llega aca. Un anonimo que no puede verlo
     // va al login (ErrorAdvice.accessDenied), un usuario con sesion ve el 404.
@@ -188,64 +154,44 @@ public class EventController {
                                 @RequestParam(value = "preguntasPage", required = false) final String preguntasPage,
                                 @RequestParam(value = "resenasPage", required = false) final String resenasPage,
                                 @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final Event event = eventService.findByIdOrThrow(id);
+        final EventDetail detail = eventDetailService.getDetail(id, currentUser == null ? null : currentUser.getId(),
+                Paging.parsePage(preguntasPage), Paging.parsePage(resenasPage));
         final ModelAndView mav = new ModelAndView("events/detail");
-        mav.addObject("event", event);
-        // Quien fue invitado a un evento privado tiene su lugar reservado: para esa
-        // persona el evento no esta "lleno" aunque el cupo ya este contado entero.
-        mav.addObject("full", currentUser != null
-                ? registrationService.isFullFor(id, currentUser.getId())
-                : registrationService.isFull(id));
-        mav.addObject("availableSpots", registrationService.availableSpots(id));
-        if (currentUser != null) {
+        mav.addObject("event", detail.getEvent());
+        mav.addObject("availableSpots", detail.getAvailableSpots());
+        // Que se le ofrece (inscribirse, darse de baja, nada...) y el acceso al chat ya vienen decididos por el
+        // service: la vista solo hace un switch sobre estos valores.
+        mav.addObject("action", detail.getAction());
+        mav.addObject("chatAccess", detail.getChatAccess());
+        mav.addObject("canUnregister", detail.isCanUnregister());
+        final EventParticipation participation = detail.getParticipation();
+        if (participation != null) {
             // La relacion de esta persona con el evento ya viene resuelta por el service.
-            final EventParticipation participation = registrationService.findParticipation(id, currentUser.getId());
-            mav.addObject("favorite", favoriteService.isFavorite(currentUser.getId(), id));
-            mav.addObject("registered", participation.isRegistered());
+            mav.addObject("favorite", detail.isFavorite());
             mav.addObject("waitlisted", participation.isWaitlisted());
             mav.addObject("pendingApproval", participation.isPendingApproval());
-            mav.addObject("rejected", participation.isRejected());
-            // Grupo de chat: se ofrece "Unirme" a quien esta confirmado, y "Ir al chat" a quien ya
-            // es miembro activo (aunque el evento ya haya terminado: queda de solo lectura).
-            mav.addObject("chatConfirmed", participation.isChatConfirmed());
-            mav.addObject("chatMember", eventChatService.isMember(id, currentUser.getId()));
             mav.addObject("isOwner", participation.isOwner());
-            mav.addObject("adminReviewOnly", participation.isAdminReviewOnly());
-            mav.addObject("viewOnly", participation.isViewOnly());
         }
-        if (event.getCreatorId() != null) {
-            addCreatorReputation(mav, event.getCreatorId(), Paging.parsePage(resenasPage));
-        }
-        addRelatedEvents(mav, event, currentUser);
-        final PageResult<EventQuestion> questions = eventQuestionService.findPage(id, Paging.parsePage(preguntasPage));
+        addCreatorReputation(mav, detail.getCreatorReputation());
+        // "Eventos que te pueden interesar": vacio si el evento es privado o no esta aprobado.
+        mav.addObject("relatedEvents", detail.getRelatedEvents());
+        mav.addObject("relatedStatuses", detail.getRelatedStatuses());
+        final PageResult<EventQuestion> questions = detail.getQuestions();
         mav.addObject("questions", questions.getContent());
         mav.addObject("questionsPage", questions.getPage());
         mav.addObject("questionsTotalPages", questions.getTotalPages());
         return mav;
     }
 
-    // "Eventos que te pueden interesar": solo en el detalle de un evento publico y aprobado (uno
-    // privado, pendiente o rechazado no sugiere nada). Es evento contra evento: no depende de
-    // quien mira, salvo que sus propios eventos no se sugieren.
-    private void addRelatedEvents(final ModelAndView mav, final Event event, final User currentUser) {
-        if (event.isPrivate() || !event.isApproved()) {
-            return;
-        }
-        final List<Event> related = eventSimilarityService.findSimilar(
-                event.getId(), currentUser == null ? null : currentUser.getId());
-        mav.addObject("relatedEvents", related);
-        if (currentUser != null && !related.isEmpty()) {
-            mav.addObject("relatedStatuses", registrationService.findStatusesByEventIds(
-                    currentUser.getId(), related.stream().map(Event::getId).collect(Collectors.toList())));
-        }
-    }
-
     // Puntaje del promotor (todas sus reseñas, de todos sus eventos: COUNT y AVG en la base) +
     // UNA pagina de reseñas para el popup "Ver reseñas de este promotor", con la mini info del
     // evento reseñado en cada una (reviewEventsById). Los links del popup piden otra pagina
-    // con ?resenasPage=N, igual que las preguntas con ?preguntasPage=N.
-    private void addCreatorReputation(final ModelAndView mav, final long creatorId, final int reviewsPage) {
-        final CreatorReputation reputation = reviewService.findCreatorReputation(creatorId, reviewsPage);
+    // con ?resenasPage=N, igual que las preguntas con ?preguntasPage=N. Un evento sin organizador
+    // cargado no tiene reputacion (null).
+    private void addCreatorReputation(final ModelAndView mav, final CreatorReputation reputation) {
+        if (reputation == null) {
+            return;
+        }
         mav.addObject("creatorReviewCount", reputation.getReviewCount());
         if (reputation.hasReviews()) {
             mav.addObject("creatorAverageRating", reputation.getAverageRating());
@@ -288,20 +234,17 @@ public class EventController {
 
         final EventDTO dto = form.toDTO();
         dto.setNewImages(newImages);
-        // El creador es quien esta logueado.
-        dto.setCreatorId(currentUser.getId());
-        dto.setCreatorEmail(currentUser.getEmail());
 
-        // Subir las imagenes y crear el evento pasa todo DENTRO de la misma
-        // transaccion, adentro de eventService.create(): una imagen invalida
-        // o una categoria inexistente deshacen las dos cosas juntas.
+        // El creador es quien esta logueado. Subir las imagenes y crear el evento pasa todo DENTRO de
+        // la misma transaccion, adentro de eventService.create(): una imagen invalida o una categoria
+        // inexistente deshacen las dos cosas juntas.
         final Event created;
         try {
-            created = eventService.create(dto);
+            created = eventService.create(currentUser.getId(), dto);
         } catch (final InvalidImageException e) {
-            return publishFormWithErrors(form, errors, message(e.getMessageKey()));
+            return publishFormWithErrors(form, errors, message(messageKeyOf(e.getReason())));
         } catch (final InvalidEventException e) {
-            return publishFormWithErrors(form, errors, message(e.getMessageKey()));
+            return publishFormWithErrors(form, errors, message(messageKeyOf(e.getReason())));
         }
         // Todo evento nuevo arranca pendiente de aprobacion (ver EventApprovalStatus):
         // se avisa con un popup en la pantalla a la que se redirige, sea cual sea.
@@ -310,6 +253,28 @@ public class EventController {
         return created.isPrivate()
                 ? new ModelAndView("redirect:/perfil/eventos/" + created.getId() + "/invitar")
                 : new ModelAndView("redirect:/eventos/" + created.getId());
+    }
+
+    // El service avisa POR QUE fallo con un codigo (no con un texto): la clave i18n del mensaje que ve la persona
+    // se elige aca, en la capa web.
+    private static String messageKeyOf(final InvalidImageException.Reason reason) {
+        return switch (reason) {
+            case EMPTY -> "event.publish.imageEmpty";
+            case TOO_LARGE -> "event.publish.imageTooLarge";
+            case NOT_AN_IMAGE -> "event.publish.imageNotAnImage";
+            case TOO_MANY -> "ValidImageCount.eventForm.images";
+        };
+    }
+
+    private static String messageKeyOf(final InvalidEventException.Reason reason) {
+        return switch (reason) {
+            case INVALID_DATA -> "event.publish.invalidData";
+            case CATEGORY_NOT_FOUND -> "event.publish.categoryNotFound";
+            case NO_CATEGORY -> "ValidCategorias.none";
+            case CAPACITY_BELOW_OCCUPIED -> "cupo.muyBajo";
+            case DATE_IN_PAST -> "ValidEventDate.past";
+            case DATE_TOO_FAR -> "ValidEventDate.tooFar";
+        };
     }
 
     // Lee los bytes de cada archivo, sin guardar nada todavia.
@@ -373,7 +338,6 @@ public class EventController {
     @PreAuthorize("@eventSecurity.isOwner(#id, authentication)")
     @RequestMapping(value = "/eventos/{id}/editar", method = RequestMethod.POST)
     public ModelAndView editar(@PathVariable final long id, @Valid final EventForm form, final BindingResult errors) {
-        accessChecker.getEditableEvent(id);
         if (errors.hasErrors()) {
             return editarFormWithErrors(id, form, errors, null);
         }
@@ -393,13 +357,13 @@ public class EventController {
         try {
             eventService.update(id, dto);
         } catch (final InvalidImageException e) {
-            return editarFormWithErrors(id, form, errors, message(e.getMessageKey()));
+            return editarFormWithErrors(id, form, errors, message(messageKeyOf(e.getReason())));
         } catch (final InvalidEventException e) {
             if (e.getField() != null) {
-                errors.rejectValue(e.getField(), e.getMessageKey());
+                errors.rejectValue(e.getField(), messageKeyOf(e.getReason()));
                 return editarFormWithErrors(id, form, errors, null);
             }
-            return editarFormWithErrors(id, form, errors, message(e.getMessageKey()));
+            return editarFormWithErrors(id, form, errors, message(messageKeyOf(e.getReason())));
         }
         return new ModelAndView("redirect:/perfil/eventos");
     }

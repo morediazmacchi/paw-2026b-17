@@ -2,6 +2,8 @@
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.EventApprovalStatus;
+import ar.edu.itba.paw.model.EventVisibility;
 import ar.edu.itba.paw.model.Favorite;
 import ar.edu.itba.paw.model.FavoriteId;
 import ar.edu.itba.paw.model.User;
@@ -46,6 +48,29 @@ public class FavoriteJpaDao implements FavoriteDao {
     @Override
     public boolean isFavorite(final long userId, final long eventId) {
         return em.find(Favorite.class, new FavoriteId(userId, eventId)) != null;
+    }
+
+    @Override
+    public long countByUserId(final long userId) {
+        return em.createQuery("SELECT COUNT(f) FROM Favorite f WHERE f.user.id = :userId", Long.class)
+                .setParameter("userId", userId)
+                .getSingleResult();
+    }
+
+    @Override
+    public long countViewableByUserId(final long userId) {
+        return em.createQuery(
+                        "SELECT COUNT(f) FROM Favorite f JOIN f.event e WHERE f.user.id = :userId AND ("
+                                + "e.creator.id = :userId OR (e.approvalStatus = :approved AND ("
+                                + "e.visibility = :publicVisibility "
+                                + "OR EXISTS (SELECT r.id FROM Registration r "
+                                + "WHERE r.event.id = e.id AND r.user.id = :userId) "
+                                + "OR EXISTS (SELECT i.id FROM EventInvitation i "
+                                + "WHERE i.event.id = e.id AND i.user.id = :userId))))", Long.class)
+                .setParameter("userId", userId)
+                .setParameter("approved", EventApprovalStatus.APPROVED)
+                .setParameter("publicVisibility", EventVisibility.PUBLIC)
+                .getSingleResult();
     }
 
     @Override

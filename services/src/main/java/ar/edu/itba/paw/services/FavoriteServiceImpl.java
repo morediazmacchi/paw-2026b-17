@@ -68,8 +68,10 @@ public class FavoriteServiceImpl implements FavoriteService {
 
     @Override
     @Transactional(readOnly = true)
-    public long countViewable(final User user) {
-        return viewableFavorites(user).size();
+    public long countViewable(final long userId, final boolean isAdmin) {
+        // COUNT en la base, con la misma regla de visibilidad que viewableFavorites() (EventAccessService.canView):
+        // un admin ve todos los eventos, el resto solo los suyos, los publicos aprobados y los privados con acceso.
+        return isAdmin ? favoriteDao.countByUserId(userId) : favoriteDao.countViewableByUserId(userId);
     }
 
     // Los favoritos de la cuenta, mas recientes primero, SIN los de un evento

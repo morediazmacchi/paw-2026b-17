@@ -7,11 +7,13 @@ import ar.edu.itba.paw.model.EventVisibility;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationAccess;
 import ar.edu.itba.paw.model.RegistrationStatus;
+import ar.edu.itba.paw.model.Review;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.EventInvitationDao;
 import ar.edu.itba.paw.persistence.RegistrationDao;
+import ar.edu.itba.paw.persistence.ReviewDao;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -27,8 +29,12 @@ import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
@@ -67,13 +73,16 @@ public class RegistrationServiceImplTest {
     private NotificationService notificationService;
     @Mock
     private InboxService inboxService;
+    // "Mis inscripciones" trae la reseña propia de cada evento ya pasado.
+    @Mock
+    private ReviewDao mockReviewDao;
 
     private RegistrationServiceImpl registrationService;
 
     @Before
     public void setUp() {
         registrationService = new RegistrationServiceImpl(
-                mockRegistrationDao, mockEventDao, notificationService, mockInvitationDao, inboxService);
+                mockRegistrationDao, mockEventDao, notificationService, mockInvitationDao, inboxService, mockReviewDao);
         // En produccion lo resuelve Spring (@Autowired @Lazy, ver RegistrationServiceImpl):
         // aca no hay proxy, asi que "el propio proxy" es directamente la instancia real.
         registrationService.self = registrationService;
@@ -581,68 +590,215 @@ public class RegistrationServiceImplTest {
         assertTrue(registrationService.findStatusesByEventIds(USER_ID, Collections.singletonList(1L)).isEmpty());
     }
 
-    // ---- findPageByUserId() ----
+    // ---- findMyRegistrations() ----
 
-    @Test
-    public void testFindPageByUserIdReturnsTheRequestedPageWithItsTotals() {
-        // Arrange: 25 en total, de a RegistrationServiceImpl.PAGE_SIZE por pagina -> 3 paginas
-        final List<Registration> pageTwo = Collections.singletonList(new Registration(ModelFixtures.event(EVENT_ID), null, NORMALIZED_EMAIL, NAME, RegistrationStatus.CONFIRMED));
-        when(mockRegistrationDao.countByUserId(USER_ID)).thenReturn(25L);
-        when(mockRegistrationDao.findByUserId(USER_ID, 2, RegistrationServiceImpl.PAGE_SIZE)).thenReturn(pageTwo);
+    private static final long PAST_EVENT_ID = 50;
+    private static final long UPCOMING_EVENT_ID = 60;
 
-        // Act
-        final PageResult<Registration> result = registrationService.findPageByUserId(USER_ID, 2);
+    // Un evento que ya paso (el service lo clasifica por su fecha para decidir si se puede reseñar).
+    private static Event pastEvent(final long id) {
+        final Event event = ModelFixtures.event(id);
+        event.setEventDate(new Date(System.currentTimeMillis() - ONE_DAY_MILLIS));
+        return event;
+    }
 
-        // Assert
-        assertEquals(pageTwo, result.getContent());
-        assertEquals(2, result.getPage());
-        assertEquals(3, result.getTotalPages());
-        assertEquals(25L, result.getTotalElements());
+    private static Registration registrationAt(final long eventId) {
+        return new Registration(ModelFixtures.event(eventId), null, NORMALIZED_EMAIL, NAME, RegistrationStatus.CONFIRMED);
+    }
+
+    private void givenTotals(final long upcoming, final long past) {
+        when(mockRegistrationDao.countUpcomingByUserId(eq(USER_ID), any(Date.class))).thenReturn(upcoming);
+        when(mockRegistrationDao.countPastByUserId(eq(USER_ID), any(Date.class))).thenReturn(past);
+    }
+
+    private void givenUpcomingPage(final int page, final long eventId) {
+        when(mockRegistrationDao.findUpcomingByUserId(eq(USER_ID), any(Date.class), eq(page), eq(RegistrationServiceImpl.PAGE_SIZE)))
+                .thenReturn(Collections.singletonList(registrationAt(eventId)));
+        when(mockEventDao.findByIds(Collections.singletonList(eventId)))
+                .thenReturn(Collections.singletonList(ModelFixtures.event(eventId)));
+    }
+
+    private void givenPastPage(final int page, final long eventId) {
+        when(mockRegistrationDao.findPastByUserId(eq(USER_ID), any(Date.class), eq(page), eq(RegistrationServiceImpl.PAGE_SIZE)))
+                .thenReturn(Collections.singletonList(registrationAt(eventId)));
+        when(mockEventDao.findByIds(Collections.singletonList(eventId)))
+                .thenReturn(Collections.singletonList(pastEvent(eventId)));
     }
 
     @Test
-    public void testFindPageByUserIdShowsTheLastPageWhenThePageIsBeyondIt() {
-        // Arrange: 25 en total -> la ultima pagina es la 3
-        final List<Registration> lastPage = Collections.singletonList(new Registration(ModelFixtures.event(EVENT_ID), null, NORMALIZED_EMAIL, NAME, RegistrationStatus.CONFIRMED));
-        when(mockRegistrationDao.countByUserId(USER_ID)).thenReturn(25L);
-        when(mockRegistrationDao.findByUserId(USER_ID, 3, RegistrationServiceImpl.PAGE_SIZE)).thenReturn(lastPage);
+    public void testFindMyRegistrationsHoldsBothGroupsInTheSameResult() {
+        // Arrange: pocas de cada grupo
+        givenTotals(1, 1);
+        givenUpcomingPage(1, UPCOMING_EVENT_ID);
+        givenPastPage(1, PAST_EVENT_ID);
 
         // Act
-        final PageResult<Registration> result = registrationService.findPageByUserId(USER_ID, 99);
+        final MyRegistrationsView result = registrationService.findMyRegistrations(USER_ID, 1, 1);
 
         // Assert
-        assertEquals(3, result.getPage());
-        assertEquals(lastPage, result.getContent());
+        assertEquals(UPCOMING_EVENT_ID, result.getUpcoming().getContent().get(0).getEvent().getId().longValue());
+        assertEquals(PAST_EVENT_ID, result.getPast().getContent().get(0).getEvent().getId().longValue());
     }
 
     @Test
-    public void testFindPageByUserIdShowsTheFirstPageWhenThePageIsBelowOne() {
+    public void testFindMyRegistrationsPagesEachGroupWithItsOwnIndex() {
+        // Arrange: 25 proximas (3 paginas) y 25 pasadas (3 paginas); proximas en la 3 y pasadas en la 2
+        givenTotals(25, 25);
+        givenUpcomingPage(3, UPCOMING_EVENT_ID);
+        givenPastPage(2, PAST_EVENT_ID);
+
+        // Act
+        final MyRegistrationsView result = registrationService.findMyRegistrations(USER_ID, 3, 2);
+
+        // Assert
+        assertEquals(3, result.getUpcoming().getPage());
+        assertEquals(2, result.getPast().getPage());
+        assertEquals(UPCOMING_EVENT_ID, result.getUpcoming().getContent().get(0).getEvent().getId().longValue());
+        assertEquals(PAST_EVENT_ID, result.getPast().getContent().get(0).getEvent().getId().longValue());
+    }
+
+    @Test
+    public void testFindMyRegistrationsEachGroupHasItsOwnTotals() {
+        // Arrange: 25 proximas -> 3 paginas; 12 pasadas -> 2 paginas
+        givenTotals(25, 12);
+
+        // Act
+        final MyRegistrationsView result = registrationService.findMyRegistrations(USER_ID, 1, 1);
+
+        // Assert
+        assertEquals(25L, result.getUpcoming().getTotalElements());
+        assertEquals(3, result.getUpcoming().getTotalPages());
+        assertEquals(12L, result.getPast().getTotalElements());
+        assertEquals(2, result.getPast().getTotalPages());
+    }
+
+    @Test
+    public void testFindMyRegistrationsAPageBeyondTheLastOfItsGroupShowsThatGroupsLastPage() {
+        // Arrange: 12 proximas (2 paginas) y 3 pasadas (1 pagina)
+        givenTotals(12, 3);
+
+        // Act
+        final MyRegistrationsView result = registrationService.findMyRegistrations(USER_ID, 99, 99);
+
+        // Assert
+        assertEquals(2, result.getUpcoming().getPage());
+        assertEquals(1, result.getPast().getPage());
+    }
+
+    @Test
+    public void testFindMyRegistrationsAPageBelowOneShowsTheFirstPage() {
         // Arrange
-        final List<Registration> firstPage = Collections.singletonList(new Registration(ModelFixtures.event(EVENT_ID), null, NORMALIZED_EMAIL, NAME, RegistrationStatus.CONFIRMED));
-        when(mockRegistrationDao.countByUserId(USER_ID)).thenReturn(25L);
-        when(mockRegistrationDao.findByUserId(USER_ID, 1, RegistrationServiceImpl.PAGE_SIZE)).thenReturn(firstPage);
+        givenTotals(25, 25);
 
         // Act
-        final PageResult<Registration> result = registrationService.findPageByUserId(USER_ID, -3);
+        final MyRegistrationsView result = registrationService.findMyRegistrations(USER_ID, -3, 0);
 
         // Assert
-        assertEquals(1, result.getPage());
-        assertEquals(firstPage, result.getContent());
+        assertEquals(1, result.getUpcoming().getPage());
+        assertEquals(1, result.getPast().getPage());
     }
 
     @Test
-    public void testFindPageByUserIdWithNoResultsReturnsAnEmptyFirstPage() {
+    public void testFindMyRegistrationsWithOnlyUpcomingLeavesThePastGroupEmpty() {
         // Arrange
-        when(mockRegistrationDao.countByUserId(USER_ID)).thenReturn(0L);
-        when(mockRegistrationDao.findByUserId(USER_ID, 1, RegistrationServiceImpl.PAGE_SIZE)).thenReturn(Collections.emptyList());
+        givenTotals(1, 0);
+        givenUpcomingPage(1, UPCOMING_EVENT_ID);
 
         // Act
-        final PageResult<Registration> result = registrationService.findPageByUserId(USER_ID, 5);
+        final MyRegistrationsView result = registrationService.findMyRegistrations(USER_ID, 1, 5);
 
         // Assert
-        assertEquals(1, result.getPage());
-        assertEquals(0, result.getTotalPages());
-        assertTrue(result.getContent().isEmpty());
+        assertEquals(1, result.getUpcoming().getContent().size());
+        assertTrue(result.getPast().getContent().isEmpty());
+        assertEquals(1, result.getPast().getPage());
+        assertEquals(0, result.getPast().getTotalPages());
+    }
+
+    @Test
+    public void testFindMyRegistrationsWithOnlyPastLeavesTheUpcomingGroupEmpty() {
+        // Arrange
+        givenTotals(0, 1);
+        givenPastPage(1, PAST_EVENT_ID);
+
+        // Act
+        final MyRegistrationsView result = registrationService.findMyRegistrations(USER_ID, 5, 1);
+
+        // Assert
+        assertTrue(result.getUpcoming().getContent().isEmpty());
+        assertEquals(1, result.getPast().getContent().size());
+    }
+
+    @Test
+    public void testFindMyRegistrationsWithNoRegistrationsReturnsTwoEmptyFirstPages() {
+        // Arrange
+        givenTotals(0, 0);
+
+        // Act
+        final MyRegistrationsView result = registrationService.findMyRegistrations(USER_ID, 5, 5);
+
+        // Assert
+        assertTrue(result.getUpcoming().getContent().isEmpty());
+        assertTrue(result.getPast().getContent().isEmpty());
+        assertEquals(1, result.getUpcoming().getPage());
+        assertEquals(1, result.getPast().getPage());
+    }
+
+    @Test
+    public void testFindMyRegistrationsPairsEachPastRegistrationWithItsEventAndOwnReview() {
+        // Arrange: una reseña propia del evento pasado y una senuelo de otro evento
+        givenTotals(0, 1);
+        final Registration registration = registrationAt(PAST_EVENT_ID);
+        final Event event = pastEvent(PAST_EVENT_ID);
+        final Review myReview = new Review(event, ModelFixtures.user(USER_ID), 4, "Muy bueno");
+        when(mockRegistrationDao.findPastByUserId(eq(USER_ID), any(Date.class), eq(1), eq(RegistrationServiceImpl.PAGE_SIZE)))
+                .thenReturn(Collections.singletonList(registration));
+        when(mockEventDao.findByIds(Collections.singletonList(PAST_EVENT_ID))).thenReturn(Collections.singletonList(event));
+        when(mockReviewDao.findByEventsAndUser(Collections.singletonList(PAST_EVENT_ID), USER_ID))
+                .thenReturn(Collections.singletonList(myReview));
+
+        // Act
+        final RegistrationEntry entry = registrationService.findMyRegistrations(USER_ID, 1, 1).getPast().getContent().get(0);
+
+        // Assert
+        assertSame(registration, entry.getRegistration());
+        assertSame(event, entry.getEvent());
+        assertSame(myReview, entry.getMyReview());
+    }
+
+    @Test
+    public void testFindMyRegistrationsLeavesTheReviewEmptyWhenThePastEventHasNone() {
+        // Arrange
+        givenTotals(0, 1);
+        when(mockRegistrationDao.findPastByUserId(eq(USER_ID), any(Date.class), eq(1), eq(RegistrationServiceImpl.PAGE_SIZE)))
+                .thenReturn(Collections.singletonList(registrationAt(PAST_EVENT_ID)));
+        when(mockEventDao.findByIds(Collections.singletonList(PAST_EVENT_ID)))
+                .thenReturn(Collections.singletonList(pastEvent(PAST_EVENT_ID)));
+        when(mockReviewDao.findByEventsAndUser(Collections.singletonList(PAST_EVENT_ID), USER_ID))
+                .thenReturn(Collections.emptyList());
+
+        // Act
+        final RegistrationEntry entry = registrationService.findMyRegistrations(USER_ID, 1, 1).getPast().getContent().get(0);
+
+        // Assert
+        assertNull(entry.getMyReview());
+    }
+
+    @Test
+    public void testFindMyRegistrationsDoesNotAttachReviewsToUpcomingRegistrations() {
+        // Arrange: aunque la base tuviera una reseña de ese evento, en las proximas no se busca
+        givenTotals(1, 0);
+        final Event event = ModelFixtures.event(UPCOMING_EVENT_ID);
+        when(mockRegistrationDao.findUpcomingByUserId(eq(USER_ID), any(Date.class), eq(1), eq(RegistrationServiceImpl.PAGE_SIZE)))
+                .thenReturn(Collections.singletonList(registrationAt(UPCOMING_EVENT_ID)));
+        when(mockEventDao.findByIds(Collections.singletonList(UPCOMING_EVENT_ID))).thenReturn(Collections.singletonList(event));
+        lenient().when(mockReviewDao.findByEventsAndUser(Collections.singletonList(UPCOMING_EVENT_ID), USER_ID))
+                .thenReturn(Collections.singletonList(new Review(event, ModelFixtures.user(USER_ID), 5, "Senuelo")));
+
+        // Act
+        final RegistrationEntry entry = registrationService.findMyRegistrations(USER_ID, 1, 1).getUpcoming().getContent().get(0);
+
+        // Assert
+        assertNull(entry.getMyReview());
     }
 
     // ---- countByUserId() ----
@@ -760,198 +916,6 @@ public class RegistrationServiceImplTest {
 
         // Assert
         assertEquals(UnregisterResult.NOT_FOUND, result);
-    }
-
-    // ---- findParticipation() ----
-
-    private static Registration participationRegistration(final RegistrationStatus status) {
-        return new Registration(ModelFixtures.event(EVENT_ID), null, NORMALIZED_EMAIL, NAME, status);
-    }
-
-    private static Event privateEvent() {
-        final Event event = eventWithCapacity(10);
-        event.setVisibility(EventVisibility.PRIVATE);
-        return event;
-    }
-
-    @Test(expected = EventNotFoundException.class)
-    public void testFindParticipationOfANonexistentEventThrowsEventNotFoundException() {
-        // Arrange
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.empty());
-
-        // Act
-        registrationService.findParticipation(EVENT_ID, USER_ID);
-
-        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
-    }
-
-    @Test
-    public void testFindParticipationOfSomeoneWithoutRegistrationInAPublicEventHasNothingSpecial() {
-        // Arrange
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(10)));
-        when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
-
-        // Act
-        final EventParticipation result = registrationService.findParticipation(EVENT_ID, USER_ID);
-
-        // Assert
-        assertFalse(result.isRegistered());
-        assertFalse(result.isOwner());
-        assertFalse(result.isAdminReviewOnly());
-        assertFalse(result.isViewOnly());
-    }
-
-    @Test
-    public void testFindParticipationOfAConfirmedRegistrationIsRegisteredAndOffersTheChat() {
-        // Arrange
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(10)));
-        when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID))
-                .thenReturn(Optional.of(participationRegistration(RegistrationStatus.CONFIRMED)));
-
-        // Act
-        final EventParticipation result = registrationService.findParticipation(EVENT_ID, USER_ID);
-
-        // Assert
-        assertTrue(result.isRegistered());
-        assertTrue(result.isChatConfirmed());
-    }
-
-    @Test
-    public void testFindParticipationOfAWaitlistedRegistrationIsRegisteredAndWaitlisted() {
-        // Arrange
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(10)));
-        when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID))
-                .thenReturn(Optional.of(participationRegistration(RegistrationStatus.WAITLISTED)));
-
-        // Act
-        final EventParticipation result = registrationService.findParticipation(EVENT_ID, USER_ID);
-
-        // Assert
-        assertTrue(result.isRegistered());
-        assertTrue(result.isWaitlisted());
-        assertFalse(result.isChatConfirmed());
-    }
-
-    @Test
-    public void testFindParticipationOfAPendingRegistrationIsRegisteredAndPendingApproval() {
-        // Arrange
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(10)));
-        when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID))
-                .thenReturn(Optional.of(participationRegistration(RegistrationStatus.PENDING)));
-
-        // Act
-        final EventParticipation result = registrationService.findParticipation(EVENT_ID, USER_ID);
-
-        // Assert
-        assertTrue(result.isRegistered());
-        assertTrue(result.isPendingApproval());
-    }
-
-    @Test
-    public void testFindParticipationOfARejectedRegistrationIsNotRegisteredButIsRejected() {
-        // Arrange
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(10)));
-        when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID))
-                .thenReturn(Optional.of(participationRegistration(RegistrationStatus.REJECTED)));
-
-        // Act
-        final EventParticipation result = registrationService.findParticipation(EVENT_ID, USER_ID);
-
-        // Assert
-        assertFalse(result.isRegistered());
-        assertTrue(result.isRejected());
-    }
-
-    @Test
-    public void testFindParticipationOfTheCreatorIsOwner() {
-        // Arrange
-        final Event event = eventWithCapacity(10);
-        event.setCreator(ModelFixtures.user(USER_ID));
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(event));
-        when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
-
-        // Act
-        final EventParticipation result = registrationService.findParticipation(EVENT_ID, USER_ID);
-
-        // Assert
-        assertTrue(result.isOwner());
-        assertFalse(result.isAdminReviewOnly());
-        assertFalse(result.isViewOnly());
-    }
-
-    @Test
-    public void testFindParticipationOfAnEventNotYetApprovedIsAdminReviewOnlyForANonOwner() {
-        // Arrange
-        final Event event = eventWithCapacity(10);
-        event.setApprovalStatus(EventApprovalStatus.PENDING);
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(event));
-        when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
-
-        // Act
-        final EventParticipation result = registrationService.findParticipation(EVENT_ID, USER_ID);
-
-        // Assert
-        assertTrue(result.isAdminReviewOnly());
-    }
-
-    @Test
-    public void testFindParticipationOfAnEventNotYetApprovedIsNotAdminReviewOnlyForItsCreator() {
-        // Arrange
-        final Event event = eventWithCapacity(10);
-        event.setApprovalStatus(EventApprovalStatus.PENDING);
-        event.setCreator(ModelFixtures.user(USER_ID));
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(event));
-        when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
-
-        // Act
-        final EventParticipation result = registrationService.findParticipation(EVENT_ID, USER_ID);
-
-        // Assert
-        assertFalse(result.isAdminReviewOnly());
-    }
-
-    @Test
-    public void testFindParticipationOfAPrivateEventWithoutRegistrationNorInvitationIsViewOnly() {
-        // Arrange
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
-        when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
-        when(mockInvitationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
-
-        // Act
-        final EventParticipation result = registrationService.findParticipation(EVENT_ID, USER_ID);
-
-        // Assert
-        assertTrue(result.isViewOnly());
-    }
-
-    @Test
-    public void testFindParticipationOfAPrivateEventWithAnInvitationIsNotViewOnly() {
-        // Arrange
-        final Event event = privateEvent();
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(event));
-        when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
-        when(mockInvitationDao.findByEventAndUserId(EVENT_ID, USER_ID))
-                .thenReturn(Optional.of(new EventInvitation(event, NORMALIZED_EMAIL, CREATOR_EMAIL)));
-
-        // Act
-        final EventParticipation result = registrationService.findParticipation(EVENT_ID, USER_ID);
-
-        // Assert
-        assertFalse(result.isViewOnly());
-    }
-
-    @Test
-    public void testFindParticipationOfAPrivateEventWithARegistrationIsNotViewOnly() {
-        // Arrange
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
-        when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID))
-                .thenReturn(Optional.of(participationRegistration(RegistrationStatus.CONFIRMED)));
-
-        // Act
-        final EventParticipation result = registrationService.findParticipation(EVENT_ID, USER_ID);
-
-        // Assert
-        assertFalse(result.isViewOnly());
     }
 
     // ---- cancelOwnRegistration() ----
@@ -1072,20 +1036,6 @@ public class RegistrationServiceImplTest {
         assertEquals(registrations, result);
     }
 
-    // ---- countConfirmed() ----
-
-    @Test
-    public void testCountConfirmedDelegatesToTheDao() {
-        // Arrange
-        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(3L);
-
-        // Act
-        final long result = registrationService.countConfirmed(EVENT_ID);
-
-        // Assert
-        assertEquals(3L, result);
-    }
-
     // ---- findPendingByEvent() ----
 
     @Test
@@ -1102,18 +1052,157 @@ public class RegistrationServiceImplTest {
         assertEquals(pending, result);
     }
 
-    // ---- countPendingByEvent() ----
+    // Una inscripcion pasada con ese estado a un evento (cancelado o no), y la reseña (o no) del usuario.
+    private RegistrationEntry pastEntry(final RegistrationStatus status, final boolean cancelled, final Review review) {
+        final Event event = pastEvent(PAST_EVENT_ID);
+        if (cancelled) {
+            event.setCancelledAt(new Date());
+        }
+        givenTotals(0, 1);
+        when(mockRegistrationDao.findPastByUserId(eq(USER_ID), any(Date.class), eq(1), eq(RegistrationServiceImpl.PAGE_SIZE)))
+                .thenReturn(Collections.singletonList(
+                        new Registration(event, null, NORMALIZED_EMAIL, NAME, status)));
+        when(mockEventDao.findByIds(Collections.singletonList(PAST_EVENT_ID))).thenReturn(Collections.singletonList(event));
+        when(mockReviewDao.findByEventsAndUser(Collections.singletonList(PAST_EVENT_ID), USER_ID))
+                .thenReturn(review == null ? Collections.<Review>emptyList() : Collections.singletonList(review));
+        return registrationService.findMyRegistrations(USER_ID, 1, 1).getPast().getContent().get(0);
+    }
 
     @Test
-    public void testCountPendingByEventDelegatesToTheDao() {
-        // Arrange
-        when(mockRegistrationDao.countPending(EVENT_ID)).thenReturn(2L);
+    public void testAConfirmedPastRegistrationWithoutReviewCanBeReviewed() {
+        final RegistrationEntry entry = pastEntry(RegistrationStatus.CONFIRMED, false, null);
+
+        assertTrue(entry.isCanReview());
+        assertNull(entry.getNotAttendedReason());
+    }
+
+    @Test
+    public void testAPastRegistrationAlreadyReviewedCannotBeReviewedAgain() {
+        final Review mine = new Review(pastEvent(PAST_EVENT_ID), ModelFixtures.user(USER_ID), 4, "Bien");
+
+        final RegistrationEntry entry = pastEntry(RegistrationStatus.CONFIRMED, false, mine);
+
+        assertFalse(entry.isCanReview());
+    }
+
+    @Test
+    public void testAConfirmedRegistrationToACancelledPastEventCannotBeReviewed() {
+        final RegistrationEntry entry = pastEntry(RegistrationStatus.CONFIRMED, true, null);
+
+        assertFalse(entry.isCanReview());
+        assertEquals(NotAttendedReason.CANCELLED_EVENT, entry.getNotAttendedReason());
+    }
+
+    @Test
+    public void testAWaitlistedPastRegistrationCannotBeReviewedAndSaysWhy() {
+        final RegistrationEntry entry = pastEntry(RegistrationStatus.WAITLISTED, false, null);
+
+        assertFalse(entry.isCanReview());
+        assertEquals(NotAttendedReason.WAITLISTED, entry.getNotAttendedReason());
+    }
+
+    @Test
+    public void testAPendingPastRegistrationSaysTheOrganizerNeverAnswered() {
+        final RegistrationEntry entry = pastEntry(RegistrationStatus.PENDING, false, null);
+
+        assertFalse(entry.isCanReview());
+        assertEquals(NotAttendedReason.PENDING, entry.getNotAttendedReason());
+    }
+
+    @Test
+    public void testARejectedPastRegistrationCannotBeReviewedAndSaysWhy() {
+        final RegistrationEntry entry = pastEntry(RegistrationStatus.REJECTED, false, null);
+
+        assertFalse(entry.isCanReview());
+        assertEquals(NotAttendedReason.REJECTED, entry.getNotAttendedReason());
+    }
+
+    @Test
+    public void testAnUpcomingRegistrationCanNeitherBeReviewedNorHasANotAttendedReason() {
+        givenTotals(1, 0);
+        givenUpcomingPage(1, UPCOMING_EVENT_ID);
+
+        final RegistrationEntry entry = registrationService.findMyRegistrations(USER_ID, 1, 1).getUpcoming().getContent().get(0);
+
+        assertFalse(entry.isCanReview());
+        assertNull(entry.getNotAttendedReason());
+    }
+
+    // ---- findPendingSummary() ----
+
+    @Test
+    public void testFindPendingSummaryHoldsThePendingRegistrationsTheFreeSpotsAndWhetherItIsFull() {
+        // Arrange: cupo 3, 2 confirmados -> queda 1 lugar y no esta lleno
+        final List<Registration> pending = Collections.singletonList(
+                new Registration(ModelFixtures.event(EVENT_ID), null, NORMALIZED_EMAIL, NAME, RegistrationStatus.PENDING));
+        when(mockRegistrationDao.findPendingByEvent(EVENT_ID)).thenReturn(pending);
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(3)));
+        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(2L);
 
         // Act
-        final long result = registrationService.countPendingByEvent(EVENT_ID);
+        final PendingRegistrations result = registrationService.findPendingSummary(EVENT_ID);
 
         // Assert
-        assertEquals(2L, result);
+        assertEquals(pending, result.getRegistrations());
+        assertEquals(Integer.valueOf(1), result.getAvailableSpots());
+        assertFalse(result.isFull());
+    }
+
+    @Test
+    public void testFindPendingSummaryIsFullWhenThereAreNoSpotsLeft() {
+        // Arrange
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(2)));
+        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(2L);
+
+        // Act
+        final PendingRegistrations result = registrationService.findPendingSummary(EVENT_ID);
+
+        // Assert
+        assertEquals(Integer.valueOf(0), result.getAvailableSpots());
+        assertTrue(result.isFull());
+    }
+
+    @Test
+    public void testFindPendingSummaryHasNoLimitWhenTheEventHasNoCapacity() {
+        // Arrange
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(null)));
+
+        // Act
+        final PendingRegistrations result = registrationService.findPendingSummary(EVENT_ID);
+
+        // Assert
+        assertNull(result.getAvailableSpots());
+        assertFalse(result.isFull());
+    }
+
+    // ---- countPendingByEvents() / countConfirmedByEvents() ----
+
+    @Test
+    public void testCountPendingByEventsAsksTheDaoForPendingRegistrations() {
+        // Arrange: el dao solo responde con datos si se le pide el estado PENDING
+        final Map<Long, Long> counts = Collections.singletonMap(EVENT_ID, 2L);
+        when(mockRegistrationDao.countByEventsAndStatus(Collections.singletonList(EVENT_ID), RegistrationStatus.PENDING))
+                .thenReturn(counts);
+
+        // Act
+        final Map<Long, Long> result = registrationService.countPendingByEvents(Collections.singletonList(EVENT_ID));
+
+        // Assert
+        assertEquals(counts, result);
+    }
+
+    @Test
+    public void testCountConfirmedByEventsAsksTheDaoForConfirmedRegistrations() {
+        // Arrange: el dao solo responde con datos si se le pide el estado CONFIRMED
+        final Map<Long, Long> counts = Collections.singletonMap(EVENT_ID, 5L);
+        when(mockRegistrationDao.countByEventsAndStatus(Collections.singletonList(EVENT_ID), RegistrationStatus.CONFIRMED))
+                .thenReturn(counts);
+
+        // Act
+        final Map<Long, Long> result = registrationService.countConfirmedByEvents(Collections.singletonList(EVENT_ID));
+
+        // Assert
+        assertEquals(counts, result);
     }
 
     // ---- approve() ----

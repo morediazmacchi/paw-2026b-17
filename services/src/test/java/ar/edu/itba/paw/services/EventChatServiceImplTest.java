@@ -20,6 +20,7 @@ import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.when;
 
@@ -195,6 +196,110 @@ public class EventChatServiceImplTest {
 
         // Assert
         assertEquals(newer, result);
+    }
+
+    // ---- openRoom() ----
+
+    // El id lo pone la base: para un mensaje "ya guardado" se devuelve ese id desde su getId() publico.
+    private static ChatMessage messageWithId(final long id) {
+        return new ChatMessage(EVENT_ID, 5, "mensaje " + id) {
+            @Override
+            public Long getId() {
+                return id;
+            }
+        };
+    }
+
+    @Test
+    public void testOpenRoomHoldsTheEventAndTheLatestMessages() {
+        // Arrange
+        final Event event = eventInHours(48);
+        final List<ChatMessage> latest = Arrays.asList(new ChatMessage(EVENT_ID, 5, "hola"));
+        when(eventService.findByIdOrThrow(EVENT_ID)).thenReturn(event);
+        when(chatDao.findLatest(EVENT_ID, EventChatServiceImpl.INITIAL_MESSAGES)).thenReturn(latest);
+
+        // Act
+        final ChatRoom room = chatService.openRoom(EVENT_ID, USER_ID);
+
+        // Assert
+        assertSame(event, room.getEvent());
+        assertEquals(latest, room.getMessages());
+    }
+
+    @Test
+    public void testOpenRoomOfAnUpcomingEventIsOpen() {
+        // Arrange
+        when(eventService.findByIdOrThrow(EVENT_ID)).thenReturn(eventInHours(48));
+
+        // Act
+        final ChatRoom room = chatService.openRoom(EVENT_ID, USER_ID);
+
+        // Assert
+        assertFalse(room.isClosed());
+    }
+
+    @Test
+    public void testOpenRoomOfAnEventThatAlreadyHappenedIsClosed() {
+        // Arrange
+        when(eventService.findByIdOrThrow(EVENT_ID)).thenReturn(eventInHours(-48));
+
+        // Act
+        final ChatRoom room = chatService.openRoom(EVENT_ID, USER_ID);
+
+        // Assert
+        assertTrue(room.isClosed());
+    }
+
+    @Test
+    public void testOpenRoomOfACancelledEventIsClosed() {
+        // Arrange
+        final Event event = eventInHours(48);
+        event.setCancelledAt(new Date());
+        when(eventService.findByIdOrThrow(EVENT_ID)).thenReturn(event);
+
+        // Act
+        final ChatRoom room = chatService.openRoom(EVENT_ID, USER_ID);
+
+        // Assert
+        assertTrue(room.isClosed());
+    }
+
+    @Test
+    public void testOpenRoomLastIdIsTheIdOfTheLastMessage() {
+        // Arrange
+        final ChatMessage first = messageWithId(30L);
+        final ChatMessage last = messageWithId(31L);
+        when(eventService.findByIdOrThrow(EVENT_ID)).thenReturn(eventInHours(48));
+        when(chatDao.findLatest(EVENT_ID, EventChatServiceImpl.INITIAL_MESSAGES)).thenReturn(Arrays.asList(first, last));
+
+        // Act
+        final ChatRoom room = chatService.openRoom(EVENT_ID, USER_ID);
+
+        // Assert
+        assertEquals(31L, room.getLastId());
+    }
+
+    @Test
+    public void testOpenRoomWithoutMessagesHasLastIdZero() {
+        // Arrange
+        when(eventService.findByIdOrThrow(EVENT_ID)).thenReturn(eventInHours(48));
+
+        // Act
+        final ChatRoom room = chatService.openRoom(EVENT_ID, USER_ID);
+
+        // Assert
+        assertEquals(0L, room.getLastId());
+    }
+
+    @Test(expected = EventNotFoundException.class)
+    public void testOpenRoomOfAMissingEventThrowsEventNotFoundException() {
+        // Arrange
+        when(eventService.findByIdOrThrow(EVENT_ID)).thenThrow(new EventNotFoundException(EVENT_ID));
+
+        // Act
+        chatService.openRoom(EVENT_ID, USER_ID);
+
+        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
 
     // ---- send() ----

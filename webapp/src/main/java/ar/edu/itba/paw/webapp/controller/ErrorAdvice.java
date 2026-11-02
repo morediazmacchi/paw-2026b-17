@@ -5,6 +5,7 @@ import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.webapp.auth.PlancitoUserDetails;
 import ar.edu.itba.paw.model.exception.EventCancelledException;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
+import ar.edu.itba.paw.model.exception.EventRejectedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -75,6 +76,12 @@ public class ErrorAdvice {
 
     @ExceptionHandler(EventCancelledException.class)
     public ModelAndView eventCancelled(final EventCancelledException e) {
+        return new ModelAndView("redirect:/perfil/eventos");
+    }
+
+    // Un evento rechazado tampoco se edita (el rechazo es definitivo): mismo destino que el cancelado.
+    @ExceptionHandler(EventRejectedException.class)
+    public ModelAndView eventRejected(final EventRejectedException e) {
         return new ModelAndView("redirect:/perfil/eventos");
     }
 

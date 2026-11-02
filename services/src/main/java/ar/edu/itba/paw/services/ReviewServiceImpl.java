@@ -48,12 +48,6 @@ public class ReviewServiceImpl implements ReviewService {
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public List<Review> findByEventsAndUser(final List<Long> eventIds, final long userId) {
-        return reviewDao.findByEventsAndUser(eventIds, userId);
-    }
-
-    @Override
     @Transactional(rollbackFor = Exception.class)
     public ReviewResult create(final long eventId, final User user, final int rating, final String comment) {
         Objects.requireNonNull(user, "user");
@@ -65,11 +59,8 @@ public class ReviewServiceImpl implements ReviewService {
         if (reviewDao.findByEventAndUser(eventId, user.getId()).isPresent()) {
             return ReviewResult.ALREADY_REVIEWED;
         }
-        if (!event.isPresent() || !event.get().getEventDate().before(new Date())) {
-            return ReviewResult.NOT_ELIGIBLE;
-        }
-        // Un evento cancelado no sucedio: no hay nada que reseñar.
-        if (event.get().isCancelled()) {
+        // Tiene que haber pasado y no haberse cancelado (uno cancelado no sucedio): ver Event.isReviewable().
+        if (!event.isPresent() || !event.get().isReviewable()) {
             return ReviewResult.NOT_ELIGIBLE;
         }
         // Solo quien tuvo su lugar confirmado fue al evento. Estar en lista de

@@ -139,7 +139,8 @@ public class EventSearchForm {
         // (EventSearchCriteria.FEW_SPOTS_MIN/MAX), no lo que venga en la URL.
         criteria.setOnlyFewSpotsLeft(notBlank(pocosCupos));
         criteria.setOnlySoldOut(notBlank(agotados));
-        criteria.setSort(getParsedSort());
+        // null = no pidio ninguno: el service decide el orden por defecto (ver EventService.search()).
+        criteria.setSort(isSortExplicit() ? getParsedSort() : null);
         criteria.setPage(Paging.parsePage(page));
         return criteria;
     }

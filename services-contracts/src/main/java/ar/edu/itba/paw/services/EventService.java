@@ -15,13 +15,22 @@ import java.util.Optional;
 // de verdad lo arma Spring sobre EventServiceImpl (ver RegistrationService
 // para el mismo criterio).
 public interface EventService {
+
+    // Hasta cuantos años a futuro se puede programar un evento. El form ya lo valida para dar feedback;
+    // create() y update() lo vuelven a chequear (la fecha tampoco puede ser pasada).
+    int MAX_YEARS_AHEAD = 2;
+
     /**
-     * Crea un evento nuevo a partir de un DTO ya validado (ver EventForm.toDTO()):
-     * el service arma el Event final y lo persiste, sin que el caller tenga que
-     * tocar el modelo de dominio.
+     * Crea un evento nuevo de ese creador a partir de un DTO ya validado (ver EventForm.toDTO()):
+     * el service arma el Event final (con el mail del creador, que busca por su id) y lo persiste, sin
+     * que el caller tenga que tocar el modelo de dominio.
+     *
+     * @throws InvalidEventException si la fecha es pasada o a mas de {@link #MAX_YEARS_AHEAD} años, si no se
+     *         eligio ninguna categoria, si alguna no existe, o si la base rechaza un dato.
+     * @throws InvalidImageException si se suben mas de Event.MAX_IMAGES imagenes o alguna es invalida.
      */
     @Transactional(rollbackFor = Exception.class)
-    Event create(EventDTO dto);
+    Event create(long creatorId, EventDTO dto);
     @Transactional(readOnly = true)
     Optional<Event> findById(long id);
 
@@ -50,11 +59,26 @@ public interface EventService {
     // EventController.addCreatorReputation()).
     @Transactional(readOnly = true)
     List<Event> findByIds(List<Long> ids);
-    // Pagina la respuesta: criteria.getPage() puede caer a la ultima pagina con
-    // resultados si pedis una que no existe. Con sort RECOMENDADOS y un viewerId, el
-    // orden lo calcula EventSimilarityService; sin viewerId cae a FECHA_ASC.
+    /**
+     * Busca en el listado /eventos. Pagina la respuesta: criteria.getPage() puede caer a la ultima pagina
+     * con resultados si pedis una que no existe.
+     * El orden que se aplica lo decide el service a partir del pedido (criteria.getSort(), null = no
+     * pidio ninguno): RECOMENDADOS solo existe para quien tiene historial de asistencia (criteria.getViewerId()).
+     * Sin pedir orden, quien tiene historial recibe RECOMENDADOS y el resto FECHA_ASC; RECOMENDADOS pedido
+     * sin historial cae a FECHA_ASC. El resultado trae el orden efectivo y los ordenes a ofrecer (sin
+     * RECOMENDADOS si no tiene historial). Con RECOMENDADOS el orden lo calcula EventSimilarityService.
+     */
     @Transactional(readOnly = true)
-    PageResult<Event> search(EventSearchCriteria criteria);
+    EventSearchResult search(EventSearchCriteria criteria);
+
+    /**
+     * "Mis eventos": una pagina de los eventos del creador (mismo orden y criterio de pagina que
+     * findPageByCreatorId()), cada uno con sus conteos de inscripciones. Los pendientes solo se cuentan en
+     * un evento que pide aprobacion (si no, vienen en null) y los confirmados solo en uno no cancelado (si
+     * esta cancelado, 0). Los conteos son UNA consulta por tipo para toda la pagina, no una por evento.
+     */
+    @Transactional(readOnly = true)
+    PageResult<EventWithRegistrationStats> findMyEventsPage(long creatorId, int page);
 
     // "Mis eventos": los creados por este usuario, de a una pagina. Primero los
     // que todavia no pasaron (el mas proximo primero) y despues los pasados (el
@@ -77,10 +101,11 @@ public interface EventService {
      * controller (ver EventSecurity.isOwner).
      *
      * @throws EventNotFoundException si el evento no existe.
-     * @throws EventCancelledException si el evento ya esta cancelado (se cancelo justo
-     *         entre medio: quien llama ya deberia haber chequeado esto antes, ver
-     *         EventAccessService#getEditableEvent).
-     * @throws InvalidEventException si el cupo nuevo es menor a los lugares ya ocupados.
+     * @throws EventCancelledException si el evento ya esta cancelado.
+     * @throws EventRejectedException si un admin lo rechazo (el rechazo es definitivo: no se edita).
+     * @throws InvalidEventException si el cupo nuevo es menor a los lugares ya ocupados, la fecha es pasada o a mas
+     *         de {@link #MAX_YEARS_AHEAD} años, o no queda ninguna categoria.
+     * @throws InvalidImageException si se suben mas de Event.MAX_IMAGES imagenes o alguna es invalida.
      */
     @Transactional(rollbackFor = Exception.class)
     EventUpdateOutcome update(long eventId, EventDTO dto);

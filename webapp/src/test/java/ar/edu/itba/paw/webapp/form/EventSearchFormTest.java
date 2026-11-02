@@ -7,6 +7,7 @@ import java.util.Arrays;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class EventSearchFormTest {
@@ -117,5 +118,24 @@ public class EventSearchFormTest {
         form.setPage("4");
         form.setAgotados("on");
         assertEquals("agotados=on&", form.toFilterQuery());
+    }
+
+    @Test
+    public void testToCriteriaLeavesTheSortEmptyWhenNoneWasChosen() {
+        assertNull(new EventSearchForm().toCriteria().getSort());
+    }
+
+    @Test
+    public void testToCriteriaLeavesTheSortEmptyWhenTheChosenOneIsInvalid() {
+        final EventSearchForm form = new EventSearchForm();
+        form.setSort("FECHA");
+        assertNull(form.toCriteria().getSort());
+    }
+
+    @Test
+    public void testToCriteriaKeepsTheChosenSort() {
+        final EventSearchForm form = new EventSearchForm();
+        form.setSort("PRECIO_DESC");
+        assertEquals(EventSort.PRECIO_DESC, form.toCriteria().getSort());
     }
 }

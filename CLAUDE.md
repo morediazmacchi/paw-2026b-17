@@ -57,7 +57,7 @@ original no está a mano (no es citable textual) · `[acordado]` = lo decidió l
   `AccessDeniedException` → mismo 404 que un evento inexistente (`ErrorAdvice`; `ImageController` tiene su handler
   local que responde 404 sin cuerpo). Solo lee **services**, nunca DAOs.
 - **Visibilidad ≠ ownership.** `EventAccessService.canView` decide quién *ve* un evento (acepta `EventAccessData`: lo
-  implementan `Event` y la proyección `EventAccessSummary`). `getEditableEvent(id)` solo valida estado (no cancelado).
+  implementan `Event` y la proyección `EventAccessSummary`). `getEditableEvent(id)` solo valida estado (ni cancelado ni rechazado: `Event.isEditable()`).
 - El orden de las reglas en `filterChain` importa: gana la primera que matchea; `anyRequest()` siempre última.
   [clase 4:L970-980]
 - **Criterio del docente (30/10): la seguridad va primero, aunque cueste una consulta repetida.** Si autorizar a la entrada
@@ -82,6 +82,10 @@ original no está a mano (no es citable textual) · `[acordado]` = lo decidió l
 - Un módulo depende en `compile` solo de `-contracts`; `webapp→services/persistence` van `runtime`. [código]
   Así un error lógico se vuelve error de compilación. [clase 1:L922-941]
 - Un "no encontrado" **no es excepción** en persistencia/service (`Optional`); la excepción HTTP se lanza en la capa web.
+- **Armado de pantallas = caso de uso del service, no del controller.** El controller lee params, llama a UN método de
+  caso de uso y mapea el resultado a la vista; no orquesta varias lecturas, no decide por estado de dominio (`isFinished()`,
+  `isCancelled()`...) ni arma mapas por id. Esas lecturas llevan `@Transactional(readOnly = true)` y devuelven un objeto de
+  valor de `services-contracts`. Las queries van en el DAO. [acordado, corrección "lógica de negocio en controllers"]
 
 ### Modelo / tipos
 - Dinero = `BigDecimal`. Conjunto cerrado de valores = `enum`, no `String` mágico. [TP1]
@@ -134,6 +138,18 @@ original no está a mano (no es citable textual) · `[acordado]` = lo decidió l
 - **Paquetes de seguridad en `webapp`:** `webapp.auth` = AUTENTICACION (`UserDetailsServiceImpl`, `PlancitoUserDetails`; como en
   la clase 4:L1028-1070 de Sotuyo, que lo registra con `@ComponentScan` en `WebAuthConfig`); `webapp.security` = AUTORIZACION
   (`EventSecurity`); `webapp.config` = `WebAuthConfig`/`WebConfig`/`RootConfig`.
+- **Casos de uso de lectura (2/11)** — qué método arma qué pantalla (todos `readOnly`, ver §3 punto 3h):
+  `EventService.search(criteria)` → `EventSearchResult{page, effectiveSort, availableSorts}` (el orden pedido va en
+  `criteria.sort`; `null` = no pidió ninguno) · `EventDetailService.getDetail(id, viewerId, preguntasPage, resenasPage)` →
+  `EventDetail` · `RegistrationService.findMyRegistrations(userId, upcomingPage, pastPage)` → `MyRegistrationsView{upcoming,
+  past}` (dos `PageResult<RegistrationEntry>`) · `EventService.findMyEventsPage(creatorId, page)` →
+  `PageResult<EventWithRegistrationStats>` · `EventInvitationService.findInvitedEventsPage(userId, page)` → `PageResult<Event>`
+  · `AccountSummaryService.countsFor(userId, isAdmin)` → `AccountCounts` · `ModerationService.findPendingQueue(page)` /
+  `findChangesRequestedQueue(page)` → `ReportQueuePage` · `InboxService.findPageWithEvents(userId, page)` → `InboxPage` ·
+  `EventChatService.openRoom(eventId, userId)` → `ChatRoom` · `RegistrationService.findPendingSummary(eventId)` →
+  `PendingRegistrations`. También: `EventService.create(creatorId, dto)` (el mail del creador sale de su cuenta; `EventDTO`
+  ya no trae creador), `EventQuestionService.deleteByAdmin` devuelve `Optional<Long>` (id del evento para el redirect) y
+  `SupportedLocale` (model) es la única lista de idiomas (`UserService.updateLocale` valida).
 - Resúmenes de motivos de diseño para la defensa: ver §5.
 
 ## 3. Deuda conocida — dónde el código actual NO cumple las reglas de arriba
@@ -154,6 +170,64 @@ Registro honesto; no tapar ni "arreglar de pasada" sin avisar. Orden = prioridad
 3e. **403 a nivel filtro** (1/11): `exceptionHandling().accessDeniedPage("/error/403")` + `ErrorPageController./error/403` → `errors/403.jsp` (el botón vuelve a `/admin/usuarios` si sos admin, a `/eventos` si no). Solo afecta la denegación de los antMatchers (usuario logueado sin el rol); las de `@PreAuthorize` las siguen atrapando `ErrorAdvice` (404 fuera de admin) y el handler local de `AdminController` (403 con la misma página). `LocaleController` toma el id de `PlancitoUserDetails` y llama `updateLocale(long, String)`; se borró la sobrecarga por email.
 3f. **Hardening de la 2ª auditoría** (1/11): (M1) cambiar/restablecer la clave publica `UserCredentialsChangedEvent` y `SessionExpiringListener` cierra las otras sesiones del usuario (en el cambio conserva la actual, que saca de `RequestContextHolder`; en el reset cierra todas). (M3b) el estado de la cuenta (suspendida/sin verificar) se evalúa DESPUÉS de comprobar la clave (`AccountStatusAfterPasswordCheck` como `postAuthenticationChecks`): con clave incorrecta todo da `/login?error`; el fantasma (sin clave) se devuelve deshabilitado con un hash inusable y ya no va a `?needsPassword` (se completa desde /registro; el formulario `needsPassword` quedó inalcanzable desde el login). Se borró `PasswordNotSetException`. (M2) `web.xml`: cookie `HttpOnly` + `tracking-mode COOKIE`; `Secure` y `SameSite=Lax` NO van en `web.xml` (la app local corre en HTTP): se configuran en el `CookieProcessor` de Tomcat. (B2) `findEventCreatorId` ignora el `creator_id` NULL de eventos legacy. (B3) `RequestRejectedHandler` → 400 en vez de 500. (B4) `ForbiddenPageAccessDeniedHandler`: el 403 del filtro muestra `errors/403` con cualquier verbo (forward como GET).
 3g. **Una sola respuesta para todo lo que no se puede acceder** (2/11): evento ajeno/privado, acción de `@PreAuthorize` (dentro o fuera de admin), denegación por rol del filtro (`/admin/**`, promover/revocar) y URL inexistente responden lo mismo: **404 + `errors/404`** con texto genérico ("No encontramos lo que buscás"), sin distinguir el motivo. Se borró `errors/403.jsp`, `error.forbidden.*`, la ruta `/error/403` y el handler local de 403 de `AdminController`; el filtro usa `AccessDeniedAsNotFoundHandler` (forward como GET → sirve con cualquier verbo). Excepciones a propósito: el anónimo sigue yendo al login, `ImageController` responde 404 sin cuerpo, y las reglas de negocio (OWN_ACCOUNT, TARGET_SUPERADMIN...) siguen siendo carteles, no denegaciones.
+3h. **Lógica de negocio en los controllers** (2/11): auditoría de todos los controllers y refactor. Lo que quedó:
+   - **N+1 eliminados:** "Mis eventos" cuenta pendientes/confirmados con UN `GROUP BY event_id` por tipo
+     (`RegistrationDao.countByEventsAndStatus`; las reglas "pendientes solo si pide aprobación / confirmados solo si no está
+     cancelado" filtran los ids en `EventServiceImpl.findMyEventsPage`); "Mis invitaciones" es un solo `JOIN`
+     (`EventInvitationDao.findInvitedEventsByUserId`, antes un `findById` por invitación).
+   - **Orden RECOMENDADOS:** lo decide `EventServiceImpl.search` (solo con historial de asistencia); `EventSearchForm.toCriteria`
+     deja `sort = null` si no se pidió uno. El controller ya no llama a `hasAttendanceHistory`.
+   - **`getDetail` está en `EventDetailService`, NO en `EventService`:** `EventServiceImpl` tendría que inyectar
+     `FavoriteService`, `EventChatService` y `EventQuestionService`, y los tres inyectan `EventService` → ciclo de constructores
+     (Spring no arranca). Un service de armado aparte rompe el ciclo: nadie depende de él. Regla general: si un caso de uso
+     junta varios services y alguno depende del "dueño" natural, va a un service propio, no se parte con `@Lazy`.
+   - **Conteos del menú de cuenta:** `@ModelAttribute("accountCounts")` en `ProfileController` (un objeto `AccountCounts`, NO
+     enteros sueltos: un `@ModelAttribute` también va al model de los `redirect:` y Spring pega los valores simples como query
+     params; ver `UnreadInboxInterceptor`). `countsFor` recibe `isAdmin` porque el admin ve todos los favoritos. El conteo de
+     favoritos es un `COUNT` (`FavoriteDao.countByUserId` para admin, `countViewableByUserId` para el resto): **espeja la regla de
+     `EventAccessService.canView`; si esa regla cambia, hay que cambiar también esa query** (`FavoriteJpaDaoTest` cubre los casos).
+     Costo conocido: el `@ModelAttribute` corre también en los POST de `ProfileController` (4 `COUNT` de más); la alternativa es
+     un interceptor como el de la bandeja.
+   - **"Mis inscripciones" = dos secciones en la misma pantalla, cada una con su paginado** (`MyRegistrationsView`): "Próximos"
+     (evento con fecha >= ahora) y "Eventos finalizados" (fecha < ahora). La división, el orden y el corte son SQL
+     (`RegistrationDao.find/countUpcomingByUserId` y `find/countPastByUserId`, mismo `now` para los dos). Params
+     `proximasPage` y `finalizadasPage`; un índice fuera de rango cae a la última página de SU grupo. `pager.tag` acepta
+     `pageParam`/`otherParam`/`otherPage` para que paginar una sección conserve el índice de la otra. Una sección sin ítems no se
+     dibuja (ni título ni paginado); el mensaje "no tenés ninguna inscripción" solo sale si no hay ninguna de ningún tipo. Antes
+     se clasificaba en memoria DESPUÉS de paginar y una página mezclaba los dos grupos: no volver a mezclarlos. La reseña propia
+     solo se busca para las pasadas (`ReviewDao.findByEventsAndUser`, una consulta).
+   - **Colas de admin, bandeja, inscriptos pendientes, chat:** ver los métodos de §2; los controllers solo ponen el resultado en el model.
+   - **Borrado:** `ReviewService.findByEventsAndUser` (nadie lo llamaba; `RegistrationService` va directo al `ReviewDao`).
+   - **Decisiones/aceptados:** (ver también 3i) los booleanos ignorados de `reactivar`/`promover`/`leave` se dejan como están (decidido).
+     `getEditableEvent` queda solo en `editarForm` (necesita el evento); el POST de `editar` ya no lo llama, así que un form
+     inválido sobre un evento cancelado muestra el form con errores en vez de redirigir (con form válido `update` lanza
+     `EventCancelledException` y redirige igual). `create` lanza `IllegalArgumentException` si el creador desapareció.
+     Pendiente (fuera de alcance): `FavoriteServiceImpl.findViewablePage` sigue paginando en memoria.
+3i. **Segunda auditoría "lógica fuera de su capa"** (2/11): la vista muestra, el service decide, y el service no maneja presentación.
+   - **Qué se le ofrece a cada persona en el detalle lo decide `EventDetailServiceImpl`:** `EventDetail.getAction()` es un enum
+     `EventAction` (`OWNER`, `OWNER_PENDING`, `OWNER_REJECTED`, `ADMIN_REVIEW_ONLY`, `VIEW_ONLY`, `CLOSED_*`, `REGISTRATION_REJECTED`,
+     `REGISTER`, `REQUEST_APPROVAL`, `JOIN_WAITLIST`, `UNREGISTER`, `LEAVE_WAITLIST`, `CANCEL_PENDING`) más `ChatAccess` (`NONE/OPEN/JOIN`)
+     y `canUnregister`. `detail.jsp` solo hace `switch` sobre esos valores. Prioridad: dueña > solo mirar > cancelado/finalizado >
+     inscripción rechazada > inscribirse. `RegistrationService.findParticipation` se borró (ahora `EventParticipation` lo arma el detalle
+     con `findByEventAndUserId` + `EventAccessService.canRegister`).
+   - **Visibilidad/anotarse: una sola fuente.** `EventAccessService.canView` + `canRegister` (= `canView` sin la excepción de admin);
+     `EventSecurity.canRegister` y el detalle la reusan. Reglas de estado en el modelo: `Event.isActive()/isEditable()/isReviewable()`
+     (chat, reseñas y edición las usan), `EventAccessData.isCreatedBy/canBeModeratedBy`, `ReportTarget.canBeResolvedBy`,
+     `Registration.isRevocable()`, `RoleHolder.canBeSuspendedBy/canHaveAdminRoleChangedBy` (la usan `AdminSecurity` y `usuarios.jsp`).
+     Las JSP de admin llaman a esos métodos de dominio (`${event.canBeModeratedBy(myId)}`), no comparan ids/roles.
+   - **"Mis inscripciones":** `RegistrationEntry.isCanReview()` (misma regla que `ReviewService.create`) y `getNotAttendedReason()`.
+   - **Un evento rechazado no se edita (enforcement en el service):** `EventAccessService.getEditableEvent` y `EventService.update`
+     lanzan `EventRejectedException` (como `EventCancelledException`: `ErrorAdvice` redirige a `/perfil/eventos`). Antes solo la vista
+     ocultaba el botón y el GET/POST por código funcionaban.
+   - **Reglas que antes vivían solo en los validators, ahora también en el service (defensa; el form sigue validando para feedback):**
+     fecha no pasada ni a más de `EventService.MAX_YEARS_AHEAD` años (`create`/`update`), máximo `Event.MAX_IMAGES` imágenes
+     (`uploadImages`), al menos una categoría, contraseña >= `UserService.MIN_PASSWORD_LENGTH` (`register`/`resetPassword`/
+     `changePassword` → `WEAK_PASSWORD`; `changePassword` ahora devuelve `ChangePasswordResult`), pregunta de hasta
+     `EventQuestionService.MAX_QUESTION_LENGTH` (`QuestionResult.INVALID`).
+   - **Sin claves i18n en el service:** `InvalidEventException`/`InvalidImageException` llevan un `Reason` (enum); `EventController`
+     lo mapea a la clave (`messageKeyOf`). No volver a lanzar excepciones con claves de mensaje.
+   - **Pendiente a propósito (ver auditoría):** M2 (estado de cuenta en el failure handler/`UserDetails`), M5 (redirect de `publish`),
+     M6 (rutas de mail en `NotificationService`) y los B1–B11.
 3a. **`currentUser` sale del principal, sin consulta** (31/10): `ErrorAdvice.currentUserFromPrincipal` arma un `User` con id, email, nombre y roles de `PlancitoUserDetails` (sin `findByEmail`; sin sesión es `null`). Es un `User` "de sesión": solo trae esos 4 datos. Los 4 `create` de DAO que reciben ese usuario (`RegistrationJpaDao`, `EventQuestionJpaDao`, `EventReportJpaDao`, `ReviewJpaDao`) lo reemplazan por `em.getReference(User.class, id)` antes de persistir (`NotificationService.notifyNewQuestion` recibe `askerName`/`askerEmail` ya resueltos desde `currentUser`: el envío es `@Async` y no debe leer la relación lazy; `register` copia nombre/mail en la fila y las notificaciones solo leen esas copias y el id del usuario).
    **Limitaciones conocidas (aceptadas, no arregladas a propósito):** (1) el **nombre** del principal es el del login: si se edita el perfil se sigue viendo el viejo (form de `/perfil`, copias en inscripciones y bandeja) hasta el próximo login; (2) los **roles** también son los del login: revocar `ROLE_ADMIN` no afecta la sesión activa (ver punto 3). Siguen pendientes los interceptores `UnreadInbox` y `Suspended` (hacen `findByEmail` por request).
 3. ~~**Revocar `ROLE_ADMIN` / suspender no cierra sesiones**~~ **Resuelto** (31/10): `UserServiceImpl.suspend` y `revokeAdmin` (cuando de verdad saca el rol) publican `UserAccessRevokedEvent` (services-contracts, POJO sin dependencias web) dentro de su transacción; `SessionExpiringListener` (`webapp.auth`, contexto raíz) con `@TransactionalEventListener(AFTER_COMMIT)` busca por `PlancitoUserDetails.getId()` en el `SessionRegistry` y hace `expireNow()`. `WebAuthConfig`: `SessionRegistryImpl` + `sessionManagement().maximumSessions(-1)...expiredUrl("/login?expired")` (instala el `ConcurrentSessionFilter`); `SecurityWebApplicationInitializer.enableHttpSessionEventPublisher()`. Se borró `SuspendedUserInterceptor` (ya no hay `findByEmail` por request). El suspendido que reintenta entrar ve `?suspended` (por `isEnabled`). `reactivate` y `grantAdmin` no publican. **Limitaciones:** el registro es en memoria de una sola JVM (no sirve para clúster) y no conoce sesiones abiertas antes de un deploy/reinicio. El "service publica el evento" no tiene test unitario (sería verify/verify casero): se cubre con la prueba manual de dos navegadores.
@@ -190,7 +264,7 @@ Registro honesto; no tapar ni "arreglar de pasada" sin avisar. Orden = prioridad
    con sesión. `requireViewable` se borró. La consulta repetida de la inscripción en eventos privados (regla + handler) **la
    aceptó el docente** (30/10): "siempre primero la seguridad".
    También se limpió `detail` de lógica de negocio (corrección 06, solo para este método): las reglas de "estás inscripto /
-   podés inscribirte" salieron del controller a `RegistrationService.findParticipation` (objeto `EventParticipation`) y el armado
+   podés inscribirte" salieron del controller a `EventDetailService` (`EventParticipation` + `EventAction`, ver 3i) y el armado
    de la reputación del organizador a `ReviewService.findCreatorReputation` (objeto `CreatorReputation`). Verificado comparando
    el HTML del detalle antes y después en 11 escenarios (idéntico). El resto de los controllers sigue pendiente.
 5. ~~Tests con `verify(`~~ **Resuelto** (se sacaron los 20 usos + 2 `verifyNoInteractions`; sin registros caseros).
@@ -216,7 +290,7 @@ Registro honesto; no tapar ni "arreglar de pasada" sin avisar. Orden = prioridad
   o correr/probar desde una **copia fuera de `~/Documents`** (rsync excluyendo `target` y `.git`). No son código.
 - JDK 24 local, el proyecto compila a 21. Mockito/ByteBuddy: `webapp` necesita `-Dnet.bytebuddy.experimental=true` en
   surefire (ya configurado) porque Hibernate trae un ByteBuddy viejo.
-- Tests: `./mvnw -o test` (≈ 387 persistence / 477 services / 41 webapp). zsh: no usar `echo =====` (expande `=`).
+- Tests: `./mvnw -o test` (≈ 432 persistence / 518 services / 135 webapp). zsh: no usar `echo =====` (expande `=`).
 - Para probar autorización a mano: login por curl (`-d email=… -d password=…`, cookie jar) y pedir `/eventos/{id}/editar`
   con dueño (200) y no dueño (404).
 
@@ -230,6 +304,14 @@ Registro honesto; no tapar ni "arreglar de pasada" sin avisar. Orden = prioridad
 - **404 y no 403** para eventos ajenos/privados: no se revela que existen.
 - **Ownership vs visibilidad:** quién *actúa* (Security) vs quién *ve* (`canView`, depende de datos y admite anónimos).
 - **Proyección para imágenes:** el permiso de cada foto se decide con 4 columnas, no cargando el `Event`.
+- **Controller delgado, caso de uso en el service:** el controller recibe input, llama a un método de caso de uso y mapea el
+  resultado a la vista. Orquestar lecturas y decidir por estado de dominio en el controller mezcla capas y se repite en cada
+  handler; en el service se testea con Mockito y las queries quedan en el DAO.
+- **`EventDetailService` aparte:** un ciclo de dependencias entre services (`EventService` ↔ favoritos/chat/preguntas) se
+  resuelve moviendo el armado a un service que nadie inyecta, no con `@Lazy`.
+- **"Mis inscripciones" con dos paginados:** dividir en SQL (no en memoria después de paginar) garantiza que el total, el orden y
+  el contenido de cada página coincidan; cada grupo es su propio `PageResult`.
+- **N+1 → `GROUP BY` / `JOIN`:** una consulta por tipo para toda la página en vez de una por fila.
 - `@Transactional(readOnly = true)` en lecturas: hint para rutear a réplica de solo lectura.
 - `@Repository`/`@Service`: especializaciones de `@Component`; `@Repository` además traduce excepciones de persistencia.
 - `UserDetailsService`: patrón Strategy. Spring Security mezcla RBAC (roles) y ACL (permisos por recurso).

@@ -66,7 +66,7 @@
                             <td>
                                 <%-- Solo a quien tiene el lugar confirmado se lo puede sacar: el
                                      lugar libre pasa solo al primero de la lista de espera. --%>
-                                <c:if test="${registration.status == 'CONFIRMED'}">
+                                <c:if test="${registration.revocable}">
                                     <form action="<c:url value='/perfil/eventos/${event.id}/inscriptos/${registration.id}/revocar'/>" method="post">
                                         <paw:button text="${revokeButtonLabel}" cssClass="btn-danger"/>
                                     </form>

@@ -5,7 +5,7 @@ import java.util.Set;
 
 // Lo minimo de un usuario para decidir un permiso sobre el (ver AdminSecurity: canSuspend): su id y sus roles. Es una proyeccion (no una entidad): se arma sin cargar el
 // usuario, asi que no trae la contrasena ni los demas datos. La devuelve UserDao.findAccessById().
-public class UserAccess {
+public class UserAccess implements RoleHolder {
 
     private final long id;
     private final Set<Role> roles;
@@ -23,10 +23,12 @@ public class UserAccess {
         return roles;
     }
 
+    @Override
     public boolean isAdmin() {
         return roles.contains(Role.ADMIN);
     }
 
+    @Override
     public boolean isSuperadmin() {
         return roles.contains(Role.SUPERADMIN);
     }

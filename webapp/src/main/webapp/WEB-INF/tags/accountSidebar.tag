@@ -1,9 +1,9 @@
 <%@ tag language="java" pageEncoding="UTF-8" %>
 <%@ attribute name="active" required="true" %>
-<%@ attribute name="registrationsCount" required="false" type="java.lang.Integer" %>
-<%@ attribute name="favoritesCount" required="false" type="java.lang.Integer" %>
-<%@ attribute name="eventsCount" required="false" type="java.lang.Integer" %>
-<%@ attribute name="invitationsCount" required="false" type="java.lang.Integer" %>
+<%@ attribute name="registrationsCount" required="false" type="java.lang.Long" %>
+<%@ attribute name="favoritesCount" required="false" type="java.lang.Long" %>
+<%@ attribute name="eventsCount" required="false" type="java.lang.Long" %>
+<%@ attribute name="invitationsCount" required="false" type="java.lang.Long" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions" %>
 <%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>

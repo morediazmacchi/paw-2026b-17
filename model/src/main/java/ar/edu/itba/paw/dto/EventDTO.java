@@ -32,8 +32,6 @@ public class EventDTO {
     private List<NewImageData> newImages = new ArrayList<>();
     private BigDecimal price;
     private Integer maxCapacity;
-    private String creatorEmail;
-    private Long creatorId;
     private List<EventCategoryInfo> categories = new ArrayList<>();
     private boolean requiresApproval;
     private EventVisibility visibility = EventVisibility.PUBLIC;
@@ -70,12 +68,6 @@ public class EventDTO {
 
     public Integer getMaxCapacity() { return maxCapacity; }
     public void setMaxCapacity(final Integer maxCapacity) { this.maxCapacity = maxCapacity; }
-
-    public String getCreatorEmail() { return creatorEmail; }
-    public void setCreatorEmail(final String creatorEmail) { this.creatorEmail = creatorEmail; }
-
-    public Long getCreatorId() { return creatorId; }
-    public void setCreatorId(final Long creatorId) { this.creatorId = creatorId; }
 
     public List<EventCategoryInfo> getCategories() { return categories; }
     public void setCategories(final List<EventCategoryInfo> categories) {

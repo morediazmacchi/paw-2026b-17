@@ -37,19 +37,19 @@ public class ImageServiceImpl implements ImageService {
     @Transactional
     public Image create(final byte[] data, final String contentType, final String fileName) {
         if (data == null || data.length == 0) {
-            throw new InvalidImageException("event.publish.imageEmpty");
+            throw new InvalidImageException(InvalidImageException.Reason.EMPTY);
         }
         if (data.length > MAX_SIZE_BYTES) {
-            throw new InvalidImageException("event.publish.imageTooLarge");
+            throw new InvalidImageException(InvalidImageException.Reason.TOO_LARGE);
         }
         if (contentType == null || !contentType.startsWith("image/")) {
-            throw new InvalidImageException("event.publish.imageNotAnImage");
+            throw new InvalidImageException(InvalidImageException.Reason.NOT_AN_IMAGE);
         }
         // El tipo que se guarda (y que despues se manda como header al servirla)
         // es el que salio de mirar los bytes, nunca el que declaro el cliente.
         final String realType = detectType(data);
         if (realType == null) {
-            throw new InvalidImageException("event.publish.imageNotAnImage");
+            throw new InvalidImageException(InvalidImageException.Reason.NOT_AN_IMAGE);
         }
 
         final Image image = new Image(data, realType, fileName, data.length);

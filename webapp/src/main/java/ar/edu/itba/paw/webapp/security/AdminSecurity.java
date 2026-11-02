@@ -31,7 +31,7 @@ public class AdminSecurity {
     public boolean canSuspend(final long targetId, final Authentication authentication) {
         return PlancitoUserDetails.from(authentication)
                 .flatMap(caller -> userService.findAccessById(targetId).map(target ->
-                        caller.hasRole(Role.SUPERADMIN) || !(target.isAdmin() || target.isSuperadmin())))
+                        target.canBeSuspendedBy(caller.hasRole(Role.SUPERADMIN))))
                 .orElse(false);
     }
 
@@ -41,7 +41,7 @@ public class AdminSecurity {
     public boolean canModerateEvent(final long eventId, final Authentication authentication) {
         return PlancitoUserDetails.from(authentication)
                 .flatMap(admin -> eventService.findAccessById(eventId)
-                        .map(event -> !Long.valueOf(admin.getId()).equals(event.getCreatorId())))
+                        .map(event -> event.canBeModeratedBy(admin.getId())))
                 .orElse(false);
     }
 
@@ -52,7 +52,7 @@ public class AdminSecurity {
     public boolean canResolveReport(final long reportId, final Authentication authentication) {
         return PlancitoUserDetails.from(authentication)
                 .flatMap(admin -> moderationService.findReportTarget(reportId)
-                        .map(target -> !Long.valueOf(admin.getId()).equals(target.getCreatorId())))
+                        .map(target -> target.canBeResolvedBy(admin.getId())))
                 .orElse(false);
     }
 }

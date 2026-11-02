@@ -5,6 +5,7 @@ import ar.edu.itba.paw.dto.UserRegistrationDTO;
 import ar.edu.itba.paw.model.InboxMessage;
 import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.Role;
+import ar.edu.itba.paw.model.SupportedLocale;
 import ar.edu.itba.paw.model.TokenPurpose;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.UserAccess;
@@ -107,6 +108,10 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public UserRegistrationResult register(final UserRegistrationDTO data) {
+        // Se valida ANTES de escribir. El form ya lo chequea para dar feedback; esto es la defensa del service.
+        if (isWeak(data.getRawPassword())) {
+            return UserRegistrationResult.WEAK_PASSWORD;
+        }
         final String normalizedEmail = data.getEmail().trim().toLowerCase();
 
         final Optional<User> existing = userDao.findByEmail(normalizedEmail);
@@ -213,12 +218,20 @@ public class UserServiceImpl implements UserService {
         if (!found.isPresent()) {
             return PasswordResetResult.INVALID_TOKEN;
         }
+        if (isWeak(newPassword)) {
+            return PasswordResetResult.WEAK_PASSWORD;
+        }
         final long userId = found.get().getUserId();
         userDao.setPassword(userId, passwordEncoder.encode(newPassword));
         tokenDao.delete(token);
         // Cualquier sesion que ya tuviera esa cuenta deja de valer (por eso se pidio restablecer la clave).
         eventPublisher.publishEvent(new UserCredentialsChangedEvent(userId, false));
         return PasswordResetResult.OK;
+    }
+
+    // Una contraseña mas corta que el minimo no se guarda (ver UserService.MIN_PASSWORD_LENGTH).
+    private static boolean isWeak(final String rawPassword) {
+        return rawPassword == null || rawPassword.length() < MIN_PASSWORD_LENGTH;
     }
 
     private void sendVerificationEmail(final User user, final String redirectAfterConfirm) {
@@ -248,23 +261,31 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public boolean changePassword(final long userId, final String currentPassword, final String newPassword) {
+    public ChangePasswordResult changePassword(final long userId, final String currentPassword,
+                                               final String newPassword) {
         final User user = userDao.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("Usuario inexistente: " + userId));
 
         if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
-            return false;
+            return ChangePasswordResult.WRONG_CURRENT_PASSWORD;
+        }
+        if (isWeak(newPassword)) {
+            return ChangePasswordResult.WEAK_PASSWORD;
         }
 
         userDao.setPassword(userId, passwordEncoder.encode(newPassword));
         // Se cierran las OTRAS sesiones de esta cuenta; la actual (desde donde se cambio la clave) sigue.
         eventPublisher.publishEvent(new UserCredentialsChangedEvent(userId, true));
-        return true;
+        return ChangePasswordResult.OK;
     }
 
     @Override
     @Transactional
     public boolean updateLocale(final long userId, final String locale) {
+        // Solo los idiomas soportados: otro valor no se guarda.
+        if (!SupportedLocale.fromCode(locale).isPresent()) {
+            return false;
+        }
         return userDao.setLocale(userId, locale);
     }
 

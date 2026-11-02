@@ -1,5 +1,6 @@
 package ar.edu.itba.paw.services;
 
+import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.InboxMessage;
 import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.User;
@@ -130,6 +131,43 @@ public class InboxServiceImplTest {
         assertEquals(lastPage, result.getContent());
         assertEquals(42L, result.getTotalElements());
         assertEquals(3, result.getPage());
+    }
+
+    // ---- findPageWithEvents() ----
+
+    private static InboxMessage messageAbout(final long eventId) {
+        return new InboxMessage("ana@mail.com", InboxMessageType.NEW_PENDING, ModelFixtures.event(eventId), "Juan", null);
+    }
+
+    @Test
+    public void testFindPageWithEventsHoldsTheMessagesOfThePage() {
+        // Arrange
+        final List<InboxMessage> messages = Arrays.asList(messageAbout(7L), messageAbout(8L));
+        when(inboxDao.findByRecipientUserId(USER_ID, 1, InboxServiceImpl.PAGE_SIZE)).thenReturn(messages);
+        when(inboxDao.countByUserId(USER_ID)).thenReturn(2L);
+
+        // Act
+        final InboxPage result = inboxService.findPageWithEvents(USER_ID, 1);
+
+        // Assert
+        assertEquals(messages, result.getMessages().getContent());
+    }
+
+    @Test
+    public void testFindPageWithEventsIndexesTheReferencedEventsById() {
+        // Arrange: dos avisos del mismo evento y uno sin evento; el evento se busca una sola vez
+        final Event event = ModelFixtures.event(7L);
+        final InboxMessage withoutEvent = new InboxMessage("ana@mail.com", InboxMessageType.NEW_PENDING, null, "Juan", null);
+        when(inboxDao.findByRecipientUserId(USER_ID, 1, InboxServiceImpl.PAGE_SIZE))
+                .thenReturn(Arrays.asList(messageAbout(7L), messageAbout(7L), withoutEvent));
+        when(inboxDao.countByUserId(USER_ID)).thenReturn(3L);
+        when(eventDao.findByIds(Collections.singletonList(7L))).thenReturn(Collections.singletonList(event));
+
+        // Act
+        final InboxPage result = inboxService.findPageWithEvents(USER_ID, 1);
+
+        // Assert
+        assertEquals(Collections.singletonMap(7L, event), result.getEventsById());
     }
 
     // ---- markRead() ----

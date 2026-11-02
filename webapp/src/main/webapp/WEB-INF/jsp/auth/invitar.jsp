@@ -35,7 +35,7 @@
 </c:if>
 
 <div class="account-layout">
-    <paw:accountSidebar active="events" registrationsCount="${registrationsCount}" favoritesCount="${favoritesCount}" eventsCount="${eventsCount}" invitationsCount="${invitationsCount}"/>
+    <paw:accountSidebar active="events" registrationsCount="${accountCounts.registrations}" favoritesCount="${accountCounts.favorites}" eventsCount="${accountCounts.events}" invitationsCount="${accountCounts.invitations}"/>
 
     <main class="account-main">
         <h1><spring:message code="auth.invite.heading"/></h1>

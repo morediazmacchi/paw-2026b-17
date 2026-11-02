@@ -15,7 +15,6 @@ import org.mockito.junit.MockitoJUnitRunner;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -113,21 +112,6 @@ public class ReviewServiceImplTest {
 
         // Assert
         assertEquals(Optional.empty(), result);
-    }
-
-    // ---- findByEventsAndUser() ----
-
-    @Test
-    public void testFindByEventsAndUserReturnsWhatTheDaoReturns() {
-        // Arrange
-        final List<Review> reviews = Collections.singletonList(new Review(ModelFixtures.event(EVENT_ID), ModelFixtures.user(USER_ID), RATING, COMMENT));
-        when(reviewDao.findByEventsAndUser(Collections.singletonList(EVENT_ID), USER_ID)).thenReturn(reviews);
-
-        // Act
-        final List<Review> result = reviewService.findByEventsAndUser(Collections.singletonList(EVENT_ID), USER_ID);
-
-        // Assert
-        assertEquals(reviews, result);
     }
 
     // ---- create() ----

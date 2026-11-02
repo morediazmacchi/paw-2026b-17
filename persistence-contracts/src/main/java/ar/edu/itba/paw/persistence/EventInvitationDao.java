@@ -2,6 +2,7 @@
 // EventInvitationJdbcDao (modulo persistence).
 package ar.edu.itba.paw.persistence;
 
+import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventInvitation;
 
 import java.util.List;
@@ -36,11 +37,11 @@ public interface EventInvitationDao {
     // Pantalla "a quien invite" del creador, mas recientes primero.
     List<EventInvitation> findByEvent(long eventId);
 
-    // "Mis invitaciones" de quien las RECIBE (no del creador), mas recientes
-    // primero, de a una pagina (page empieza en 1). Por user_id, no por email:
-    // solo tiene sentido para alguien ya logueado, y el id nunca queda
-    // desactualizado como el email podria.
-    List<EventInvitation> findByUserId(long userId, int page, int pageSize);
+    // "Mis invitaciones" de quien las RECIBE (no del creador): los EVENTOS a los que lo invitaron,
+    // con un JOIN (una sola consulta), del que invitaron mas recientemente al mas viejo, de a una
+    // pagina (page empieza en 1). Por user_id, no por email: solo tiene sentido para alguien ya
+    // logueado, y el id nunca queda desactualizado como el email podria.
+    List<Event> findInvitedEventsByUserId(long userId, int page, int pageSize);
 
     /** Para el badge de "Mis invitaciones" (ver ProfileController): sin traer las filas. */
     long countByUserId(long userId);

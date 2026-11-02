@@ -1,13 +1,13 @@
 package ar.edu.itba.paw.webapp.controller;
 
 import ar.edu.itba.paw.model.Event;
-import ar.edu.itba.paw.model.EventReport;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.EventApprovalResult;
 import ar.edu.itba.paw.services.EventQuestionService;
 import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.ModerationService;
 import ar.edu.itba.paw.services.PageResult;
+import ar.edu.itba.paw.services.ReportQueuePage;
 import ar.edu.itba.paw.services.ReportResolutionResult;
 import ar.edu.itba.paw.services.RevokeAdminResult;
 import ar.edu.itba.paw.services.SuspendResult;
@@ -28,10 +28,6 @@ import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import javax.validation.Valid;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Collectors;
 
 // Panel de administracion
 @Controller
@@ -59,41 +55,28 @@ public class AdminController {
 
     @RequestMapping(value = "/reportes", method = RequestMethod.GET)
     public ModelAndView reportes(@RequestParam(value = "page", required = false) final String page) {
-        return reportQueueView("admin/reportes", moderationService.findPendingPage(Paging.parsePage(page)));
+        final ReportQueuePage queue = moderationService.findPendingQueue(Paging.parsePage(page));
+        return reportQueueView("admin/reportes", queue);
     }
 
     // Panel de seguimiento: reportes
     // donde ya se le pidieron cambios al creador
     @RequestMapping(value = "/reportes/seguimiento", method = RequestMethod.GET)
     public ModelAndView seguimiento(@RequestParam(value = "page", required = false) final String page) {
-        final PageResult<EventReport> result = moderationService.findChangesRequestedPage(Paging.parsePage(page));
-        final ModelAndView mav = reportQueueView("admin/seguimiento", result);
-        final List<Long> requestedByIds = result.getContent().stream()
-                .map(EventReport::getChangesRequestedByUserId)
-                .filter(Objects::nonNull)
-                .distinct()
-                .collect(Collectors.toList());
-        final Map<Long, User> requestedByUsersById = userService.findByIds(requestedByIds).stream()
-                .collect(Collectors.toMap(User::getId, u -> u));
-        mav.addObject("requestedByUsersById", requestedByUsersById);
+        final ReportQueuePage queue = moderationService.findChangesRequestedQueue(Paging.parsePage(page));
+        final ModelAndView mav = reportQueueView("admin/seguimiento", queue);
+        mav.addObject("requestedByUsersById", queue.getRequestedByUsersById());
         return mav;
     }
 
-    // trae los reports con los datos para mostrarlos en el jsp.
-    private ModelAndView reportQueueView(final String viewName, final PageResult<EventReport> result) {
-        final List<EventReport> reports = result.getContent();
-        final List<Long> eventIds = reports.stream().map(EventReport::getEventId).distinct().collect(Collectors.toList());
-        final List<Long> reporterIds = reports.stream().map(EventReport::getReporterUserId).distinct().collect(Collectors.toList());
-        final Map<Long, Event> eventsById = eventService.findByIds(eventIds).stream()
-                .collect(Collectors.toMap(Event::getId, e -> e));
-        final Map<Long, User> reportersById = userService.findByIds(reporterIds).stream()
-                .collect(Collectors.toMap(User::getId, u -> u));
+    // Los reports con los datos para mostrarlos en el jsp (los arma el service).
+    private ModelAndView reportQueueView(final String viewName, final ReportQueuePage queue) {
         final ModelAndView mav = new ModelAndView(viewName);
-        mav.addObject("reports", reports);
-        mav.addObject("currentPage", result.getPage());
-        mav.addObject("totalPages", result.getTotalPages());
-        mav.addObject("eventsById", eventsById);
-        mav.addObject("reportersById", reportersById);
+        mav.addObject("reports", queue.getReports().getContent());
+        mav.addObject("currentPage", queue.getReports().getPage());
+        mav.addObject("totalPages", queue.getReports().getTotalPages());
+        mav.addObject("eventsById", queue.getEventsById());
+        mav.addObject("reportersById", queue.getReportersById());
         return mav;
     }
 
@@ -268,8 +251,11 @@ public class AdminController {
     // Moderacion de preguntas
     // borra la pregunta con su respuesta si tenia.
     @RequestMapping(value = "/preguntas/{id}/eliminar", method = RequestMethod.POST)
-    public ModelAndView eliminarPregunta(@PathVariable final long id, @RequestParam("eventId") final long eventId) {
-        eventQuestionService.deleteByAdmin(id);
-        return new ModelAndView("redirect:/eventos/" + eventId + "#preguntas");
+    public ModelAndView eliminarPregunta(@PathVariable final long id) {
+        // Vuelve a la pagina del evento de la pregunta (lo dice el service, no el cliente); si la pregunta
+        // ya no estaba (otro admin la borro antes) no hay evento al que volver.
+        return eventQuestionService.deleteByAdmin(id)
+                .map(eventId -> new ModelAndView("redirect:/eventos/" + eventId + "#preguntas"))
+                .orElseGet(() -> new ModelAndView("redirect:/eventos"));
     }
 }

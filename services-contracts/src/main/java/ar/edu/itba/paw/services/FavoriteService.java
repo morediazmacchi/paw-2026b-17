@@ -33,6 +33,9 @@ public interface FavoriteService {
      */
     PageResult<Event> findViewablePage(User user, int page);
 
-    /** Cuantos favoritos puede ver hoy el usuario (el badge de "Favoritos"). */
-    long countViewable(User user);
+    /**
+     * Cuantos favoritos puede ver hoy el usuario (el badge de "Favoritos"): un COUNT en la base, con la misma
+     * regla de visibilidad que findViewablePage(). Un admin ve todos los eventos, por eso hace falta saber si lo es.
+     */
+    long countViewable(long userId, boolean isAdmin);
 }

@@ -314,6 +314,39 @@ public class UserServiceImplTest {
         assertEquals(UserRegistrationResult.EMAIL_TAKEN, result);
     }
 
+    @Test
+    public void testRegisterRejectsAPasswordShorterThanTheMinimum() {
+        // Arrange: el email esta libre y el encoder tiene un hash senuelo; si el service guardara la cuenta igual,
+        // el resultado seria CREATED
+        final UserRegistrationDTO data = registrationData();
+        data.setRawPassword("1234567");
+        lenient().when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.empty());
+        lenient().when(userDao.create(any(User.class))).thenReturn(someUser());
+        lenient().when(passwordEncoder.encode("1234567")).thenReturn(HASHED_PASSWORD);
+
+        // Act
+        final UserRegistrationResult result = userService.register(data);
+
+        // Assert
+        assertEquals(UserRegistrationResult.WEAK_PASSWORD, result);
+    }
+
+    @Test
+    public void testRegisterAcceptsAPasswordWithExactlyTheMinimumLength() {
+        // Arrange
+        final UserRegistrationDTO data = registrationData();
+        data.setRawPassword("12345678");
+        newUserFlow();
+        when(passwordEncoder.encode("12345678")).thenReturn(HASHED_PASSWORD);
+        when(userDao.setPassword(USER_ID, HASHED_PASSWORD)).thenReturn(true);
+
+        // Act
+        final UserRegistrationResult result = userService.register(data);
+
+        // Assert
+        assertEquals(UserRegistrationResult.CREATED, result);
+    }
+
     // ---- updateProfile() ----
     // El email ya no se recibe aca (ver UserService.updateProfile): el unico
     // comportamiento es delegar el nombre nuevo al DAO.
@@ -341,10 +374,10 @@ public class UserServiceImplTest {
         when(userDao.setPassword(USER_ID, NEW_HASHED_PASSWORD)).thenReturn(true);
 
         // Act
-        final boolean result = userService.changePassword(USER_ID, "old-password", RAW_PASSWORD);
+        final ChangePasswordResult result = userService.changePassword(USER_ID, "old-password", RAW_PASSWORD);
 
         // Assert
-        assertTrue(result);
+        assertEquals(ChangePasswordResult.OK, result);
     }
 
     @Test
@@ -354,10 +387,26 @@ public class UserServiceImplTest {
         when(passwordEncoder.matches("wrong-password", HASHED_PASSWORD)).thenReturn(false);
 
         // Act
-        final boolean result = userService.changePassword(USER_ID, "wrong-password", RAW_PASSWORD);
+        final ChangePasswordResult result = userService.changePassword(USER_ID, "wrong-password", RAW_PASSWORD);
 
         // Assert
-        assertFalse(result);
+        assertEquals(ChangePasswordResult.WRONG_CURRENT_PASSWORD, result);
+    }
+
+    @Test
+    public void testChangePasswordRejectsAPasswordShorterThanTheMinimum() {
+        // Arrange: la actual coincide; la nueva tiene 7 caracteres. El encoder tiene un hash senuelo: si el
+        // service guardara la clave igual, el resultado seria OK.
+        when(userDao.findById(USER_ID)).thenReturn(Optional.of(registeredUser()));
+        when(passwordEncoder.matches("old-password", HASHED_PASSWORD)).thenReturn(true);
+        lenient().when(passwordEncoder.encode("1234567")).thenReturn(NEW_HASHED_PASSWORD);
+        lenient().when(userDao.setPassword(USER_ID, NEW_HASHED_PASSWORD)).thenReturn(true);
+
+        // Act
+        final ChangePasswordResult result = userService.changePassword(USER_ID, "old-password", "1234567");
+
+        // Assert
+        assertEquals(ChangePasswordResult.WEAK_PASSWORD, result);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -392,6 +441,18 @@ public class UserServiceImplTest {
 
         // Act
         final boolean result = userService.updateLocale(USER_ID, "en");
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    public void testUpdateLocaleDoesNotSaveAnUnsupportedLanguage() {
+        // Arrange: el dao diria que si, pero "fr" no es un idioma soportado
+        lenient().when(userDao.setLocale(USER_ID, "fr")).thenReturn(true);
+
+        // Act
+        final boolean result = userService.updateLocale(USER_ID, "fr");
 
         // Assert
         assertFalse(result);
@@ -634,6 +695,20 @@ public class UserServiceImplTest {
 
         // Assert
         assertEquals(PasswordResetResult.OK, result);
+    }
+
+    @Test
+    public void testResetPasswordRejectsAPasswordShorterThanTheMinimum() {
+        // Arrange: el token es valido y el encoder tiene un hash senuelo
+        when(tokenDao.findByToken("some-token")).thenReturn(Optional.of(tokenOf(TokenPurpose.RESET_PASSWORD, inOneHour())));
+        lenient().when(passwordEncoder.encode("1234567")).thenReturn(NEW_HASHED_PASSWORD);
+        lenient().when(userDao.setPassword(USER_ID, NEW_HASHED_PASSWORD)).thenReturn(true);
+
+        // Act
+        final PasswordResetResult result = userService.resetPassword("some-token", "1234567");
+
+        // Assert
+        assertEquals(PasswordResetResult.WEAK_PASSWORD, result);
     }
 
     @Test
