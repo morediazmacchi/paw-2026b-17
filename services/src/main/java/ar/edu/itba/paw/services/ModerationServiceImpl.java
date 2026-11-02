@@ -40,9 +40,9 @@ public class ModerationServiceImpl implements ModerationService {
     @Override
     @Transactional
     public ReportResult report(final long eventId, final User reporter, final String reason) {
-        // Quien llama (EventController) ya resolvio el evento antes de pedir el
-        // reporte: si no existiera no habria llegado hasta aca. Mismo criterio
-        // que RegistrationServiceImpl para este caso "no deberia pasar".
+        // Evento inexistente: el 404 ya lo da @PreAuthorize en el controller antes de llegar aca; esto solo
+        // se alcanza si desaparece justo en el medio (carrera). Es la excepcion de siempre (ErrorAdvice
+        // la mapea a 404), no un resultado: los resultados son para conflictos de negocio.
         final Event event = eventService.findById(eventId)
                 .orElseThrow(() -> new EventNotFoundException(eventId));
         if (Long.valueOf(reporter.getId()).equals(event.getCreatorId())) {
@@ -90,9 +90,11 @@ public class ModerationServiceImpl implements ModerationService {
         }
         final Optional<Event> event = eventService.findById(report.get().getEventId());
         if (!event.isPresent()) {
-            // El evento se borro de otra forma entre medio (no deberia pasar,
-            // son soft-delete): no hay a quien avisarle ni que corregir, se
-            // resuelve directo como si se hubiera actuado.
+            // A diferencia de report(), aca NO se lanza EventNotFoundException: esto no es una accion de
+            // una persona sobre un evento que tiene que ver (no hay 404 que mostrar), es un admin
+            // resolviendo la cola de moderacion. Si el evento ya no esta (son soft-delete, no deberia
+            // pasar), no hay a quien avisarle ni que corregir: igual se resuelve el reporte para que
+            // salga de la cola.
             eventReportDao.resolve(reportId, ReportStatus.ACTIONED, adminUserId);
             return ReportResolutionResult.RESOLVED;
         }
@@ -125,9 +127,10 @@ public class ModerationServiceImpl implements ModerationService {
         final EventReport eventReport = report.get();
         final Optional<Event> event = eventService.findById(eventReport.getEventId());
         if (!event.isPresent()) {
-            // El evento se borro de otra forma entre medio (no deberia pasar,
-            // son soft-delete): igual resolvemos el reporte, no queda nada mas
-            // que hacer con el.
+            // A diferencia de report(), aca NO se lanza EventNotFoundException: esto no es una accion de
+            // una persona sobre un evento que tiene que ver (no hay 404 que mostrar), es un admin
+            // resolviendo un reporte. Si el evento ya no esta (son soft-delete, no deberia pasar), no
+            // queda nada que remover: igual se resuelve el reporte para que salga de la cola.
             eventReportDao.resolve(reportId, ReportStatus.ACTIONED, adminUserId);
             return ReportResolutionResult.RESOLVED;
         }

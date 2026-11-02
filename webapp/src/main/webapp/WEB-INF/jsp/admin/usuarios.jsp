@@ -22,6 +22,10 @@
         <span class="pill pill-active auth-tab"><c:out value="${usersTabLabel}"/></span>
     </div>
 
+    <c:if test="${not empty revokeAdminError}">
+        <p class="alert"><spring:message code="admin.users.revokeAdminError.${revokeAdminError}"/></p>
+    </c:if>
+
     <c:choose>
         <c:when test="${empty users}">
             <p class="empty-state"><spring:message code="admin.users.empty"/></p>

@@ -8,10 +8,7 @@ public enum QuestionResult {
     OWN_EVENT,
 
     // El evento ya paso o se cancelo: no recibe preguntas nuevas.
-    CLOSED,
-
-    // El evento no existe, o existe pero quien pregunta no puede verlo (mismo
-    // resultado en los dos casos: no se revela cual de las dos paso).
-    // Desde la UI no se llega: EventQuestionController.ask() ya lo chequea antes.
-    NOT_ALLOWED
+    CLOSED
+    // (Un evento que no existe no es un resultado: ask() lanza EventNotFoundException, que ErrorAdvice
+    // mapea a 404. Quien puede ver el evento y preguntar lo decide @PreAuthorize(canView) en el controller.)
 }

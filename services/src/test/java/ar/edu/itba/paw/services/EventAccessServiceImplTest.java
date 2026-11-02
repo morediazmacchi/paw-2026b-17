@@ -3,7 +3,8 @@ package ar.edu.itba.paw.services;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventAccessSummary;
 import ar.edu.itba.paw.model.EventApprovalStatus;
-import ar.edu.itba.paw.model.Registration;
+import ar.edu.itba.paw.model.RegistrationAccess;
+import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.EventVisibility;
@@ -98,7 +99,7 @@ public class EventAccessServiceImplTest {
     @Test
     public void testCanViewAPrivateEventIsTrueForARegisteredUser() {
         // Arrange
-        when(registrationService.findByEventAndUserId(EVENT_ID, OTHER_ID)).thenReturn(Optional.of(new Registration()));
+        when(registrationService.findAccessByEventAndUserId(EVENT_ID, OTHER_ID)).thenReturn(Optional.of(new RegistrationAccess(OTHER_ID, EVENT_ID, RegistrationStatus.REJECTED)));
 
         // Act
         final boolean result = accessService.canView(event(EventVisibility.PRIVATE), user(OTHER_ID));
@@ -110,7 +111,7 @@ public class EventAccessServiceImplTest {
     @Test
     public void testCanViewAPrivateEventIsTrueForAnInvitedUser() {
         // Arrange
-        when(registrationService.findByEventAndUserId(EVENT_ID, OTHER_ID)).thenReturn(Optional.empty());
+        when(registrationService.findAccessByEventAndUserId(EVENT_ID, OTHER_ID)).thenReturn(Optional.empty());
         when(eventInvitationService.isInvited(EVENT_ID, OTHER_ID)).thenReturn(true);
 
         // Act
@@ -123,7 +124,7 @@ public class EventAccessServiceImplTest {
     @Test
     public void testCanViewAPrivateEventIsFalseForAStranger() {
         // Arrange
-        when(registrationService.findByEventAndUserId(EVENT_ID, OTHER_ID)).thenReturn(Optional.empty());
+        when(registrationService.findAccessByEventAndUserId(EVENT_ID, OTHER_ID)).thenReturn(Optional.empty());
         when(eventInvitationService.isInvited(EVENT_ID, OTHER_ID)).thenReturn(false);
 
         // Act
@@ -157,7 +158,7 @@ public class EventAccessServiceImplTest {
 
     @Test
     public void testCanViewAPrivateSummaryIsTrueForAnInvitedUser() {
-        when(registrationService.findByEventAndUserId(EVENT_ID, OTHER_ID)).thenReturn(Optional.empty());
+        when(registrationService.findAccessByEventAndUserId(EVENT_ID, OTHER_ID)).thenReturn(Optional.empty());
         when(eventInvitationService.isInvited(EVENT_ID, OTHER_ID)).thenReturn(true);
 
         assertTrue(accessService.canView(new EventAccessSummary(EVENT_ID, CREATOR_ID, true, true), user(OTHER_ID)));
@@ -187,7 +188,7 @@ public class EventAccessServiceImplTest {
 
     @Test
     public void testCanViewByIdOfAPrivateEventIsTrueForAnInvitedUser() {
-        when(registrationService.findByEventAndUserId(EVENT_ID, OTHER_ID)).thenReturn(Optional.empty());
+        when(registrationService.findAccessByEventAndUserId(EVENT_ID, OTHER_ID)).thenReturn(Optional.empty());
         when(eventInvitationService.isInvited(EVENT_ID, OTHER_ID)).thenReturn(true);
 
         assertTrue(accessService.canView(event(EventVisibility.PRIVATE), OTHER_ID, false));
@@ -195,7 +196,7 @@ public class EventAccessServiceImplTest {
 
     @Test
     public void testCanViewByIdOfAPrivateEventIsFalseForAStranger() {
-        when(registrationService.findByEventAndUserId(EVENT_ID, OTHER_ID)).thenReturn(Optional.empty());
+        when(registrationService.findAccessByEventAndUserId(EVENT_ID, OTHER_ID)).thenReturn(Optional.empty());
         when(eventInvitationService.isInvited(EVENT_ID, OTHER_ID)).thenReturn(false);
 
         assertFalse(accessService.canView(event(EventVisibility.PRIVATE), OTHER_ID, false));

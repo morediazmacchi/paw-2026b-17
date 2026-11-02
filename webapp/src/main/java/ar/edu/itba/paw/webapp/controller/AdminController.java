@@ -9,6 +9,7 @@ import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.ModerationService;
 import ar.edu.itba.paw.services.PageResult;
 import ar.edu.itba.paw.services.ReportResolutionResult;
+import ar.edu.itba.paw.services.RevokeAdminResult;
 import ar.edu.itba.paw.services.UserService;
 import ar.edu.itba.paw.webapp.form.RejectEventForm;
 import ar.edu.itba.paw.webapp.form.RequestChangesForm;
@@ -233,11 +234,17 @@ public class AdminController {
         return new ModelAndView("redirect:/admin/usuarios");
     }
 
-    // Nadie se saca el rol ADMIN a si mismo: lo decide @PreAuthorize (ver AdminSecurity.canRevokeAdmin).
-    @PreAuthorize("@adminSecurity.canRevokeAdmin(#id, authentication)")
+    // El gate de SUPERADMIN esta en WebAuthConfig (antMatcher de /admin/usuarios/*/revocar). El "no a
+    // vos mismo" lo decide el service (RevokeAdminResult.OWN_ACCOUNT): la pantalla ya esconde el boton,
+    // esto solo se llega con un POST armado a mano.
     @RequestMapping(value = "/usuarios/{id}/revocar", method = RequestMethod.POST)
-    public ModelAndView revocar(@PathVariable final long id) {
-        userService.revokeAdmin(id);
+    public ModelAndView revocar(@PathVariable final long id,
+                                @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
+                                final RedirectAttributes redirectAttributes) {
+        final RevokeAdminResult result = userService.revokeAdmin(currentUser, id);
+        if (result != RevokeAdminResult.OK) {
+            redirectAttributes.addFlashAttribute("revokeAdminError", result.name());
+        }
         return new ModelAndView("redirect:/admin/usuarios");
     }
 

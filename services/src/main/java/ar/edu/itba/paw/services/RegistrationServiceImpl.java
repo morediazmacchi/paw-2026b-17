@@ -4,6 +4,7 @@ package ar.edu.itba.paw.services;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.Registration;
+import ar.edu.itba.paw.model.RegistrationAccess;
 import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
@@ -71,6 +72,9 @@ public class RegistrationServiceImpl implements RegistrationService {
         // UNIQUE(event_id, email) al insertar -- que era lo que obligaba al
         // controller a reintentar en una segunda transaccion (ver
         // EventRegistrationController.registerRetryingOnConflict()).
+        // Evento inexistente: el 404 ya lo da @PreAuthorize en el controller antes de llegar aca; esto solo
+        // se alcanza si desaparece justo en el medio (carrera). Es la excepcion de siempre (ErrorAdvice
+        // la mapea a 404), no un resultado: los resultados son para conflictos de negocio.
         final Event event = eventDao.findByIdForUpdate(eventId)
                 .orElseThrow(() -> new EventNotFoundException(eventId));
 
@@ -399,6 +403,18 @@ public class RegistrationServiceImpl implements RegistrationService {
     @Transactional(readOnly = true)
     public Optional<Registration> findByEventAndUserId(final long eventId, final long userId) {
         return registrationDao.findByEventAndUserId(eventId, userId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<RegistrationAccess> findAccessById(final long registrationId) {
+        return registrationDao.findAccessById(registrationId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<RegistrationAccess> findAccessByEventAndUserId(final long eventId, final long userId) {
+        return registrationDao.findAccessByEventAndUserId(eventId, userId);
     }
 
     @Override

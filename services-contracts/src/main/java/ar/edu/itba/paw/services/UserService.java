@@ -3,12 +3,19 @@ package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.dto.UserRegistrationDTO;
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.model.UserAccess;
 
 import java.util.List;
 import java.util.Optional;
 
 public interface UserService {
     Optional<User> findById(long id);
+
+    /**
+     * Id y roles del usuario para decidir un permiso sobre el, sin cargar el User (ni su contrasena).
+     * Lo usan las reglas de AdminSecurity.
+     */
+    Optional<UserAccess> findAccessById(long id);
 
     // Una sola consulta para varios ids, para armar un mapa id->User sin un
     // findById() por cada uno (ver AdminController.seguimiento()/reportQueueView()).
@@ -136,9 +143,10 @@ public interface UserService {
     boolean grantAdmin(long userId);
 
     /**
-     * Le saca el rol ADMIN a un usuario (no toca SUPERADMIN). Quien puede invocar esto, y que nadie se
-     * lo saque a si mismo, lo controla la seguridad (WebAuthConfig y @PreAuthorize en AdminController,
-     * ver AdminSecurity), no este metodo: es una simple asignacion de rol, ya autorizada al llegar aca.
+     * Le saca el rol ADMIN a un usuario (no toca SUPERADMIN). Quien puede invocar esto (solo un
+     * superadmin) lo controla la seguridad HTTP (ver WebAuthConfig), no este metodo. Si valida, como
+     * regla de negocio, que nadie se lo saque a si mismo (OWN_ACCOUNT), igual que
+     * EventQuestionService.ask() con el organizador (OWN_EVENT).
      */
-    boolean revokeAdmin(long targetId);
+    RevokeAdminResult revokeAdmin(User caller, long targetId);
 }

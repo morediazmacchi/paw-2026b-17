@@ -13,6 +13,12 @@ public enum EventInvitationResult {
      * al cupo, y cada invitacion reserva un lugar.
      */
     FULL,
-    /** El evento no existe, no es de quien pide invitar, o no es privado. */
+    /**
+     * El evento es publico: invitar solo tiene sentido en uno privado (un evento publico ya tiene un
+     * link que se puede compartir). Es una regla de negocio, no de acceso: la pantalla lo muestra
+     * como cartel.
+     */
+    EVENT_PUBLIC,
+    /** El evento no existe, esta cancelado o ya paso. (Quien invita lo decide @PreAuthorize.) */
     NOT_ALLOWED
 }

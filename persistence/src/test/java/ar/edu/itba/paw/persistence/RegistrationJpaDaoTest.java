@@ -1,6 +1,7 @@
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.Registration;
+import ar.edu.itba.paw.model.RegistrationAccess;
 import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.User;
@@ -828,5 +829,64 @@ public class RegistrationJpaDaoTest {
 
     private static RegistrationStatus statusOfEvent(final List<Registration> registrations, final long eventId) {
         return registrations.stream().filter(r -> r.getEventId() == eventId).findFirst().get().getStatus();
+    }
+
+    // ---- findAccessById() / findAccessByEventAndUserId() ----
+
+    @Test
+    public void testFindAccessByIdReturnsTheUserEventAndStatusOfThatRegistration() {
+        // Arrange: la buscada, mas una senuelo de otro usuario, otro evento y otro estado
+        final long otherUserId = insertUser("otro@mail.com", "Otro");
+        final long otherEventId = insertEventAt(1000);
+        final long registrationId = insertRegistration(eventId, "uno@mail.com", userId, NAME, RegistrationStatus.PENDING);
+        insertRegistration(otherEventId, "dos@mail.com", otherUserId, "Otro", RegistrationStatus.CONFIRMED);
+
+        // Act
+        final Optional<RegistrationAccess> result = registrationDao.findAccessById(registrationId);
+
+        // Assert
+        assertEquals(Long.valueOf(userId), result.get().getUserId());
+        assertEquals(eventId, result.get().getEventId());
+        assertEquals(RegistrationStatus.PENDING, result.get().getStatus());
+    }
+
+    @Test
+    public void testFindAccessByIdIsEmptyWhenTheRegistrationDoesNotExist() {
+        // Act
+        final Optional<RegistrationAccess> result = registrationDao.findAccessById(987654L);
+
+        // Assert
+        assertFalse(result.isPresent());
+    }
+
+    @Test
+    public void testFindAccessByEventAndUserIdReturnsOnlyThatUsersRegistrationInThatEvent() {
+        // Arrange: la buscada, mas senuelos del mismo usuario en otro evento y de otro usuario en este
+        final long otherUserId = insertUser("otro@mail.com", "Otro");
+        final long otherEventId = insertEventAt(1000);
+        insertRegistration(eventId, "uno@mail.com", userId, NAME, RegistrationStatus.WAITLISTED);
+        insertRegistration(otherEventId, "dos@mail.com", userId, NAME, RegistrationStatus.CONFIRMED);
+        insertRegistration(eventId, "tres@mail.com", otherUserId, "Otro", RegistrationStatus.REJECTED);
+
+        // Act
+        final Optional<RegistrationAccess> result = registrationDao.findAccessByEventAndUserId(eventId, userId);
+
+        // Assert
+        assertEquals(Long.valueOf(userId), result.get().getUserId());
+        assertEquals(eventId, result.get().getEventId());
+        assertEquals(RegistrationStatus.WAITLISTED, result.get().getStatus());
+    }
+
+    @Test
+    public void testFindAccessByEventAndUserIdIsEmptyWhenThereIsNoRegistration() {
+        // Arrange: solo hay una de otro usuario
+        final long otherUserId = insertUser("otro@mail.com", "Otro");
+        insertRegistration(eventId, "tres@mail.com", otherUserId, "Otro", RegistrationStatus.CONFIRMED);
+
+        // Act
+        final Optional<RegistrationAccess> result = registrationDao.findAccessByEventAndUserId(eventId, userId);
+
+        // Assert
+        assertFalse(result.isPresent());
     }
 }

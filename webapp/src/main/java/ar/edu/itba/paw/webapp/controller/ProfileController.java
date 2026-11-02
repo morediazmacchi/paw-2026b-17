@@ -445,11 +445,10 @@ public class ProfileController {
         return new ModelAndView("redirect:/eventos/" + id + "/inscriptos" + (revoked ? "?revoked" : ""));
     }
 
-    // Invitar solo tiene sentido en un evento privado: uno publico ya tiene un
-    // link que se puede compartir sin necesitar un token. Mismo 404 que
-    // pendingRegistrations si no sos el creador, o si el evento no es privado
-    // (lo decide @PreAuthorize, ver EventSecurity.isOwnerOfPrivate).
-    @PreAuthorize("@eventSecurity.isOwnerOfPrivate(#id, authentication)")
+    // Invitar: mismo 404 que pendingRegistrations si no sos el creador (lo decide @PreAuthorize, ver
+    // EventSecurity.isOwner). Que el evento sea privado NO es de acceso: en uno publico se muestra un
+    // cartel en esta misma pantalla (ver EventInvitationResult.EVENT_PUBLIC).
+    @PreAuthorize("@eventSecurity.isOwner(#id, authentication)")
     @RequestMapping(value = "/perfil/eventos/{id}/invitar", method = RequestMethod.GET)
     public ModelAndView inviteForm(@PathVariable final long id,
                                     @RequestParam(value = "sent", required = false) final String sentParam,
@@ -459,7 +458,7 @@ public class ProfileController {
         return inviteFormView(event, currentUser, new InviteForm(), null, sentParam != null, alreadyInvitedParam != null);
     }
 
-    @PreAuthorize("@eventSecurity.isOwnerOfPrivate(#id, authentication)")
+    @PreAuthorize("@eventSecurity.isOwner(#id, authentication)")
     @RequestMapping(value = "/perfil/eventos/{id}/invitar", method = RequestMethod.POST)
     public ModelAndView invite(@PathVariable final long id, @Valid final InviteForm form, final BindingResult errors,
                                 @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
@@ -467,7 +466,7 @@ public class ProfileController {
         if (errors.hasErrors()) {
             return inviteFormView(event, currentUser, form, errors, false, false);
         }
-        // Que el evento sea privado (y de quien invita) ya lo valida el service: si no, NOT_ALLOWED.
+        // Que el evento sea privado, no este cancelado ni haya pasado lo valida el service.
         final EventInvitationResult result = eventInvitationService.invite(id, form.getEmail());
         if (result == EventInvitationResult.NOT_ALLOWED) {
             return new ModelAndView("redirect:/perfil/eventos");
@@ -484,6 +483,7 @@ public class ProfileController {
             case ALREADY_INVITED -> "alreadyInvited";
             case FULL -> "full";
             case SELF_INVITE -> "selfInvite";
+            case EVENT_PUBLIC -> "eventPublic";
             case NOT_ALLOWED -> throw new IllegalStateException("NOT_ALLOWED ya se filtro antes de llegar aca");
         };
     }

@@ -51,41 +51,49 @@
         <c:if test="${param.full != null}">
             <p class="alert"><spring:message code="auth.invite.fullMessage"/></p>
         </c:if>
+        <%-- No "event.private": "private" es palabra reservada y EL la rechaza (ver detail.jsp). --%>
+        <c:if test="${event.visibility != 'PRIVATE'}">
+            <p class="alert"><spring:message code="auth.invite.eventPublicMessage"/></p>
+        </c:if>
         <c:if test="${param.selfInvite != null}">
             <p class="alert"><spring:message code="auth.invite.selfInviteMessage"/></p>
         </c:if>
 
-        <spring:message code="auth.invite.emailLabel" var="emailLabel"/>
-        <spring:message code="auth.invite.submitButton" var="submitButtonLabel"/>
-        <form action="<c:url value='/perfil/eventos/${event.id}/invitar'/>" method="post" novalidate="novalidate">
-            <paw:input name="email" maxLength="150" label="${emailLabel}" type="email"
-                       value="${inviteForm.email}" errorMessage="${fieldErrors.email}" />
-            <paw:button text="${submitButtonLabel}" cssClass="btn-accent"/>
-        </form>
+        <%-- El formulario y la lista solo tienen sentido en un evento privado; en uno publico queda
+             solo el cartel de arriba. --%>
+        <c:if test="${event.visibility == 'PRIVATE'}">
+            <spring:message code="auth.invite.emailLabel" var="emailLabel"/>
+            <spring:message code="auth.invite.submitButton" var="submitButtonLabel"/>
+            <form action="<c:url value='/perfil/eventos/${event.id}/invitar'/>" method="post" novalidate="novalidate">
+                <paw:input name="email" maxLength="150" label="${emailLabel}" type="email"
+                           value="${inviteForm.email}" errorMessage="${fieldErrors.email}" />
+                <paw:button text="${submitButtonLabel}" cssClass="btn-accent"/>
+            </form>
 
-        <hr class="profile-divider"/>
-        <h2 class="profile-section-title"><spring:message code="auth.invite.listHeading"/></h2>
+            <hr class="profile-divider"/>
+            <h2 class="profile-section-title"><spring:message code="auth.invite.listHeading"/></h2>
 
-        <c:choose>
-            <c:when test="${empty invitations}">
-                <p class="empty-state"><spring:message code="auth.invite.empty"/></p>
-            </c:when>
-            <c:otherwise>
-                <div class="pending-registration-list">
-                    <c:forEach var="invitation" items="${invitations}">
-                        <div class="pending-registration-row">
-                            <c:set var="invitedAt"><paw:date value="${invitation.createdAt}" format="dateTimeTable"/></c:set>
-                            <div class="pending-registration-info">
-                                <p class="pending-registration-name"><c:out value="${invitation.email}"/></p>
-                                <p class="pending-registration-meta">
-                                    <spring:message code="auth.invite.invitedAt" arguments="${invitedAt}"/>
-                                </p>
+            <c:choose>
+                <c:when test="${empty invitations}">
+                    <p class="empty-state"><spring:message code="auth.invite.empty"/></p>
+                </c:when>
+                <c:otherwise>
+                    <div class="pending-registration-list">
+                        <c:forEach var="invitation" items="${invitations}">
+                            <div class="pending-registration-row">
+                                <c:set var="invitedAt"><paw:date value="${invitation.createdAt}" format="dateTimeTable"/></c:set>
+                                <div class="pending-registration-info">
+                                    <p class="pending-registration-name"><c:out value="${invitation.email}"/></p>
+                                    <p class="pending-registration-meta">
+                                        <spring:message code="auth.invite.invitedAt" arguments="${invitedAt}"/>
+                                    </p>
+                                </div>
                             </div>
-                        </div>
-                    </c:forEach>
-                </div>
-            </c:otherwise>
-        </c:choose>
+                        </c:forEach>
+                    </div>
+                </c:otherwise>
+            </c:choose>
+        </c:if>
 
         <p class="auth-subheading">
             <a class="btn-link" href="<c:url value='/perfil/eventos'/>" data-history-back>

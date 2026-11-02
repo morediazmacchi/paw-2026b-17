@@ -3,6 +3,7 @@ package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.dto.EventDTO;
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.EventAccessSummary;
 import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +24,12 @@ public interface EventService {
     Event create(EventDTO dto);
     @Transactional(readOnly = true)
     Optional<Event> findById(long id);
+
+    /**
+     * Lo minimo del evento para decidir un permiso (organizador, visibilidad, aprobacion): una consulta
+     * de 4 columnas, sin cargar el Event. Lo usan las reglas de EventSecurity y AdminSecurity.
+     */
+    Optional<EventAccessSummary> findAccessById(long id);
 
     /**
      * Atajo de findById() para quien prefiere un 404 directo en vez de manejar

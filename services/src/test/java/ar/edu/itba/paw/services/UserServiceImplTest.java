@@ -4,6 +4,7 @@ import ar.edu.itba.paw.dto.UserRegistrationDTO;
 import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.model.TokenPurpose;
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.model.UserAccess;
 import ar.edu.itba.paw.model.VerificationToken;
 import ar.edu.itba.paw.persistence.EventInvitationDao;
 import ar.edu.itba.paw.persistence.InboxMessageDao;
@@ -23,6 +24,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.EnumSet;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -30,6 +32,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 // Unidad 5 - Unit Testing: los DAOs son @Mock (Mockito). Los comandos del dao ahora devuelven
@@ -66,7 +69,8 @@ public class UserServiceImplTest {
     @Before
     public void setUp() {
         userService = new UserServiceImpl(
-                userDao, tokenDao, passwordEncoder, notificationService, invitationDao, inboxMessageDao);
+                userDao, tokenDao, passwordEncoder, notificationService, invitationDao, inboxMessageDao,
+                event -> { });
     }
 
     private static User someUser() {
@@ -109,6 +113,20 @@ public class UserServiceImplTest {
     }
 
     // ---- findById() ----
+
+    @Test
+    public void testFindAccessByIdReturnsTheIdAndRolesTheDaoFound() {
+        // Arrange
+        when(userDao.findAccessById(USER_ID))
+                .thenReturn(Optional.of(new UserAccess(USER_ID, EnumSet.of(Role.USER, Role.ADMIN))));
+
+        // Act
+        final Optional<UserAccess> result = userService.findAccessById(USER_ID);
+
+        // Assert
+        assertTrue(result.get().isAdmin());
+        assertFalse(result.get().isSuperadmin());
+    }
 
     @Test
     public void testFindByIdReturnsThePresentUser() {
@@ -762,28 +780,64 @@ public class UserServiceImplTest {
         assertFalse(result);
     }
 
+    private static final long CALLER_ID = 99;
+
+    private static User callerUser() {
+        final User caller = new User("super@test.com", "Super");
+        caller.setId(CALLER_ID);
+        return caller;
+    }
+
     @Test
-    public void testRevokeAdminReturnsTrueWhenTheRoleWasRemoved() {
+    public void testRevokeAdminOfAnotherAdminReturnsOk() {
         // Arrange
         when(userDao.removeRole(USER_ID, Role.ADMIN)).thenReturn(true);
 
         // Act
-        final boolean result = userService.revokeAdmin(USER_ID);
+        final RevokeAdminResult result = userService.revokeAdmin(callerUser(), USER_ID);
 
         // Assert
-        assertTrue(result);
+        assertEquals(RevokeAdminResult.OK, result);
+    }
+
+    // Validar antes de escribir: si se sacara el rol a si mismo, el resultado seria OK (removeRole
+    // daria true) si el chequeo no corriera antes.
+    @Test
+    public void testRevokeAdminOnYourOwnAccountReturnsOwnAccount() {
+        // Arrange
+        lenient().when(userDao.removeRole(CALLER_ID, Role.ADMIN)).thenReturn(true);
+
+        // Act
+        final RevokeAdminResult result = userService.revokeAdmin(callerUser(), CALLER_ID);
+
+        // Assert
+        assertEquals(RevokeAdminResult.OWN_ACCOUNT, result);
     }
 
     @Test
-    public void testRevokeAdminReturnsFalseWhenTheUserWasNotAdmin() {
+    public void testRevokeAdminOfAUserWhoWasNotAdminReturnsOk() {
         // Arrange
         when(userDao.removeRole(USER_ID, Role.ADMIN)).thenReturn(false);
+        when(userDao.findAccessById(USER_ID)).thenReturn(Optional.of(new UserAccess(USER_ID, EnumSet.of(Role.USER))));
 
         // Act
-        final boolean result = userService.revokeAdmin(USER_ID);
+        final RevokeAdminResult result = userService.revokeAdmin(callerUser(), USER_ID);
 
         // Assert
-        assertFalse(result);
+        assertEquals(RevokeAdminResult.OK, result);
+    }
+
+    @Test
+    public void testRevokeAdminOfAUserWhoDoesNotExistReturnsNotFound() {
+        // Arrange
+        when(userDao.removeRole(USER_ID, Role.ADMIN)).thenReturn(false);
+        when(userDao.findAccessById(USER_ID)).thenReturn(Optional.empty());
+
+        // Act
+        final RevokeAdminResult result = userService.revokeAdmin(callerUser(), USER_ID);
+
+        // Assert
+        assertEquals(RevokeAdminResult.NOT_FOUND, result);
     }
 
     // ---- findAll() ----

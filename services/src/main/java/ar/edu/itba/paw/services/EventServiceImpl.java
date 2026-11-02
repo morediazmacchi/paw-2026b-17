@@ -5,6 +5,7 @@ import ar.edu.itba.paw.dto.EventDTO;
 import ar.edu.itba.paw.dto.NewImageData;
 import ar.edu.itba.paw.model.Category;
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.EventAccessSummary;
 import ar.edu.itba.paw.model.EventCategory;
 import ar.edu.itba.paw.model.EventCategoryInfo;
 import ar.edu.itba.paw.model.EventSearchCriteria;
@@ -104,6 +105,9 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional(readOnly = true)
     public Optional<Event> findById(final long id) { return eventDao.findById(id); }
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<EventAccessSummary> findAccessById(final long id) { return eventDao.findAccessById(id); }
     @Override
     @Transactional(readOnly = true)
     public List<Event> findByIds(final List<Long> ids) { return eventDao.findByIds(ids); }

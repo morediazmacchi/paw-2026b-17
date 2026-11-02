@@ -3,6 +3,7 @@ package ar.edu.itba.paw.persistence;
 import ar.edu.itba.paw.model.Barrio;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventApprovalStatus;
+import ar.edu.itba.paw.model.EventAccessSummary;
 import ar.edu.itba.paw.model.Category;
 import ar.edu.itba.paw.model.EventCategory;
 import ar.edu.itba.paw.model.EventSearchCriteria;
@@ -2471,5 +2472,51 @@ public class EventJpaDaoTest {
 
         // Act + Assert
         assertEquals(1, eventDao.findPublicPaidPrices().size());
+    }
+
+    // ---- findAccessById() ----
+
+    @Test
+    public void testFindAccessByIdReturnsTheCreatorVisibilityAndApprovalOfThatEvent() {
+        // Arrange: un evento privado y pendiente, mas uno senuelo publico y aprobado de otro organizador
+        final long creatorId = insertUser("organizador@mail.com");
+        final long otherCreatorId = insertUser("senuelo@mail.com");
+        final long eventId = insertEvent(cols("creator_id", creatorId,
+                "visibility", EventVisibility.PRIVATE.name(), "approval_status", EventApprovalStatus.PENDING.name()));
+        insertEvent(cols("creator_id", otherCreatorId,
+                "visibility", EventVisibility.PUBLIC.name(), "approval_status", EventApprovalStatus.APPROVED.name()));
+
+        // Act
+        final Optional<EventAccessSummary> result = eventDao.findAccessById(eventId);
+
+        // Assert
+        assertEquals(eventId, result.get().getId().longValue());
+        assertEquals(Long.valueOf(creatorId), result.get().getCreatorId());
+        assertTrue(result.get().isPrivate());
+        assertFalse(result.get().isApproved());
+    }
+
+    @Test
+    public void testFindAccessByIdOfAPublicApprovedEventSaysSo() {
+        // Arrange
+        final long creatorId = insertUser("organizador@mail.com");
+        final long eventId = insertEvent(cols("creator_id", creatorId,
+                "visibility", EventVisibility.PUBLIC.name(), "approval_status", EventApprovalStatus.APPROVED.name()));
+
+        // Act
+        final Optional<EventAccessSummary> result = eventDao.findAccessById(eventId);
+
+        // Assert
+        assertFalse(result.get().isPrivate());
+        assertTrue(result.get().isApproved());
+    }
+
+    @Test
+    public void testFindAccessByIdIsEmptyWhenTheEventDoesNotExist() {
+        // Act
+        final Optional<EventAccessSummary> result = eventDao.findAccessById(987654L);
+
+        // Assert
+        assertFalse(result.isPresent());
     }
 }

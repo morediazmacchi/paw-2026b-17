@@ -2,6 +2,7 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Registration;
+import ar.edu.itba.paw.model.RegistrationAccess;
 import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.User;
 import org.springframework.transaction.annotation.Transactional;
@@ -108,6 +109,15 @@ public interface RegistrationService {
      */
     @Transactional(readOnly = true)
     Optional<Registration> findById(long registrationId);
+
+    /**
+     * Lo minimo de la inscripcion para decidir un permiso (de quien es, de que evento, en que estado):
+     * una consulta de 3 columnas, sin cargar la Registration. Lo usan las reglas de EventSecurity.
+     */
+    Optional<RegistrationAccess> findAccessById(long registrationId);
+
+    /** Igual que {@link #findAccessById(long)}, pero buscando por evento y usuario. */
+    Optional<RegistrationAccess> findAccessByEventAndUserId(long eventId, long userId);
 
     /**
      * Para el detalle de evento: la relacion de esta persona con el evento, ya resuelta (si esta

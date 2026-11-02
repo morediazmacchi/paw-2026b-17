@@ -2,6 +2,7 @@
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.EventAccessSummary;
 import ar.edu.itba.paw.model.EventApprovalStatus;
 import ar.edu.itba.paw.model.EventCategory;
 import ar.edu.itba.paw.model.EventSearchCriteria;
@@ -277,6 +278,23 @@ public class EventJpaDao implements EventDao {
     @Override
     public Optional<Event> findById(final long id) {
         return Optional.ofNullable(em.find(Event.class, id));
+    }
+
+    @Override
+    public Optional<EventAccessSummary> findAccessById(final long id) {
+        // Proyeccion: las cuatro columnas que necesitan las reglas de acceso (organizador, visibilidad,
+        // aprobacion), no el Event (sin sus ~29 columnas ni la subconsulta de la portada). Mismo
+        // criterio que ImageJpaDao.findOwnerEventAccess. e.creator.id no hace JOIN con users: es la
+        // propia columna creator_id del evento.
+        final List<Object[]> rows = em.createQuery(
+                        "SELECT e.id, e.creator.id, e.visibility, e.approvalStatus FROM Event e WHERE e.id = :id",
+                        Object[].class)
+                .setParameter("id", id)
+                .getResultList();
+        return rows.stream()
+                .map(row -> new EventAccessSummary((Long) row[0], (Long) row[1],
+                        row[2] == EventVisibility.PRIVATE, row[3] == EventApprovalStatus.APPROVED))
+                .findFirst();
     }
 
     @Override

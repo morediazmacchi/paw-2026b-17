@@ -37,10 +37,10 @@ public class EventQuestionServiceImpl implements EventQuestionService {
     @Override
     @Transactional
     public QuestionResult ask(final long eventId, final User asker, final String text) {
-        final Event event = eventService.findById(eventId).orElse(null);
-        if (event == null) {
-            return QuestionResult.NOT_ALLOWED;
-        }
+        // Evento inexistente: el 404 ya lo da @PreAuthorize en el controller antes de llegar aca; esto solo
+        // se alcanza si desaparece justo en el medio (carrera). Es la excepcion de siempre (ErrorAdvice
+        // la mapea a 404), no un resultado: los resultados son para conflictos de negocio.
+        final Event event = eventService.findById(eventId).orElseThrow(() -> new EventNotFoundException(eventId));
         if (Long.valueOf(asker.getId()).equals(event.getCreatorId())) {
             return QuestionResult.OWN_EVENT;
         }

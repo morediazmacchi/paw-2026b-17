@@ -2,6 +2,7 @@
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.Registration;
+import ar.edu.itba.paw.model.RegistrationAccess;
 import ar.edu.itba.paw.model.RegistrationStatus;
 
 import java.util.Collection;
@@ -15,6 +16,12 @@ public interface RegistrationDao {
     long countConfirmed(long eventId);
 
     Optional<Registration> findById(long id);
+
+    // Lecturas acotadas para autorizar (ver EventSecurity): de quien es, de que evento y en que estado
+    // (3 columnas), sin cargar la inscripcion. Vacias si no existe.
+    Optional<RegistrationAccess> findAccessById(long id);
+
+    Optional<RegistrationAccess> findAccessByEventAndUserId(long eventId, long userId);
 
     /** Los proximos de la lista de espera de este evento, del que llego primero al ultimo. */
     List<Registration> findNextWaitlisted(long eventId, int limit);

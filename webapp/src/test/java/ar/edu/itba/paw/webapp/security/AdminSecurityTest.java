@@ -3,6 +3,8 @@ package ar.edu.itba.paw.webapp.security;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.ReportTarget;
 import ar.edu.itba.paw.model.Role;
+import ar.edu.itba.paw.model.UserAccess;
+import ar.edu.itba.paw.model.EventAccessSummary;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.ModerationService;
@@ -50,15 +52,9 @@ public class AdminSecurityTest {
         security = new AdminSecurity(userService, eventService, moderationService);
     }
 
-    private static Event eventOf(final Long creatorId) {
-        final Event event = new Event();
-        event.setId(EVENT_ID);
-        if (creatorId != null) {
-            final User creator = new User("creador@test.com", "Creador");
-            creator.setId(creatorId);
-            event.setCreator(creator);
-        }
-        return event;
+    // Lo que devuelve la consulta de 4 columnas del evento (id, organizador, privado, aprobado).
+    private static EventAccessSummary eventOf(final Long creatorId) {
+        return new EventAccessSummary(EVENT_ID, creatorId, false, true);
     }
 
     // El que actua, tal como queda en la sesion despues del login.
@@ -69,60 +65,58 @@ public class AdminSecurityTest {
         return new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
     }
 
-    private static User target(final Role... roles) {
-        final User user = new User("target@test.com", "Target");
-        user.setId(TARGET_ID);
-        user.setRoles(new HashSet<>(Arrays.asList(roles)));
-        return user;
+    // Lo que devuelve la consulta de id y roles del usuario objetivo.
+    private static UserAccess target(final Role... roles) {
+        return new UserAccess(TARGET_ID, new HashSet<>(Arrays.asList(roles)));
     }
 
     // ---- canSuspend() ----
 
     @Test
     public void testAnAdminCanSuspendANormalUser() {
-        when(userService.findById(TARGET_ID)).thenReturn(Optional.of(target(Role.USER)));
+        when(userService.findAccessById(TARGET_ID)).thenReturn(Optional.of(target(Role.USER)));
 
         assertTrue(security.canSuspend(TARGET_ID, caller(Role.USER, Role.ADMIN)));
     }
 
     @Test
     public void testAnAdminCannotSuspendHimself() {
-        when(userService.findById(CALLER_ID)).thenReturn(Optional.of(target(Role.USER, Role.ADMIN)));
+        when(userService.findAccessById(CALLER_ID)).thenReturn(Optional.of(target(Role.USER, Role.ADMIN)));
 
         assertFalse(security.canSuspend(CALLER_ID, caller(Role.USER, Role.ADMIN)));
     }
 
     @Test
     public void testASuperadminCannotSuspendHimself() {
-        when(userService.findById(CALLER_ID)).thenReturn(Optional.of(target(Role.USER, Role.ADMIN, Role.SUPERADMIN)));
+        when(userService.findAccessById(CALLER_ID)).thenReturn(Optional.of(target(Role.USER, Role.ADMIN, Role.SUPERADMIN)));
 
         assertFalse(security.canSuspend(CALLER_ID, caller(Role.USER, Role.ADMIN, Role.SUPERADMIN)));
     }
 
     @Test
     public void testAnAdminCannotSuspendAnotherAdmin() {
-        when(userService.findById(TARGET_ID)).thenReturn(Optional.of(target(Role.USER, Role.ADMIN)));
+        when(userService.findAccessById(TARGET_ID)).thenReturn(Optional.of(target(Role.USER, Role.ADMIN)));
 
         assertFalse(security.canSuspend(TARGET_ID, caller(Role.USER, Role.ADMIN)));
     }
 
     @Test
     public void testAnAdminCannotSuspendASuperadmin() {
-        when(userService.findById(TARGET_ID)).thenReturn(Optional.of(target(Role.USER, Role.ADMIN, Role.SUPERADMIN)));
+        when(userService.findAccessById(TARGET_ID)).thenReturn(Optional.of(target(Role.USER, Role.ADMIN, Role.SUPERADMIN)));
 
         assertFalse(security.canSuspend(TARGET_ID, caller(Role.USER, Role.ADMIN)));
     }
 
     @Test
     public void testASuperadminCanSuspendAnAdmin() {
-        when(userService.findById(TARGET_ID)).thenReturn(Optional.of(target(Role.USER, Role.ADMIN)));
+        when(userService.findAccessById(TARGET_ID)).thenReturn(Optional.of(target(Role.USER, Role.ADMIN)));
 
         assertTrue(security.canSuspend(TARGET_ID, caller(Role.USER, Role.ADMIN, Role.SUPERADMIN)));
     }
 
     @Test
     public void testCannotSuspendAUserWhoDoesNotExist() {
-        when(userService.findById(TARGET_ID)).thenReturn(Optional.empty());
+        when(userService.findAccessById(TARGET_ID)).thenReturn(Optional.empty());
 
         assertFalse(security.canSuspend(TARGET_ID, caller(Role.USER, Role.ADMIN)));
     }
@@ -135,67 +129,39 @@ public class AdminSecurityTest {
         assertFalse(security.canSuspend(TARGET_ID, anonymous));
     }
 
-    // ---- canRevokeAdmin() ----
-
-    @Test
-    public void testASuperadminCanRevokeAnotherAdmin() {
-        when(userService.findById(TARGET_ID)).thenReturn(Optional.of(target(Role.USER, Role.ADMIN)));
-
-        assertTrue(security.canRevokeAdmin(TARGET_ID, caller(Role.USER, Role.ADMIN, Role.SUPERADMIN)));
-    }
-
-    @Test
-    public void testASuperadminCannotRevokeHisOwnAdminRole() {
-        when(userService.findById(CALLER_ID)).thenReturn(Optional.of(target(Role.USER, Role.ADMIN, Role.SUPERADMIN)));
-
-        assertFalse(security.canRevokeAdmin(CALLER_ID, caller(Role.USER, Role.ADMIN, Role.SUPERADMIN)));
-    }
-
-    @Test
-    public void testCannotRevokeAdminOfAUserWhoDoesNotExist() {
-        when(userService.findById(TARGET_ID)).thenReturn(Optional.empty());
-
-        assertFalse(security.canRevokeAdmin(TARGET_ID, caller(Role.USER, Role.ADMIN, Role.SUPERADMIN)));
-    }
-
-    @Test
-    public void testCannotRevokeAdminWithoutSession() {
-        assertFalse(security.canRevokeAdmin(TARGET_ID, null));
-    }
-
     // ---- canModerateEvent() ----
 
     @Test
     public void testAnAdminCanModerateAnEventOfSomeoneElse() {
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventOf(OTHER_CREATOR_ID)));
+        when(eventService.findAccessById(EVENT_ID)).thenReturn(Optional.of(eventOf(OTHER_CREATOR_ID)));
 
         assertTrue(security.canModerateEvent(EVENT_ID, caller(Role.USER, Role.ADMIN)));
     }
 
     @Test
     public void testAnAdminCannotModerateHisOwnEvent() {
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventOf(CALLER_ID)));
+        when(eventService.findAccessById(EVENT_ID)).thenReturn(Optional.of(eventOf(CALLER_ID)));
 
         assertFalse(security.canModerateEvent(EVENT_ID, caller(Role.USER, Role.ADMIN)));
     }
 
     @Test
     public void testASuperadminCannotModerateHisOwnEitherEvent() {
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventOf(CALLER_ID)));
+        when(eventService.findAccessById(EVENT_ID)).thenReturn(Optional.of(eventOf(CALLER_ID)));
 
         assertFalse(security.canModerateEvent(EVENT_ID, caller(Role.USER, Role.ADMIN, Role.SUPERADMIN)));
     }
 
     @Test
     public void testAnAdminCanModerateAnEventWithoutCreator() {
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventOf(null)));
+        when(eventService.findAccessById(EVENT_ID)).thenReturn(Optional.of(eventOf(null)));
 
         assertTrue(security.canModerateEvent(EVENT_ID, caller(Role.USER, Role.ADMIN)));
     }
 
     @Test
     public void testCannotModerateAnEventThatDoesNotExist() {
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.empty());
+        when(eventService.findAccessById(EVENT_ID)).thenReturn(Optional.empty());
 
         assertFalse(security.canModerateEvent(EVENT_ID, caller(Role.USER, Role.ADMIN)));
     }

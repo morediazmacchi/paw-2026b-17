@@ -2,6 +2,7 @@
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.Registration;
+import ar.edu.itba.paw.model.RegistrationAccess;
 import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.User;
 import org.springframework.stereotype.Repository;
@@ -52,6 +53,30 @@ public class RegistrationJpaDao implements RegistrationDao {
     @Override
     public Optional<Registration> findById(final long id) {
         return Optional.ofNullable(em.find(Registration.class, id));
+    }
+
+    @Override
+    public Optional<RegistrationAccess> findAccessById(final long id) {
+        // Proyeccion: de quien es, de que evento y el estado (3 columnas), no la inscripcion. user.id y
+        // event.id son las propias columnas de la tabla: no hay JOIN.
+        return em.createQuery(
+                        "SELECT r.user.id, r.event.id, r.status FROM Registration r WHERE r.id = :id", Object[].class)
+                .setParameter("id", id)
+                .getResultList().stream().map(RegistrationJpaDao::toAccess).findFirst();
+    }
+
+    @Override
+    public Optional<RegistrationAccess> findAccessByEventAndUserId(final long eventId, final long userId) {
+        return em.createQuery(
+                        "SELECT r.user.id, r.event.id, r.status FROM Registration r "
+                                + "WHERE r.event.id = :eventId AND r.user.id = :userId", Object[].class)
+                .setParameter("eventId", eventId)
+                .setParameter("userId", userId)
+                .getResultList().stream().map(RegistrationJpaDao::toAccess).findFirst();
+    }
+
+    private static RegistrationAccess toAccess(final Object[] row) {
+        return new RegistrationAccess((Long) row[0], (Long) row[1], (RegistrationStatus) row[2]);
     }
 
     @Override

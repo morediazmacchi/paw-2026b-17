@@ -3,7 +3,6 @@ package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventAccessData;
-import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.exception.EventCancelledException;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
@@ -39,7 +38,7 @@ public class EventAccessServiceImpl implements EventAccessService {
     // La regla de visibilidad, en un solo lugar. Trabaja con el id y con "es admin" (no con la
     // entidad User) para que la usen tanto quien tiene el User como quien solo tiene el principal.
     private boolean isViewable(final EventAccessData event, final Long userId, final boolean isAdmin,
-                               final Optional<Registration> myRegistration) {
+                               final boolean hasRegistration) {
         // El creador y un admin lo ven siempre, este aprobado o no (el admin
         // necesita verlo justamente para poder aprobarlo/rechazarlo).
         if (userId != null && userId.equals(event.getCreatorId())) {
@@ -57,7 +56,7 @@ public class EventAccessServiceImpl implements EventAccessService {
         if (!event.isPrivate()) {
             return true;
         }
-        if (myRegistration.isPresent()) {
+        if (hasRegistration) {
             return true;
         }
         return userId != null && eventInvitationService.isInvited(event.getId(), userId);
@@ -73,15 +72,15 @@ public class EventAccessServiceImpl implements EventAccessService {
     @Transactional(readOnly = true)
     public boolean canView(final EventAccessData event, final Long userId, final boolean isAdmin) {
         // La regla real vive en isViewable(). Esto solo evita pedir la inscripcion propia cuando
-        // no hace falta: para un evento publico, la regla nunca mira "myRegistration" (solo
-        // importa para el caso privado), asi que pasarle Optional.empty() es siempre correcto.
+        // no hace falta: para un evento publico, la regla nunca mira "hasRegistration" (solo
+        // importa para el caso privado), asi que pasarle false es siempre correcto.
         if (!event.isPrivate()) {
-            return isViewable(event, userId, isAdmin, Optional.empty());
+            return isViewable(event, userId, isAdmin, false);
         }
-        final Optional<Registration> myRegistration = userId == null
-                ? Optional.empty()
-                : registrationService.findByEventAndUserId(event.getId(), userId);
-        return isViewable(event, userId, isAdmin, myRegistration);
+        // Solo hace falta saber si hay una inscripcion (en cualquier estado): una consulta de 3 columnas.
+        final boolean hasRegistration = userId != null
+                && registrationService.findAccessByEventAndUserId(event.getId(), userId).isPresent();
+        return isViewable(event, userId, isAdmin, hasRegistration);
     }
 
     @Override

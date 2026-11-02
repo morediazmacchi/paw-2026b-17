@@ -22,6 +22,9 @@ public interface EventInvitationDao {
      */
     Optional<EventInvitation> findByEventAndUserId(long eventId, long userId);
 
+    // Solo si existe (un COUNT), sin cargar la invitacion: es lo que necesita EventAccessService.canView.
+    boolean existsByEventAndUserId(long eventId, long userId);
+
     /**
      * Invitaciones de este evento cuya persona todavia no se anoto (no tiene
      * ninguna inscripcion, del estado que sea): cada una tiene un lugar reservado

@@ -2,6 +2,7 @@
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.EventAccessSummary;
 import ar.edu.itba.paw.model.EventSearchCriteria;
 
 import java.math.BigDecimal;
@@ -42,6 +43,10 @@ public interface EventDao {
     // No excluye cancelados a proposito: el detalle de un evento cancelado
     // sigue siendo accesible para quien ya estaba anotado (ver EventController).
     Optional<Event> findById(long id);
+
+    // Lectura acotada para autorizar (ver EventSecurity): solo id, organizador, visibilidad y estado de
+    // aprobacion (4 columnas), sin cargar el Event. Vacio si el evento no existe.
+    Optional<EventAccessSummary> findAccessById(long id);
 
     // SELECT ... FOR UPDATE: usar solo dentro de un @Transactional que chequee cupo.
     Optional<Event> findByIdForUpdate(long id);

@@ -1,10 +1,9 @@
 package ar.edu.itba.paw.webapp.security;
 
-import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.EventAccessData;
 import ar.edu.itba.paw.model.EventAccessSummary;
-import ar.edu.itba.paw.model.Registration;
+import ar.edu.itba.paw.model.RegistrationAccess;
 import ar.edu.itba.paw.model.RegistrationStatus;
-import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.services.EventAccessService;
 import ar.edu.itba.paw.services.EventChatService;
@@ -48,7 +47,7 @@ public class EventSecurity {
     // El usuario logueado es el creador del evento.
     public boolean isOwner(final long eventId, final Authentication authentication) {
         return PlancitoUserDetails.from(authentication)
-                .flatMap(user -> eventService.findById(eventId).map(event -> isCreator(event, user)))
+                .flatMap(user -> eventService.findAccessById(eventId).map(event -> isCreator(event, user)))
                 .orElse(false);
     }
 
@@ -63,15 +62,6 @@ public class EventSecurity {
                 .orElse(false);
     }
 
-    // Igual que isOwner, pero ademas el evento tiene que ser privado: solo a esos se invita
-    // (uno publico ya tiene un link que se puede compartir).
-    public boolean isOwnerOfPrivate(final long eventId, final Authentication authentication) {
-        return PlancitoUserDetails.from(authentication)
-                .flatMap(user -> eventService.findById(eventId)
-                        .map(event -> event.isPrivate() && isCreator(event, user)))
-                .orElse(false);
-    }
-
     // El usuario logueado es el creador del evento Y la inscripcion es de ese evento. El
     // segundo chequeo evita usar un evento propio en la URL con la inscripcion de otro evento.
     public boolean isOwnerOfRegistrationEvent(final long eventId, final long registrationId,
@@ -79,8 +69,8 @@ public class EventSecurity {
         if (!isOwner(eventId, authentication)) {
             return false;
         }
-        return registrationService.findById(registrationId)
-                .map(Registration::getEventId)
+        return registrationService.findAccessById(registrationId)
+                .map(RegistrationAccess::getEventId)
                 .map(registrationEventId -> registrationEventId == eventId)
                 .orElse(false);
     }
@@ -89,7 +79,7 @@ public class EventSecurity {
     // igual que una ajena: ErrorAdvice los convierte en el mismo 404 (no se revela cuales ids existen).
     public boolean isRegistrant(final long registrationId, final Authentication authentication) {
         return PlancitoUserDetails.from(authentication)
-                .flatMap(user -> registrationService.findById(registrationId)
+                .flatMap(user -> registrationService.findAccessById(registrationId)
                         .map(registration -> Long.valueOf(user.getId()).equals(registration.getUserId())))
                 .orElse(false);
     }
@@ -101,7 +91,7 @@ public class EventSecurity {
         final Optional<PlancitoUserDetails> user = PlancitoUserDetails.from(authentication);
         final Long userId = user.map(PlancitoUserDetails::getId).orElse(null);
         final boolean admin = user.map(u -> u.hasRole(Role.ADMIN)).orElse(false);
-        return eventService.findById(eventId)
+        return eventService.findAccessById(eventId)
                 .map(event -> eventAccessService.canView(event, userId, admin))
                 .orElse(false);
     }
@@ -115,7 +105,7 @@ public class EventSecurity {
         if (!user.isPresent()) {
             return false;
         }
-        return eventService.findById(eventId)
+        return eventService.findAccessById(eventId)
                 .map(event -> eventAccessService.canView(event, user.get().getId(), false))
                 .orElse(false);
     }
@@ -125,7 +115,7 @@ public class EventSecurity {
     // tampoco el organizador (no se anota a su propio evento).
     public boolean isConfirmedAttendee(final long eventId, final Authentication authentication) {
         return PlancitoUserDetails.from(authentication)
-                .flatMap(user -> registrationService.findByEventAndUserId(eventId, user.getId()))
+                .flatMap(user -> registrationService.findAccessByEventAndUserId(eventId, user.getId()))
                 .map(registration -> registration.getStatus() == RegistrationStatus.CONFIRMED)
                 .orElse(false);
     }
@@ -158,7 +148,7 @@ public class EventSecurity {
                 .orElse(false);
     }
 
-    private static boolean isCreator(final Event event, final PlancitoUserDetails user) {
+    private static boolean isCreator(final EventAccessData event, final PlancitoUserDetails user) {
         return Long.valueOf(user.getId()).equals(event.getCreatorId());
     }
 }

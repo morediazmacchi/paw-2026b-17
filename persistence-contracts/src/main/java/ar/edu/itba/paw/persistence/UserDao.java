@@ -3,6 +3,7 @@ package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.model.UserAccess;
 
 import java.util.List;
 import java.util.Optional;
@@ -13,6 +14,10 @@ public interface UserDao {
     // Optional<User> siempre trae los roles ya cargados (ver User.getRoles()):
     // quien pide un usuario por id/email lo necesita para autenticacion, no aparte.
     Optional<User> findById(long id);
+
+    // Lectura acotada para autorizar (ver AdminSecurity): id y roles, sin cargar el User (ni su
+    // contrasena). Vacio si el usuario no existe.
+    Optional<UserAccess> findAccessById(long id);
     Optional<User> findByEmail(String email);
 
     // Para "Usuarios" del panel de admin (ver AdminController): todos, con sus

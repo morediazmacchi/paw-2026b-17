@@ -6,6 +6,7 @@ import ar.edu.itba.paw.model.EventVisibility;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.Role;
+import ar.edu.itba.paw.model.RegistrationAccess;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.EventAccessService;
 import ar.edu.itba.paw.services.EventChatService;
@@ -85,33 +86,30 @@ public class EventSecurityTest {
         return auth(OTHER_ID, OTHER_EMAIL, Role.USER.getAuthority());
     }
 
-    private static Event event(final long id, final EventVisibility visibility) {
-        final Event event = new Event();
-        event.setId(id);
-        event.setCreator(user(CREATOR_ID));
-        event.setVisibility(visibility);
-        return event;
+    // Lo que devuelve la consulta de 4 columnas (id, organizador, privado, aprobado).
+    private static EventAccessSummary event(final long id, final EventVisibility visibility) {
+        return new EventAccessSummary(id, CREATOR_ID, visibility == EventVisibility.PRIVATE, true);
     }
 
     // ---- isOwner() ----
 
     @Test
     public void testIsOwnerIsTrueForTheCreator() {
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event(EVENT_ID, EventVisibility.PUBLIC)));
+        when(eventService.findAccessById(EVENT_ID)).thenReturn(Optional.of(event(EVENT_ID, EventVisibility.PUBLIC)));
 
         assertTrue(security.isOwner(EVENT_ID, creator()));
     }
 
     @Test
     public void testIsOwnerIsFalseForAnotherUser() {
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event(EVENT_ID, EventVisibility.PUBLIC)));
+        when(eventService.findAccessById(EVENT_ID)).thenReturn(Optional.of(event(EVENT_ID, EventVisibility.PUBLIC)));
 
         assertFalse(security.isOwner(EVENT_ID, other()));
     }
 
     @Test
     public void testIsOwnerIsFalseWhenTheEventDoesNotExist() {
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.empty());
+        when(eventService.findAccessById(EVENT_ID)).thenReturn(Optional.empty());
 
         assertFalse(security.isOwner(EVENT_ID, creator()));
     }
@@ -137,97 +135,93 @@ public class EventSecurityTest {
         assertFalse(security.isOwner(EVENT_ID, authentication));
     }
 
-    // ---- isOwnerOfPrivate() ----
-
+    // Invitar solo pide ser el dueno (el evento puede ser publico o privado): que sea privado es regla
+    // de negocio del service, no de acceso.
     @Test
-    public void testIsOwnerOfPrivateIsTrueForTheCreatorOfAPrivateEvent() {
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event(EVENT_ID, EventVisibility.PRIVATE)));
+    public void testIsOwnerIsTrueForTheCreatorOfAPrivateEvent() {
+        when(eventService.findAccessById(EVENT_ID)).thenReturn(Optional.of(event(EVENT_ID, EventVisibility.PRIVATE)));
 
-        assertTrue(security.isOwnerOfPrivate(EVENT_ID, creator()));
+        assertTrue(security.isOwner(EVENT_ID, creator()));
     }
 
     @Test
-    public void testIsOwnerOfPrivateIsFalseForAPublicEvent() {
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event(EVENT_ID, EventVisibility.PUBLIC)));
+    public void testIsOwnerIsTrueForTheCreatorOfAPublicEventToo() {
+        when(eventService.findAccessById(EVENT_ID)).thenReturn(Optional.of(event(EVENT_ID, EventVisibility.PUBLIC)));
 
-        assertFalse(security.isOwnerOfPrivate(EVENT_ID, creator()));
+        assertTrue(security.isOwner(EVENT_ID, creator()));
     }
 
     @Test
-    public void testIsOwnerOfPrivateIsFalseForAnotherUser() {
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event(EVENT_ID, EventVisibility.PRIVATE)));
+    public void testIsOwnerIsFalseForAnotherUserOnAPrivateEvent() {
+        when(eventService.findAccessById(EVENT_ID)).thenReturn(Optional.of(event(EVENT_ID, EventVisibility.PRIVATE)));
 
-        assertFalse(security.isOwnerOfPrivate(EVENT_ID, other()));
+        assertFalse(security.isOwner(EVENT_ID, other()));
     }
 
     // ---- isOwnerOfRegistrationEvent() ----
 
-    private Registration registrationOfEvent(final long eventId) {
-        final Registration registration = mock(Registration.class);
-        when(registration.getEventId()).thenReturn(eventId);
-        return registration;
+    private RegistrationAccess registrationOfEvent(final long eventId) {
+        return new RegistrationAccess(CREATOR_ID, eventId, RegistrationStatus.CONFIRMED);
     }
 
     @Test
     public void testIsOwnerOfRegistrationEventIsTrueWhenTheRegistrationBelongsToTheOwnedEvent() {
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event(EVENT_ID, EventVisibility.PUBLIC)));
-        final Registration registration = registrationOfEvent(EVENT_ID);
-        when(registrationService.findById(REGISTRATION_ID)).thenReturn(Optional.of(registration));
+        when(eventService.findAccessById(EVENT_ID)).thenReturn(Optional.of(event(EVENT_ID, EventVisibility.PUBLIC)));
+        final RegistrationAccess registration = registrationOfEvent(EVENT_ID);
+        when(registrationService.findAccessById(REGISTRATION_ID)).thenReturn(Optional.of(registration));
 
         assertTrue(security.isOwnerOfRegistrationEvent(EVENT_ID, REGISTRATION_ID, creator()));
     }
 
     @Test
     public void testIsOwnerOfRegistrationEventIsFalseWhenTheRegistrationBelongsToAnotherEvent() {
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event(EVENT_ID, EventVisibility.PUBLIC)));
-        final Registration registration = registrationOfEvent(OTHER_EVENT_ID);
-        when(registrationService.findById(REGISTRATION_ID)).thenReturn(Optional.of(registration));
+        when(eventService.findAccessById(EVENT_ID)).thenReturn(Optional.of(event(EVENT_ID, EventVisibility.PUBLIC)));
+        final RegistrationAccess registration = registrationOfEvent(OTHER_EVENT_ID);
+        when(registrationService.findAccessById(REGISTRATION_ID)).thenReturn(Optional.of(registration));
 
         assertFalse(security.isOwnerOfRegistrationEvent(EVENT_ID, REGISTRATION_ID, creator()));
     }
 
     @Test
     public void testIsOwnerOfRegistrationEventIsFalseWhenTheUserDoesNotOwnTheEvent() {
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event(EVENT_ID, EventVisibility.PUBLIC)));
+        when(eventService.findAccessById(EVENT_ID)).thenReturn(Optional.of(event(EVENT_ID, EventVisibility.PUBLIC)));
 
         assertFalse(security.isOwnerOfRegistrationEvent(EVENT_ID, REGISTRATION_ID, other()));
     }
 
     @Test
     public void testIsOwnerOfRegistrationEventIsFalseWhenTheRegistrationDoesNotExist() {
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event(EVENT_ID, EventVisibility.PUBLIC)));
-        when(registrationService.findById(REGISTRATION_ID)).thenReturn(Optional.empty());
+        when(eventService.findAccessById(EVENT_ID)).thenReturn(Optional.of(event(EVENT_ID, EventVisibility.PUBLIC)));
+        when(registrationService.findAccessById(REGISTRATION_ID)).thenReturn(Optional.empty());
 
         assertFalse(security.isOwnerOfRegistrationEvent(EVENT_ID, REGISTRATION_ID, creator()));
     }
 
     // ---- isRegistrant() ----
 
-    private Registration registrationOfUser(final long userId) {
-        final Registration registration = mock(Registration.class);
-        when(registration.getUserId()).thenReturn(userId);
-        return registration;
+    private RegistrationAccess registrationOfUser(final long userId) {
+        return new RegistrationAccess(userId, EVENT_ID, RegistrationStatus.CONFIRMED);
     }
 
     @Test
     public void testIsRegistrantIsTrueForTheOwnerOfTheRegistration() {
-        final Registration registration = registrationOfUser(CREATOR_ID);
-        when(registrationService.findById(REGISTRATION_ID)).thenReturn(Optional.of(registration));
+        final RegistrationAccess registration = registrationOfUser(CREATOR_ID);
+        when(registrationService.findAccessById(REGISTRATION_ID)).thenReturn(Optional.of(registration));
 
         assertTrue(security.isRegistrant(REGISTRATION_ID, creator()));
     }
 
     @Test
     public void testIsRegistrantIsFalseForTheRegistrationOfAnotherUser() {
-        final Registration registration = registrationOfUser(OTHER_ID);
-        when(registrationService.findById(REGISTRATION_ID)).thenReturn(Optional.of(registration));
+        final RegistrationAccess registration = registrationOfUser(OTHER_ID);
+        when(registrationService.findAccessById(REGISTRATION_ID)).thenReturn(Optional.of(registration));
 
         assertFalse(security.isRegistrant(REGISTRATION_ID, creator()));
     }
 
     @Test
     public void testIsRegistrantIsFalseWhenTheRegistrationDoesNotExist() {
-        when(registrationService.findById(REGISTRATION_ID)).thenReturn(Optional.empty());
+        when(registrationService.findAccessById(REGISTRATION_ID)).thenReturn(Optional.empty());
 
         assertFalse(security.isRegistrant(REGISTRATION_ID, creator()));
     }
@@ -271,8 +265,8 @@ public class EventSecurityTest {
 
     @Test
     public void testCanViewIsTrueWhenEventAccessServiceAllowsTheIdOfThePrincipal() {
-        final Event event = event(EVENT_ID, EventVisibility.PRIVATE);
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        final EventAccessSummary event = event(EVENT_ID, EventVisibility.PRIVATE);
+        when(eventService.findAccessById(EVENT_ID)).thenReturn(Optional.of(event));
         // Solo responde que si se le pregunta por el id del usuario de la sesion y sin ser admin.
         when(eventAccessService.canView(event, Long.valueOf(OTHER_ID), false)).thenReturn(true);
 
@@ -281,8 +275,8 @@ public class EventSecurityTest {
 
     @Test
     public void testCanViewTellsEventAccessServiceWhenThePrincipalIsAdmin() {
-        final Event event = event(EVENT_ID, EventVisibility.PRIVATE);
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        final EventAccessSummary event = event(EVENT_ID, EventVisibility.PRIVATE);
+        when(eventService.findAccessById(EVENT_ID)).thenReturn(Optional.of(event));
         // Solo responde que si se le avisa que es admin (sale de las authorities del principal).
         when(eventAccessService.canView(event, Long.valueOf(OTHER_ID), true)).thenReturn(true);
 
@@ -291,8 +285,8 @@ public class EventSecurityTest {
 
     @Test
     public void testCanViewTreatsAnAnonymousVisitorAsSomeoneWithoutSession() {
-        final Event event = event(EVENT_ID, EventVisibility.PUBLIC);
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        final EventAccessSummary event = event(EVENT_ID, EventVisibility.PUBLIC);
+        when(eventService.findAccessById(EVENT_ID)).thenReturn(Optional.of(event));
         // Solo responde que si se le pregunta sin usuario y sin admin.
         when(eventAccessService.canView(event, null, false)).thenReturn(true);
 
@@ -301,8 +295,8 @@ public class EventSecurityTest {
 
     @Test
     public void testCanViewIsFalseForAnAnonymousVisitorWhenEventAccessServiceDenies() {
-        final Event event = event(EVENT_ID, EventVisibility.PRIVATE);
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        final EventAccessSummary event = event(EVENT_ID, EventVisibility.PRIVATE);
+        when(eventService.findAccessById(EVENT_ID)).thenReturn(Optional.of(event));
         when(eventAccessService.canView(event, null, false)).thenReturn(false);
 
         assertFalse(security.canView(EVENT_ID, anonymous()));
@@ -310,14 +304,14 @@ public class EventSecurityTest {
 
     @Test
     public void testCanViewIsFalseForAnAnonymousVisitorWhenTheEventDoesNotExist() {
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.empty());
+        when(eventService.findAccessById(EVENT_ID)).thenReturn(Optional.empty());
 
         assertFalse(security.canView(EVENT_ID, anonymous()));
     }
 
     @Test
     public void testCanViewIsFalseWhenTheEventDoesNotExist() {
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.empty());
+        when(eventService.findAccessById(EVENT_ID)).thenReturn(Optional.empty());
 
         assertFalse(security.canView(EVENT_ID, other()));
     }
@@ -326,8 +320,8 @@ public class EventSecurityTest {
 
     @Test
     public void testCanRegisterIsTrueWhenEventAccessServiceAllowsItWithoutTheAdminException() {
-        final Event event = event(EVENT_ID, EventVisibility.PUBLIC);
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        final EventAccessSummary event = event(EVENT_ID, EventVisibility.PUBLIC);
+        when(eventService.findAccessById(EVENT_ID)).thenReturn(Optional.of(event));
         // Solo responde que si se le pregunta sin privilegio de admin.
         when(eventAccessService.canView(event, Long.valueOf(OTHER_ID), false)).thenReturn(true);
 
@@ -336,8 +330,8 @@ public class EventSecurityTest {
 
     @Test
     public void testCanRegisterIsTrueForAnAdminWhoWasInvitedToAPrivateEvent() {
-        final Event event = event(EVENT_ID, EventVisibility.PRIVATE);
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        final EventAccessSummary event = event(EVENT_ID, EventVisibility.PRIVATE);
+        when(eventService.findAccessById(EVENT_ID)).thenReturn(Optional.of(event));
         // Sin privilegio de admin, la invitacion le alcanza: el access service dice que si.
         when(eventAccessService.canView(event, Long.valueOf(OTHER_ID), false)).thenReturn(true);
 
@@ -346,8 +340,8 @@ public class EventSecurityTest {
 
     @Test
     public void testCanRegisterIsFalseForAnAdminWithoutInvitationEvenThoughAnAdminCouldViewTheEvent() {
-        final Event event = event(EVENT_ID, EventVisibility.PRIVATE);
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        final EventAccessSummary event = event(EVENT_ID, EventVisibility.PRIVATE);
+        when(eventService.findAccessById(EVENT_ID)).thenReturn(Optional.of(event));
         // Con privilegio de admin el access service diria que si (puede VER): si canRegister se lo
         // pasara, el test fallaria. Sin privilegio y sin invitacion, no.
         lenient().when(eventAccessService.canView(event, Long.valueOf(OTHER_ID), true)).thenReturn(true);
@@ -358,7 +352,7 @@ public class EventSecurityTest {
 
     @Test
     public void testCanRegisterIsFalseWhenTheEventDoesNotExist() {
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.empty());
+        when(eventService.findAccessById(EVENT_ID)).thenReturn(Optional.empty());
 
         assertFalse(security.canRegister(EVENT_ID, other()));
     }
@@ -370,47 +364,45 @@ public class EventSecurityTest {
 
     // ---- isConfirmedAttendee() ----
 
-    private Registration registrationWithStatus(final RegistrationStatus status) {
-        final Registration registration = mock(Registration.class);
-        when(registration.getStatus()).thenReturn(status);
-        return registration;
+    private RegistrationAccess registrationWithStatus(final RegistrationStatus status) {
+        return new RegistrationAccess(OTHER_ID, EVENT_ID, status);
     }
 
     @Test
     public void testIsConfirmedAttendeeIsTrueForAConfirmedRegistration() {
-        final Registration registration = registrationWithStatus(RegistrationStatus.CONFIRMED);
-        when(registrationService.findByEventAndUserId(EVENT_ID, OTHER_ID)).thenReturn(Optional.of(registration));
+        final RegistrationAccess registration = registrationWithStatus(RegistrationStatus.CONFIRMED);
+        when(registrationService.findAccessByEventAndUserId(EVENT_ID, OTHER_ID)).thenReturn(Optional.of(registration));
 
         assertTrue(security.isConfirmedAttendee(EVENT_ID, other()));
     }
 
     @Test
     public void testIsConfirmedAttendeeIsFalseForAPendingRegistration() {
-        final Registration registration = registrationWithStatus(RegistrationStatus.PENDING);
-        when(registrationService.findByEventAndUserId(EVENT_ID, OTHER_ID)).thenReturn(Optional.of(registration));
+        final RegistrationAccess registration = registrationWithStatus(RegistrationStatus.PENDING);
+        when(registrationService.findAccessByEventAndUserId(EVENT_ID, OTHER_ID)).thenReturn(Optional.of(registration));
 
         assertFalse(security.isConfirmedAttendee(EVENT_ID, other()));
     }
 
     @Test
     public void testIsConfirmedAttendeeIsFalseForAWaitlistedRegistration() {
-        final Registration registration = registrationWithStatus(RegistrationStatus.WAITLISTED);
-        when(registrationService.findByEventAndUserId(EVENT_ID, OTHER_ID)).thenReturn(Optional.of(registration));
+        final RegistrationAccess registration = registrationWithStatus(RegistrationStatus.WAITLISTED);
+        when(registrationService.findAccessByEventAndUserId(EVENT_ID, OTHER_ID)).thenReturn(Optional.of(registration));
 
         assertFalse(security.isConfirmedAttendee(EVENT_ID, other()));
     }
 
     @Test
     public void testIsConfirmedAttendeeIsFalseForARejectedRegistration() {
-        final Registration registration = registrationWithStatus(RegistrationStatus.REJECTED);
-        when(registrationService.findByEventAndUserId(EVENT_ID, OTHER_ID)).thenReturn(Optional.of(registration));
+        final RegistrationAccess registration = registrationWithStatus(RegistrationStatus.REJECTED);
+        when(registrationService.findAccessByEventAndUserId(EVENT_ID, OTHER_ID)).thenReturn(Optional.of(registration));
 
         assertFalse(security.isConfirmedAttendee(EVENT_ID, other()));
     }
 
     @Test
     public void testIsConfirmedAttendeeIsFalseWithoutRegistration() {
-        when(registrationService.findByEventAndUserId(EVENT_ID, OTHER_ID)).thenReturn(Optional.empty());
+        when(registrationService.findAccessByEventAndUserId(EVENT_ID, OTHER_ID)).thenReturn(Optional.empty());
 
         assertFalse(security.isConfirmedAttendee(EVENT_ID, other()));
     }

@@ -2,6 +2,7 @@ package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.model.UserAccess;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -22,6 +23,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.EnumSet;
 import java.util.Optional;
 import java.util.Set;
 
@@ -740,5 +742,64 @@ public class UserJpaDaoTest {
 
         // Assert
         assertFalse(result);
+    }
+
+    // ---- findAccessById() ----
+
+    @Test
+    public void testFindAccessByIdJoinsAllTheRolesOfThatUser() {
+        // Arrange: un superadmin con tres roles y un senuelo que solo es USER
+        final long superadminId = insertUser("super@mail.com", "Super");
+        insertRole(superadminId, "USER");
+        insertRole(superadminId, "ADMIN");
+        insertRole(superadminId, "SUPERADMIN");
+        final long decoyId = insertUser("comun@mail.com", "Comun");
+        insertRole(decoyId, "USER");
+
+        // Act
+        final Optional<UserAccess> result = userDao.findAccessById(superadminId);
+
+        // Assert
+        assertEquals(superadminId, result.get().getId());
+        assertEquals(EnumSet.of(Role.USER, Role.ADMIN, Role.SUPERADMIN), result.get().getRoles());
+        assertTrue(result.get().isAdmin());
+        assertTrue(result.get().isSuperadmin());
+    }
+
+    @Test
+    public void testFindAccessByIdOfAnAdminIsNotSuperadmin() {
+        // Arrange
+        final long adminId = insertUser("admin@mail.com", "Admin");
+        insertRole(adminId, "USER");
+        insertRole(adminId, "ADMIN");
+
+        // Act
+        final Optional<UserAccess> result = userDao.findAccessById(adminId);
+
+        // Assert
+        assertTrue(result.get().isAdmin());
+        assertFalse(result.get().isSuperadmin());
+    }
+
+    @Test
+    public void testFindAccessByIdOfAUserWithoutRolesExistsWithNoRoles() {
+        // Arrange
+        final long userId = insertUser("sinroles@mail.com", "Sin roles");
+
+        // Act
+        final Optional<UserAccess> result = userDao.findAccessById(userId);
+
+        // Assert
+        assertEquals(userId, result.get().getId());
+        assertTrue(result.get().getRoles().isEmpty());
+    }
+
+    @Test
+    public void testFindAccessByIdIsEmptyWhenTheUserDoesNotExist() {
+        // Act
+        final Optional<UserAccess> result = userDao.findAccessById(987654L);
+
+        // Assert
+        assertFalse(result.isPresent());
     }
 }

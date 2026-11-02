@@ -12,7 +12,6 @@ import ar.edu.itba.paw.services.UserService;
 import ar.edu.itba.paw.webapp.security.AdminSecurity;
 import ar.edu.itba.paw.webapp.security.EventSecurity;
 import ar.edu.itba.paw.webapp.interceptor.CurrentLocaleInterceptor;
-import ar.edu.itba.paw.webapp.interceptor.SuspendedUserInterceptor;
 import ar.edu.itba.paw.webapp.interceptor.UnreadInboxInterceptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
@@ -120,9 +119,6 @@ public class WebConfig implements WebMvcConfigurer {
     @Autowired
     private InboxService inboxService;
 
-    @Autowired
-    private UserService userService;
-
     // Validador de los forms (@Valid) conectado al messageSource de arriba: asi los
     // mensajes de los validadores propios (webapp/validation), que son claves del
     // estilo "{ValidEventDate.past}", salen en el idioma del pedido y no con un texto
@@ -141,12 +137,11 @@ public class WebConfig implements WebMvcConfigurer {
         return validator();
     }
 
-    // El numerito de la bandeja en la navbar de todas las paginas (ver UnreadInboxInterceptor)
-    // y el corte de sesion de las cuentas suspendidas (ver SuspendedUserInterceptor).
+    // El numerito de la bandeja en la navbar de todas las paginas (ver UnreadInboxInterceptor).
+    // El corte de sesion de las cuentas suspendidas ya no es un interceptor: ver SessionExpiringListener.
     @Override
     public void addInterceptors(final InterceptorRegistry registry) {
-        registry.addInterceptor(new SuspendedUserInterceptor(userService));
-        registry.addInterceptor(new UnreadInboxInterceptor(inboxService, userService));
+        registry.addInterceptor(new UnreadInboxInterceptor(inboxService));
         registry.addInterceptor(new CurrentLocaleInterceptor());
     }
 

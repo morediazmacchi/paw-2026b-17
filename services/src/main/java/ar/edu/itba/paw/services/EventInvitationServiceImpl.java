@@ -45,9 +45,18 @@ public class EventInvitationServiceImpl implements EventInvitationService {
         // Con lock: dos invitaciones simultaneas no pueden pasar el cupo (cada una
         // reserva un lugar y se cuenta contra el cupo).
         final Event event = eventDao.findByIdForUpdate(eventId).orElse(null);
-        // Un evento cancelado o que ya paso tampoco invita a nadie (saldria el mail de
-        // invitacion a algo que ya no va a pasar, o que ya paso).
-        if (event == null || event.isCancelled() || !event.isPrivate() || event.isFinished()) {
+        if (event == null || event.isCancelled()) {
+            return EventInvitationResult.NOT_ALLOWED;
+        }
+        // Invitar solo tiene sentido en un evento privado: uno publico ya tiene un link que se puede
+        // compartir. Es regla de negocio (el estado del evento), no de acceso: quien invita lo decide
+        // @PreAuthorize en el controller (ver EventSecurity.isOwner).
+        if (!event.isPrivate()) {
+            return EventInvitationResult.EVENT_PUBLIC;
+        }
+        // Un evento que ya paso tampoco invita a nadie (saldria el mail de invitacion a algo que ya
+        // sucedio); el cancelado, tampoco (ver arriba).
+        if (event.isFinished()) {
             return EventInvitationResult.NOT_ALLOWED;
         }
 
@@ -85,7 +94,7 @@ public class EventInvitationServiceImpl implements EventInvitationService {
     @Override
     @Transactional(readOnly = true)
     public boolean isInvited(final long eventId, final long userId) {
-        return invitationDao.findByEventAndUserId(eventId, userId).isPresent();
+        return invitationDao.existsByEventAndUserId(eventId, userId);
     }
 
     @Override

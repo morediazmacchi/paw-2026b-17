@@ -52,6 +52,7 @@ public class LoginController {
                                @RequestParam(value = "needsPassword", required = false) final String needsPassword,
                                @RequestParam(value = "unverified", required = false) final String unverified,
                                @RequestParam(value = "suspended", required = false) final String suspended,
+                               @RequestParam(value = "expired", required = false) final String expired,
                                @RequestParam(value = "resent", required = false) final String resent,
                                @RequestParam(value = "verifyError", required = false) final String verifyError,
                                @RequestParam(value = "passwordReset", required = false) final String passwordReset,
@@ -69,6 +70,7 @@ public class LoginController {
         mav.addObject("needsPassword", needsPassword != null);
         mav.addObject("unverified", unverified != null);
         mav.addObject("suspended", suspended != null);
+        mav.addObject("sessionExpired", expired != null);
         mav.addObject("resent", resent != null);
         mav.addObject("verifyError", verifyError != null);
         mav.addObject("passwordReset", passwordReset != null);

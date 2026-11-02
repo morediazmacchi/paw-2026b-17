@@ -29,7 +29,7 @@ public class AdminSecurity {
     // lo suspende un superadmin.
     public boolean canSuspend(final long targetId, final Authentication authentication) {
         return PlancitoUserDetails.from(authentication)
-                .flatMap(caller -> userService.findById(targetId).map(target ->
+                .flatMap(caller -> userService.findAccessById(targetId).map(target ->
                         caller.getId() != targetId
                                 && (caller.hasRole(Role.SUPERADMIN) || !(target.isAdmin() || target.isSuperadmin()))))
                 .orElse(false);
@@ -40,7 +40,7 @@ public class AdminSecurity {
     // sobre que evento puede actuar (el ejemplo de la clase, "editas solo las propias", al reves).
     public boolean canModerateEvent(final long eventId, final Authentication authentication) {
         return PlancitoUserDetails.from(authentication)
-                .flatMap(admin -> eventService.findById(eventId)
+                .flatMap(admin -> eventService.findAccessById(eventId)
                         .map(event -> !Long.valueOf(admin.getId()).equals(event.getCreatorId())))
                 .orElse(false);
     }
@@ -53,15 +53,6 @@ public class AdminSecurity {
         return PlancitoUserDetails.from(authentication)
                 .flatMap(admin -> moderationService.findReportTarget(reportId)
                         .map(target -> !Long.valueOf(admin.getId()).equals(target.getCreatorId())))
-                .orElse(false);
-    }
-
-    // Se le puede sacar el rol ADMIN a ese usuario: nadie se lo saca a si mismo (un superadmin que se
-    // lo sacara quedaria afuera de /admin/** sin forma de deshacerlo). Quien puede intentarlo ya lo
-    // limita WebAuthConfig (solo el superadmin).
-    public boolean canRevokeAdmin(final long targetId, final Authentication authentication) {
-        return PlancitoUserDetails.from(authentication)
-                .flatMap(caller -> userService.findById(targetId).map(target -> caller.getId() != targetId))
                 .orElse(false);
     }
 }

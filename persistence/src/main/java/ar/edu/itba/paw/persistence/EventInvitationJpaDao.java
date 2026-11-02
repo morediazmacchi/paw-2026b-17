@@ -34,6 +34,16 @@ public class EventInvitationJpaDao implements EventInvitationDao {
     }
 
     @Override
+    public boolean existsByEventAndUserId(final long eventId, final long userId) {
+        return em.createQuery(
+                        "SELECT COUNT(i) FROM EventInvitation i WHERE i.event.id = :eventId AND i.user.id = :userId",
+                        Long.class)
+                .setParameter("eventId", eventId)
+                .setParameter("userId", userId)
+                .getSingleResult() > 0;
+    }
+
+    @Override
     public Optional<EventInvitation> findByEventAndUserId(final long eventId, final long userId) {
         return em.createQuery(
                         "FROM EventInvitation i WHERE i.event.id = :eventId AND i.user.id = :userId", EventInvitation.class)

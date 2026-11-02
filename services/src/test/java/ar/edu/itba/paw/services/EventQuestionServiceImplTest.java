@@ -146,16 +146,15 @@ public class EventQuestionServiceImplTest {
         assertEquals(QuestionResult.CLOSED, result);
     }
 
-    @Test
-    public void testCannotAskOnAnEventThatDoesNotExist() {
+    @Test(expected = EventNotFoundException.class)
+    public void testAskOnAnEventThatDoesNotExistThrowsEventNotFoundException() {
         // Arrange
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
-        final QuestionResult result = questionService.ask(EVENT_ID, asker(), "Hola?");
+        questionService.ask(EVENT_ID, asker(), "Hola?");
 
-        // Assert
-        assertEquals(QuestionResult.NOT_ALLOWED, result);
+        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
 
     // ---- answer() ----

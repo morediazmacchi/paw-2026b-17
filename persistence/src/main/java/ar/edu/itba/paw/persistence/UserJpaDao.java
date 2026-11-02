@@ -3,13 +3,16 @@ package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.model.UserAccess;
 import org.springframework.stereotype.Repository;
 
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Repository
 public class UserJpaDao implements UserDao {
@@ -29,6 +32,27 @@ public class UserJpaDao implements UserDao {
     public Optional<User> findById(final long id) {
         // Los roles (EAGER) vienen en el mismo find.
         return Optional.ofNullable(em.find(User.class, id));
+    }
+
+    @Override
+    public Optional<UserAccess> findAccessById(final long id) {
+        // Proyeccion: id y roles, sin cargar el User (ni la contrasena). Una fila por rol; LEFT JOIN
+        // para distinguir "no existe" (sin filas) de "existe sin roles" (una fila con rol nulo).
+        // Se juntan TODOS los roles de las filas.
+        final List<Object[]> rows = em.createQuery(
+                        "SELECT u.id, r FROM User u LEFT JOIN u.roles r WHERE u.id = :id", Object[].class)
+                .setParameter("id", id)
+                .getResultList();
+        if (rows.isEmpty()) {
+            return Optional.empty();
+        }
+        final Set<Role> roles = EnumSet.noneOf(Role.class);
+        for (final Object[] row : rows) {
+            if (row[1] != null) {
+                roles.add((Role) row[1]);
+            }
+        }
+        return Optional.of(new UserAccess(((Number) rows.get(0)[0]).longValue(), roles));
     }
 
     @Override

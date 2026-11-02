@@ -5,6 +5,7 @@ import ar.edu.itba.paw.model.EventApprovalStatus;
 import ar.edu.itba.paw.model.EventInvitation;
 import ar.edu.itba.paw.model.EventVisibility;
 import ar.edu.itba.paw.model.Registration;
+import ar.edu.itba.paw.model.RegistrationAccess;
 import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
@@ -995,6 +996,36 @@ public class RegistrationServiceImplTest {
         registrationService.cancelOwnRegistration(EVENT_ID, USER_ID);
 
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
+    }
+
+    // ---- findAccessById() / findAccessByEventAndUserId() ----
+
+    @Test
+    public void testFindAccessByIdReturnsTheProjectionTheDaoFound() {
+        // Arrange
+        when(mockRegistrationDao.findAccessById(5L))
+                .thenReturn(Optional.of(new RegistrationAccess(USER_ID, EVENT_ID, RegistrationStatus.PENDING)));
+
+        // Act
+        final Optional<RegistrationAccess> result = registrationService.findAccessById(5L);
+
+        // Assert
+        assertEquals(Long.valueOf(USER_ID), result.get().getUserId());
+        assertEquals(EVENT_ID, result.get().getEventId());
+        assertEquals(RegistrationStatus.PENDING, result.get().getStatus());
+    }
+
+    @Test
+    public void testFindAccessByEventAndUserIdReturnsTheProjectionTheDaoFound() {
+        // Arrange
+        when(mockRegistrationDao.findAccessByEventAndUserId(EVENT_ID, USER_ID))
+                .thenReturn(Optional.of(new RegistrationAccess(USER_ID, EVENT_ID, RegistrationStatus.CONFIRMED)));
+
+        // Act
+        final Optional<RegistrationAccess> result = registrationService.findAccessByEventAndUserId(EVENT_ID, USER_ID);
+
+        // Assert
+        assertEquals(RegistrationStatus.CONFIRMED, result.get().getStatus());
     }
 
     // ---- findByEventAndUserId() ----

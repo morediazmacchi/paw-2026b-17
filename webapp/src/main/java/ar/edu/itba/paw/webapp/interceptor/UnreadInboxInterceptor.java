@@ -1,13 +1,15 @@
 package ar.edu.itba.paw.webapp.interceptor;
 
 import ar.edu.itba.paw.services.InboxService;
-import ar.edu.itba.paw.services.UserService;
+import ar.edu.itba.paw.webapp.auth.PlancitoUserDetails;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.servlet.HandlerInterceptor;
 import org.springframework.web.servlet.ModelAndView;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.security.Principal;
+import java.util.Optional;
 
 /**
  * Pone "unreadInboxCount" (el numerito de la bandeja) en el model de TODAS las
@@ -25,11 +27,9 @@ import java.security.Principal;
 public class UnreadInboxInterceptor implements HandlerInterceptor {
 
     private final InboxService inboxService;
-    private final UserService userService;
 
-    public UnreadInboxInterceptor(final InboxService inboxService, final UserService userService) {
+    public UnreadInboxInterceptor(final InboxService inboxService) {
         this.inboxService = inboxService;
-        this.userService = userService;
     }
 
     @Override
@@ -43,9 +43,11 @@ public class UnreadInboxInterceptor implements HandlerInterceptor {
         if (viewName == null || viewName.startsWith("redirect:")) {
             return;
         }
-        // countUnread() es por user_id: el principal solo trae el email de la
-        // sesion, hay que resolver la cuenta primero.
-        userService.findByEmail(principal.getName())
-                .ifPresent(user -> mav.addObject("unreadInboxCount", inboxService.countUnread(user.getId())));
+        // countUnread() es por user_id (un COUNT directo): el id sale del principal de la sesion
+        // (PlancitoUserDetails), sin buscar al usuario en la base.
+        final Optional<PlancitoUserDetails> user = principal instanceof Authentication
+                ? PlancitoUserDetails.from((Authentication) principal)
+                : Optional.empty();
+        user.ifPresent(u -> mav.addObject("unreadInboxCount", inboxService.countUnread(u.getId())));
     }
 }

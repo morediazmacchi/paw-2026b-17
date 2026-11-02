@@ -472,4 +472,41 @@ public class EventInvitationJpaDaoTest {
         // Assert
         assertEquals(0, result);
     }
+
+    // ---- existsByEventAndUserId() ----
+
+    @Test
+    public void testExistsByEventAndUserIdIsTrueForThatUsersInvitationToThatEvent() {
+        // Arrange: la buscada, mas senuelos de otro usuario en este evento y del mismo usuario en otro
+        final long eventId = insertEvent();
+        final long otherEventId = insertEvent();
+        final long userId = insertUser("invitado@mail.com");
+        final long otherUserId = insertUser("otro@mail.com");
+        insertInvitation(eventId, "invitado@mail.com", userId);
+        insertInvitation(eventId, "otro@mail.com", otherUserId);
+        insertInvitation(otherEventId, "invitado@mail.com", userId);
+
+        // Act
+        final boolean result = invitationDao.existsByEventAndUserId(eventId, userId);
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    public void testExistsByEventAndUserIdIsFalseWhenOnlyOthersWereInvited() {
+        // Arrange
+        final long eventId = insertEvent();
+        final long otherEventId = insertEvent();
+        final long userId = insertUser("invitado@mail.com");
+        final long otherUserId = insertUser("otro@mail.com");
+        insertInvitation(eventId, "otro@mail.com", otherUserId);
+        insertInvitation(otherEventId, "invitado@mail.com", userId);
+
+        // Act
+        final boolean result = invitationDao.existsByEventAndUserId(eventId, userId);
+
+        // Assert
+        assertFalse(result);
+    }
 }

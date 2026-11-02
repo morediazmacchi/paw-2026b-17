@@ -3,6 +3,7 @@ package ar.edu.itba.paw.services;
 import ar.edu.itba.paw.dto.EventDTO;
 import ar.edu.itba.paw.model.Category;
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.EventAccessSummary;
 import ar.edu.itba.paw.model.EventApprovalStatus;
 import ar.edu.itba.paw.model.EventCategoryInfo;
 import ar.edu.itba.paw.model.EventSearchCriteria;
@@ -214,6 +215,32 @@ public class EventServiceImplTest {
         // Assert
         assertTrue(result.isPresent());
         assertEquals(EVENT_ID, result.get().getId().longValue());
+    }
+
+    @Test
+    public void testFindAccessByIdReturnsTheProjectionTheDaoFound() {
+        // Arrange
+        when(eventDao.findAccessById(EVENT_ID)).thenReturn(Optional.of(new EventAccessSummary(EVENT_ID, 5L, true, false)));
+
+        // Act
+        final Optional<EventAccessSummary> result = eventService.findAccessById(EVENT_ID);
+
+        // Assert
+        assertEquals(Long.valueOf(5), result.get().getCreatorId());
+        assertTrue(result.get().isPrivate());
+        assertFalse(result.get().isApproved());
+    }
+
+    @Test
+    public void testFindAccessByIdIsEmptyWhenTheEventDoesNotExist() {
+        // Arrange
+        when(eventDao.findAccessById(EVENT_ID)).thenReturn(Optional.empty());
+
+        // Act
+        final Optional<EventAccessSummary> result = eventService.findAccessById(EVENT_ID);
+
+        // Assert
+        assertFalse(result.isPresent());
     }
 
     @Test

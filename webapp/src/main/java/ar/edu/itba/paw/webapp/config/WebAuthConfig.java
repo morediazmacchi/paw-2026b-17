@@ -15,6 +15,8 @@ import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.core.session.SessionRegistry;
+import org.springframework.security.core.session.SessionRegistryImpl;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
@@ -135,6 +137,15 @@ public class WebAuthConfig {
         };
     }
 
+    // Registro de las sesiones abiertas, para poder cerrar las de un usuario al quitarle acceso
+    // (suspension, rol ADMIN revocado): ver SessionExpiringListener. Se alimenta solo, via
+    // sessionManagement().maximumSessions(...) de filterChain y HttpSessionEventPublisher (ver
+    // SecurityWebApplicationInitializer). Vive en memoria de esta JVM.
+    @Bean
+    public SessionRegistry sessionRegistry() {
+        return new SessionRegistryImpl();
+    }
+
     @Bean
     public SecurityFilterChain filterChain(final HttpSecurity http) throws Exception {
         http.authenticationProvider(authenticationProvider())
@@ -169,6 +180,13 @@ public class WebAuthConfig {
                         .failureHandler(loginFailureHandler())
                         .successHandler(loginSuccessHandler())
                         .permitAll())
+                // maximumSessions(-1) = sin limite de logins simultaneos: solo sirve para rastrear las
+                // sesiones en el registro e instalar el ConcurrentSessionFilter, que corta (antes de
+                // llegar a cualquier controller) una sesion marcada como expirada y manda al login.
+                .sessionManagement(sm -> sm
+                        .maximumSessions(-1)
+                        .sessionRegistry(sessionRegistry())
+                        .expiredUrl("/login?expired"))
                 .logout(logout -> logout
                         // GET en vez del default POST-only: no rompe con un <a href>
                         // simple en la navbar, y el CSRF que ese default evita ya

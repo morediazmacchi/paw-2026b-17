@@ -50,9 +50,9 @@ original no está a mano (no es citable textual) · `[acordado]` = lo decidió l
 ### Seguridad / autorización
 - **Ownership y "quién puede hacer esto" van en Spring Security** (`@PreAuthorize`/`access(...)`), no como `if` a mano
   en controller/service, **y nunca duplicado** (Security + a mano) de forma redundante. [TP1][clase 4:L960-975]
-- **Qué existe hoy** [código]: `EventSecurity` (webapp/security) con `isOwner`, `isOwnerOfPrivate`,
+- **Qué existe hoy** [código]: `EventSecurity` (webapp/security) con `isOwner`,
   `isOwnerOfRegistrationEvent`, `isRegistrant`, `canView`, `canRegister`, `isChatMember`, `isConfirmedAttendee`, `canViewImage`;
-  `AdminSecurity` (`canSuspend`, `canRevokeAdmin`, `canModerateEvent`, `canResolveReport`). El usuario de la sesión se lee con `PlancitoUserDetails.from(authentication)` y `hasRole(Role.X)`. Se registra con `@Bean` en `WebConfig` (RootConfig solo
+  `AdminSecurity` (`canSuspend`, `canModerateEvent`, `canResolveReport`). El usuario de la sesión se lee con `PlancitoUserDetails.from(authentication)` y `hasRole(Role.X)`. Se registra con `@Bean` en `WebConfig` (RootConfig solo
   escanea sus paquetes) donde también está `@EnableGlobalMethodSecurity(prePostEnabled, proxyTargetClass)`.
   `AccessDeniedException` → mismo 404 que un evento inexistente (`ErrorAdvice`; `ImageController` tiene su handler
   local que responde 404 sin cuerpo). Solo lee **services**, nunca DAOs.
@@ -142,18 +142,17 @@ Registro honesto; no tapar ni "arreglar de pasada" sin avisar. Orden = prioridad
 
 1. ~~**Ownership duplicado en services**~~ **Resuelto** (30/10): `EventService.update/cancel`, `EventInvitationService.invite/findByEvent`,
    `RegistrationService.approve/reject/revoke/findPendingByEvent/countPendingByEvent` y `EventQuestionService.answer` ya no reciben
-   el id del dueño ni lo comparan; lo decide solo `@PreAuthorize` (`isOwner`/`isOwnerOfPrivate`/`isOwnerOfRegistrationEvent`).
+   el id del dueño ni lo comparan; lo decide solo `@PreAuthorize` (`isOwner`/`isOwnerOfRegistrationEvent`).
    Los services siguen validando estado (evento cancelado/terminado, inscripción PENDING, pregunta del evento). Se borraron los
    tests de "no es el dueño". Probado en la app: dueña 200; extraño 404 en editar/cancelar/responder/aceptar/rechazar/revocar/invitar.
 2. ~~`/perfil/inscripciones/{id}/cancelar`~~ **Resuelto**: `@PreAuthorize("@eventSecurity.isRegistrant(#id, authentication)")`;
    la regla da `false` también si la inscripción no existe (404, opción B: el doble clic muestra 404, aceptado).
    `RegistrationService.cancel(registrationId)` ya no recibe `userId` ni compara el dueño. Probado a mano con 2 cuentas.
+3b. **Invitar** (31/10): `@PreAuthorize(isOwner)` en los dos handlers; se borró `EventSecurity.isOwnerOfPrivate`. "El evento es privado" es regla de negocio: `EventInvitationServiceImpl.invite` devuelve `EventInvitationResult.EVENT_PUBLIC` y la pantalla de invitar muestra un cartel (en vez de 404).
+3c. **Revocar admin** (31/10): "no te sacás el rol a vos mismo" pasó a ser regla de negocio del service, igual que `ask`/`OWN_EVENT`: `UserService.revokeAdmin(User caller, long targetId)` devuelve `RevokeAdminResult` (`OK`, `OWN_ACCOUNT`, `NOT_FOUND`) y el controller muestra un cartel i18n. Se borró `AdminSecurity.canRevokeAdmin`. Quién puede revocar sigue siendo solo `WebAuthConfig` (antMatcher SUPERADMIN, el rol = acceso, en un solo lugar). Ojo: `UserServiceImpl.revokeAdmin` sigue sin tocar `SUPERADMIN`.
 3a. **`currentUser` sale del principal, sin consulta** (31/10): `ErrorAdvice.currentUserFromPrincipal` arma un `User` con id, email, nombre y roles de `PlancitoUserDetails` (sin `findByEmail`; sin sesión es `null`). Es un `User` "de sesión": solo trae esos 4 datos. Los 4 `create` de DAO que reciben ese usuario (`RegistrationJpaDao`, `EventQuestionJpaDao`, `EventReportJpaDao`, `ReviewJpaDao`) lo reemplazan por `em.getReference(User.class, id)` antes de persistir (`NotificationService.notifyNewQuestion` recibe `askerName`/`askerEmail` ya resueltos desde `currentUser`: el envío es `@Async` y no debe leer la relación lazy; `register` copia nombre/mail en la fila y las notificaciones solo leen esas copias y el id del usuario).
    **Limitaciones conocidas (aceptadas, no arregladas a propósito):** (1) el **nombre** del principal es el del login: si se edita el perfil se sigue viendo el viejo (form de `/perfil`, copias en inscripciones y bandeja) hasta el próximo login; (2) los **roles** también son los del login: revocar `ROLE_ADMIN` no afecta la sesión activa (ver punto 3). Siguen pendientes los interceptores `UnreadInbox` y `Suspended` (hacen `findByEmail` por request).
-3. **Revocar `ROLE_ADMIN` no cierra sesiones** (error marcado en TP1, pendiente). Plan: `HttpSessionEventPublisher`
-   (`SecurityWebApplicationInitializer`), `SessionRegistry` + `sessionManagement().maximumSessions(-1)` en `WebAuthConfig`,
-   `UserRolesChangedEvent` (services-contracts), `UserServiceImpl` publica tras `grantAdmin/revokeAdmin`,
-   `SessionExpiringListener` (`@TransactionalEventListener`) hace `expireNow()`. Probar con dos navegadores.
+3. ~~**Revocar `ROLE_ADMIN` / suspender no cierra sesiones**~~ **Resuelto** (31/10): `UserServiceImpl.suspend` y `revokeAdmin` (cuando de verdad saca el rol) publican `UserAccessRevokedEvent` (services-contracts, POJO sin dependencias web) dentro de su transacción; `SessionExpiringListener` (`webapp.auth`, contexto raíz) con `@TransactionalEventListener(AFTER_COMMIT)` busca por `PlancitoUserDetails.getId()` en el `SessionRegistry` y hace `expireNow()`. `WebAuthConfig`: `SessionRegistryImpl` + `sessionManagement().maximumSessions(-1)...expiredUrl("/login?expired")` (instala el `ConcurrentSessionFilter`); `SecurityWebApplicationInitializer.enableHttpSessionEventPublisher()`. Se borró `SuspendedUserInterceptor` (ya no hay `findByEmail` por request). El suspendido que reintenta entrar ve `?suspended` (por `isEnabled`). `reactivate` y `grantAdmin` no publican. **Limitaciones:** el registro es en memoria de una sola JVM (no sirve para clúster) y no conoce sesiones abiertas antes de un deploy/reinicio. El "service publica el evento" no tiene test unitario (sería verify/verify casero): se cubre con la prueba manual de dos navegadores.
 4. **Visibilidad decidida en los services**: ~~preguntar~~ y ~~favorito~~ **resueltos** (30/10): `@PreAuthorize(canView)` en
    `ask` y `addFavorite`; se sacó el chequeo de `EventQuestionServiceImpl.ask` y de `FavoriteServiceImpl.add`, y se borró
    `EventAccessService.getViewableEvent` (ya no lo usaba nadie). `FavoriteServiceImpl.viewableFavorites` sigue usando `canView`

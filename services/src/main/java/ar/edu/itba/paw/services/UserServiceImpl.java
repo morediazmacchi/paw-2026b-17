@@ -7,12 +7,14 @@ import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.model.TokenPurpose;
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.model.UserAccess;
 import ar.edu.itba.paw.model.VerificationToken;
 import ar.edu.itba.paw.persistence.EventInvitationDao;
 import ar.edu.itba.paw.persistence.InboxMessageDao;
 import ar.edu.itba.paw.persistence.UserDao;
 import ar.edu.itba.paw.persistence.VerificationTokenDao;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -43,23 +45,33 @@ public class UserServiceImpl implements UserService {
     // negocio, es un simple UPDATE por email).
     private final EventInvitationDao invitationDao;
     private final InboxMessageDao inboxMessageDao;
+    // Para anunciar que a alguien se le quito acceso (ver UserAccessRevokedEvent).
+    private final ApplicationEventPublisher eventPublisher;
 
     @Autowired
     public UserServiceImpl(final UserDao userDao, final VerificationTokenDao tokenDao,
                            final PasswordEncoder passwordEncoder, final NotificationService notificationService,
-                           final EventInvitationDao invitationDao, final InboxMessageDao inboxMessageDao) {
+                           final EventInvitationDao invitationDao, final InboxMessageDao inboxMessageDao,
+                           final ApplicationEventPublisher eventPublisher) {
         this.userDao = userDao;
         this.tokenDao = tokenDao;
         this.passwordEncoder = passwordEncoder;
         this.notificationService = notificationService;
         this.invitationDao = invitationDao;
         this.inboxMessageDao = inboxMessageDao;
+        this.eventPublisher = eventPublisher;
     }
 
     @Override
     @Transactional(readOnly = true)
     public Optional<User> findById(final long id) {
         return userDao.findById(id);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<UserAccess> findAccessById(final long id) {
+        return userDao.findAccessById(id);
     }
 
     @Override
@@ -267,6 +279,10 @@ public class UserServiceImpl implements UserService {
             notificationService.notifyUserSuspended(user);
             addInboxMessage(user, InboxMessageType.ACCOUNT_SUSPENDED, null);
         });
+        if (changed) {
+            // Las sesiones abiertas de esa cuenta dejan de valer: la web las cierra despues del commit.
+            eventPublisher.publishEvent(new UserAccessRevokedEvent(userId));
+        }
         return changed;
     }
 
@@ -289,8 +305,18 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public boolean revokeAdmin(final long targetId) {
-        return userDao.removeRole(targetId, Role.ADMIN);
+    public RevokeAdminResult revokeAdmin(final User caller, final long targetId) {
+        // Se valida ANTES de escribir. Un superadmin que se sacara el rol quedaria afuera de /admin/**.
+        if (Long.valueOf(targetId).equals(caller.getId())) {
+            return RevokeAdminResult.OWN_ACCOUNT;
+        }
+        if (userDao.removeRole(targetId, Role.ADMIN)) {
+            // Su sesion todavia lleva el rol ADMIN del login: la web la cierra despues del commit.
+            eventPublisher.publishEvent(new UserAccessRevokedEvent(targetId));
+            return RevokeAdminResult.OK;
+        }
+        // removeRole da false si el usuario no existe O si no era admin: solo lo primero es un error.
+        return userDao.findAccessById(targetId).isPresent() ? RevokeAdminResult.OK : RevokeAdminResult.NOT_FOUND;
     }
 
     // Igual que InboxServiceImpl.add(), pero sin pasar por ese service (evitaria

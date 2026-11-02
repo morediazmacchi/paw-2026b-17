@@ -125,7 +125,7 @@ public class EventInvitationServiceImplTest {
     }
 
     @Test
-    public void testInviteReturnsNotAllowedWhenTheEventIsNotPrivate() {
+    public void testInviteToAPublicEventReturnsEventPublicAsABusinessResult() {
         // Arrange
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(publicEvent()));
 
@@ -133,7 +133,7 @@ public class EventInvitationServiceImplTest {
         final EventInvitationResult result = invitationService.invite(EVENT_ID, INVITEE_EMAIL);
 
         // Assert
-        assertEquals(EventInvitationResult.NOT_ALLOWED, result);
+        assertEquals(EventInvitationResult.EVENT_PUBLIC, result);
     }
 
     // Un evento cancelado no invita a nadie (saldria el mail de una cosa que no va a pasar).
@@ -183,8 +183,7 @@ public class EventInvitationServiceImplTest {
     @Test
     public void testIsInvitedReturnsTrueForTheInvitedUserId() {
         // Arrange
-        when(mockInvitationDao.findByEventAndUserId(EVENT_ID, OTHER_ID))
-                .thenReturn(Optional.of(new EventInvitation(ModelFixtures.event(EVENT_ID), NORMALIZED_INVITEE_EMAIL, CREATOR_EMAIL)));
+        when(mockInvitationDao.existsByEventAndUserId(EVENT_ID, OTHER_ID)).thenReturn(true);
 
         // Act
         final boolean result = invitationService.isInvited(EVENT_ID, OTHER_ID);
@@ -196,7 +195,7 @@ public class EventInvitationServiceImplTest {
     @Test
     public void testIsInvitedReturnsFalseForAnotherUserId() {
         // Arrange
-        when(mockInvitationDao.findByEventAndUserId(EVENT_ID, OTHER_ID)).thenReturn(Optional.empty());
+        when(mockInvitationDao.existsByEventAndUserId(EVENT_ID, OTHER_ID)).thenReturn(false);
 
         // Act
         final boolean result = invitationService.isInvited(EVENT_ID, OTHER_ID);
