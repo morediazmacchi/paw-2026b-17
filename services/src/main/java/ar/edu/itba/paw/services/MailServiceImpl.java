@@ -25,16 +25,19 @@ public class MailServiceImpl implements MailService {
     private final TemplateEngine templateEngine;
     private final MessageSource messageSource;
 
-    @Value("${mail.from}")
-    private String from;
+    // Remitente de los mails (mail.properties). Por constructor y no en el campo: asi un test
+    // lo pasa como cualquier otro parametro, sin tocar internos de la clase.
+    private final String from;
 
     @Autowired
     public MailServiceImpl(final JavaMailSender mailSender,
                            final TemplateEngine templateEngine,
-                           @Qualifier("mailMessageSource") final MessageSource messageSource) {
+                           @Qualifier("mailMessageSource") final MessageSource messageSource,
+                           @Value("${mail.from}") final String from) {
         this.mailSender = mailSender;
         this.templateEngine = templateEngine;
         this.messageSource = messageSource;
+        this.from = from;
     }
 
     /**
