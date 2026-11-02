@@ -1,20 +1,25 @@
 package ar.edu.itba.paw.webapp.controller;
 
 import ar.edu.itba.paw.model.Event;
-import ar.edu.itba.paw.model.InboxMessage;
 import ar.edu.itba.paw.model.EventInvitation;
-import ar.edu.itba.paw.model.Registration;
-import ar.edu.itba.paw.model.Review;
+import ar.edu.itba.paw.model.InboxMessage;
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.services.AccountCounts;
+import ar.edu.itba.paw.services.AccountSummaryService;
 import ar.edu.itba.paw.services.ApprovalResult;
+import ar.edu.itba.paw.services.ChangePasswordResult;
 import ar.edu.itba.paw.services.CreatorReputation;
 import ar.edu.itba.paw.services.EventInvitationResult;
 import ar.edu.itba.paw.services.EventInvitationService;
 import ar.edu.itba.paw.services.EventChatService;
 import ar.edu.itba.paw.services.EventService;
+import ar.edu.itba.paw.services.EventWithRegistrationStats;
 import ar.edu.itba.paw.services.FavoriteService;
+import ar.edu.itba.paw.services.InboxPage;
 import ar.edu.itba.paw.services.InboxService;
+import ar.edu.itba.paw.services.MyRegistrationsView;
 import ar.edu.itba.paw.services.PageResult;
+import ar.edu.itba.paw.services.PendingRegistrations;
 import ar.edu.itba.paw.services.RegistrationService;
 import ar.edu.itba.paw.services.ReviewResult;
 import ar.edu.itba.paw.services.ReviewService;
@@ -40,12 +45,8 @@ import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import javax.validation.Valid;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Collectors;
 
 @Controller
 public class ProfileController {
@@ -59,6 +60,7 @@ public class ProfileController {
     private final MessageSource messageSource;
     private final InboxService inboxService;
     private final EventChatService eventChatService;
+    private final AccountSummaryService accountSummaryService;
 
     @Autowired
     public ProfileController(final UserService userService,
@@ -66,7 +68,8 @@ public class ProfileController {
                               final FavoriteService favoriteService, final ReviewService reviewService,
                               final EventInvitationService eventInvitationService,
                               final MessageSource messageSource, final InboxService inboxService,
-                              final EventChatService eventChatService) {
+                              final EventChatService eventChatService,
+                              final AccountSummaryService accountSummaryService) {
         this.userService = userService;
         this.registrationService = registrationService;
         this.eventService = eventService;
@@ -76,32 +79,21 @@ public class ProfileController {
         this.messageSource = messageSource;
         this.inboxService = inboxService;
         this.eventChatService = eventChatService;
+        this.accountSummaryService = accountSummaryService;
     }
 
     private Map<String, String> fieldErrorsOf(final BindingResult errors) {
         return FormErrors.of(errors, messageSource);
     }
 
-    // Para el badge de "Mis inscripciones"
-    private int registrationsCountFor(final User user) {
-        return (int) registrationService.countByUserId(user.getId());
-    }
-
-    // el badge de "Favoritos" (solo los que todavia puede ver: ver FavoriteService.countViewable)
-    private int favoritesCountFor(final User user) {
-        return (int) favoriteService.countViewable(user);
-    }
-
-    // Mismo motivo que registrationsCountFor: el badge de "Mis eventos" en el
-    // sidebar se pide en todas las paginas de la cuenta.
-    private int eventsCountFor(final User user) {
-        return (int) eventService.countByCreatorId(user.getId());
-    }
-
-    // Mismo motivo que registrationsCountFor: el badge de "Mis invitaciones"
-    // en el sidebar se pide en todas las paginas de la cuenta.
-    private int invitationsCountFor(final User user) {
-        return (int) eventInvitationService.countByUser(user.getId());
+    // Los numeritos del menu lateral de la cuenta ("Mis inscripciones", favoritos, eventos, invitaciones):
+    // los necesitan todas las paginas de la cuenta, asi que se piden una sola vez (una llamada al service)
+    // y quedan en el model de cada handler como "accountCounts". Es un objeto y no numeros sueltos a
+    // proposito: un @ModelAttribute tambien va al model de los "redirect:", y Spring agrega los valores
+    // simples como query params (/perfil?registrationsCount=3); un objeto no. Ver UnreadInboxInterceptor.
+    @ModelAttribute("accountCounts")
+    public AccountCounts accountCounts(@ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
+        return currentUser == null ? null : accountSummaryService.countsFor(currentUser.getId(), currentUser.isAdmin());
     }
 
     @RequestMapping(value = "/perfil", method = RequestMethod.GET)
@@ -117,10 +109,6 @@ public class ProfileController {
         mav.addObject("changePasswordForm", new ChangePasswordForm());
         mav.addObject("profileUpdated", updated != null);
         mav.addObject("passwordChanged", passwordChanged != null);
-        mav.addObject("registrationsCount", registrationsCountFor(currentUser));
-        mav.addObject("favoritesCount", favoritesCountFor(currentUser));
-        mav.addObject("eventsCount", eventsCountFor(currentUser));
-        mav.addObject("invitationsCount", invitationsCountFor(currentUser));
         return mav;
     }
 
@@ -133,10 +121,6 @@ public class ProfileController {
             mav.addObject("profileForm", form);
             mav.addObject("profileFieldErrors", fieldErrorsOf(errors));
             mav.addObject("changePasswordForm", new ChangePasswordForm());
-            mav.addObject("registrationsCount", registrationsCountFor(currentUser));
-            mav.addObject("favoritesCount", favoritesCountFor(currentUser));
-            mav.addObject("eventsCount", eventsCountFor(currentUser));
-            mav.addObject("invitationsCount", invitationsCountFor(currentUser));
             return mav;
         }
 
@@ -148,9 +132,12 @@ public class ProfileController {
     public ModelAndView changePassword(@Valid final ChangePasswordForm form, final BindingResult errors,
                                         @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         if (!errors.hasErrors()) {
-            final boolean ok = userService.changePassword(currentUser.getId(), form.getCurrentPassword(), form.getNewPassword());
-            if (!ok) {
+            final ChangePasswordResult result = userService.changePassword(
+                    currentUser.getId(), form.getCurrentPassword(), form.getNewPassword());
+            if (result == ChangePasswordResult.WRONG_CURRENT_PASSWORD) {
                 errors.rejectValue("currentPassword", "wrongCurrentPassword");
+            } else if (result == ChangePasswordResult.WEAK_PASSWORD) {
+                errors.rejectValue("newPassword", "Size.changePasswordForm.newPassword");
             }
         }
 
@@ -163,10 +150,6 @@ public class ProfileController {
             mav.addObject("profileForm", profileForm);
             mav.addObject("changePasswordForm", form);
             mav.addObject("passwordFieldErrors", fieldErrorsOf(errors));
-            mav.addObject("registrationsCount", registrationsCountFor(currentUser));
-            mav.addObject("favoritesCount", favoritesCountFor(currentUser));
-            mav.addObject("eventsCount", eventsCountFor(currentUser));
-            mav.addObject("invitationsCount", invitationsCountFor(currentUser));
             return mav;
         }
 
@@ -174,44 +157,18 @@ public class ProfileController {
     }
 
     @RequestMapping(value = "/perfil/inscripciones", method = RequestMethod.GET)
-    public ModelAndView misInscripciones(@RequestParam(value = "page", required = false) final String page,
+    public ModelAndView misInscripciones(@RequestParam(value = "proximasPage", required = false) final String upcomingPage,
+                                         @RequestParam(value = "finalizadasPage", required = false) final String pastPage,
                                          @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final PageResult<Registration> result = registrationService.findPageByUserId(currentUser.getId(), Paging.parsePage(page));
-        final List<Registration> registrations = result.getContent();
-
-        final List<Long> eventIds = registrations.stream()
-                .map(Registration::getEventId).collect(Collectors.toList());
-        final Map<Long, Event> eventsById = eventService.findByIds(eventIds).stream()
-                .collect(Collectors.toMap(Event::getId, event -> event));
-
-        final List<Registration> upcoming = new ArrayList<>();
-        final List<Registration> past = new ArrayList<>();
-        for (final Registration registration : registrations) {
-            final Event event = eventsById.get(registration.getEventId());
-            if (event == null) {
-                continue;
-            }
-            (event.isFinished() ? past : upcoming).add(registration);
-        }
-
-        // Reseña propia de cada evento finalizado (si ya la mando)
-        final List<Long> pastEventIds = past.stream()
-                .map(Registration::getEventId).collect(Collectors.toList());
-        final Map<Long, Review> myReviewsByEventId = reviewService.findByEventsAndUser(pastEventIds, currentUser.getId())
-                .stream().collect(Collectors.toMap(Review::getEventId, review -> review));
+        // Las proximas y las pasadas (con su evento y la reseña propia) son dos resultados paginados
+        // independientes, cada uno con su indice (ver RegistrationService.findMyRegistrations()).
+        final MyRegistrationsView result = registrationService.findMyRegistrations(
+                currentUser.getId(), Paging.parsePage(upcomingPage), Paging.parsePage(pastPage));
 
         final ModelAndView mav = new ModelAndView("auth/inscripciones");
         mav.addObject("user", currentUser);
-        mav.addObject("upcomingRegistrations", upcoming);
-        mav.addObject("pastRegistrations", past);
-        mav.addObject("eventsById", eventsById);
-        mav.addObject("myReviewsByEventId", myReviewsByEventId);
-        mav.addObject("currentPage", result.getPage());
-        mav.addObject("totalPages", result.getTotalPages());
-        mav.addObject("registrationsCount", (int) result.getTotalElements());
-        mav.addObject("favoritesCount", favoritesCountFor(currentUser));
-        mav.addObject("eventsCount", eventsCountFor(currentUser));
-        mav.addObject("invitationsCount", invitationsCountFor(currentUser));
+        mav.addObject("upcomingRegistrations", result.getUpcoming());
+        mav.addObject("pastRegistrations", result.getPast());
         return mav;
     }
 
@@ -270,31 +227,19 @@ public class ProfileController {
         mav.addObject("favoriteEvents", result.getContent());
         mav.addObject("currentPage", result.getPage());
         mav.addObject("totalPages", result.getTotalPages());
-        mav.addObject("registrationsCount", registrationsCountFor(currentUser));
-        mav.addObject("favoritesCount", (int) result.getTotalElements());
-        mav.addObject("eventsCount", eventsCountFor(currentUser));
-        mav.addObject("invitationsCount", invitationsCountFor(currentUser));
         return mav;
     }
 
     @RequestMapping(value = "/perfil/invitaciones", method = RequestMethod.GET)
     public ModelAndView misInvitaciones(@RequestParam(value = "page", required = false) final String page,
                                         @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final PageResult<EventInvitation> result = eventInvitationService.findPageByUser(currentUser.getId(), Paging.parsePage(page));
-        final List<Event> invitedEvents = new ArrayList<>();
-        for (final EventInvitation invitation : result.getContent()) {
-            eventService.findById(invitation.getEventId()).ifPresent(invitedEvents::add);
-        }
+        final PageResult<Event> result = eventInvitationService.findInvitedEventsPage(currentUser.getId(), Paging.parsePage(page));
 
         final ModelAndView mav = new ModelAndView("auth/invitaciones");
         mav.addObject("user", currentUser);
-        mav.addObject("invitedEvents", invitedEvents);
+        mav.addObject("invitedEvents", result.getContent());
         mav.addObject("currentPage", result.getPage());
         mav.addObject("totalPages", result.getTotalPages());
-        mav.addObject("registrationsCount", registrationsCountFor(currentUser));
-        mav.addObject("favoritesCount", favoritesCountFor(currentUser));
-        mav.addObject("eventsCount", eventsCountFor(currentUser));
-        mav.addObject("invitationsCount", (int) result.getTotalElements());
         return mav;
     }
 
@@ -302,23 +247,16 @@ public class ProfileController {
     @RequestMapping(value = "/perfil/bandeja", method = RequestMethod.GET)
     public ModelAndView bandeja(@RequestParam(value = "page", required = false) final String page,
                                 @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final PageResult<InboxMessage> result = inboxService.findPage(currentUser.getId(), Paging.parsePage(page));
-        final List<Long> eventIds = result.getContent().stream()
-                .map(InboxMessage::getEventId).filter(Objects::nonNull).collect(Collectors.toList());
-        final Map<Long, Event> eventsById = eventService.findByIds(eventIds).stream()
-                .collect(Collectors.toMap(Event::getId, event -> event));
+        final InboxPage inbox = inboxService.findPageWithEvents(currentUser.getId(), Paging.parsePage(page));
+        final PageResult<InboxMessage> result = inbox.getMessages();
 
         final ModelAndView mav = new ModelAndView("auth/bandeja");
         mav.addObject("user", currentUser);
         mav.addObject("messages", result.getContent());
         mav.addObject("chatGroups", eventChatService.findGroups(currentUser.getId()));
-        mav.addObject("eventsById", eventsById);
+        mav.addObject("eventsById", inbox.getEventsById());
         mav.addObject("currentPage", result.getPage());
         mav.addObject("totalPages", result.getTotalPages());
-        mav.addObject("registrationsCount", registrationsCountFor(currentUser));
-        mav.addObject("favoritesCount", favoritesCountFor(currentUser));
-        mav.addObject("eventsCount", eventsCountFor(currentUser));
-        mav.addObject("invitationsCount", invitationsCountFor(currentUser));
         return mav;
     }
 
@@ -336,20 +274,17 @@ public class ProfileController {
     public ModelAndView misEventos(@RequestParam(value = "page", required = false) final String page,
                                    @RequestParam(value = "resenasPage", required = false) final String resenasPage,
                                    @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final PageResult<Event> result = eventService.findPageByCreatorId(currentUser.getId(), Paging.parsePage(page));
-        final List<Event> createdEvents = result.getContent();
+        final PageResult<EventWithRegistrationStats> result =
+                eventService.findMyEventsPage(currentUser.getId(), Paging.parsePage(page));
         final CreatorReputation reputation =
                 reviewService.findCreatorReputation(currentUser.getId(), Paging.parsePage(resenasPage));
 
         final ModelAndView mav = new ModelAndView("auth/eventos");
         mav.addObject("user", currentUser);
-        mav.addObject("createdEvents", createdEvents);
+        // Cada evento con sus conteos de inscripciones (pendientes y confirmados, ver EventWithRegistrationStats).
+        mav.addObject("createdEvents", result.getContent());
         mav.addObject("currentPage", result.getPage());
         mav.addObject("totalPages", result.getTotalPages());
-        mav.addObject("registrationsCount", registrationsCountFor(currentUser));
-        mav.addObject("favoritesCount", favoritesCountFor(currentUser));
-        mav.addObject("eventsCount", (int) result.getTotalElements());
-        mav.addObject("invitationsCount", invitationsCountFor(currentUser));
         // Popup "Ver mis reseñas": lo mismo que EventController.addCreatorReputation (total y
         // promedio en la base, una pagina de reseñas con ?resenasPage=N).
         mav.addObject("creatorAverageRating", reputation.getAverageRating());
@@ -360,27 +295,6 @@ public class ProfileController {
             mav.addObject("creatorReviewsPage", reputation.getPage());
             mav.addObject("creatorReviewsTotalPages", reputation.getTotalPages());
         }
-        // Badge "N pendientes" por evento en eventRow.tag: solo tiene sentido
-        // para eventos con requiresApproval, no vale la pena consultar el resto.
-        final Map<Long, Long> pendingCountsByEventId = new HashMap<>();
-        for (final Event event : createdEvents) {
-            if (event.isRequiresApproval()) {
-                pendingCountsByEventId.put(event.getId(),
-                        registrationService.countPendingByEvent(event.getId()));
-            }
-        }
-        mav.addObject("pendingCountsByEventId", pendingCountsByEventId);
-
-        // Para el texto del modal de "Cancelar evento" (cuantos inscriptos
-        // confirmados se van a enterar por mail): solo tiene sentido calcularlo
-        // para eventos activos, uno ya cancelado no muestra el boton.
-        final Map<Long, Long> confirmedCountsByEventId = new HashMap<>();
-        for (final Event event : createdEvents) {
-            if (!event.isCancelled()) {
-                confirmedCountsByEventId.put(event.getId(), registrationService.countConfirmed(event.getId()));
-            }
-        }
-        mav.addObject("confirmedCountsByEventId", confirmedCountsByEventId);
         return mav;
     }
 
@@ -396,19 +310,15 @@ public class ProfileController {
         final ModelAndView mav = new ModelAndView("auth/inscriptos");
         mav.addObject("user", currentUser);
         mav.addObject("event", event);
-        mav.addObject("pendingRegistrations", registrationService.findPendingByEvent(id));
+        final PendingRegistrations pending = registrationService.findPendingSummary(id);
+        mav.addObject("pendingRegistrations", pending.getRegistrations());
         mav.addObject("approved", approvedParam != null);
         mav.addObject("rejected", rejectedParam != null);
         mav.addObject("fullNotice", fullParam != null);
         // Sin lugar libres el organizador ya no puede aceptar a nadie mas (ver
         // RegistrationService.approve()): la pantalla lo dice y deshabilita "Aceptar".
-        final Integer availableSpots = registrationService.availableSpots(id);
-        mav.addObject("availableSpots", availableSpots);
-        mav.addObject("noSpotsLeft", registrationService.isFull(id));
-        mav.addObject("registrationsCount", registrationsCountFor(currentUser));
-        mav.addObject("favoritesCount", favoritesCountFor(currentUser));
-        mav.addObject("eventsCount", eventsCountFor(currentUser));
-        mav.addObject("invitationsCount", invitationsCountFor(currentUser));
+        mav.addObject("availableSpots", pending.getAvailableSpots());
+        mav.addObject("noSpotsLeft", pending.isFull());
         return mav;
     }
 
@@ -501,10 +411,6 @@ public class ProfileController {
         mav.addObject("invitations", invitations);
         mav.addObject("sent", sent);
         mav.addObject("alreadyInvited", alreadyInvited);
-        mav.addObject("registrationsCount", registrationsCountFor(currentUser));
-        mav.addObject("favoritesCount", favoritesCountFor(currentUser));
-        mav.addObject("eventsCount", eventsCountFor(currentUser));
-        mav.addObject("invitationsCount", invitationsCountFor(currentUser));
         return mav;
     }
 }

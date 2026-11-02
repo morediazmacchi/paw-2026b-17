@@ -28,6 +28,12 @@ public interface EventChatService {
 
     ChatSendResult send(long eventId, User user, String text);
 
+    // La pantalla del chat: el evento, los ultimos mensajes (marca el chat como leido para esa persona) y si
+    // el chat esta cerrado (cancelado o ya pasado: solo lectura, misma regla que send() y join()). Que sea miembro
+    // lo decide @PreAuthorize en el controller (ver EventSecurity.isChatMember).
+    // Lanza EventNotFoundException si el evento no existe.
+    ChatRoom openRoom(long eventId, long userId);
+
     // Para los circulos de la bandeja.
     List<ChatGroup> findGroups(long userId);
 }

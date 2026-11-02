@@ -86,7 +86,7 @@
                                             </form>
                                         </c:when>
                                         <%-- A un admin solo lo suspende un superadmin (ver AdminController.suspender). --%>
-                                        <c:when test="${isSuperadmin or not (targetUser.admin or targetUser.superadmin)}">
+                                        <c:when test="${targetUser.canBeSuspendedBy(isSuperadmin)}">
                                             <form action="<c:url value='/admin/usuarios/${targetUser.id}/suspender'/>" method="post">
                                                 <paw:button text="${suspendButtonLabel}" cssClass="btn-danger"/>
                                             </form>
@@ -97,7 +97,7 @@
                                          solo evita ofrecer un boton que el POST va a rechazar). A un
                                          superadmin no se le ofrece ninguno: ya es admin y no se le saca
                                          el rol (RevokeAdminResult.TARGET_SUPERADMIN). --%>
-                                    <c:if test="${isSuperadmin and not targetUser.superadmin}">
+                                    <c:if test="${targetUser.canHaveAdminRoleChangedBy(isSuperadmin)}">
                                         <c:choose>
                                             <c:when test="${targetUser.admin}">
                                                 <form action="<c:url value='/admin/usuarios/${targetUser.id}/revocar'/>" method="post">

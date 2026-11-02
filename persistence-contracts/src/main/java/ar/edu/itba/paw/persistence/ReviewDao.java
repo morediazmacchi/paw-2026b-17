@@ -13,7 +13,7 @@ public interface ReviewDao {
     Optional<Review> findByEventAndUser(long eventId, long userId);
 
     // Como findByEventAndUser(), pero para varios eventos a la vez (ver
-    // ProfileController.misInscripciones()): una sola consulta para todas las
+    // RegistrationService.findMyRegistrations()): una sola consulta para todas las
     // reseñas propias en vez de un findByEventAndUser() por evento finalizado.
     List<Review> findByEventsAndUser(List<Long> eventIds, long userId);
 

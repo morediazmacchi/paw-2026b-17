@@ -24,6 +24,12 @@ public interface InboxService {
      */
     PageResult<InboxMessage> findPage(long userId, int page);
 
+    /**
+     * Como findPage(), pero con los eventos a los que se refieren los avisos de esa pagina (una sola
+     * consulta para todos, no una por aviso).
+     */
+    InboxPage findPageWithEvents(long userId, int page);
+
     long countUnread(long userId);
 
     /**

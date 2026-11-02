@@ -105,8 +105,9 @@ public class EventSecurity {
         if (!user.isPresent()) {
             return false;
         }
+        // La regla vive en EventAccessService.canRegister(): la misma que usa el detalle para decidir que ofrecer.
         return eventService.findAccessById(eventId)
-                .map(event -> eventAccessService.canView(event, user.get().getId(), false))
+                .map(event -> eventAccessService.canRegister(event, user.get().getId()))
                 .orElse(false);
     }
 
@@ -149,6 +150,6 @@ public class EventSecurity {
     }
 
     private static boolean isCreator(final EventAccessData event, final PlancitoUserDetails user) {
-        return Long.valueOf(user.getId()).equals(event.getCreatorId());
+        return event.isCreatedBy(user.getId());
     }
 }

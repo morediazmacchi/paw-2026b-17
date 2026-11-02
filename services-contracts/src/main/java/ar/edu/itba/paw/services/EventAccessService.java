@@ -6,6 +6,7 @@ import ar.edu.itba.paw.model.EventAccessData;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.exception.EventCancelledException;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
+import ar.edu.itba.paw.model.exception.EventRejectedException;
 
 public interface EventAccessService {
 
@@ -38,13 +39,23 @@ public interface EventAccessService {
     boolean canView(EventAccessData event, Long userId, boolean isAdmin);
 
     /**
-     * El evento, si no esta cancelado: uno cancelado no se edita. Lo comparten el GET y el POST de
-     * EventController para editar (editarForm()/editar()): misma regla, mismo lugar.
+     * Se puede anotar a ese evento: la regla de {@link #canView(EventAccessData, Long, boolean)} SIN la excepcion
+     * de admin. Un admin puede VER un evento privado o pendiente para moderarlo, pero no inscribirse; si lo
+     * invitaron a un privado, la invitacion cuenta como a cualquiera. Es la unica definicion de esta regla: la
+     * usan la autorizacion (EventSecurity.canRegister) y el detalle (EventDetailService, para decidir que se
+     * le ofrece). {@code userId} null (sin sesion) nunca puede.
+     */
+    boolean canRegister(EventAccessData event, Long userId);
+
+    /**
+     * El evento, si se puede editar (ver Event.isEditable()): uno cancelado o rechazado no se edita. Lo comparten
+     * el GET de EventController para editar y EventService.update(): misma regla, mismo lugar.
      * Quien es el creador NO se valida aca: eso es autorizacion y lo resuelve @PreAuthorize en el
      * controller (ver EventSecurity). Esto es solo la regla de estado del evento.
      *
      * @throws EventNotFoundException si no existe.
      * @throws EventCancelledException si existe pero esta cancelado.
+     * @throws EventRejectedException si existe pero fue rechazado por un admin.
      */
     Event getEditableEvent(long eventId);
 }

@@ -34,7 +34,7 @@ public class EventChatServiceImpl implements EventChatService {
 
     // Cancelado (o dado de baja por un admin) o ya pasado: se puede leer, no escribir.
     private static boolean isClosed(final Event event) {
-        return event.isCancelled() || event.isFinished();
+        return !event.isActive();
     }
 
     @Override
@@ -103,6 +103,13 @@ public class EventChatServiceImpl implements EventChatService {
         // Lo que uno manda ya lo vio: que no le aparezca como "sin leer" a si mismo.
         chatDao.markRead(eventId, user.getId());
         return ChatSendResult.SENT;
+    }
+
+    @Override
+    @Transactional
+    public ChatRoom openRoom(final long eventId, final long userId) {
+        final Event event = eventService.findByIdOrThrow(eventId);
+        return new ChatRoom(event, findMessages(eventId, userId, 0), isClosed(event));
     }
 
     @Override

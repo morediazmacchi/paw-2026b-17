@@ -9,6 +9,11 @@ import java.util.List;
 import java.util.Optional;
 
 public interface UserService {
+
+    // Largo minimo de una contraseña. Los forms ya lo validan para dar feedback; los metodos que guardan una
+    // contraseña (register, resetPassword, changePassword) lo vuelven a chequear: la regla es del service.
+    int MIN_PASSWORD_LENGTH = 8;
+
     Optional<User> findById(long id);
 
     /**
@@ -99,19 +104,20 @@ public interface UserService {
     boolean updateProfile(long userId, String name);
 
     /**
-     * Cambia la contraseña de un usuario ya logueado. Devuelve false (y no
+     * Cambia la contraseña de un usuario ya logueado. Devuelve WRONG_CURRENT_PASSWORD (y no
      * cambia nada) si currentPassword no coincide con la que tiene guardada:
      * a diferencia de register()/el flujo de login, aca no hay duda de que la
-     * cuenta existe, asi que hay que probar que sos vos antes de reemplazarla.
+     * cuenta existe, asi que hay que probar que sos vos antes de reemplazarla. Devuelve WEAK_PASSWORD
+     * (tampoco cambia nada) si la nueva es mas corta que {@link #MIN_PASSWORD_LENGTH}.
      */
-    boolean changePassword(long userId, String currentPassword, String newPassword);
+    ChangePasswordResult changePassword(long userId, String currentPassword, String newPassword);
 
     /**
      * Guarda el idioma elegido a mano (boton de la navbar, ver LocaleController)
      * para esta cuenta: de ahi en mas sobrevive a un logout/cookie borrada (se
      * reaplica al loguearse, ver WebAuthConfig.loginSuccessHandler()) y es el
      * idioma en el que se le mandan los mails (ver NotificationServiceImpl).
-     * No valida el valor: quien llama ya lo valido contra los idiomas soportados.
+     * Solo guarda los idiomas soportados (ver SupportedLocale): con otro valor no escribe nada y devuelve false.
      */
     boolean updateLocale(long userId, String locale);
 

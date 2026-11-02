@@ -1,7 +1,7 @@
-// La relacion de una persona con un evento, ya resuelta para el detalle: si esta inscripta (y en
-// que estado), si es la dueña, y si la pantalla le tiene que ofrecer inscribirse o solo mostrarle
-// el evento. Lo devuelve RegistrationService.findParticipation(); las reglas viven en el service
-// (las mismas de EventSecurity.canRegister) para que el detalle no las repita en el controller.
+// La relacion de una persona con un evento, ya resuelta para el detalle: si esta inscripta (y en que estado), si
+// es la duenia, y si puede anotarse (la regla de visibilidad sin la excepcion de admin, ver
+// EventAccessService.canRegister()). Lo arma EventDetailServiceImpl; el estado de accion resultante va en
+// EventDetail.getAction().
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.RegistrationStatus;
@@ -11,15 +11,13 @@ public class EventParticipation {
     // null si no tiene inscripcion.
     private final RegistrationStatus registrationStatus;
     private final boolean owner;
-    private final boolean adminReviewOnly;
-    private final boolean viewOnly;
+    private final boolean canRegister;
 
     public EventParticipation(final RegistrationStatus registrationStatus, final boolean owner,
-                              final boolean adminReviewOnly, final boolean viewOnly) {
+                              final boolean canRegister) {
         this.registrationStatus = registrationStatus;
         this.owner = owner;
-        this.adminReviewOnly = adminReviewOnly;
-        this.viewOnly = viewOnly;
+        this.canRegister = canRegister;
     }
 
     // Una inscripcion rechazada cuenta como "no anotada": la fila existe, pero no tiene lugar.
@@ -49,15 +47,9 @@ public class EventParticipation {
         return owner;
     }
 
-    // Un admin puede VER un evento todavia no aprobado (o ya rechazado) para revisarlo, pero no
-    // inscribirse: @PreAuthorize (EventSecurity.canRegister) lo trata como un 404.
-    public boolean isAdminReviewOnly() {
-        return adminReviewOnly;
-    }
-
-    // Un admin puede VER un evento privado para moderarlo, pero no inscribirse si nadie lo invito:
-    // lo trata como un 404 (con invitacion si puede). La pantalla no le ofrece un boton que terminaria en 404.
-    public boolean isViewOnly() {
-        return viewOnly;
+    // Puede anotarse: es la duenia, o el evento esta aprobado y es publico, o es privado y tiene inscripcion o
+    // invitacion. Un admin puede VER un evento pendiente/rechazado o privado para moderarlo, pero no anotarse.
+    public boolean canRegister() {
+        return canRegister;
     }
 }

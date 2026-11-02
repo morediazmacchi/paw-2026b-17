@@ -10,6 +10,7 @@ import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.EventVisibility;
 import ar.edu.itba.paw.model.exception.EventCancelledException;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
+import ar.edu.itba.paw.model.exception.EventRejectedException;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -232,6 +233,33 @@ public class EventAccessServiceImplTest {
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
 
+    @Test(expected = EventRejectedException.class)
+    public void testGetEditableEventWhenTheEventWasRejectedThrowsEventRejectedException() {
+        // Arrange
+        final Event event = event(EventVisibility.PUBLIC);
+        event.setApprovalStatus(EventApprovalStatus.REJECTED);
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event));
+
+        // Act
+        accessService.getEditableEvent(EVENT_ID);
+
+        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
+    }
+
+    @Test
+    public void testGetEditableEventReturnsAnEventStillPendingApproval() {
+        // Arrange: pendiente de aprobacion si se edita (solo el rechazado y el cancelado no)
+        final Event event = event(EventVisibility.PUBLIC);
+        event.setApprovalStatus(EventApprovalStatus.PENDING);
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event));
+
+        // Act
+        final Event result = accessService.getEditableEvent(EVENT_ID);
+
+        // Assert
+        assertSame(event, result);
+    }
+
     @Test(expected = EventNotFoundException.class)
     public void testGetEditableEventWhenTheEventDoesNotExistThrowsEventNotFoundException() {
         // Arrange
@@ -241,6 +269,60 @@ public class EventAccessServiceImplTest {
         accessService.getEditableEvent(EVENT_ID);
 
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
+    }
+
+    // ---- canRegister() ----
+
+    @Test
+    public void testCannotRegisterWithoutASession() {
+        // Act
+        final boolean result = accessService.canRegister(event(EventVisibility.PUBLIC), null);
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    public void testAnyoneWithASessionCanRegisterInAPublicApprovedEvent() {
+        // Act
+        final boolean result = accessService.canRegister(event(EventVisibility.PUBLIC), OTHER_ID);
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    public void testCannotRegisterInAnEventStillPendingApproval() {
+        // Arrange
+        final Event event = event(EventVisibility.PUBLIC);
+        event.setApprovalStatus(EventApprovalStatus.PENDING);
+
+        // Act
+        final boolean result = accessService.canRegister(event, OTHER_ID);
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    public void testCannotRegisterInAPrivateEventWithoutRegistrationNorInvitation() {
+        // Act
+        final boolean result = accessService.canRegister(event(EventVisibility.PRIVATE), OTHER_ID);
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    public void testCanRegisterInAPrivateEventWhenInvited() {
+        // Arrange
+        when(eventInvitationService.isInvited(EVENT_ID, OTHER_ID)).thenReturn(true);
+
+        // Act
+        final boolean result = accessService.canRegister(event(EventVisibility.PRIVATE), OTHER_ID);
+
+        // Assert
+        assertTrue(result);
     }
 
     // ---- canView() con revision previa (ver EventApprovalStatus) ----

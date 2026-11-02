@@ -2,6 +2,7 @@
 // EventInvitationServiceImpl (modulo services).
 package ar.edu.itba.paw.services;
 
+import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventInvitation;
 
 import java.util.List;
@@ -34,14 +35,14 @@ public interface EventInvitationService {
     List<EventInvitation> findByEvent(long eventId);
 
     /**
-     * "Mis invitaciones": los eventos privados a los que invitaron a este
+     * "Mis invitaciones": los eventos (con un JOIN, una sola consulta) a los que invitaron a este
      * usuario, mas recientes primero, de a una pagina. No hace falta ningun
      * chequeo de dueño (a diferencia de findByEvent de arriba): es siempre tu
      * propio userId, el de la sesion logueada. Una pagina mayor a la ultima
      * devuelve la ultima, una menor a 1 la primera; sin invitaciones, la
      * pagina 1 vacia.
      */
-    PageResult<EventInvitation> findPageByUser(long userId, int page);
+    PageResult<Event> findInvitedEventsPage(long userId, int page);
 
     /** Para el badge de "Mis invitaciones" (ver ProfileController): sin traer las filas. */
     long countByUser(long userId);

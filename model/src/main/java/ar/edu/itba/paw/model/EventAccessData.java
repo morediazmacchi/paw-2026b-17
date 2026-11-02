@@ -14,4 +14,15 @@ public interface EventAccessData {
     boolean isPrivate();
 
     boolean isApproved();
+
+    // La persona es la organizadora del evento.
+    default boolean isCreatedBy(final Long userId) {
+        return userId != null && userId.equals(getCreatorId());
+    }
+
+    // Un admin puede aprobar/rechazar/moderar el evento salvo que sea suyo (conflicto de intereses: el
+    // creador no puede ser tambien quien lo revisa). Es la regla de AdminSecurity.canModerateEvent().
+    default boolean canBeModeratedBy(final Long adminId) {
+        return !isCreatedBy(adminId);
+    }
 }

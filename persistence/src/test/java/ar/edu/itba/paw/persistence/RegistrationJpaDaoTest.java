@@ -25,6 +25,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
@@ -257,76 +258,56 @@ public class RegistrationJpaDaoTest {
         assertEquals(Long.valueOf(userId), foundUserId);
     }
 
-    // ---- findByUserId() ("Mis inscripciones") ----
+    // ---- findUpcomingByUserId() / findPastByUserId() ("Mis inscripciones") ----
 
     @Test
-    public void testFindByUserIdReturnsOnlyThatUsersRegistrations() {
-        // Arrange
-        insertRegistration(eventId, EMAIL, userId, NAME, RegistrationStatus.CONFIRMED);
+    public void testFindUpcomingByUserIdReturnsOnlyThatUsersUpcomingRegistrations() {
+        // Arrange: senuelos = la inscripcion de otra persona al mismo evento, y una propia a un evento pasado
+        final long upcomingEvent = insertEventAt(2 * DAY);
+        registerUserAtEvent(upcomingEvent);
+        registerUserAtEvent(insertEventAt(-2 * DAY));
         final long otherUserId = insertUser("otro@mail.com", "Otro");
-        insertRegistration(eventId, "otro@mail.com", otherUserId, "Otro", RegistrationStatus.CONFIRMED);
+        insertRegistration(upcomingEvent, "otro@mail.com", otherUserId, "Otro", RegistrationStatus.CONFIRMED);
 
         // Act
-        final List<Registration> found = registrationDao.findByUserId(userId, 1, 10);
+        final List<Registration> found = registrationDao.findUpcomingByUserId(userId, new Date(), 1, 10);
 
         // Assert
         assertEquals(1, found.size());
-        assertEquals(EMAIL, found.get(0).getEmail());
+        assertEquals(upcomingEvent, found.get(0).getEventId());
+        assertEquals(EMAIL + upcomingEvent, found.get(0).getEmail());
     }
 
     @Test
-    public void testFindByUserIdReturnsEmptyWhenNeverRegistered() {
+    public void testFindUpcomingByUserIdReturnsEmptyWhenNeverRegistered() {
         // Arrange: no se inserta ninguna inscripcion.
 
         // Act
-        final List<Registration> found = registrationDao.findByUserId(userId, 1, 10);
+        final List<Registration> found = registrationDao.findUpcomingByUserId(userId, new Date(), 1, 10);
 
         // Assert
         assertTrue(found.isEmpty());
     }
 
     @Test
-    public void testFindByUserIdListsUpcomingEventsBeforePastOnes() {
-        // Arrange: a proposito la del evento pasado se inserta primero
-        final long pastEvent = insertEventAt(-2 * DAY);
-        final long upcomingEvent = insertEventAt(2 * DAY);
-        registerUserAtEvent(pastEvent);
-        registerUserAtEvent(upcomingEvent);
+    public void testFindUpcomingByUserIdOrdersNearestFirst() {
+        // Arrange
+        final long far = insertEventAt(3 * DAY);
+        final long near = insertEventAt(1 * DAY);
+        registerUserAtEvent(far);
+        registerUserAtEvent(near);
 
         // Act
-        final List<Registration> found = registrationDao.findByUserId(userId, 1, 10);
+        final List<Registration> found = registrationDao.findUpcomingByUserId(userId, new Date(), 1, 10);
 
         // Assert
         assertEquals(2, found.size());
-        assertEquals(upcomingEvent, found.get(0).getEventId());
-        assertEquals(pastEvent, found.get(1).getEventId());
+        assertEquals(near, found.get(0).getEventId());
+        assertEquals(far, found.get(1).getEventId());
     }
 
     @Test
-    public void testFindByUserIdOrdersUpcomingNearestFirstAndPastMostRecentFirst() {
-        // Arrange
-        final long upcomingFar = insertEventAt(3 * DAY);
-        final long pastOld = insertEventAt(-5 * DAY);
-        final long upcomingNear = insertEventAt(1 * DAY);
-        final long pastRecent = insertEventAt(-1 * DAY);
-        registerUserAtEvent(upcomingFar);
-        registerUserAtEvent(pastOld);
-        registerUserAtEvent(upcomingNear);
-        registerUserAtEvent(pastRecent);
-
-        // Act
-        final List<Registration> found = registrationDao.findByUserId(userId, 1, 10);
-
-        // Assert
-        assertEquals(4, found.size());
-        assertEquals(upcomingNear, found.get(0).getEventId());
-        assertEquals(upcomingFar, found.get(1).getEventId());
-        assertEquals(pastRecent, found.get(2).getEventId());
-        assertEquals(pastOld, found.get(3).getEventId());
-    }
-
-    @Test
-    public void testFindByUserIdReturnsTheSecondPage() {
+    public void testFindUpcomingByUserIdReturnsTheSecondPage() {
         // Arrange: 3 inscripciones de a 2 por pagina -> la pagina 2 es solo la ultima del orden
         final long first = insertEventAt(1 * DAY);
         final long second = insertEventAt(2 * DAY);
@@ -336,7 +317,7 @@ public class RegistrationJpaDaoTest {
         registerUserAtEvent(second);
 
         // Act
-        final List<Registration> page = registrationDao.findByUserId(userId, 2, 2);
+        final List<Registration> page = registrationDao.findUpcomingByUserId(userId, new Date(), 2, 2);
 
         // Assert
         assertEquals(1, page.size());
@@ -344,15 +325,118 @@ public class RegistrationJpaDaoTest {
     }
 
     @Test
-    public void testFindByUserIdReturnsNothingForAPageBeyondTheLast() {
+    public void testFindUpcomingByUserIdReturnsNothingForAPageBeyondTheLast() {
         // Arrange
         registerUserAtEvent(insertEventAt(DAY));
 
         // Act
-        final List<Registration> page = registrationDao.findByUserId(userId, 5, 2);
+        final List<Registration> page = registrationDao.findUpcomingByUserId(userId, new Date(), 5, 2);
 
         // Assert
         assertTrue(page.isEmpty());
+    }
+
+    @Test
+    public void testFindPastByUserIdReturnsOnlyThatUsersPastRegistrations() {
+        // Arrange: senuelos = una inscripcion propia a un evento que viene, y la de otra persona al mismo evento pasado
+        final long pastEvent = insertEventAt(-2 * DAY);
+        registerUserAtEvent(pastEvent);
+        registerUserAtEvent(insertEventAt(2 * DAY));
+        final long otherUserId = insertUser("otro@mail.com", "Otro");
+        insertRegistration(pastEvent, "otro@mail.com", otherUserId, "Otro", RegistrationStatus.CONFIRMED);
+
+        // Act
+        final List<Registration> found = registrationDao.findPastByUserId(userId, new Date(), 1, 10);
+
+        // Assert
+        assertEquals(1, found.size());
+        assertEquals(pastEvent, found.get(0).getEventId());
+        assertEquals(EMAIL + pastEvent, found.get(0).getEmail());
+    }
+
+    @Test
+    public void testFindPastByUserIdOrdersMostRecentFirst() {
+        // Arrange
+        final long old = insertEventAt(-5 * DAY);
+        final long recent = insertEventAt(-1 * DAY);
+        registerUserAtEvent(old);
+        registerUserAtEvent(recent);
+
+        // Act
+        final List<Registration> found = registrationDao.findPastByUserId(userId, new Date(), 1, 10);
+
+        // Assert
+        assertEquals(2, found.size());
+        assertEquals(recent, found.get(0).getEventId());
+        assertEquals(old, found.get(1).getEventId());
+    }
+
+    @Test
+    public void testFindPastByUserIdReturnsTheSecondPage() {
+        // Arrange: 3 inscripciones de a 2 por pagina -> la pagina 2 es solo la mas vieja
+        final long mostRecent = insertEventAt(-1 * DAY);
+        final long middle = insertEventAt(-2 * DAY);
+        final long oldest = insertEventAt(-3 * DAY);
+        registerUserAtEvent(oldest);
+        registerUserAtEvent(mostRecent);
+        registerUserAtEvent(middle);
+
+        // Act
+        final List<Registration> page = registrationDao.findPastByUserId(userId, new Date(), 2, 2);
+
+        // Assert
+        assertEquals(1, page.size());
+        assertEquals(oldest, page.get(0).getEventId());
+    }
+
+    // ---- countUpcomingByUserId() / countPastByUserId() ----
+
+    @Test
+    public void testCountUpcomingByUserIdCountsOnlyThatUsersUpcomingRegistrations() {
+        // Arrange: senuelos = una propia a un evento pasado y la de otra persona a un evento que viene
+        final long upcomingEvent = insertEventAt(2 * DAY);
+        registerUserAtEvent(upcomingEvent);
+        registerUserAtEvent(insertEventAt(-2 * DAY));
+        final long otherUserId = insertUser("otro@mail.com", "Otro");
+        insertRegistration(upcomingEvent, "otro@mail.com", otherUserId, "Otro", RegistrationStatus.CONFIRMED);
+
+        // Act
+        final long count = registrationDao.countUpcomingByUserId(userId, new Date());
+
+        // Assert
+        assertEquals(1, count);
+    }
+
+    @Test
+    public void testCountPastByUserIdCountsOnlyThatUsersPastRegistrations() {
+        // Arrange: senuelos = una propia a un evento que viene y la de otra persona a un evento pasado
+        final long pastEvent = insertEventAt(-2 * DAY);
+        registerUserAtEvent(pastEvent);
+        registerUserAtEvent(insertEventAt(2 * DAY));
+        final long otherUserId = insertUser("otro@mail.com", "Otro");
+        insertRegistration(pastEvent, "otro@mail.com", otherUserId, "Otro", RegistrationStatus.CONFIRMED);
+
+        // Act
+        final long count = registrationDao.countPastByUserId(userId, new Date());
+
+        // Assert
+        assertEquals(1, count);
+    }
+
+    @Test
+    public void testCountUpcomingAndPastTogetherAreAllTheUsersRegistrations() {
+        // Arrange
+        registerUserAtEvent(insertEventAt(1 * DAY));
+        registerUserAtEvent(insertEventAt(2 * DAY));
+        registerUserAtEvent(insertEventAt(-1 * DAY));
+        final Date now = new Date();
+
+        // Act
+        final long total = registrationDao.countUpcomingByUserId(userId, now)
+                + registrationDao.countPastByUserId(userId, now);
+
+        // Assert
+        assertEquals(3, total);
     }
 
     // ---- countByUserId() (badge de "Mis inscripciones") ----
@@ -470,6 +554,61 @@ public class RegistrationJpaDaoTest {
 
         // Assert
         assertEquals(1, count);
+    }
+
+    // ---- countByEventsAndStatus() ----
+
+    @Test
+    public void testCountByEventsAndStatusCountsPerEventOnlyThatStatus() {
+        // Arrange: dos eventos pedidos, mas un evento senuelo que no se pide; en cada uno, otros estados de senuelo
+        final long secondEvent = insertEventAt(DAY);
+        final long decoyEvent = insertEventAt(2 * DAY);
+        final long ana = insertUser("ana@mail.com", "Ana");
+        final long beto = insertUser("beto@mail.com", "Beto");
+        final long carla = insertUser("carla@mail.com", "Carla");
+        insertRegistration(eventId, "ana@mail.com", ana, "Ana", RegistrationStatus.PENDING);
+        insertRegistration(eventId, "beto@mail.com", beto, "Beto", RegistrationStatus.PENDING);
+        insertRegistration(eventId, "carla@mail.com", carla, "Carla", RegistrationStatus.CONFIRMED);
+        insertRegistration(secondEvent, "ana@mail.com", ana, "Ana", RegistrationStatus.PENDING);
+        insertRegistration(secondEvent, "beto@mail.com", beto, "Beto", RegistrationStatus.REJECTED);
+        insertRegistration(decoyEvent, "ana@mail.com", ana, "Ana", RegistrationStatus.PENDING);
+
+        // Act
+        final Map<Long, Long> counts = registrationDao.countByEventsAndStatus(
+                Arrays.asList(eventId, secondEvent), RegistrationStatus.PENDING);
+
+        // Assert
+        assertEquals(2, counts.size());
+        assertEquals(Long.valueOf(2), counts.get(eventId));
+        assertEquals(Long.valueOf(1), counts.get(secondEvent));
+    }
+
+    @Test
+    public void testCountByEventsAndStatusOmitsAnEventWithoutThatStatus() {
+        // Arrange: el evento solo tiene una inscripcion confirmada
+        final long ana = insertUser("ana@mail.com", "Ana");
+        insertRegistration(eventId, "ana@mail.com", ana, "Ana", RegistrationStatus.CONFIRMED);
+
+        // Act
+        final Map<Long, Long> counts = registrationDao.countByEventsAndStatus(
+                Collections.singletonList(eventId), RegistrationStatus.PENDING);
+
+        // Assert
+        assertTrue(counts.isEmpty());
+    }
+
+    @Test
+    public void testCountByEventsAndStatusReturnsAnEmptyMapForNoEvents() {
+        // Arrange: hay una inscripcion pendiente, pero no se pide ningun evento
+        final long ana = insertUser("ana@mail.com", "Ana");
+        insertRegistration(eventId, "ana@mail.com", ana, "Ana", RegistrationStatus.PENDING);
+
+        // Act
+        final Map<Long, Long> counts = registrationDao.countByEventsAndStatus(
+                Collections.<Long>emptyList(), RegistrationStatus.PENDING);
+
+        // Assert
+        assertTrue(counts.isEmpty());
     }
 
     // ---- findPendingByEvent() ----

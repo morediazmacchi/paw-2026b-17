@@ -73,6 +73,10 @@ public class PasswordResetController {
         if (result == PasswordResetResult.INVALID_TOKEN) {
             return new ModelAndView("redirect:/login/recuperar");
         }
+        if (result == PasswordResetResult.WEAK_PASSWORD) {
+            errors.rejectValue("password", "Size.resetPasswordForm.password");
+            return resetPasswordFormWithErrors(form, errors);
+        }
         return new ModelAndView("redirect:/login?passwordReset");
     }
 

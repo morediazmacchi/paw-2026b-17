@@ -3,5 +3,7 @@ package ar.edu.itba.paw.services;
 
 public enum PasswordResetResult {
     OK,
-    INVALID_TOKEN
+    INVALID_TOKEN,
+    // La contraseña nueva es mas corta que UserService.MIN_PASSWORD_LENGTH.
+    WEAK_PASSWORD
 }

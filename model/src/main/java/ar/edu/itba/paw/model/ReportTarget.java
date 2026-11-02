@@ -22,4 +22,9 @@ public class ReportTarget {
     public Long getCreatorId() {
         return creatorId;
     }
+
+    // Un admin no resuelve un reporte sobre SU propio evento (misma regla que EventAccessData.canBeModeratedBy()).
+    public boolean canBeResolvedBy(final Long adminId) {
+        return adminId == null || !adminId.equals(creatorId);
+    }
 }

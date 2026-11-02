@@ -18,6 +18,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.when;
 
@@ -48,6 +49,34 @@ public class ImageServiceImplTest {
     }
 
     // ---- create(): validaciones ----
+
+    // El service avisa POR QUE rechazo la imagen con un codigo (no con una clave de mensaje).
+
+    @Test
+    public void testCreateWithEmptyDataFailsWithReasonEmpty() {
+        final InvalidImageException thrown = assertThrows(InvalidImageException.class,
+                () -> imageService.create(new byte[0], "image/png", "foto.png"));
+
+        assertEquals(InvalidImageException.Reason.EMPTY, thrown.getReason());
+    }
+
+    @Test
+    public void testCreateWithTooBigDataFailsWithReasonTooLarge() {
+        final byte[] huge = new byte[5 * 1024 * 1024 + 1];
+
+        final InvalidImageException thrown = assertThrows(InvalidImageException.class,
+                () -> imageService.create(huge, "image/png", "foto.png"));
+
+        assertEquals(InvalidImageException.Reason.TOO_LARGE, thrown.getReason());
+    }
+
+    @Test
+    public void testCreateWithNonImageBytesFailsWithReasonNotAnImage() {
+        final InvalidImageException thrown = assertThrows(InvalidImageException.class,
+                () -> imageService.create(NOT_AN_IMAGE, "image/png", "foto.png"));
+
+        assertEquals(InvalidImageException.Reason.NOT_AN_IMAGE, thrown.getReason());
+    }
 
     @Test(expected = InvalidImageException.class)
     public void testCreateWithNullDataThrowsInvalidImageException() {

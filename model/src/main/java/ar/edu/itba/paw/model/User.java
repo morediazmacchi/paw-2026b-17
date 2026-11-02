@@ -17,7 +17,7 @@ import java.util.Set;
 
 @Entity
 @Table(name = "users")
-public class User {
+public class User implements RoleHolder {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -78,7 +78,9 @@ public class User {
     public Set<Role> getRoles() { return roles; }
     public void setRoles(final Set<Role> roles) { this.roles = roles; }
     // Para no preguntar por el rol con un literal en cada lugar (ver Role).
+    @Override
     public boolean isAdmin() { return roles.contains(Role.ADMIN); }
+    @Override
     public boolean isSuperadmin() { return roles.contains(Role.SUPERADMIN); }
     public boolean isVerified() { return verified; }
     public void setVerified(final boolean verified) { this.verified = verified; }

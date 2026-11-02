@@ -18,9 +18,9 @@ import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 /**
@@ -101,6 +101,47 @@ public class EventQuestionServiceImplTest {
 
         // Act
         final QuestionResult result = questionService.ask(EVENT_ID, asker(), "Hay estacionamiento?");
+
+        // Assert
+        assertEquals(QuestionResult.CREATED, result);
+    }
+
+    @Test
+    public void testAskWithABlankTextReturnsInvalid() {
+        // Arrange: el dao tiene un dato senuelo; si el service guardara la pregunta igual, el resultado seria CREATED
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
+        lenient().when(questionDao.create(any(EventQuestion.class))).thenReturn(created());
+
+        // Act
+        final QuestionResult result = questionService.ask(EVENT_ID, asker(), "   ");
+
+        // Assert
+        assertEquals(QuestionResult.INVALID, result);
+    }
+
+    @Test
+    public void testAskWithATextLongerThanTheMaximumReturnsInvalid() {
+        // Arrange
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
+        lenient().when(questionDao.create(any(EventQuestion.class))).thenReturn(created());
+        final String tooLong = new String(new char[EventQuestionService.MAX_QUESTION_LENGTH + 1]).replace('\0', 'a');
+
+        // Act
+        final QuestionResult result = questionService.ask(EVENT_ID, asker(), tooLong);
+
+        // Assert
+        assertEquals(QuestionResult.INVALID, result);
+    }
+
+    @Test
+    public void testAskWithATextOfExactlyTheMaximumLengthIsCreated() {
+        // Arrange
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
+        when(questionDao.create(any(EventQuestion.class))).thenReturn(created());
+        final String maximum = new String(new char[EventQuestionService.MAX_QUESTION_LENGTH]).replace('\0', 'a');
+
+        // Act
+        final QuestionResult result = questionService.ask(EVENT_ID, asker(), maximum);
 
         // Assert
         assertEquals(QuestionResult.CREATED, result);
@@ -303,26 +344,29 @@ public class EventQuestionServiceImplTest {
     // ---- deleteByAdmin() (moderacion) ----
 
     @Test
-    public void testDeleteByAdminReturnsTrueWhenTheQuestionWasRemoved() {
+    public void testDeleteByAdminReturnsTheEventIdOfTheRemovedQuestion() {
         // Arrange
+        final EventQuestion question = new EventQuestion(ModelFixtures.event(EVENT_ID), ModelFixtures.user(OTHER_ID),
+                "Hay lugar?");
+        when(questionDao.findById(QUESTION_ID)).thenReturn(Optional.of(question));
         when(questionDao.delete(QUESTION_ID)).thenReturn(true);
 
         // Act
-        final boolean result = questionService.deleteByAdmin(QUESTION_ID);
+        final Optional<Long> result = questionService.deleteByAdmin(QUESTION_ID);
 
         // Assert
-        assertTrue(result);
+        assertEquals(Optional.of(EVENT_ID), result);
     }
 
     @Test
-    public void testDeleteByAdminReturnsFalseWhenThereWasNoSuchQuestion() {
+    public void testDeleteByAdminReturnsEmptyWhenThereWasNoSuchQuestion() {
         // Arrange
-        when(questionDao.delete(QUESTION_ID)).thenReturn(false);
+        when(questionDao.findById(QUESTION_ID)).thenReturn(Optional.empty());
 
         // Act
-        final boolean result = questionService.deleteByAdmin(QUESTION_ID);
+        final Optional<Long> result = questionService.deleteByAdmin(QUESTION_ID);
 
         // Assert
-        assertFalse(result);
+        assertFalse(result.isPresent());
     }
 }

@@ -12,6 +12,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Service
 public class InboxServiceImpl implements InboxService {
@@ -59,6 +62,17 @@ public class InboxServiceImpl implements InboxService {
         final int effectivePage = totalPages == 0 ? 1 : Math.min(Math.max(page, 1), totalPages);
         return new PageResult<>(inboxMessageDao.findByRecipientUserId(userId, effectivePage, PAGE_SIZE),
                 totalElements, effectivePage, PAGE_SIZE);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public InboxPage findPageWithEvents(final long userId, final int page) {
+        final PageResult<InboxMessage> messages = findPage(userId, page);
+        final List<Long> eventIds = messages.getContent().stream()
+                .map(InboxMessage::getEventId).filter(Objects::nonNull).distinct().collect(Collectors.toList());
+        final Map<Long, Event> eventsById = eventDao.findByIds(eventIds).stream()
+                .collect(Collectors.toMap(Event::getId, event -> event));
+        return new InboxPage(messages, eventsById);
     }
 
     @Override

@@ -85,7 +85,7 @@
                                     </c:if>
                                     <c:choose>
                                         <%-- Un admin no resuelve un reporte sobre su propio evento: no se le ofrecen los botones. --%>
-                                        <c:when test="${not empty reportedEvent and reportedEvent.creatorId == myId}">
+                                        <c:when test="${not empty reportedEvent and not reportedEvent.canBeModeratedBy(myId)}">
                                             <em><spring:message code="admin.reports.ownEvent"/></em>
                                         </c:when>
                                         <c:otherwise>

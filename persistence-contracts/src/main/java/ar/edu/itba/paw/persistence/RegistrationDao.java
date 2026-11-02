@@ -8,6 +8,7 @@ import ar.edu.itba.paw.model.RegistrationStatus;
 import java.util.Collection;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 public interface RegistrationDao {
@@ -30,10 +31,17 @@ public interface RegistrationDao {
      *  CONFIRMED a REJECTED (el creador revoca). */
     boolean updateStatus(long id, RegistrationStatus status);
 
-    // "Mis inscripciones", de a una pagina (page empieza en 1). Primero las de
-    // eventos que todavia no pasaron (el mas proximo primero) y despues las de
-    // eventos pasados (el mas reciente primero); el orden y el corte se hacen en SQL.
-    List<Registration> findByUserId(long userId, int page, int pageSize);
+    // "Mis inscripciones", de a una pagina (page empieza en 1), en dos listas separadas por la fecha del
+    // evento respecto de "now": las de eventos que todavia no pasaron (fecha >= now, la mas proxima
+    // primero) y las de eventos pasados (fecha < now, la mas reciente primero). La division, el orden
+    // y el corte se hacen en SQL; el desempate es el id de la inscripcion.
+    List<Registration> findUpcomingByUserId(long userId, Date now, int page, int pageSize);
+
+    long countUpcomingByUserId(long userId, Date now);
+
+    List<Registration> findPastByUserId(long userId, Date now, int page, int pageSize);
+
+    long countPastByUserId(long userId, Date now);
 
     /** Para el badge de "Mis inscripciones" (ver ProfileController): sin traer las filas. */
     long countByUserId(long userId);
@@ -55,6 +63,10 @@ public interface RegistrationDao {
 
     /** Cuantas inscripciones de este evento estan esperando que el creador las revise. */
     long countPending(long eventId);
+
+    // Cuantas inscripciones con ese estado tiene cada uno de esos eventos, en UNA consulta
+    // (GROUP BY event_id). Un evento sin ninguna no aparece en el mapa.
+    Map<Long, Long> countByEventsAndStatus(Collection<Long> eventIds, RegistrationStatus status);
 
     // Pantalla de "aceptar o rechazar inscriptos": las pendientes de este evento,
     // de la mas vieja a la mas nueva (a quien espera hace mas tiempo se lo atiende primero).

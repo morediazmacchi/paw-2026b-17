@@ -8,6 +8,8 @@ import java.util.Optional;
 
 public interface EventQuestionService {
 
+    int MAX_QUESTION_LENGTH = 300;
+
     /** Pregunta de "asker" sobre el evento. Si sale bien, le avisa al organizador (mail + bandeja). */
     QuestionResult ask(long eventId, User asker, String text);
 
@@ -30,7 +32,8 @@ public interface EventQuestionService {
     /**
      * Moderacion (ver AdminController): un admin elimina la pregunta (con su
      * respuesta si tenia). No hay validacion de ownership -- es una accion de
-     * admin, no del organizador -- y no se puede deshacer.
+     * admin, no del organizador -- y no se puede deshacer. Devuelve el id del evento al que
+     * pertenecia la pregunta (para volver a su pagina), o vacio si no existia.
      */
-    boolean deleteByAdmin(long questionId);
+    Optional<Long> deleteByAdmin(long questionId);
 }

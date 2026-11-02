@@ -221,7 +221,7 @@
             <%-- Si quien reporta tambien esta anotado (confirmado, en lista de espera o pendiente),
                  se le ofrece darse de baja ahi mismo, en la misma linea: es el mismo POST que el
                  boton de la barra lateral. --%>
-            <c:if test="${(reportMessage == 'CREATED' or reportMessage == 'ALREADY_REPORTED') and registered and not event.cancelled and not event.finished}">
+            <c:if test="${(reportMessage == 'CREATED' or reportMessage == 'ALREADY_REPORTED') and canUnregister}">
                 <c:choose>
                     <c:when test="${waitlisted}"><spring:message code="event.detail.leaveWaitlistButton" var="reportUnregisterLabel"/></c:when>
                     <c:when test="${pendingApproval}"><spring:message code="event.detail.pendingApprovalButton" var="reportUnregisterLabel"/></c:when>
@@ -462,7 +462,6 @@
                                         <p><c:out value="${question.text}"/></p>
                                         <p><spring:message code="admin.questions.deleteModalBody"/></p>
                                         <form action="<c:url value='/admin/preguntas/${question.id}/eliminar'/>" method="post">
-                                            <input type="hidden" name="eventId" value="${event.id}"/>
                                             <div class="modal-confirm-actions">
                                                 <button type="button" class="btn btn-medium" data-close-modal>
                                                     <c:out value="${deleteQuestionCancelLabel}"/>
@@ -528,17 +527,17 @@
                          a vos -- nunca te vas a poder anotar a tu propio evento
                          (ver RegistrationServiceImpl.register()), asi que no tiene
                          sentido ofrecerte ningun boton relacionado. --%>
-                    <c:when test="${isOwner}">
+                    <c:when test="${action == 'OWNER' or action == 'OWNER_PENDING' or action == 'OWNER_REJECTED'}">
                         <%-- Revision previa a publicarse (ver EventApprovalStatus): no es
                              lo mismo que event.cancelled/removedByAdmin, por eso va
                              primero aca y no en esas ramas de abajo (esas son para
                              terceros, a quienes nunca les llega a esta rama porque
                              isOwner gana sobre todo). --%>
                         <c:choose>
-                            <c:when test="${event.pendingApproval}">
+                            <c:when test="${action == 'OWNER_PENDING'}">
                                 <p class="alert"><spring:message code="event.detail.eventPendingApproval"/></p>
                             </c:when>
-                            <c:when test="${event.rejected}">
+                            <c:when test="${action == 'OWNER_REJECTED'}">
                                 <p class="alert">
                                     <spring:message code="event.detail.eventRejectedByAdmin"/>
                                     <c:if test="${not empty event.rejectedReason}">
@@ -553,7 +552,7 @@
                         </c:choose>
                         <%-- Cancelado o rechazado no se edita (mismo criterio que "Mis
                              eventos": rechazado es definitivo, no hay vuelta atras). --%>
-                        <c:if test="${!event.cancelled && !event.rejected}">
+                        <c:if test="${event.editable}">
                             <spring:message code="auth.events.editButton" var="editButtonLabel"/>
                             <a class="btn btn-medium btn-accent detail-rsvp-submit" href="<c:url value='/eventos/${event.id}/editar'/>">
                                 <c:out value="${editButtonLabel}"/>
@@ -563,22 +562,22 @@
                     <%-- Admin revisando un evento pendiente/rechazado (ver EventApprovalStatus):
                          puede verlo para decidir, pero no anotarse. Va antes que viewOnly, mismo
                          orden que canView() (aprobacion antes que privado/publico). --%>
-                    <c:when test="${adminReviewOnly}">
+                    <c:when test="${action == 'ADMIN_REVIEW_ONLY'}">
                         <p class="alert"><spring:message code="event.detail.adminPendingReviewNote"/></p>
                     </c:when>
                     <%-- Admin mirando un evento privado al que no fue invitado: puede verlo
                          (moderacion) pero no anotarse, asi que no se le ofrece el boton. --%>
-                    <c:when test="${viewOnly}">
+                    <c:when test="${action == 'VIEW_ONLY'}">
                         <p class="alert"><spring:message code="event.detail.adminViewOnlyNote"/></p>
                     </c:when>
                     <%-- Cancelado gana sobre todo lo demas: ni siquiera importa si
                          estaba finalizado o si alguien seguia anotado, no hay ninguna
                          accion valida que ofrecer (mismo lugar donde se esconde el
                          form de "Quiero ir" cuando el evento esta lleno). --%>
-                    <c:when test="${event.cancelled}">
+                    <c:when test="${action == 'CLOSED_CANCELLED' or action == 'CLOSED_REMOVED_BY_ADMIN'}">
                         <p class="alert">
                             <c:choose>
-                                <c:when test="${event.removedByAdmin}"><spring:message code="event.detail.eventRemovedByAdmin"/></c:when>
+                                <c:when test="${action == 'CLOSED_REMOVED_BY_ADMIN'}"><spring:message code="event.detail.eventRemovedByAdmin"/></c:when>
                                 <c:otherwise><spring:message code="event.detail.eventCancelled"/></c:otherwise>
                             </c:choose>
                         </p>
@@ -587,27 +586,28 @@
                          sentido "darse de baja" de algo que ya sucedio. Que este lleno,
                          en cambio, ya no es un callejon sin salida: se avisa con el
                          cartel y el mismo boton pasa a ser el de la lista de espera. --%>
-                    <c:when test="${event.finished}">
+                    <c:when test="${action == 'CLOSED_FINISHED'}">
                         <p class="alert"><spring:message code="event.detail.eventFinished"/></p>
                     </c:when>
                     <%-- Rechazado es terminal: no hay boton que ofrecer, ni "darse de
                          baja" (no hay nada activo que cancelar) ni "inscribirme" de
                          nuevo (el service lo vuelve a rechazar solo con REJECTED). --%>
-                    <c:when test="${rejected}">
+                    <c:when test="${action == 'REGISTRATION_REJECTED'}">
                         <p class="alert"><spring:message code="event.detail.rejectedNote"/></p>
                     </c:when>
                     <c:otherwise>
                         <%-- El cartel solo si todavia no tenes nada: quien ya esta
                              confirmado o ya esta en la lista no necesita que le avisen. --%>
-                        <c:if test="${full and !registered}">
+                        <c:if test="${action == 'JOIN_WAITLIST'}">
                             <p class="alert"><spring:message code="event.detail.eventFull"/></p>
                         </c:if>
+                        <c:set var="alreadyRegistered" value="${action == 'UNREGISTER' or action == 'LEAVE_WAITLIST' or action == 'CANCEL_PENDING'}"/>
 
                         <%-- Las etiquetas se resuelven una sola vez aca arriba: abajo hay
                              una rama para logueado y otra para anonimo, y no tiene sentido
                              repetir el mismo c:choose en las dos. --%>
                         <c:choose>
-                            <c:when test="${full}">
+                            <c:when test="${action == 'JOIN_WAITLIST'}">
                                 <spring:message code="event.detail.waitlistButton" var="rsvpButtonLabel"/>
                             </c:when>
                             <c:otherwise>
@@ -615,10 +615,10 @@
                             </c:otherwise>
                         </c:choose>
                         <c:choose>
-                            <c:when test="${waitlisted}">
+                            <c:when test="${action == 'LEAVE_WAITLIST'}">
                                 <spring:message code="event.detail.leaveWaitlistButton" var="unregisterButtonLabel"/>
                             </c:when>
-                            <c:when test="${pendingApproval}">
+                            <c:when test="${action == 'CANCEL_PENDING'}">
                                 <spring:message code="event.detail.pendingApprovalButton" var="unregisterButtonLabel"/>
                             </c:when>
                             <c:otherwise>
@@ -627,7 +627,7 @@
                         </c:choose>
                         <sec:authorize access="isAuthenticated()">
                             <c:choose>
-                                <c:when test="${registered}">
+                                <c:when test="${alreadyRegistered}">
                                     <form action="<c:url value='/eventos/${event.id}/darme-de-baja'/>" method="post" novalidate="novalidate">
                                         <paw:button text="${unregisterButtonLabel}" cssClass="btn-danger detail-rsvp-submit" />
                                     </form>
@@ -657,16 +657,16 @@
                                 <c:out value="${rsvpButtonLabel}"/>
                             </a>
                         </sec:authorize>
-                        <c:if test="${not registered}">
+                        <c:if test="${not alreadyRegistered}">
                             <p class="detail-rsvp-note">
                                 <c:choose>
-                                    <c:when test="${full}"><spring:message code="event.detail.waitlistNote"/></c:when>
-                                    <c:when test="${event.requiresApproval}"><spring:message code="event.detail.pendingApprovalNote"/></c:when>
+                                    <c:when test="${action == 'JOIN_WAITLIST'}"><spring:message code="event.detail.waitlistNote"/></c:when>
+                                    <c:when test="${action == 'REQUEST_APPROVAL'}"><spring:message code="event.detail.pendingApprovalNote"/></c:when>
                                     <c:otherwise><spring:message code="event.detail.reserveNote"/></c:otherwise>
                                 </c:choose>
                             </p>
                         </c:if>
-                        <c:if test="${registered and pendingApproval}">
+                        <c:if test="${action == 'CANCEL_PENDING'}">
                             <p class="detail-rsvp-note"><spring:message code="event.detail.pendingApprovalNote"/></p>
                         </c:if>
                     </c:otherwise>
@@ -676,10 +676,10 @@
                      se anota a su evento, asi que nunca lo ve). Quien ya es miembro ve el acceso
                      aunque el evento haya terminado o se haya cancelado: el chat queda de solo
                      lectura. Unirse, en cambio, solo mientras el evento sigue vigente. --%>
-                <c:if test="${chatMember or (chatConfirmed and not (event.cancelled or event.finished))}">
+                <c:if test="${chatAccess != 'NONE'}">
                     <div class="detail-chat">
                         <c:choose>
-                            <c:when test="${chatMember}">
+                            <c:when test="${chatAccess == 'OPEN'}">
                                 <a class="btn btn-medium detail-rsvp-submit" href="<c:url value='/eventos/${event.id}/chat'/>">
                                     <spring:message code="chat.open"/>
                                 </a>

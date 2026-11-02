@@ -6,6 +6,7 @@ import ar.edu.itba.paw.model.EventAccessData;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.exception.EventCancelledException;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
+import ar.edu.itba.paw.model.exception.EventRejectedException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -84,10 +85,20 @@ public class EventAccessServiceImpl implements EventAccessService {
 
     @Override
     @Transactional(readOnly = true)
+    public boolean canRegister(final EventAccessData event, final Long userId) {
+        // Sin sesion nadie se anota. Con sesion: lo mismo que canView() pero sin la excepcion de admin.
+        return userId != null && canView(event, userId, false);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Event getEditableEvent(final long eventId) {
         final Event event = eventService.findById(eventId).orElseThrow(() -> new EventNotFoundException(eventId));
         if (event.isCancelled()) {
             throw new EventCancelledException(eventId);
+        }
+        if (event.isRejected()) {
+            throw new EventRejectedException(eventId);
         }
         return event;
     }

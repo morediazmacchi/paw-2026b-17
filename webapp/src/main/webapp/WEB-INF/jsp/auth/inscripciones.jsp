@@ -11,7 +11,7 @@
 <paw:navbar backToEvents="true"/>
 
 <div class="account-layout">
-    <paw:accountSidebar active="registrations" registrationsCount="${registrationsCount}" favoritesCount="${favoritesCount}" eventsCount="${eventsCount}" invitationsCount="${invitationsCount}"/>
+    <paw:accountSidebar active="registrations" registrationsCount="${accountCounts.registrations}" favoritesCount="${accountCounts.favorites}" eventsCount="${accountCounts.events}" invitationsCount="${accountCounts.invitations}"/>
 
     <main class="account-main">
         <h1><spring:message code="auth.registrations.heading"/></h1>
@@ -31,16 +31,19 @@
         </c:if>
 
         <c:choose>
-            <c:when test="${empty upcomingRegistrations and empty pastRegistrations}">
+            <c:when test="${empty upcomingRegistrations.content and empty pastRegistrations.content}">
                 <p class="empty-state"><spring:message code="auth.registrations.empty"/></p>
             </c:when>
             <c:otherwise>
                 <spring:message code="auth.registrations.cancelButton" var="cancelButtonLabel"/>
 
-                <c:if test="${not empty upcomingRegistrations}">
+                <%-- Una seccion sin items no se muestra para nada (ni titulo ni paginado). --%>
+                <c:if test="${not empty upcomingRegistrations.content}">
+                    <h2 class="profile-section-title"><spring:message code="auth.registrations.upcomingHeading"/></h2>
                     <div class="event-row-list">
-                        <c:forEach var="registration" items="${upcomingRegistrations}">
-                            <c:set var="event" value="${eventsById[registration.eventId]}"/>
+                        <c:forEach var="entry" items="${upcomingRegistrations.content}">
+                            <c:set var="registration" value="${entry.registration}"/>
+                            <c:set var="event" value="${entry.event}"/>
                             <paw:eventRow id="${event.id}" nombre="${event.title}" fecha="${event.eventDate}"
                                           ubicacion="${event.neighborhood.displayName}" precio="${event.price}"
                                           imagenId="${event.imageId}" cancelado="${event.cancelled}">
@@ -54,17 +57,23 @@
                             </paw:eventRow>
                         </c:forEach>
                     </div>
+                    <paw:pager baseUrl="/perfil/inscripciones" pageParam="proximasPage"
+                               currentPage="${upcomingRegistrations.page}" totalPages="${upcomingRegistrations.totalPages}"
+                               otherParam="finalizadasPage" otherPage="${pastRegistrations.page}"/>
                 </c:if>
 
-                <c:if test="${not empty pastRegistrations}">
-                    <hr class="profile-divider"/>
+                <c:if test="${not empty pastRegistrations.content}">
+                    <c:if test="${not empty upcomingRegistrations.content}">
+                        <hr class="profile-divider"/>
+                    </c:if>
                     <h2 class="profile-section-title"><spring:message code="auth.registrations.pastHeading"/></h2>
                     <spring:message code="auth.registrations.reviewButton" var="reviewButtonLabel"/>
                     <spring:message code="event.detail.closeButton" var="closeButtonLabel"/>
                     <div class="event-row-list event-row-list-past">
-                        <c:forEach var="registration" items="${pastRegistrations}">
-                            <c:set var="event" value="${eventsById[registration.eventId]}"/>
-                            <c:set var="myReview" value="${myReviewsByEventId[registration.eventId]}"/>
+                        <c:forEach var="entry" items="${pastRegistrations.content}">
+                            <c:set var="registration" value="${entry.registration}"/>
+                            <c:set var="event" value="${entry.event}"/>
+                            <c:set var="myReview" value="${entry.myReview}"/>
                             <div>
                                 <paw:eventRow id="${event.id}" nombre="${event.title}" fecha="${event.eventDate}"
                                               ubicacion="${event.neighborhood.displayName}" precio="${event.price}"
@@ -74,7 +83,7 @@
                                          Solo si tuvo su lugar CONFIRMADO: en lista de espera,
                                          pendiente o rechazada no fue, y ReviewService lo rechazaria
                                          igual (NOT_ELIGIBLE). Mejor no ofrecer el boton. --%>
-                                    <c:if test="${empty myReview and !event.cancelled and registration.status == 'CONFIRMED'}">
+                                    <c:if test="${entry.canReview}">
                                         <button type="button" class="btn btn-medium btn-accent" data-open-modal="reviewModal-${event.id}">
                                             <c:out value="${reviewButtonLabel}"/>
                                         </button>
@@ -83,14 +92,9 @@
                                          explica por que: cancelado, lista de espera, pendiente o
                                          rechazada. La clave sale del propio estado (PENDING ->
                                          auth.registrations.pastStatus.PENDING). --%>
-                                    <c:choose>
-                                        <c:when test="${event.cancelled}">
-                                            <span class="pill"><spring:message code="auth.registrations.pastStatus.CANCELLED_EVENT"/></span>
-                                        </c:when>
-                                        <c:when test="${registration.status != 'CONFIRMED'}">
-                                            <span class="pill"><spring:message code="auth.registrations.pastStatus.${registration.status}"/></span>
-                                        </c:when>
-                                    </c:choose>
+                                    <c:if test="${not empty entry.notAttendedReason}">
+                                        <span class="pill"><spring:message code="auth.registrations.pastStatus.${entry.notAttendedReason}"/></span>
+                                    </c:if>
                                 </paw:eventRow>
 
                                 <c:if test="${not empty myReview}">
@@ -103,7 +107,7 @@
                                     </div>
                                 </c:if>
 
-                                <c:if test="${empty myReview and !event.cancelled and registration.status == 'CONFIRMED'}">
+                                <c:if test="${entry.canReview}">
                                     <div class="modal-overlay" id="reviewModal-${event.id}" hidden>
                                         <div class="modal-box">
                                             <div class="modal-header">
@@ -126,9 +130,10 @@
                             </div>
                         </c:forEach>
                     </div>
+                    <paw:pager baseUrl="/perfil/inscripciones" pageParam="finalizadasPage"
+                               currentPage="${pastRegistrations.page}" totalPages="${pastRegistrations.totalPages}"
+                               otherParam="proximasPage" otherPage="${upcomingRegistrations.page}"/>
                 </c:if>
-
-                <paw:pager baseUrl="/perfil/inscripciones" currentPage="${currentPage}" totalPages="${totalPages}"/>
             </c:otherwise>
         </c:choose>
     </main>

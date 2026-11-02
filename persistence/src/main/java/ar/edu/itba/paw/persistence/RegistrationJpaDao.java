@@ -13,7 +13,9 @@ import javax.persistence.TemporalType;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Repository
@@ -80,21 +82,49 @@ public class RegistrationJpaDao implements RegistrationDao {
     }
 
     @Override
-    public List<Registration> findByUserId(final long userId, final int page, final int pageSize) {
-        // Mismo criterio de orden que EventJpaDao.findByCreatorId(): primero los
-        // eventos que todavia no pasaron (el mas proximo primero), despues los
-        // pasados (el mas reciente primero), y la pagina se corta en la base.
+    public List<Registration> findUpcomingByUserId(final long userId, final Date now, final int page,
+                                                   final int pageSize) {
         return em.createQuery(
-                        "SELECT r FROM Registration r JOIN r.event e WHERE r.user.id = :userId ORDER BY "
-                                + "CASE WHEN e.eventDate >= :now THEN 0 ELSE 1 END ASC, "
-                                + "CASE WHEN e.eventDate >= :now THEN e.eventDate END ASC, "
-                                + "CASE WHEN e.eventDate < :now THEN e.eventDate END DESC, "
-                                + "r.id ASC", Registration.class)
+                        "SELECT r FROM Registration r JOIN r.event e WHERE r.user.id = :userId "
+                                + "AND e.eventDate >= :now ORDER BY e.eventDate ASC, r.id ASC", Registration.class)
                 .setParameter("userId", userId)
-                .setParameter("now", new Date(), TemporalType.TIMESTAMP)
+                .setParameter("now", now, TemporalType.TIMESTAMP)
                 .setFirstResult((page - 1) * pageSize)
                 .setMaxResults(pageSize)
                 .getResultList();
+    }
+
+    @Override
+    public long countUpcomingByUserId(final long userId, final Date now) {
+        return em.createQuery(
+                        "SELECT COUNT(r) FROM Registration r JOIN r.event e WHERE r.user.id = :userId "
+                                + "AND e.eventDate >= :now", Long.class)
+                .setParameter("userId", userId)
+                .setParameter("now", now, TemporalType.TIMESTAMP)
+                .getSingleResult();
+    }
+
+    @Override
+    public List<Registration> findPastByUserId(final long userId, final Date now, final int page,
+                                               final int pageSize) {
+        return em.createQuery(
+                        "SELECT r FROM Registration r JOIN r.event e WHERE r.user.id = :userId "
+                                + "AND e.eventDate < :now ORDER BY e.eventDate DESC, r.id ASC", Registration.class)
+                .setParameter("userId", userId)
+                .setParameter("now", now, TemporalType.TIMESTAMP)
+                .setFirstResult((page - 1) * pageSize)
+                .setMaxResults(pageSize)
+                .getResultList();
+    }
+
+    @Override
+    public long countPastByUserId(final long userId, final Date now) {
+        return em.createQuery(
+                        "SELECT COUNT(r) FROM Registration r JOIN r.event e WHERE r.user.id = :userId "
+                                + "AND e.eventDate < :now", Long.class)
+                .setParameter("userId", userId)
+                .setParameter("now", now, TemporalType.TIMESTAMP)
+                .getSingleResult();
     }
 
     @Override
@@ -175,11 +205,6 @@ public class RegistrationJpaDao implements RegistrationDao {
     }
 
     @Override
-    public long countPending(final long eventId) {
-        return countByEventAndStatus(eventId, RegistrationStatus.PENDING);
-    }
-
-    @Override
     public List<Registration> findPendingByEvent(final long eventId) {
         return em.createQuery(
                         "FROM Registration r WHERE r.event.id = :eventId AND r.status = :status "
@@ -187,6 +212,30 @@ public class RegistrationJpaDao implements RegistrationDao {
                 .setParameter("eventId", eventId)
                 .setParameter("status", RegistrationStatus.PENDING)
                 .getResultList();
+    }
+
+    @Override
+    public long countPending(final long eventId) {
+        return countByEventAndStatus(eventId, RegistrationStatus.PENDING);
+    }
+
+    @Override
+    public Map<Long, Long> countByEventsAndStatus(final Collection<Long> eventIds, final RegistrationStatus status) {
+        if (eventIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        final Map<Long, Long> counts = new HashMap<>();
+        final List<Object[]> rows = em.createQuery(
+                        "SELECT r.event.id, COUNT(r) FROM Registration r "
+                                + "WHERE r.event.id IN :eventIds AND r.status = :status GROUP BY r.event.id",
+                        Object[].class)
+                .setParameter("eventIds", eventIds)
+                .setParameter("status", status)
+                .getResultList();
+        for (final Object[] row : rows) {
+            counts.put((Long) row[0], (Long) row[1]);
+        }
+        return counts;
     }
 
     private long countByEventAndStatus(final long eventId, final RegistrationStatus status) {

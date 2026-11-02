@@ -17,7 +17,9 @@ import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.exception.EventCancelledException;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
+import ar.edu.itba.paw.model.exception.EventRejectedException;
 import ar.edu.itba.paw.model.exception.InvalidEventException;
+import ar.edu.itba.paw.model.exception.InvalidImageException;
 import ar.edu.itba.paw.persistence.CategoryDao;
 import ar.edu.itba.paw.persistence.EventDao;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,6 +28,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -71,6 +75,10 @@ public class EventServiceImpl implements EventService {
     // controller, fuera de cualquier transaccion, y una imagen ya subida con
     // exito podia quedar huerfana si el evento despues no se llegaba a crear.
     private List<Long> uploadImages(final List<NewImageData> images) {
+        // El form ya lo valida para dar feedback; esto es la defensa del service. Antes de subir nada.
+        if (images.size() > Event.MAX_IMAGES) {
+            throw new InvalidImageException(InvalidImageException.Reason.TOO_MANY);
+        }
         final List<Long> ids = new ArrayList<>();
         for (final NewImageData image : images) {
             final Image saved = imageService.create(image.getData(), image.getContentType(), image.getFileName());
@@ -81,14 +89,17 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional
-    public Event create(final EventDTO dto) {
+    public Event create(final long creatorId, final EventDTO dto) {
         Objects.requireNonNull(dto, "dto");
+        // El dueno es un objeto User (relacion), no solo su numero; de el sale tambien el mail del creador.
+        // Dentro de la transaccion findById lo trae una vez y despues sale de la memoria.
+        final User creator = userService.findById(creatorId)
+                .orElseThrow(() -> new IllegalArgumentException("No existe el usuario creador " + creatorId));
+        // Se validan las reglas del evento ANTES de escribir (subir imagenes incluido).
+        validateEventDate(dto);
+        validateHasCategories(dto);
         final List<Long> imageIds = uploadImages(dto.getNewImages());
-        final Event event = dto.toEvent(dto.getCreatorEmail(), imageIds);
-        // El dueno es un objeto User (relacion), no solo su numero. Dentro de la transaccion
-        // findById lo trae una vez y despues sale de la memoria.
-        final User creator = dto.getCreatorId() == null ? null
-                : userService.findById(dto.getCreatorId()).orElse(null);
+        final Event event = dto.toEvent(creator.getEmail(), imageIds);
         event.setCreator(creator);
         addCategories(event, dto.getCategories());
 
@@ -97,9 +108,9 @@ public class EventServiceImpl implements EventService {
             created = eventDao.create(event);
         } catch (final DataIntegrityViolationException e) {
             throw new InvalidEventException(categoryConstraintViolated(e)
-                    ? "event.publish.categoryNotFound" : "event.publish.invalidData", e);
+                    ? InvalidEventException.Reason.CATEGORY_NOT_FOUND : InvalidEventException.Reason.INVALID_DATA, e);
         }
-        notificationService.notifyEventPendingApproval(created, creator == null ? null : creator.getName());
+        notificationService.notifyEventPendingApproval(created, creator.getName());
         return created;
     }
     @Override
@@ -126,12 +137,65 @@ public class EventServiceImpl implements EventService {
     }
     @Override
     @Transactional(readOnly = true)
-    public PageResult<Event> search(final EventSearchCriteria criteria) {
+    public PageResult<EventWithRegistrationStats> findMyEventsPage(final long creatorId, final int page) {
+        final PageResult<Event> events = findPageByCreatorId(creatorId, page);
+        // Que se cuenta de cada evento es regla de negocio: pendientes solo si pide aprobacion y confirmados
+        // solo si no esta cancelado (uno cancelado no muestra el boton de cancelar). Se filtran los ids y
+        // despues es UNA consulta por tipo para toda la pagina.
+        final List<Long> requiringApprovalIds = new ArrayList<>();
+        final List<Long> activeIds = new ArrayList<>();
+        for (final Event event : events.getContent()) {
+            if (event.isRequiresApproval()) {
+                requiringApprovalIds.add(event.getId());
+            }
+            if (!event.isCancelled()) {
+                activeIds.add(event.getId());
+            }
+        }
+        final Map<Long, Long> pendingByEvent = registrationService.countPendingByEvents(requiringApprovalIds);
+        final Map<Long, Long> confirmedByEvent = registrationService.countConfirmedByEvents(activeIds);
+
+        final List<EventWithRegistrationStats> content = new ArrayList<>();
+        for (final Event event : events.getContent()) {
+            final Long pending = event.isRequiresApproval() ? pendingByEvent.getOrDefault(event.getId(), 0L) : null;
+            final long confirmed = confirmedByEvent.getOrDefault(event.getId(), 0L);
+            content.add(new EventWithRegistrationStats(event, confirmed, pending));
+        }
+        return new PageResult<>(content, events.getTotalElements(), events.getPage(), events.getPageSize());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public EventSearchResult search(final EventSearchCriteria criteria) {
+        final boolean hasHistory = criteria.getViewerId() != null
+                && eventSimilarityService.hasAttendanceHistory(criteria.getViewerId());
+        // RECOMENDADOS solo se ofrece a quien tiene historial: sin el, el orden seria identico a "Mas
+        // proximos" y la opcion no diria nada.
+        final List<EventSort> availableSorts = new ArrayList<>();
+        for (final EventSort option : EventSort.values()) {
+            if (hasHistory || option != EventSort.RECOMENDADOS) {
+                availableSorts.add(option);
+            }
+        }
+        final EventSort sort = effectiveSort(criteria.getSort(), hasHistory);
+        criteria.setSort(sort);
+        return new EventSearchResult(searchPage(criteria), sort, availableSorts);
+    }
+
+    // El orden que pidio la persona; si no pidio ninguno (null), RECOMENDADOS para quien ya asistio a algo y
+    // FECHA_ASC para el resto. RECOMENDADOS pedido a mano sin historial no dice nada, asi que cae a FECHA_ASC.
+    private static EventSort effectiveSort(final EventSort requested, final boolean hasHistory) {
+        if (requested == null) {
+            return hasHistory ? EventSort.RECOMENDADOS : EventSort.FECHA_ASC;
+        }
+        return requested == EventSort.RECOMENDADOS && !hasHistory ? EventSort.FECHA_ASC : requested;
+    }
+
+    private PageResult<Event> searchPage(final EventSearchCriteria criteria) {
         criteria.setPageSize(PAGE_SIZE);
         // RECOMENDADOS no tiene SQL (no es una columna): lo ordena EventSimilarityService en
-        // memoria. Sin viewerId no hay a quien recomendarle y sigue el camino de siempre
-        // (el DAO trata un orden desconocido como FECHA_ASC).
-        if (criteria.getSort() == EventSort.RECOMENDADOS && criteria.getViewerId() != null) {
+        // memoria (solo llega aca con historial, y por lo tanto con viewerId).
+        if (criteria.getSort() == EventSort.RECOMENDADOS) {
             return eventSimilarityService.searchRecommended(criteria);
         }
         final long totalElements = eventDao.countSearch(criteria);
@@ -162,10 +226,17 @@ public class EventServiceImpl implements EventService {
             // defensa de la carrera, no el chequeo principal.
             throw new EventCancelledException(eventId);
         }
+        // Un evento rechazado por un admin no se edita nunca (el rechazo es definitivo): misma regla que
+        // EventAccessService.getEditableEvent(), que es la que usa el GET. Esto cierra el bypass por codigo.
+        if (existing.get().isRejected()) {
+            throw new EventRejectedException(eventId);
+        }
+        validateEventDate(dto);
+        validateHasCategories(dto);
         // No alcanza con los confirmados: una invitacion sin contestar o un
         // pedido pendiente tambien tienen su lugar guardado (ver occupiedSpots).
         if (dto.getMaxCapacity() != null && dto.getMaxCapacity() < registrationService.occupiedSpots(eventId)) {
-            throw new InvalidEventException("cupo.muyBajo", "maxCapacity");
+            throw new InvalidEventException(InvalidEventException.Reason.CAPACITY_BELOW_OCCUPIED, "maxCapacity");
         }
         // Si no se subio ninguna foto nueva, se mantiene la galeria que el
         // evento ya tenia; si se subio al menos una, las nuevas reemplazan toda
@@ -290,6 +361,30 @@ public class EventServiceImpl implements EventService {
         return eventDao.setFeatured(eventId, featured);
     }
 
+    // La fecha no puede ser pasada ni estar a mas de MAX_YEARS_AHEAD años. El form (EventDateValidator) lo valida
+    // para dar feedback; esto es la regla del service. Una fecha null la rechaza la base (NOT NULL).
+    private static void validateEventDate(final EventDTO dto) {
+        final Date eventDate = dto.getEventDate();
+        if (eventDate == null) {
+            return;
+        }
+        final Calendar limit = Calendar.getInstance();
+        limit.add(Calendar.YEAR, MAX_YEARS_AHEAD);
+        if (eventDate.before(new Date())) {
+            throw new InvalidEventException(InvalidEventException.Reason.DATE_IN_PAST, "eventDate");
+        }
+        if (eventDate.after(limit.getTime())) {
+            throw new InvalidEventException(InvalidEventException.Reason.DATE_TOO_FAR, "eventDate");
+        }
+    }
+
+    // Un evento tiene al menos una categoria (ver tambien CategoriasValidator, que lo valida en el form).
+    private static void validateHasCategories(final EventDTO dto) {
+        if (dto.getCategories() == null || dto.getCategories().isEmpty()) {
+            throw new InvalidEventException(InvalidEventException.Reason.NO_CATEGORY, "categories");
+        }
+    }
+
     // insertCategories()/insertImages() (ver EventJdbcDao.create()) son las dos
     // unicas FK que puede violar este insert: category_id contra una categoria
     // que no existe, o image_id contra una imagen que ya no esta (subida y
@@ -303,6 +398,7 @@ public class EventServiceImpl implements EventService {
     // ver data.sql) y se arma una EventCategory por cada una. Una que no existe es un dato
     // invalido, igual que antes cuando fallaba la clave foranea.
     private void addCategories(final Event event, final List<EventCategoryInfo> chosen) {
+        // (validateHasCategories() ya exigio al menos una antes de llegar aca.)
         if (chosen == null || chosen.isEmpty()) {
             return;
         }
@@ -313,7 +409,7 @@ public class EventServiceImpl implements EventService {
         for (final EventCategoryInfo info : chosen) {
             final Category category = byId.get(info.getCategoryId());
             if (category == null) {
-                throw new InvalidEventException("event.publish.categoryNotFound", "categories");
+                throw new InvalidEventException(InvalidEventException.Reason.CATEGORY_NOT_FOUND, "categories");
             }
             event.addCategory(new EventCategory(event, category, info.getExtraInfo()));
         }

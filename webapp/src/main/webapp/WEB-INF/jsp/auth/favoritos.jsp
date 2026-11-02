@@ -10,7 +10,7 @@
 <paw:navbar backToEvents="true"/>
 
 <div class="account-layout">
-    <paw:accountSidebar active="favorites" registrationsCount="${registrationsCount}" favoritesCount="${favoritesCount}" eventsCount="${eventsCount}" invitationsCount="${invitationsCount}"/>
+    <paw:accountSidebar active="favorites" registrationsCount="${accountCounts.registrations}" favoritesCount="${accountCounts.favorites}" eventsCount="${accountCounts.events}" invitationsCount="${accountCounts.invitations}"/>
 
     <main class="account-main">
         <h1><spring:message code="auth.favorites.heading"/></h1>

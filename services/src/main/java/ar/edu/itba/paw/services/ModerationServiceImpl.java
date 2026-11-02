@@ -13,7 +13,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class ModerationServiceImpl implements ModerationService {
@@ -70,6 +73,34 @@ public class ModerationServiceImpl implements ModerationService {
         final int effectivePage = PageResult.clampPage(page, total, PAGE_SIZE);
         return new PageResult<>(eventReportDao.findChangesRequested(effectivePage, PAGE_SIZE),
                 total, effectivePage, PAGE_SIZE);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ReportQueuePage findPendingQueue(final int page) {
+        return toQueuePage(findPendingPage(page));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ReportQueuePage findChangesRequestedQueue(final int page) {
+        return toQueuePage(findChangesRequestedPage(page));
+    }
+
+    // Los eventos reportados, quienes reportaron y los admins que pidieron cambios: una consulta por grupo
+    // (no una por reporte), para mostrar la pagina sin que el caller tenga que ir a buscarlos.
+    private ReportQueuePage toQueuePage(final PageResult<EventReport> reports) {
+        final List<Long> eventIds = reports.getContent().stream()
+                .map(EventReport::getEventId).distinct().collect(Collectors.toList());
+        final List<Long> reporterIds = reports.getContent().stream()
+                .map(EventReport::getReporterUserId).distinct().collect(Collectors.toList());
+        final List<Long> requestedByIds = reports.getContent().stream()
+                .map(EventReport::getChangesRequestedByUserId).filter(Objects::nonNull).distinct()
+                .collect(Collectors.toList());
+        return new ReportQueuePage(reports,
+                eventService.findByIds(eventIds).stream().collect(Collectors.toMap(Event::getId, e -> e)),
+                userService.findByIds(reporterIds).stream().collect(Collectors.toMap(User::getId, u -> u)),
+                userService.findByIds(requestedByIds).stream().collect(Collectors.toMap(User::getId, u -> u)));
     }
 
     @Override

@@ -1,0 +1,136 @@
+// Implementa el contrato EventDetailService (modulo services-contracts).
+package ar.edu.itba.paw.services;
+
+import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.Registration;
+import ar.edu.itba.paw.model.RegistrationStatus;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+@Service
+public class EventDetailServiceImpl implements EventDetailService {
+
+    private final EventService eventService;
+    private final RegistrationService registrationService;
+    private final FavoriteService favoriteService;
+    private final EventChatService eventChatService;
+    private final ReviewService reviewService;
+    private final EventSimilarityService eventSimilarityService;
+    private final EventQuestionService eventQuestionService;
+    private final EventAccessService eventAccessService;
+
+    @Autowired
+    public EventDetailServiceImpl(final EventService eventService, final RegistrationService registrationService,
+                                  final FavoriteService favoriteService, final EventChatService eventChatService,
+                                  final ReviewService reviewService,
+                                  final EventSimilarityService eventSimilarityService,
+                                  final EventQuestionService eventQuestionService,
+                                  final EventAccessService eventAccessService) {
+        this.eventService = eventService;
+        this.registrationService = registrationService;
+        this.favoriteService = favoriteService;
+        this.eventChatService = eventChatService;
+        this.reviewService = reviewService;
+        this.eventSimilarityService = eventSimilarityService;
+        this.eventQuestionService = eventQuestionService;
+        this.eventAccessService = eventAccessService;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public EventDetail getDetail(final long eventId, final Long viewerId, final int questionsPage,
+                                 final int reviewsPage) {
+        final Event event = eventService.findByIdOrThrow(eventId);
+        // Quien fue invitado a un evento privado tiene su lugar reservado: para esa persona el evento no esta
+        // "lleno" aunque el cupo ya este contado entero.
+        final boolean full = viewerId != null
+                ? registrationService.isFullFor(eventId, viewerId)
+                : registrationService.isFull(eventId);
+        final EventParticipation participation = viewerId == null ? null : participationOf(event, viewerId);
+        final boolean favorite = viewerId != null && favoriteService.isFavorite(viewerId, eventId);
+        final boolean chatMember = viewerId != null && eventChatService.isMember(eventId, viewerId);
+
+        // "Eventos que te pueden interesar": findSimilar ya devuelve vacio si el evento es privado o no esta
+        // aprobado. Es evento contra evento: no depende de quien mira, salvo que sus propios eventos no se sugieren.
+        final List<Event> related = eventSimilarityService.findSimilar(eventId, viewerId);
+        final Map<Long, RegistrationStatus> relatedStatuses = viewerId == null || related.isEmpty()
+                ? Collections.emptyMap()
+                : registrationService.findStatusesByEventIds(
+                        viewerId, related.stream().map(Event::getId).collect(Collectors.toList()));
+
+        return new EventDetail(event, full, registrationService.availableSpots(eventId), participation,
+                actionOf(event, participation, full), chatAccessOf(event, participation, chatMember),
+                participation != null && participation.isRegistered() && event.isActive(), favorite, chatMember,
+                reputationOf(event, reviewsPage), related, relatedStatuses,
+                eventQuestionService.findPage(eventId, questionsPage));
+    }
+
+    // La relacion de esta persona con el evento. Si puede anotarse lo dice EventAccessService.canRegister(): la
+    // misma regla que usa la autorizacion de "Quiero ir" (EventSecurity.canRegister), en un solo lugar.
+    private EventParticipation participationOf(final Event event, final long viewerId) {
+        final RegistrationStatus status = registrationService.findByEventAndUserId(event.getId(), viewerId)
+                .map(Registration::getStatus).orElse(null);
+        return new EventParticipation(status, event.isCreatedBy(viewerId),
+                eventAccessService.canRegister(event, viewerId));
+    }
+
+    // Que se le ofrece en el detalle, en orden de prioridad: la duenia gana sobre todo, despues quien solo puede
+    // mirar (admin), despues el estado del evento (cancelado, finalizado), despues su inscripcion, y recien al
+    // final inscribirse. Sin sesion (participation null) no hay duenia ni "solo mirar".
+    private static EventAction actionOf(final Event event, final EventParticipation participation, final boolean full) {
+        if (participation != null) {
+            if (participation.isOwner()) {
+                if (event.isPendingApproval()) {
+                    return EventAction.OWNER_PENDING;
+                }
+                return event.isRejected() ? EventAction.OWNER_REJECTED : EventAction.OWNER;
+            }
+            if (!participation.canRegister()) {
+                return event.isApproved() ? EventAction.VIEW_ONLY : EventAction.ADMIN_REVIEW_ONLY;
+            }
+        }
+        if (event.isCancelled()) {
+            return event.isRemovedByAdmin() ? EventAction.CLOSED_REMOVED_BY_ADMIN : EventAction.CLOSED_CANCELLED;
+        }
+        if (event.isFinished()) {
+            return EventAction.CLOSED_FINISHED;
+        }
+        if (participation != null && participation.isRejected()) {
+            return EventAction.REGISTRATION_REJECTED;
+        }
+        if (participation != null && participation.isRegistered()) {
+            if (participation.isWaitlisted()) {
+                return EventAction.LEAVE_WAITLIST;
+            }
+            return participation.isPendingApproval() ? EventAction.CANCEL_PENDING : EventAction.UNREGISTER;
+        }
+        if (full) {
+            return EventAction.JOIN_WAITLIST;
+        }
+        return event.isRequiresApproval() ? EventAction.REQUEST_APPROVAL : EventAction.REGISTER;
+    }
+
+    // Quien ya es miembro ve el acceso al chat aunque el evento haya terminado (queda de solo lectura); quien tiene
+    // el lugar confirmado puede unirse solo mientras el evento este vigente (misma regla que EventChatService.join()).
+    private static ChatAccess chatAccessOf(final Event event, final EventParticipation participation,
+                                           final boolean chatMember) {
+        if (chatMember) {
+            return ChatAccess.OPEN;
+        }
+        return participation != null && participation.isChatConfirmed() && event.isActive()
+                ? ChatAccess.JOIN : ChatAccess.NONE;
+    }
+
+    // Puntaje del promotor (todas sus reseñas de todos sus eventos) + una pagina de reseñas. Un evento viejo
+    // puede no tener organizador cargado: en ese caso no hay reputacion que mostrar.
+    private CreatorReputation reputationOf(final Event event, final int reviewsPage) {
+        return event.getCreatorId() == null ? null
+                : reviewService.findCreatorReputation(event.getCreatorId(), reviewsPage);
+    }
+}

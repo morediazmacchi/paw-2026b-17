@@ -17,6 +17,7 @@ import java.util.List;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 // Unidad 5 - Unit Testing: el dao es un mock de Mockito (@Mock + when) y cada test
@@ -285,15 +286,28 @@ public class FavoriteServiceImplTest {
     }
 
     @Test
-    public void testCountViewableCountsOnlyTheFavoritesTheUserCanView() {
-        // Arrange
-        final User user = someUser();
-        givenFavorites(user, 4, 1L, 3L);
+    public void testCountViewableForARegularUserCountsOnlyWhatTheyCanView() {
+        // Arrange: el total de favoritos (senuelo) es mayor que los que puede ver
+        when(favoriteDao.countViewableByUserId(USER_ID)).thenReturn(2L);
+        lenient().when(favoriteDao.countByUserId(USER_ID)).thenReturn(4L);
 
         // Act
-        final long result = favoriteService.countViewable(user);
+        final long result = favoriteService.countViewable(USER_ID, false);
 
         // Assert
         assertEquals(2L, result);
+    }
+
+    @Test
+    public void testCountViewableForAnAdminCountsAllTheirFavorites() {
+        // Arrange: un admin ve todos los eventos, no solo los que ve el resto
+        when(favoriteDao.countByUserId(USER_ID)).thenReturn(4L);
+        lenient().when(favoriteDao.countViewableByUserId(USER_ID)).thenReturn(2L);
+
+        // Act
+        final long result = favoriteService.countViewable(USER_ID, true);
+
+        // Assert
+        assertEquals(4L, result);
     }
 }

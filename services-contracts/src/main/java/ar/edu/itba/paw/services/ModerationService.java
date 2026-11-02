@@ -36,6 +36,20 @@ public interface ModerationService {
     PageResult<EventReport> findChangesRequestedPage(int page);
 
     /**
+     * La cola de pendientes lista para mostrarse (mismo criterio de pagina que findPendingPage()): los reportes
+     * de la pagina con los eventos reportados y quienes reportaron, cada grupo en una sola consulta.
+     */
+    @Transactional(readOnly = true)
+    ReportQueuePage findPendingQueue(int page);
+
+    /**
+     * El panel de seguimiento listo para mostrarse (mismo criterio que findChangesRequestedPage()): ademas de
+     * lo de findPendingQueue(), los admins que pidieron los cambios.
+     */
+    @Transactional(readOnly = true)
+    ReportQueuePage findChangesRequestedQueue(int page);
+
+    /**
      * El admin le pide al creador que corrija algo en el evento, en vez de
      * descartar el reporte o darlo de baja directo: le avisa (mail + bandeja)
      * con el mensaje que escribio, y el reporte pasa a CHANGES_REQUESTED

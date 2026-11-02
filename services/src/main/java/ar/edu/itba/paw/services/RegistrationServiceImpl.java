@@ -6,22 +6,27 @@ import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationAccess;
 import ar.edu.itba.paw.model.RegistrationStatus;
+import ar.edu.itba.paw.model.Review;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.EventInvitationDao;
 import ar.edu.itba.paw.persistence.RegistrationDao;
+import ar.edu.itba.paw.persistence.ReviewDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class RegistrationServiceImpl implements RegistrationService {
@@ -33,6 +38,7 @@ public class RegistrationServiceImpl implements RegistrationService {
     private final NotificationService notificationService;
     private final EventInvitationDao invitationDao;
     private final InboxService inboxService;
+    private final ReviewDao reviewDao;
     // Proxy propio: cancel()/revoke() llaman a promoteFromWaitlist() de esta
     // misma clase, y ese es un metodo @Transactional del contrato publico (lo
     // llaman tambien EventServiceImpl y los tests, via el proxy de siempre).
@@ -54,12 +60,13 @@ public class RegistrationServiceImpl implements RegistrationService {
     public RegistrationServiceImpl(final RegistrationDao registrationDao, final EventDao eventDao,
                                     final NotificationService notificationService,
                                     final EventInvitationDao invitationDao,
-                                    final InboxService inboxService) {
+                                    final InboxService inboxService, final ReviewDao reviewDao) {
         this.registrationDao = registrationDao;
         this.eventDao = eventDao;
         this.notificationService = notificationService;
         this.invitationDao = invitationDao;
         this.inboxService = inboxService;
+        this.reviewDao = reviewDao;
     }
 
     @Override
@@ -274,11 +281,65 @@ public class RegistrationServiceImpl implements RegistrationService {
 
     @Override
     @Transactional(readOnly = true)
-    public PageResult<Registration> findPageByUserId(final long userId, final int page) {
-        final long total = registrationDao.countByUserId(userId);
-        final int effectivePage = PageResult.clampPage(page, total, PAGE_SIZE);
-        return new PageResult<>(registrationDao.findByUserId(userId, effectivePage, PAGE_SIZE),
-                total, effectivePage, PAGE_SIZE);
+    public MyRegistrationsView findMyRegistrations(final long userId, final int upcomingPage, final int pastPage) {
+        // Un solo "ahora" para los dos grupos: la clasificacion proximas/pasadas es coherente.
+        final Date now = new Date();
+        final long upcomingTotal = registrationDao.countUpcomingByUserId(userId, now);
+        final int upcomingEffective = PageResult.clampPage(upcomingPage, upcomingTotal, PAGE_SIZE);
+        final List<RegistrationEntry> upcoming = upcomingTotal == 0 ? Collections.<RegistrationEntry>emptyList()
+                : toEntries(registrationDao.findUpcomingByUserId(userId, now, upcomingEffective, PAGE_SIZE), userId, false);
+
+        final long pastTotal = registrationDao.countPastByUserId(userId, now);
+        final int pastEffective = PageResult.clampPage(pastPage, pastTotal, PAGE_SIZE);
+        final List<RegistrationEntry> past = pastTotal == 0 ? Collections.<RegistrationEntry>emptyList()
+                : toEntries(registrationDao.findPastByUserId(userId, now, pastEffective, PAGE_SIZE), userId, true);
+
+        return new MyRegistrationsView(new PageResult<>(upcoming, upcomingTotal, upcomingEffective, PAGE_SIZE),
+                new PageResult<>(past, pastTotal, pastEffective, PAGE_SIZE));
+    }
+
+    private static NotAttendedReason notAttendedReason(final Registration registration, final Event event) {
+        if (event.isCancelled()) {
+            return NotAttendedReason.CANCELLED_EVENT;
+        }
+        switch (registration.getStatus()) {
+            case WAITLISTED:
+                return NotAttendedReason.WAITLISTED;
+            case PENDING:
+                return NotAttendedReason.PENDING;
+            case REJECTED:
+                return NotAttendedReason.REJECTED;
+            default:
+                return null;
+        }
+    }
+
+    // Cada inscripcion con su evento (una sola consulta para todos) y, en las de eventos pasados, la
+    // reseña propia (otra sola consulta).
+    private List<RegistrationEntry> toEntries(final List<Registration> registrations, final long userId,
+                                              final boolean withReviews) {
+        final List<Long> eventIds = registrations.stream().map(Registration::getEventId).collect(Collectors.toList());
+        final Map<Long, Event> eventsById = eventDao.findByIds(eventIds).stream()
+                .collect(Collectors.toMap(Event::getId, event -> event));
+        final Map<Long, Review> reviewsByEventId = withReviews
+                ? reviewDao.findByEventsAndUser(eventIds, userId).stream()
+                        .collect(Collectors.toMap(Review::getEventId, review -> review))
+                : Collections.emptyMap();
+        final List<RegistrationEntry> entries = new ArrayList<>();
+        for (final Registration registration : registrations) {
+            final Event event = eventsById.get(registration.getEventId());
+            if (event == null) {
+                continue;
+            }
+            final Review myReview = reviewsByEventId.get(registration.getEventId());
+            // Solo en las pasadas: se puede reseñar si el evento es reseñable, tuvo su lugar confirmado y no la
+            // dejo todavia (misma regla que ReviewService.create()); si no fue, se dice por que.
+            final boolean confirmed = registration.getStatus() == RegistrationStatus.CONFIRMED;
+            final boolean canReview = withReviews && event.isReviewable() && confirmed && myReview == null;
+            entries.add(new RegistrationEntry(registration, event, myReview, canReview,
+                    withReviews ? notAttendedReason(registration, event) : null));
+        }
+        return entries;
     }
 
     @Override
@@ -379,22 +440,6 @@ public class RegistrationServiceImpl implements RegistrationService {
 
     @Override
     @Transactional(readOnly = true)
-    public EventParticipation findParticipation(final long eventId, final long userId) {
-        final Event event = eventDao.findById(eventId).orElseThrow(() -> new EventNotFoundException(eventId));
-        final Optional<Registration> registration = registrationDao.findByEventAndUserId(eventId, userId);
-        final boolean owner = Long.valueOf(userId).equals(event.getCreatorId());
-        // Mismas reglas que EventSecurity.canRegister(): pendiente o rechazado, o privado sin
-        // invitacion, no se puede inscribir nadie (404). Un admin puede VER esos eventos pero no
-        // inscribirse, salvo que lo hayan invitado a un privado.
-        final boolean adminReviewOnly = !owner && !event.isApproved();
-        final boolean viewOnly = event.isPrivate() && !owner && !registration.isPresent()
-                && !invitationDao.findByEventAndUserId(eventId, userId).isPresent();
-        return new EventParticipation(registration.map(Registration::getStatus).orElse(null),
-                owner, adminReviewOnly, viewOnly);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
     public Optional<Registration> findById(final long registrationId) {
         return registrationDao.findById(registrationId);
     }
@@ -425,20 +470,27 @@ public class RegistrationServiceImpl implements RegistrationService {
 
     @Override
     @Transactional(readOnly = true)
-    public long countConfirmed(final long eventId) {
-        return registrationDao.countConfirmed(eventId);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
     public List<Registration> findPendingByEvent(final long eventId) {
         return registrationDao.findPendingByEvent(eventId);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public long countPendingByEvent(final long eventId) {
-        return registrationDao.countPending(eventId);
+    public PendingRegistrations findPendingSummary(final long eventId) {
+        return new PendingRegistrations(registrationDao.findPendingByEvent(eventId), availableSpots(eventId),
+                isFull(eventId));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<Long, Long> countPendingByEvents(final Collection<Long> eventIds) {
+        return registrationDao.countByEventsAndStatus(eventIds, RegistrationStatus.PENDING);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<Long, Long> countConfirmedByEvents(final Collection<Long> eventIds) {
+        return registrationDao.countByEventsAndStatus(eventIds, RegistrationStatus.CONFIRMED);
     }
 
     @Override
@@ -547,7 +599,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         }
         // Se vuelve a leer ya con el lock (otra operacion pudo cambiarla mientras esperaba).
         final Registration registration = registrationDao.findById(registrationId)
-                .filter(r -> r.getStatus() == RegistrationStatus.CONFIRMED)
+                .filter(Registration::isRevocable)
                 .orElse(null);
         if (registration == null) {
             return false;
