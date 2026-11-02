@@ -70,21 +70,20 @@ public class VerificationTokenJpaDaoTest {
     // ---- create() ----
 
     @Test
-    public void testCreateInsertsTheTokenRow() {
+    public void testCreateInsertsTheTokenRowAndReturnsIt() {
         // Arrange
         final Date expiresAt = inOneHour();
         final VerificationToken toCreate = new VerificationToken(TOKEN, em.getReference(User.class, userId), TokenPurpose.VERIFY_EMAIL, expiresAt);
 
         // Act
-        tokenDao.create(toCreate);
+        final VerificationToken result = tokenDao.create(toCreate);
         // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
         em.flush();
 
         // Assert
-        final Map<String, Object> row = jdbcTemplate.queryForMap(
-                "SELECT user_id, purpose FROM verification_token WHERE token = ?", TOKEN);
-        assertEquals(userId, ((Number) row.get("user_id")).longValue());
-        assertEquals("VERIFY_EMAIL", row.get("purpose"));
+        assertEquals(TOKEN, result.getToken());
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "verification_token",
+                "token = '" + TOKEN + "' AND user_id = " + userId + " AND purpose = 'VERIFY_EMAIL'"));
     }
 
     // ---- findByToken() ----
@@ -117,100 +116,56 @@ public class VerificationTokenJpaDaoTest {
     // ---- delete() ----
 
     @Test
-    public void testDeleteRemovesTheToken() {
+    public void testDeleteRemovesTheTokenAndReturnsTrue() {
         // Arrange
         insertToken(TOKEN, userId, TokenPurpose.RESET_PASSWORD, inOneHour());
 
         // Act
-        tokenDao.delete(TOKEN);
+        final boolean result = tokenDao.delete(TOKEN);
         // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
         em.flush();
 
         // Assert
+        assertTrue(result);
         assertEquals(0, JdbcTestUtils.countRowsInTableWhere(
                 jdbcTemplate, "verification_token", "token = '" + TOKEN + "'"));
     }
 
     @Test
-    public void testDeleteWhenItDoesNotExistDoesNothing() {
-        // Arrange: no se inserta ningun token.
+    public void testDeleteOfATokenThatDoesNotExistDeletesNothingAndReturnsFalse() {
+        // Arrange: otro token, que no es el del Act. Tiene que quedar.
+        insertToken("otro-token", userId, TokenPurpose.RESET_PASSWORD, inOneHour());
 
         // Act
-        tokenDao.delete(TOKEN);
+        final boolean result = tokenDao.delete(TOKEN);
         // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
         em.flush();
 
         // Assert
-        assertEquals(0, JdbcTestUtils.countRowsInTableWhere(
-                jdbcTemplate, "verification_token", "token = '" + TOKEN + "'"));
+        assertFalse(result);
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
+                jdbcTemplate, "verification_token", "token = 'otro-token'"));
     }
 
     // ---- deleteByUserAndPurpose() ----
 
     @Test
-    public void testDeleteByUserAndPurposeOnlyRemovesThatPurpose() {
-        // Arrange
-        insertToken("verify-token", userId, TokenPurpose.VERIFY_EMAIL, inOneHour());
-        insertToken("reset-token", userId, TokenPurpose.RESET_PASSWORD, inOneHour());
-
-        // Act
-        tokenDao.deleteByUserAndPurpose(userId, TokenPurpose.VERIFY_EMAIL);
-        // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
-        em.flush();
-
-        // Assert
-        assertEquals(0, JdbcTestUtils.countRowsInTableWhere(
-                jdbcTemplate, "verification_token", "token = 'verify-token'"));
-        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
-                jdbcTemplate, "verification_token", "token = 'reset-token'"));
-    }
-
-    @Test
-    public void testCreateReturnsTheTokenThatWasSaved() {
-        // Arrange
-        final VerificationToken toCreate = new VerificationToken(TOKEN, em.getReference(User.class, userId), TokenPurpose.VERIFY_EMAIL, inOneHour());
-
-        // Act
-        final VerificationToken result = tokenDao.create(toCreate);
-
-        // Assert
-        assertEquals(TOKEN, result.getToken());
-    }
-
-    @Test
-    public void testDeleteReturnsTrueWhenTheTokenExisted() {
-        // Arrange
-        insertToken(TOKEN, userId, TokenPurpose.RESET_PASSWORD, inOneHour());
-
-        // Act
-        final boolean result = tokenDao.delete(TOKEN);
-
-        // Assert
-        assertTrue(result);
-    }
-
-    @Test
-    public void testDeleteReturnsFalseWhenThereIsNoSuchToken() {
-        // Arrange
-        // (no se inserta ningun token)
-
-        // Act
-        final boolean result = tokenDao.delete(TOKEN);
-
-        // Assert
-        assertFalse(result);
-    }
-
-    @Test
-    public void testDeleteByUserAndPurposeReturnsHowManyTokensWereDeleted() {
+    public void testDeleteByUserAndPurposeOnlyRemovesThatPurposeAndReturnsHowMany() {
         // Arrange
         insertToken("verify-token", userId, TokenPurpose.VERIFY_EMAIL, inOneHour());
         insertToken("reset-token", userId, TokenPurpose.RESET_PASSWORD, inOneHour());
 
         // Act
         final int result = tokenDao.deleteByUserAndPurpose(userId, TokenPurpose.VERIFY_EMAIL);
+        // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
+        em.flush();
 
         // Assert
         assertEquals(1, result);
+        assertEquals(0, JdbcTestUtils.countRowsInTableWhere(
+                jdbcTemplate, "verification_token", "token = 'verify-token'"));
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
+                jdbcTemplate, "verification_token", "token = 'reset-token'"));
     }
+
 }

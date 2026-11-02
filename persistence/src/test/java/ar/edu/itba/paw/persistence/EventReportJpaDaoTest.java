@@ -113,7 +113,7 @@ public class EventReportJpaDaoTest {
     // ---- create() ----
 
     @Test
-    public void testCreateAssignsAGeneratedId() {
+    public void testCreateInsertsTheReportRowAndReturnsItWithItsId() {
         // Arrange
         final EventReport toCreate = new EventReport(em.getReference(Event.class, eventId), em.getReference(User.class, reporterId), REASON);
 
@@ -122,17 +122,6 @@ public class EventReportJpaDaoTest {
 
         // Assert
         assertTrue(created.getId() > 0);
-    }
-
-    @Test
-    public void testCreateInsertsTheReportRow() {
-        // Arrange
-        final EventReport toCreate = new EventReport(em.getReference(Event.class, eventId), em.getReference(User.class, reporterId), REASON);
-
-        // Act
-        final EventReport created = eventReportDao.create(toCreate);
-
-        // Assert
         final Map<String, Object> row = jdbcTemplate.queryForMap(
                 "SELECT event_id, reporter_user_id, reason FROM event_report WHERE id = ?", created.getId());
         assertEquals(eventId, ((Number) row.get("event_id")).longValue());
@@ -308,15 +297,16 @@ public class EventReportJpaDaoTest {
     // ---- requestChanges() ----
 
     @Test
-    public void testRequestChangesMovesAPendingReportToChangesRequested() {
+    public void testRequestChangesMovesAPendingReportToChangesRequestedAndReturnsTrue() {
         // Arrange
         final long id = insertPendingReport(eventId, reporterId, REASON);
         final long adminId = insertUser("admin-request@mail.com");
 
         // Act
-        eventReportDao.requestChanges(id, "corregi la direccion", adminId);
+        final boolean result = eventReportDao.requestChanges(id, "corregi la direccion", adminId);
 
         // Assert
+        assertTrue(result);
         final Map<String, Object> row = jdbcTemplate.queryForMap(
                 "SELECT status, changes_requested_message, changes_requested_by, changes_requested_at "
                         + "FROM event_report WHERE id = ?", id);
@@ -426,15 +416,16 @@ public class EventReportJpaDaoTest {
     // ---- resolve() ----
 
     @Test
-    public void testResolveSetsStatusAndResolvedBy() {
+    public void testResolveSetsStatusAndResolvedByAndReturnsTrue() {
         // Arrange
         final long id = insertPendingReport(eventId, reporterId, REASON);
         final long adminId = insertUser("admin2@mail.com");
 
         // Act
-        eventReportDao.resolve(id, ReportStatus.ACTIONED, adminId);
+        final boolean result = eventReportDao.resolve(id, ReportStatus.ACTIONED, adminId);
 
         // Assert
+        assertTrue(result);
         final Map<String, Object> row = jdbcTemplate.queryForMap(
                 "SELECT status, resolved_by FROM event_report WHERE id = ?", id);
         assertEquals("ACTIONED", row.get("status"));
@@ -442,16 +433,17 @@ public class EventReportJpaDaoTest {
     }
 
     @Test
-    public void testResolveDoesNotTouchAnAlreadyResolvedReport() {
+    public void testResolveDoesNotTouchAnAlreadyResolvedReportAndReturnsFalse() {
         // Arrange
         final long admin = insertUser("admin3@mail.com");
         final long id = insertResolvedReport(eventId, reporterId, REASON, ReportStatus.DISMISSED, admin);
 
         // Act
         // Otro admin llega tarde: no tiene que pisar la resolucion ya hecha.
-        eventReportDao.resolve(id, ReportStatus.ACTIONED, admin);
+        final boolean result = eventReportDao.resolve(id, ReportStatus.ACTIONED, admin);
 
         // Assert
+        assertFalse(result);
         final String status = jdbcTemplate.queryForObject(
                 "SELECT status FROM event_report WHERE id = ?", String.class, id);
         assertEquals("DISMISSED", status);
@@ -475,7 +467,7 @@ public class EventReportJpaDaoTest {
     // ---- resolveAllPendingForEvent() ----
 
     @Test
-    public void testResolveAllPendingForEventResolvesEveryPendingOne() {
+    public void testResolveAllPendingForEventResolvesEveryPendingOneAndReturnsHowMany() {
         // Arrange
         final long otherReporter = insertUser("otro2@mail.com");
         final long first = insertPendingReport(eventId, reporterId, "uno");
@@ -483,9 +475,10 @@ public class EventReportJpaDaoTest {
         final long admin = insertUser("admin4@mail.com");
 
         // Act
-        eventReportDao.resolveAllPendingForEvent(eventId, ReportStatus.ACTIONED, admin);
+        final int result = eventReportDao.resolveAllPendingForEvent(eventId, ReportStatus.ACTIONED, admin);
 
         // Assert
+        assertEquals(2, result);
         assertEquals(2, JdbcTestUtils.countRowsInTableWhere(
                 jdbcTemplate, "event_report", "id IN (" + first + "," + second + ") AND status = 'ACTIONED'"));
     }
@@ -525,20 +518,7 @@ public class EventReportJpaDaoTest {
     }
 
     @Test
-    public void testRequestChangesReturnsTrueForAPendingReport() {
-        // Arrange
-        final long id = insertPendingReport(eventId, reporterId, REASON);
-        final long adminId = insertUser("admin-ret1@mail.com");
-
-        // Act
-        final boolean result = eventReportDao.requestChanges(id, "corregi la direccion", adminId);
-
-        // Assert
-        assertTrue(result);
-    }
-
-    @Test
-    public void testRequestChangesReturnsFalseForAReportThatIsNotPending() {
+    public void testRequestChangesOnAResolvedReportChangesNothingAndReturnsFalse() {
         // Arrange
         final long admin = insertUser("admin-ret2@mail.com");
         final long id = insertResolvedReport(eventId, reporterId, REASON, ReportStatus.DISMISSED, admin);
@@ -548,47 +528,8 @@ public class EventReportJpaDaoTest {
 
         // Assert
         assertFalse(result);
-    }
-
-    @Test
-    public void testResolveReturnsTrueForAnOpenReport() {
-        // Arrange
-        final long id = insertPendingReport(eventId, reporterId, REASON);
-        final long adminId = insertUser("admin-ret3@mail.com");
-
-        // Act
-        final boolean result = eventReportDao.resolve(id, ReportStatus.ACTIONED, adminId);
-
-        // Assert
-        assertTrue(result);
-    }
-
-    @Test
-    public void testResolveReturnsFalseForAnAlreadyResolvedReport() {
-        // Arrange
-        final long admin = insertUser("admin-ret4@mail.com");
-        final long id = insertResolvedReport(eventId, reporterId, REASON, ReportStatus.DISMISSED, admin);
-
-        // Act
-        final boolean result = eventReportDao.resolve(id, ReportStatus.ACTIONED, admin);
-
-        // Assert
-        assertFalse(result);
-    }
-
-    @Test
-    public void testResolveAllPendingForEventReturnsHowManyReportsWereResolved() {
-        // Arrange
-        final long otherReporter = insertUser("otro-ret@mail.com");
-        insertPendingReport(eventId, reporterId, "uno");
-        insertPendingReport(eventId, otherReporter, "dos");
-        final long admin = insertUser("admin-ret5@mail.com");
-
-        // Act
-        final int result = eventReportDao.resolveAllPendingForEvent(eventId, ReportStatus.ACTIONED, admin);
-
-        // Assert
-        assertEquals(2, result);
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "event_report",
+                "id = " + id + " AND status = 'DISMISSED' AND changes_requested_message IS NULL"));
     }
 
     // ---- findTargetById() ----

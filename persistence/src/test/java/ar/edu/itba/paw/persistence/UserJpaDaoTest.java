@@ -249,22 +249,23 @@ public class UserJpaDaoTest {
     // ---- addRole() ----
 
     @Test
-    public void testAddRoleInsertsTheRoleRow() {
+    public void testAddRoleInsertsTheRoleRowAndReturnsTrue() {
         // Arrange
         final long id = insertUser(EMAIL, NAME);
 
         // Act
-        userDao.addRole(id, Role.USER);
+        final boolean result = userDao.addRole(id, Role.USER);
         // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
         em.flush();
 
         // Assert
+        assertTrue(result);
         assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
                 jdbcTemplate, "user_role", "user_id = " + id + " AND role = 'USER'"));
     }
 
     @Test
-    public void testAddRoleWhenTheUserAlreadyHasItIsIdempotent() {
+    public void testAddRoleWhenTheUserAlreadyHasItKeepsOneRowAndReturnsFalse() {
         // Arrange
         // No hay ON CONFLICT (no es portable a HSQLDB): addRole() depende de
         // que el PRIMARY KEY compuesto absorba el duplicado sin explotar.
@@ -272,11 +273,12 @@ public class UserJpaDaoTest {
         insertRole(id, "USER");
 
         // Act
-        userDao.addRole(id, Role.USER);
+        final boolean result = userDao.addRole(id, Role.USER);
         // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
         em.flush();
 
         // Assert
+        assertFalse(result);
         assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
                 jdbcTemplate, "user_role", "user_id = " + id + " AND role = 'USER'"));
     }
@@ -284,18 +286,19 @@ public class UserJpaDaoTest {
     // ---- removeRole() ----
 
     @Test
-    public void testRemoveRoleTakesJustThatRoleAway() {
+    public void testRemoveRoleTakesJustThatRoleAwayAndReturnsTrue() {
         // Arrange
         final long id = insertUser(EMAIL, NAME);
         insertRole(id, "USER");
         insertRole(id, "ADMIN");
 
         // Act
-        userDao.removeRole(id, Role.ADMIN);
+        final boolean result = userDao.removeRole(id, Role.ADMIN);
         // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
         em.flush();
 
         // Assert
+        assertTrue(result);
         assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
                 jdbcTemplate, "user_role", "user_id = " + id + " AND role = 'USER'"));
         assertEquals(0, JdbcTestUtils.countRowsInTableWhere(
@@ -303,17 +306,18 @@ public class UserJpaDaoTest {
     }
 
     @Test
-    public void testRemoveRoleOnAUserWithoutThatRoleIsANoop() {
+    public void testRemoveRoleOnAUserWithoutThatRoleChangesNothingAndReturnsFalse() {
         // Arrange
         final long id = insertUser(EMAIL, NAME);
         insertRole(id, "USER");
 
         // Act
-        userDao.removeRole(id, Role.ADMIN);
+        final boolean result = userDao.removeRole(id, Role.ADMIN);
         // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
         em.flush();
 
         // Assert
+        assertFalse(result);
         assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
                 jdbcTemplate, "user_role", "user_id = " + id + " AND role = 'USER'"));
     }
@@ -321,128 +325,123 @@ public class UserJpaDaoTest {
     // ---- setPassword() ----
 
     @Test
-    public void testSetPasswordOnAUserWithoutOneSetsIt() {
+    public void testSetPasswordOnAUserWithoutOneSetsItAndReturnsTrue() {
         // Arrange
         // Caso "usuario fantasma" (creado por publicar/inscribirse sin
         // login): el insert de arriba ya lo deja con password NULL.
         final long id = insertUser(EMAIL, NAME);
 
         // Act
-        userDao.setPassword(id, "hashed-password");
+        final boolean result = userDao.setPassword(id, "hashed-password");
         // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
         em.flush();
 
         // Assert
-        final String password = jdbcTemplate.queryForObject(
-                "SELECT password FROM users WHERE id = ?", String.class, id);
-        assertEquals("hashed-password", password);
+        assertTrue(result);
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
+                jdbcTemplate, "users", "id = " + id + " AND password = 'hashed-password'"));
     }
 
     // ---- updateProfile() ----
 
     @Test
-    public void testUpdateProfileChangesTheName() {
+    public void testUpdateProfileChangesTheNameAndReturnsTrue() {
         // Arrange
         final long id = insertUser(EMAIL, NAME);
 
         // Act
-        userDao.updateProfile(id, "Nuevo Nombre");
+        final boolean result = userDao.updateProfile(id, "Nuevo Nombre");
         // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
         em.flush();
 
         // Assert
-        final Map<String, Object> row = jdbcTemplate.queryForMap(
-                "SELECT name, email FROM users WHERE id = ?", id);
-        assertEquals("Nuevo Nombre", row.get("name"));
-        assertEquals(EMAIL, row.get("email"));
+        assertTrue(result);
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
+                jdbcTemplate, "users", "id = " + id + " AND name = 'Nuevo Nombre' AND email = '" + EMAIL + "'"));
     }
 
     // ---- setVerified() ----
 
     @Test
-    public void testSetVerifiedFalseMarksTheUserUnverified() {
+    public void testSetVerifiedFalseMarksTheUserUnverifiedAndReturnsTrue() {
         // Arrange
         final long id = insertUser(EMAIL, NAME);
 
         // Act
-        userDao.setVerified(id, false);
+        final boolean result = userDao.setVerified(id, false);
         // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
         em.flush();
 
         // Assert
-        final Boolean verified = jdbcTemplate.queryForObject(
-                "SELECT verified FROM users WHERE id = ?", Boolean.class, id);
-        assertFalse(verified);
+        assertTrue(result);
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "users", "id = " + id + " AND verified = false"));
     }
 
     @Test
-    public void testSetVerifiedTrueMarksTheUserVerified() {
+    public void testSetVerifiedTrueMarksTheUserVerifiedAndReturnsTrue() {
         // Arrange
         final long id = insertUser(EMAIL, NAME);
         jdbcTemplate.update("UPDATE users SET verified = false WHERE id = ?", id);
 
         // Act
-        userDao.setVerified(id, true);
+        final boolean result = userDao.setVerified(id, true);
         // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
         em.flush();
 
         // Assert
-        final Boolean verified = jdbcTemplate.queryForObject(
-                "SELECT verified FROM users WHERE id = ?", Boolean.class, id);
-        assertTrue(verified);
+        assertTrue(result);
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "users", "id = " + id + " AND verified = true"));
     }
 
     // ---- setLocale() ----
 
     @Test
-    public void testSetLocaleUpdatesThePreferredLocaleColumn() {
+    public void testSetLocaleUpdatesThePreferredLocaleColumnAndReturnsTrue() {
         // Arrange
         final long id = insertUser(EMAIL, NAME);
 
         // Act
-        userDao.setLocale(id, "en");
+        final boolean result = userDao.setLocale(id, "en");
         // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
         em.flush();
 
         // Assert
-        final String locale = jdbcTemplate.queryForObject(
-                "SELECT preferred_locale FROM users WHERE id = ?", String.class, id);
-        assertEquals("en", locale);
+        assertTrue(result);
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
+                jdbcTemplate, "users", "id = " + id + " AND preferred_locale = 'en'"));
     }
 
     // ---- setSuspended() ----
 
     @Test
-    public void testSetSuspendedTrueMarksTheUserSuspended() {
+    public void testSetSuspendedTrueMarksTheUserSuspendedAndReturnsTrue() {
         // Arrange
         final long id = insertUser(EMAIL, NAME);
 
         // Act
-        userDao.setSuspended(id, true);
+        final boolean result = userDao.setSuspended(id, true);
         // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
         em.flush();
 
         // Assert
-        final Boolean suspended = jdbcTemplate.queryForObject(
-                "SELECT suspended FROM users WHERE id = ?", Boolean.class, id);
-        assertTrue(suspended);
+        assertTrue(result);
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "users", "id = " + id + " AND suspended = true"));
     }
 
     @Test
-    public void testSetSuspendedFalseMarksTheUserNotSuspended() {
+    public void testSetSuspendedFalseMarksTheUserNotSuspendedAndReturnsTrue() {
         // Arrange
         final long id = insertUser(EMAIL, NAME);
         jdbcTemplate.update("UPDATE users SET suspended = true WHERE id = ?", id);
 
         // Act
-        userDao.setSuspended(id, false);
+        final boolean result = userDao.setSuspended(id, false);
         // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
         em.flush();
 
         // Assert
-        final Boolean suspended = jdbcTemplate.queryForObject(
-                "SELECT suspended FROM users WHERE id = ?", Boolean.class, id);
-        assertFalse(suspended);
+        assertTrue(result);
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "users", "id = " + id + " AND suspended = false"));
     }
 
     // ---- countAll() / findPage() ----
@@ -575,173 +574,79 @@ public class UserJpaDaoTest {
     }
 
     @Test
-    public void testAddRoleReturnsTrueWhenTheRoleWasAdded() {
-        // Arrange
-        final long id = insertUser(EMAIL, NAME);
-
-        // Act
-        final boolean result = userDao.addRole(id, Role.USER);
-
-        // Assert
-        assertTrue(result);
-    }
-
-    @Test
-    public void testAddRoleReturnsFalseWhenTheUserAlreadyHadIt() {
-        // Arrange
-        final long id = insertUser(EMAIL, NAME);
-        insertRole(id, "USER");
-
-        // Act
-        final boolean result = userDao.addRole(id, Role.USER);
-
-        // Assert
-        assertFalse(result);
-    }
-
-    @Test
-    public void testRemoveRoleReturnsTrueWhenTheRoleWasRemoved() {
-        // Arrange
-        final long id = insertUser(EMAIL, NAME);
-        insertRole(id, "ADMIN");
-
-        // Act
-        final boolean result = userDao.removeRole(id, Role.ADMIN);
-
-        // Assert
-        assertTrue(result);
-    }
-
-    @Test
-    public void testRemoveRoleReturnsFalseWhenTheUserDidNotHaveIt() {
-        // Arrange
-        final long id = insertUser(EMAIL, NAME);
-
-        // Act
-        final boolean result = userDao.removeRole(id, Role.ADMIN);
-
-        // Assert
-        assertFalse(result);
-    }
-
-    @Test
-    public void testSetPasswordReturnsTrueWhenTheUserExists() {
-        // Arrange
-        final long id = insertUser(EMAIL, NAME);
-
-        // Act
-        final boolean result = userDao.setPassword(id, "hashed-password");
-
-        // Assert
-        assertTrue(result);
-    }
-
-    @Test
-    public void testSetPasswordReturnsFalseWhenThereIsNoSuchUser() {
-        // Arrange
-        // (no hay ningun usuario guardado)
+    public void testSetPasswordOfAUserThatDoesNotExistWritesNothingAndReturnsFalse() {
+        // Arrange: otro usuario, que no es el del Act. Tiene que quedar como estaba.
+        insertUser(EMAIL, NAME);
 
         // Act
         final boolean result = userDao.setPassword(999_999L, "hashed-password");
+        // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
+        em.flush();
 
         // Assert
         assertFalse(result);
+        assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "users", "password = 'hashed-password'"));
     }
 
     @Test
-    public void testUpdateProfileReturnsTrueWhenTheUserExists() {
-        // Arrange
-        final long id = insertUser(EMAIL, NAME);
-
-        // Act
-        final boolean result = userDao.updateProfile(id, "Nuevo Nombre");
-
-        // Assert
-        assertTrue(result);
-    }
-
-    @Test
-    public void testUpdateProfileReturnsFalseWhenThereIsNoSuchUser() {
-        // Arrange
-        // (no hay ningun usuario guardado)
+    public void testUpdateProfileOfAUserThatDoesNotExistWritesNothingAndReturnsFalse() {
+        // Arrange: otro usuario, que no es el del Act. Tiene que quedar como estaba.
+        insertUser(EMAIL, NAME);
 
         // Act
         final boolean result = userDao.updateProfile(999_999L, "Nuevo Nombre");
+        // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
+        em.flush();
 
         // Assert
         assertFalse(result);
+        assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "users", "name = 'Nuevo Nombre'"));
     }
 
     @Test
-    public void testSetVerifiedReturnsTrueWhenTheUserExists() {
-        // Arrange
-        final long id = insertUser(EMAIL, NAME);
-
-        // Act
-        final boolean result = userDao.setVerified(id, true);
-
-        // Assert
-        assertTrue(result);
-    }
-
-    @Test
-    public void testSetVerifiedReturnsFalseWhenThereIsNoSuchUser() {
-        // Arrange
-        // (no hay ningun usuario guardado)
+    public void testSetVerifiedOfAUserThatDoesNotExistWritesNothingAndReturnsFalse() {
+        // Arrange: otro usuario, que no es el del Act. Tiene que quedar como estaba (sin verificar).
+        final long other = insertUser(EMAIL, NAME);
+        jdbcTemplate.update("UPDATE users SET verified = false WHERE id = ?", other);
 
         // Act
         final boolean result = userDao.setVerified(999_999L, true);
+        // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
+        em.flush();
 
         // Assert
         assertFalse(result);
+        assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "users", "verified = true"));
     }
 
     @Test
-    public void testSetLocaleReturnsTrueWhenTheUserExists() {
-        // Arrange
-        final long id = insertUser(EMAIL, NAME);
-
-        // Act
-        final boolean result = userDao.setLocale(id, "en");
-
-        // Assert
-        assertTrue(result);
-    }
-
-    @Test
-    public void testSetLocaleReturnsFalseWhenThereIsNoSuchUser() {
-        // Arrange
-        // (no hay ningun usuario guardado)
+    public void testSetLocaleOfAUserThatDoesNotExistWritesNothingAndReturnsFalse() {
+        // Arrange: otro usuario, que no es el del Act. Tiene que quedar como estaba.
+        insertUser(EMAIL, NAME);
 
         // Act
         final boolean result = userDao.setLocale(999_999L, "en");
+        // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
+        em.flush();
 
         // Assert
         assertFalse(result);
+        assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "users", "preferred_locale = 'en'"));
     }
 
     @Test
-    public void testSetSuspendedReturnsTrueWhenTheUserExists() {
-        // Arrange
-        final long id = insertUser(EMAIL, NAME);
-
-        // Act
-        final boolean result = userDao.setSuspended(id, true);
-
-        // Assert
-        assertTrue(result);
-    }
-
-    @Test
-    public void testSetSuspendedReturnsFalseWhenThereIsNoSuchUser() {
-        // Arrange
-        // (no hay ningun usuario guardado)
+    public void testSetSuspendedOfAUserThatDoesNotExistWritesNothingAndReturnsFalse() {
+        // Arrange: otro usuario, que no es el del Act. Tiene que quedar como estaba.
+        insertUser(EMAIL, NAME);
 
         // Act
         final boolean result = userDao.setSuspended(999_999L, true);
+        // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
+        em.flush();
 
         // Assert
         assertFalse(result);
+        assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "users", "suspended = true"));
     }
 
     // ---- findAccessById() ----

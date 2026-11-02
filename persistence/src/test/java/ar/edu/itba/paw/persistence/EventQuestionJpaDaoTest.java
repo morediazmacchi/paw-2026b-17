@@ -316,19 +316,22 @@ public class EventQuestionJpaDaoTest {
 
     @Test
     public void testAnswerDoesNotLoseAnsweredAtWhenTheAlreadyLoadedQuestionIsModifiedAfterwards() {
-        // Arrange
+        // Arrange: la pregunta ya cargada en la sesion de Hibernate, como la tiene el service.
+        // Se carga con em.find (JPA directo), no con otro metodo del DAO bajo prueba.
         final long id = insertQuestion(eventId, userId, "Se puede ir con perros?");
-        final EventQuestion q = questionDao.findById(id).get();
-        questionDao.answer(id, "Si", new Date());
-        // El service hace esto mismo: lee la pregunta, responde por el DAO y despues actualiza
-        // la entidad en memoria para armar el mail.
-        q.setAnswer("Si");
-        em.flush();
-        final Map<String, Object> row = jdbcTemplate.queryForMap(
-                "SELECT answer_text, answered_at FROM event_question WHERE id = ?", id);
-        assertTrue("answered_at fue pisado con NULL", row.get("answered_at") != null);
-    }
+        final EventQuestion loaded = em.find(EventQuestion.class, id);
 
+        // Act
+        final boolean result = questionDao.answer(id, "Si", new Date());
+        // Lo que hace el service despues: actualiza la entidad en memoria para armar el mail.
+        loaded.setAnswer("Si");
+        em.flush();
+
+        // Assert
+        assertTrue(result);
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "event_question",
+                "id = " + id + " AND answer_text = 'Si' AND answered_at IS NOT NULL"));
+    }
 
     @Test
     public void testAnswerSetsTheAnswerAndReturnsTrueTheFirstTime() {
@@ -364,16 +367,17 @@ public class EventQuestionJpaDaoTest {
     // ---- delete() ----
 
     @Test
-    public void testDeleteRemovesTheQuestion() {
+    public void testDeleteRemovesTheQuestionAndReturnsTrue() {
         // Arrange
         final long id = insertQuestion(eventId, userId, "Se puede ir con perros?");
 
         // Act
-        questionDao.delete(id);
+        final boolean result = questionDao.delete(id);
         // El DAO escribe via JPA (dirty checking/remove): se manda a la base antes de leer por JDBC.
         em.flush();
 
         // Assert
+        assertTrue(result);
         assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "event_question", "id = " + id));
     }
 
@@ -408,26 +412,17 @@ public class EventQuestionJpaDaoTest {
     }
 
     @Test
-    public void testDeleteReturnsTrueWhenTheQuestionExisted() {
-        // Arrange
-        final long id = insertQuestion(eventId, userId, "Se puede ir con perros?");
-
-        // Act
-        final boolean result = questionDao.delete(id);
-
-        // Assert
-        assertTrue(result);
-    }
-
-    @Test
-    public void testDeleteReturnsFalseWhenThereIsNoSuchQuestion() {
-        // Arrange
-        // (no hay ninguna pregunta guardada)
+    public void testDeleteOfAQuestionThatDoesNotExistDeletesNothingAndReturnsFalse() {
+        // Arrange: otra pregunta, que no es la del Act. Tiene que quedar.
+        final long other = insertQuestion(eventId, userId, "Se puede ir con perros?");
 
         // Act
         final boolean result = questionDao.delete(999_999L);
+        // El DAO escribe via JPA (dirty checking/remove): se manda a la base antes de leer por JDBC.
+        em.flush();
 
         // Assert
         assertFalse(result);
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "event_question", "id = " + other));
     }
 }
