@@ -10,8 +10,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.Rollback;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.springframework.test.jdbc.JdbcTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.persistence.EntityManager;
+import javax.persistence.PersistenceContext;
 import javax.sql.DataSource;
 import java.sql.Timestamp;
 import java.util.List;
@@ -26,6 +29,9 @@ import static org.junit.Assert.assertTrue;
 @Transactional
 @Rollback
 public class EventChatJpaDaoTest {
+
+    @PersistenceContext
+    private EntityManager em;
 
     @Autowired
     private DataSource ds;
@@ -67,79 +73,122 @@ public class EventChatJpaDaoTest {
                 "SELECT id FROM registration WHERE event_id = ? AND email = ?", Long.class, event, email);
     }
 
-    private void say(final long user, final String text) {
-        chatDao.addMessage(new ChatMessage(eventId, user, text));
+    // Arrange por SQL directo, nunca con el DAO bajo prueba (ni addMember ni addMessage): si el
+    // test falla, tiene que ser por el metodo del Act y no por otro.
+    private void insertMember(final long registrationId, final long event, final long user) {
+        jdbcTemplate.update("INSERT INTO event_chat_member (registration_id, event_id, user_id) VALUES (?, ?, ?)",
+                registrationId, event, user);
+    }
+
+    private long insertMessage(final long event, final long user, final String text) {
+        jdbcTemplate.update("INSERT INTO event_chat_message (event_id, user_id, body) VALUES (?, ?, ?)",
+                event, user, text);
+        return jdbcTemplate.queryForObject("SELECT MAX(id) FROM event_chat_message", Long.class);
+    }
+
+    private long say(final long user, final String text) {
+        return insertMessage(eventId, user, text);
+    }
+
+    private String memberWhere(final long event, final long user) {
+        return "event_id = " + event + " AND user_id = " + user;
     }
 
     // ---- addMember() / isMember() ----
 
     @Test
-    public void testAddMemberMakesThePersonAMember() {
+    public void testAddMemberInsertsTheMemberRowAndReturnsTrue() {
+        // Arrange: ana ya tiene su inscripcion confirmada (setUp), todavia sin grupo.
+
         // Act
         final boolean added = chatDao.addMember(anaRegistrationId, eventId, ana);
+        // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
+        em.flush();
 
         // Assert
         assertTrue(added);
-        assertTrue(chatDao.isMember(eventId, ana));
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "event_chat_member",
+                "registration_id = " + anaRegistrationId + " AND " + memberWhere(eventId, ana)));
     }
 
     @Test
-    public void testAddMemberTwiceReturnsFalseTheSecondTime() {
+    public void testAddMemberWhenAlreadyAMemberKeepsOneRowAndReturnsFalse() {
         // Arrange
-        chatDao.addMember(anaRegistrationId, eventId, ana);
+        insertMember(anaRegistrationId, eventId, ana);
 
         // Act
         final boolean addedAgain = chatDao.addMember(anaRegistrationId, eventId, ana);
+        // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
+        em.flush();
 
         // Assert
         assertFalse(addedAgain);
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "event_chat_member", memberWhere(eventId, ana)));
     }
 
     @Test
     public void testIsMemberIsFalseWhenNeverJoined() {
-        assertFalse(chatDao.isMember(eventId, ana));
+        // Arrange: ana esta inscripta pero nunca entro al grupo.
+
+        // Act
+        final boolean member = chatDao.isMember(eventId, ana);
+
+        // Assert
+        assertFalse(member);
     }
 
     @Test
     public void testIsMemberIsFalseWhenTheRegistrationIsNoLongerConfirmed() {
         // Arrange
-        chatDao.addMember(anaRegistrationId, eventId, ana);
+        insertMember(anaRegistrationId, eventId, ana);
         jdbcTemplate.update("UPDATE registration SET status = 'REJECTED' WHERE id = ?", anaRegistrationId);
 
-        // Act + Assert
-        assertFalse(chatDao.isMember(eventId, ana));
+        // Act
+        final boolean member = chatDao.isMember(eventId, ana);
+
+        // Assert
+        assertFalse(member);
     }
 
     @Test
     public void testDeletingTheRegistrationRemovesTheMembership() {
         // Arrange
-        chatDao.addMember(anaRegistrationId, eventId, ana);
+        insertMember(anaRegistrationId, eventId, ana);
 
         // Act
         jdbcTemplate.update("DELETE FROM registration WHERE id = ?", anaRegistrationId);
 
         // Assert
-        assertEquals(0, (int) jdbcTemplate.queryForObject("SELECT COUNT(*) FROM event_chat_member", Integer.class));
+        assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "event_chat_member", memberWhere(eventId, ana)));
     }
 
     // ---- removeMember() ----
 
     @Test
-    public void testRemoveMemberDeletesTheMembership() {
+    public void testRemoveMemberDeletesTheMemberRowAndReturnsTrue() {
         // Arrange
-        chatDao.addMember(anaRegistrationId, eventId, ana);
+        insertMember(anaRegistrationId, eventId, ana);
 
         // Act
         final boolean removed = chatDao.removeMember(eventId, ana);
 
         // Assert
         assertTrue(removed);
-        assertFalse(chatDao.isMember(eventId, ana));
+        assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "event_chat_member", memberWhere(eventId, ana)));
     }
 
     @Test
-    public void testRemoveMemberWhenNotAMemberReturnsFalse() {
-        assertFalse(chatDao.removeMember(eventId, ana));
+    public void testRemoveMemberWhenNotAMemberDeletesNothingAndReturnsFalse() {
+        // Arrange: beto si esta en el grupo; ana no. El de beto tiene que quedar.
+        final long betoRegistrationId = insertRegistration(eventId, beto, "beto@mail.com", "CONFIRMED");
+        insertMember(betoRegistrationId, eventId, beto);
+
+        // Act
+        final boolean removed = chatDao.removeMember(eventId, ana);
+
+        // Assert
+        assertFalse(removed);
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "event_chat_member", memberWhere(eventId, beto)));
     }
 
     // ---- addMessage() / findLatest() / findAfter() ----
@@ -175,7 +224,7 @@ public class EventChatJpaDaoTest {
     public void testFindLatestIgnoresOtherEvents() {
         // Arrange
         final long other = insertEvent("Otro");
-        chatDao.addMessage(new ChatMessage(other, ana, "de otro evento"));
+        insertMessage(other, ana, "de otro evento");
         say(ana, "de este");
 
         // Act
@@ -190,11 +239,11 @@ public class EventChatJpaDaoTest {
     public void testFindAfterReturnsOnlyNewerMessages() {
         // Arrange
         say(ana, "uno");
-        final ChatMessage second = chatDao.addMessage(new ChatMessage(eventId, ana, "dos"));
+        final long second = say(ana, "dos");
         say(ana, "tres");
 
         // Act
-        final List<ChatMessage> newer = chatDao.findAfter(eventId, second.getId(), 10);
+        final List<ChatMessage> newer = chatDao.findAfter(eventId, second, 10);
 
         // Assert
         assertEquals(1, newer.size());
@@ -231,7 +280,7 @@ public class EventChatJpaDaoTest {
     @Test
     public void testFindGroupsListsTheGroupWithItsUnreadCount() {
         // Arrange
-        chatDao.addMember(anaRegistrationId, eventId, ana);
+        insertMember(anaRegistrationId, eventId, ana);
         say(beto, "uno");
         say(beto, "dos");
 
@@ -249,7 +298,7 @@ public class EventChatJpaDaoTest {
     @Test
     public void testOwnMessagesAreNotCountedAsUnread() {
         // Arrange
-        chatDao.addMember(anaRegistrationId, eventId, ana);
+        insertMember(anaRegistrationId, eventId, ana);
         say(ana, "mio");
 
         // Act
@@ -260,24 +309,25 @@ public class EventChatJpaDaoTest {
     }
 
     @Test
-    public void testMarkReadClearsTheUnreadCount() {
+    public void testMarkReadStoresTheLastMessageAsRead() {
         // Arrange
-        chatDao.addMember(anaRegistrationId, eventId, ana);
-        say(beto, "uno");
+        insertMember(anaRegistrationId, eventId, ana);
+        final long last = say(beto, "uno");
 
         // Act
         chatDao.markRead(eventId, ana);
 
         // Assert
-        assertEquals(0, chatDao.findGroupsByUser(ana).get(0).getUnreadCount());
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "event_chat_member",
+                memberWhere(eventId, ana) + " AND last_read_id = " + last));
     }
 
     @Test
     public void testMessagesAfterMarkReadCountAsUnread() {
-        // Arrange
-        chatDao.addMember(anaRegistrationId, eventId, ana);
-        say(beto, "uno");
-        chatDao.markRead(eventId, ana);
+        // Arrange: ana ya leyo hasta "uno" (last_read_id por SQL, no con markRead); despues llega "dos".
+        insertMember(anaRegistrationId, eventId, ana);
+        final long first = say(beto, "uno");
+        jdbcTemplate.update("UPDATE event_chat_member SET last_read_id = ? WHERE registration_id = ?", first, anaRegistrationId);
         say(beto, "dos");
 
         // Act
@@ -290,11 +340,14 @@ public class EventChatJpaDaoTest {
     @Test
     public void testFindGroupsLeavesOutGroupsWhereTheRegistrationIsNotConfirmed() {
         // Arrange
-        chatDao.addMember(anaRegistrationId, eventId, ana);
+        insertMember(anaRegistrationId, eventId, ana);
         jdbcTemplate.update("UPDATE registration SET status = 'REJECTED' WHERE id = ?", anaRegistrationId);
 
-        // Act + Assert
-        assertTrue(chatDao.findGroupsByUser(ana).isEmpty());
+        // Act
+        final List<ChatGroup> groups = chatDao.findGroupsByUser(ana);
+
+        // Assert
+        assertTrue(groups.isEmpty());
     }
 
     @Test
@@ -302,8 +355,8 @@ public class EventChatJpaDaoTest {
         // Arrange
         final long second = insertEvent("Feria");
         final long secondRegistration = insertRegistration(second, ana, "ana@mail.com", "CONFIRMED");
-        chatDao.addMember(anaRegistrationId, eventId, ana);
-        chatDao.addMember(secondRegistration, second, ana);
+        insertMember(anaRegistrationId, eventId, ana);
+        insertMember(secondRegistration, second, ana);
         jdbcTemplate.update("INSERT INTO event_chat_message (event_id, user_id, body, created_at) VALUES (?, ?, ?, ?)",
                 eventId, beto, "viejo", new Timestamp(System.currentTimeMillis() - 100000));
         jdbcTemplate.update("INSERT INTO event_chat_message (event_id, user_id, body, created_at) VALUES (?, ?, ?, ?)",

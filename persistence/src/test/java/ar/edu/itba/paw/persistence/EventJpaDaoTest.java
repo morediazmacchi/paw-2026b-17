@@ -223,7 +223,7 @@ public class EventJpaDaoTest {
     // ==================================================================
 
     @Test
-    public void testCreateAssignsAGeneratedId() {
+    public void testCreateInsertsTheBasicFieldsAndReturnsTheEventWithItsId() {
         // Arrange
         final Event toCreate = someEvent(categoryId);
 
@@ -232,17 +232,6 @@ public class EventJpaDaoTest {
 
         // Assert
         assertTrue(created.getId() > 0);
-    }
-
-    @Test
-    public void testCreateInsertsTheBasicFields() {
-        // Arrange
-        final Event toCreate = someEvent(categoryId);
-
-        // Act
-        final Event created = eventDao.create(toCreate);
-
-        // Assert
         final Map<String, Object> row = jdbcTemplate.queryForMap(
                 "SELECT title, neighborhood, price FROM event WHERE id = ?", created.getId());
         assertEquals(TITLE, row.get("title"));
@@ -585,7 +574,7 @@ public class EventJpaDaoTest {
     // ==================================================================
 
     @Test
-    public void testUpdateChangesTheStoredFields() {
+    public void testUpdateChangesTheStoredFieldsAndReturnsTrue() {
         // Arrange
         final long otherCategoryId = insertCategory(OTHER_CATEGORY_NAME);
         final long id = insertEvent();
@@ -600,9 +589,10 @@ public class EventJpaDaoTest {
         changes.setVisibility(EventVisibility.PRIVATE);
 
         // Act
-        eventDao.update(changes);
+        final boolean result = eventDao.update(changes);
 
         // Assert
+        assertTrue(result);
         final Map<String, Object> row = jdbcTemplate.queryForMap(
                 "SELECT title, address, price, max_capacity, requires_approval, visibility FROM event WHERE id = ?", id);
         assertEquals("Titulo nuevo", row.get("title"));
@@ -667,15 +657,16 @@ public class EventJpaDaoTest {
     }
 
     @Test
-    public void testCancelSetsCancelledAt() {
+    public void testCancelSetsCancelledAtAndReturnsTrue() {
         // Arrange
         final long id = insertEvent();
 
         // Act
-        eventDao.cancel(id);
+        final boolean result = eventDao.cancel(id);
         em.flush();
 
         // Assert
+        assertTrue(result);
         final Timestamp cancelledAt = jdbcTemplate.queryForObject(
                 "SELECT cancelled_at FROM event WHERE id = ?", Timestamp.class, id);
         assertNotNull(cancelledAt);
@@ -713,15 +704,16 @@ public class EventJpaDaoTest {
     }
 
     @Test
-    public void testRemoveByAdminSetsCancelledAtAndTheAdminFields() {
+    public void testRemoveByAdminSetsCancelledAtAndTheAdminFieldsAndReturnsTrue() {
         // Arrange
         final long id = insertEvent();
 
         // Act
-        eventDao.removeByAdmin(id, "Contenido inapropiado");
+        final boolean result = eventDao.removeByAdmin(id, "Contenido inapropiado");
         em.flush();
 
         // Assert
+        assertTrue(result);
         final Map<String, Object> row = jdbcTemplate.queryForMap(
                 "SELECT cancelled_at, removed_by_admin, removed_reason FROM event WHERE id = ?", id);
         assertNotNull(row.get("cancelled_at"));
@@ -765,12 +757,18 @@ public class EventJpaDaoTest {
     }
 
     @Test
-    public void testApproveReturnsFalseWhenTheEventDoesNotExist() {
+    public void testApproveOfAnEventThatDoesNotExistChangesNothingAndReturnsFalse() {
+        // Arrange: otro evento pendiente, que no es el del Act. Tiene que seguir pendiente.
+        final long other = insertEvent(cols("approval_status", EventApprovalStatus.PENDING.name()));
+
         // Act
-        final boolean result = eventDao.approve(-1);
+        final boolean result = eventDao.approve(999_999L);
+        em.flush();
 
         // Assert
         assertFalse(result);
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "event",
+                "id = " + other + " AND approval_status = '" + EventApprovalStatus.PENDING.name() + "'"));
     }
 
     @Test
@@ -791,12 +789,19 @@ public class EventJpaDaoTest {
     }
 
     @Test
-    public void testRejectReturnsFalseWhenTheEventDoesNotExist() {
+    public void testRejectOfAnEventThatDoesNotExistChangesNothingAndReturnsFalse() {
+        // Arrange: otro evento pendiente, que no es el del Act. Tiene que seguir pendiente y sin motivo.
+        final long other = insertEvent(cols("approval_status", EventApprovalStatus.PENDING.name()));
+
         // Act
-        final boolean result = eventDao.reject(-1, "motivo");
+        final boolean result = eventDao.reject(999_999L, "motivo");
+        em.flush();
 
         // Assert
         assertFalse(result);
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "event",
+                "id = " + other + " AND approval_status = '" + EventApprovalStatus.PENDING.name()
+                        + "' AND rejected_reason IS NULL"));
     }
 
     @Test
@@ -1879,15 +1884,16 @@ public class EventJpaDaoTest {
     }
 
     @Test
-    public void testSetFeaturedTrueMarksTheEventFeaturedAndSetsFeaturedAt() {
+    public void testSetFeaturedTrueMarksTheEventFeaturedAndSetsFeaturedAtAndReturnsTrue() {
         // Arrange
         final long id = insertEvent();
 
         // Act
-        eventDao.setFeatured(id, true);
+        final boolean result = eventDao.setFeatured(id, true);
         em.flush();
 
         // Assert
+        assertTrue(result);
         final Map<String, Object> row = jdbcTemplate.queryForMap(
                 "SELECT featured, featured_at FROM event WHERE id = ?", id);
         assertTrue((Boolean) row.get("featured"));
@@ -1959,7 +1965,7 @@ public class EventJpaDaoTest {
     }
 
     @Test
-    public void testMarkReminderSentReturnsTrueTheFirstTime() {
+    public void testMarkReminderSentStoresTheMomentOfTheReminderAndReturnsTrue() {
         // Arrange
         final long id = eventInHours(10, "Una vez");
 
@@ -1968,17 +1974,6 @@ public class EventJpaDaoTest {
 
         // Assert
         assertTrue(result);
-    }
-
-    @Test
-    public void testMarkReminderSentStoresTheMomentOfTheReminder() {
-        // Arrange
-        final long id = eventInHours(10, "Una vez");
-
-        // Act
-        eventDao.markReminderSent(id, new Date());
-
-        // Assert
         assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
                 jdbcTemplate, "event", "id = " + id + " AND reminder_sent_at IS NOT NULL"));
     }
@@ -1986,17 +1981,21 @@ public class EventJpaDaoTest {
     // Si ya estaba reclamado (el UPDATE tiene "reminder_sent_at IS NULL"), no lo
     // reclama de nuevo: es lo que garantiza que el recordatorio salga una sola vez.
     @Test
-    public void testMarkReminderSentReturnsFalseWhenTheReminderWasAlreadySent() {
-        // Arrange
+    public void testMarkReminderSentWhenItWasAlreadySentKeepsTheFirstMomentAndReturnsFalse() {
+        // Arrange: ya avisado hace una hora (en segundos justos, para comparar sin decimales).
+        final Timestamp firstReminder = new Timestamp((System.currentTimeMillis() / 1000) * 1000 - HORA);
         final long id = insertEvent(cols("address", "Ya avisado",
                 "event_date", new Timestamp(System.currentTimeMillis() + 10 * HORA),
-                "reminder_sent_at", new Timestamp(System.currentTimeMillis())));
+                "reminder_sent_at", firstReminder));
 
         // Act
         final boolean result = eventDao.markReminderSent(id, new Date());
 
         // Assert
         assertFalse(result);
+        final Timestamp stored = jdbcTemplate.queryForObject(
+                "SELECT reminder_sent_at FROM event WHERE id = ?", Timestamp.class, id);
+        assertEquals(firstReminder.getTime(), stored.getTime());
     }
 
     @Test
@@ -2081,105 +2080,64 @@ public class EventJpaDaoTest {
     }
 
     @Test
-    public void testUpdateReturnsTrueWhenTheEventExisted() {
-        // Arrange
-        final long id = insertEvent();
-        insertEventCategory(id, categoryId, null);
-        final Event changes = someEvent(categoryId);
-        changes.setId(id);
-
-        // Act
-        final boolean result = eventDao.update(changes);
-
-        // Assert
-        assertTrue(result);
-    }
-
-    @Test
-    public void testUpdateReturnsFalseWhenThereIsNoSuchEvent() {
-        // Arrange
+    public void testUpdateOfAnEventThatDoesNotExistWritesNothingAndReturnsFalse() {
+        // Arrange: otro evento, que no es el del Act. No tiene que tomar los datos nuevos.
+        insertEvent();
         // Sin categorias ni imagenes: lo unico que se intenta tocar es la fila del evento, que no existe.
         final Event changes = someEvent(categoryId);
         clearCategories(changes);
         changes.setId(999_999L);
+        changes.setTitle("Titulo que no se guarda");
 
         // Act
         final boolean result = eventDao.update(changes);
+        em.flush();
 
         // Assert
         assertFalse(result);
+        assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "event", "title = 'Titulo que no se guarda'"));
     }
 
     @Test
-    public void testCancelReturnsTrueWhenTheEventExisted() {
-        // Arrange
-        final long id = insertEvent();
-
-        // Act
-        final boolean result = eventDao.cancel(id);
-
-        // Assert
-        assertTrue(result);
-    }
-
-    @Test
-    public void testCancelReturnsFalseWhenThereIsNoSuchEvent() {
-        // Arrange
-        // (no hay ningun evento guardado)
+    public void testCancelOfAnEventThatDoesNotExistCancelsNothingAndReturnsFalse() {
+        // Arrange: otro evento, que no es el del Act. Tiene que seguir sin cancelar.
+        insertEvent();
 
         // Act
         final boolean result = eventDao.cancel(999_999L);
+        em.flush();
 
         // Assert
         assertFalse(result);
+        assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "event", "cancelled_at IS NOT NULL"));
     }
 
     @Test
-    public void testRemoveByAdminReturnsTrueWhenTheEventExisted() {
-        // Arrange
-        final long id = insertEvent();
-
-        // Act
-        final boolean result = eventDao.removeByAdmin(id, "Contenido inapropiado");
-
-        // Assert
-        assertTrue(result);
-    }
-
-    @Test
-    public void testRemoveByAdminReturnsFalseWhenThereIsNoSuchEvent() {
-        // Arrange
-        // (no hay ningun evento guardado)
+    public void testRemoveByAdminOfAnEventThatDoesNotExistRemovesNothingAndReturnsFalse() {
+        // Arrange: otro evento, que no es el del Act. Tiene que seguir sin dar de baja.
+        insertEvent();
 
         // Act
         final boolean result = eventDao.removeByAdmin(999_999L, "Contenido inapropiado");
+        em.flush();
 
         // Assert
         assertFalse(result);
+        assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "event", "removed_by_admin = true"));
     }
 
     @Test
-    public void testSetFeaturedReturnsTrueWhenTheEventExisted() {
-        // Arrange
-        final long id = insertEvent();
-
-        // Act
-        final boolean result = eventDao.setFeatured(id, true);
-
-        // Assert
-        assertTrue(result);
-    }
-
-    @Test
-    public void testSetFeaturedReturnsFalseWhenThereIsNoSuchEvent() {
-        // Arrange
-        // (no hay ningun evento guardado)
+    public void testSetFeaturedOfAnEventThatDoesNotExistChangesNothingAndReturnsFalse() {
+        // Arrange: otro evento, que no es el del Act. Tiene que seguir sin destacar.
+        insertEvent();
 
         // Act
         final boolean result = eventDao.setFeatured(999_999L, true);
+        em.flush();
 
         // Assert
         assertFalse(result);
+        assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "event", "featured = true"));
     }
 
     // La portada y las categorias de una lista de eventos tienen que venir ya cargadas: se

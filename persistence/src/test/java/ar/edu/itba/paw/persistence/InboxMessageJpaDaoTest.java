@@ -197,15 +197,16 @@ public class InboxMessageJpaDaoTest {
     // ---- user_id (Grupo B): linkUserId() ----
 
     @Test
-    public void testLinkUserIdFillsInThePreviouslyUnresolvedMessage() {
+    public void testLinkUserIdFillsInThePreviouslyUnresolvedMessageAndReturnsHowMany() {
         // Arrange
         final long id = insertMessage(EMAIL, null, InboxMessageType.NEW_REGISTRATION, eventId, null, null);
         final long recipientId = insertUser(EMAIL);
 
         // Act
-        inboxMessageDao.linkUserId(EMAIL, recipientId);
+        final int result = inboxMessageDao.linkUserId(EMAIL, recipientId);
 
         // Assert
+        assertEquals(1, result);
         final Long storedUserId = jdbcTemplate.queryForObject(
                 "SELECT user_id FROM inbox_message WHERE id = ?", Long.class, id);
         assertEquals(Long.valueOf(recipientId), storedUserId);
@@ -315,7 +316,7 @@ public class InboxMessageJpaDaoTest {
     }
 
     @Test
-    public void testMarkReadByIdsReturnsHowManyMessagesWereMarked() {
+    public void testMarkReadByIdsMarksOnlyTheUnreadOnesAndReturnsHowMany() {
         // Arrange
         final long userId = insertUser(EMAIL);
         final long unread = insertMessage(EMAIL, userId, InboxMessageType.NEW_REGISTRATION, eventId, null, null);
@@ -328,24 +329,14 @@ public class InboxMessageJpaDaoTest {
 
         // Assert
         assertEquals(1, result);
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
+                jdbcTemplate, "inbox_message", whereId(unread) + " AND read_at IS NOT NULL"));
     }
 
     @Test
-    public void testLinkUserIdReturnsHowManyMessagesWereLinked() {
-        // Arrange
-        insertMessage(EMAIL, null, InboxMessageType.NEW_REGISTRATION, eventId, null, null);
-        final long recipientId = insertUser(EMAIL);
-
-        // Act
-        final int result = inboxMessageDao.linkUserId(EMAIL, recipientId);
-
-        // Assert
-        assertEquals(1, result);
-    }
-
-    @Test
-    public void testLinkUserIdReturnsZeroWhenNoMessageWasWaiting() {
-        // Arrange
+    public void testLinkUserIdWithNoMessageForThatEmailLinksNothingAndReturnsZero() {
+        // Arrange: un aviso de otro email, sin cuenta. Tiene que seguir sin enlazar.
+        final long other = insertMessage("otra@mail.com", null, InboxMessageType.NEW_REGISTRATION, eventId, null, null);
         final long recipientId = insertUser(EMAIL);
 
         // Act
@@ -353,5 +344,7 @@ public class InboxMessageJpaDaoTest {
 
         // Assert
         assertEquals(0, result);
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "inbox_message",
+                whereId(other) + " AND user_id IS NULL"));
     }
 }

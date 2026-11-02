@@ -112,7 +112,7 @@ public class RegistrationJpaDaoTest {
     // ---- create() ----
 
     @Test
-    public void testCreateAssignsAGeneratedId() {
+    public void testCreateInsertsTheRegistrationRowAndReturnsItWithItsId() {
         // Arrange
         final Registration toCreate = someRegistration(eventId, userId);
 
@@ -121,42 +121,15 @@ public class RegistrationJpaDaoTest {
 
         // Assert
         assertTrue(created.getId() > 0);
-    }
-
-    @Test
-    public void testCreateInsertsTheRegistrationRow() {
-        // Arrange
-        final Registration toCreate = someRegistration(eventId, userId);
-
-        // Act
-        final Registration created = registrationDao.create(toCreate);
-
-        // Assert
         assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "registration",
                 "id = " + created.getId() + " AND event_id = " + eventId
                         + " AND email = '" + EMAIL + "' AND name = '" + NAME + "' AND status = 'CONFIRMED'"));
     }
 
-    @Test
-    public void testCreateWithAUserBuiltFromTheSessionStoresItsId() {
-        // Arrange
-        final User fromSession = new User(EMAIL, NAME);
-        fromSession.setId(userId);
-        final Registration toCreate = new Registration(em.getReference(Event.class, eventId), fromSession, EMAIL, NAME, RegistrationStatus.CONFIRMED);
-
-        // Act
-        final Registration created = registrationDao.create(toCreate);
-
-        // Assert
-        final Long storedUserId = jdbcTemplate.queryForObject(
-                "SELECT user_id FROM registration WHERE id = ?", Long.class, created.getId());
-        assertEquals(userId, storedUserId.longValue());
-    }
-
     // Los avisos por mail (@Async, otro hilo y sin sesion) leen el id del usuario de la inscripcion:
     // tiene que poder leerse aunque la relacion sea solo una referencia.
     @Test
-    public void testCreateReturnsARegistrationWhoseUserIdIsReadableOutsideTheSession() {
+    public void testCreateWithAUserBuiltFromTheSessionStoresItsIdAndItIsReadableOutsideTheSession() {
         // Arrange
         final User fromSession = new User(EMAIL, NAME);
         fromSession.setId(userId);
@@ -164,10 +137,13 @@ public class RegistrationJpaDaoTest {
 
         // Act
         final Registration created = registrationDao.create(toCreate);
+        // Se cierra la sesion de Hibernate: el objeto devuelto queda suelto, como en el hilo del mail.
         em.clear();
 
         // Assert
         assertEquals(Long.valueOf(userId), created.getUserId());
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "registration",
+                "id = " + created.getId() + " AND user_id = " + userId));
     }
 
     @Test(expected = DataAccessException.class)
@@ -452,16 +428,17 @@ public class RegistrationJpaDaoTest {
     // ---- delete() ----
 
     @Test
-    public void testDeleteRemovesTheRegistration() {
+    public void testDeleteRemovesTheRegistrationAndReturnsTrue() {
         // Arrange
         final long id = insertRegistration(eventId, EMAIL, userId, NAME, RegistrationStatus.CONFIRMED);
 
         // Act
-        registrationDao.delete(id);
+        final boolean result = registrationDao.delete(id);
         // El DAO escribe via JPA (dirty checking/remove): se manda a la base antes de leer por JDBC.
         em.flush();
 
         // Assert
+        assertTrue(result);
         assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "registration", "id = " + id));
     }
 
@@ -532,16 +509,17 @@ public class RegistrationJpaDaoTest {
     // ---- updateStatus() ----
 
     @Test
-    public void testUpdateStatusChangesTheStatusOfThatRegistration() {
+    public void testUpdateStatusChangesTheStatusOfThatRegistrationAndReturnsTrue() {
         // Arrange
         final long id = insertRegistration(eventId, EMAIL, userId, NAME, RegistrationStatus.PENDING);
 
         // Act
-        registrationDao.updateStatus(id, RegistrationStatus.CONFIRMED);
+        final boolean result = registrationDao.updateStatus(id, RegistrationStatus.CONFIRMED);
         // El DAO escribe via JPA (dirty checking/remove): se manda a la base antes de leer por JDBC.
         em.flush();
 
         // Assert
+        assertTrue(result);
         assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "registration",
                 "id = " + id + " AND status = 'CONFIRMED'"));
     }
@@ -620,51 +598,34 @@ public class RegistrationJpaDaoTest {
     }
 
     @Test
-    public void testDeleteReturnsTrueWhenTheRegistrationExisted() {
-        // Arrange
-        final long id = insertRegistration(eventId, EMAIL, userId, NAME, RegistrationStatus.CONFIRMED);
-
-        // Act
-        final boolean result = registrationDao.delete(id);
-
-        // Assert
-        assertTrue(result);
-    }
-
-    @Test
-    public void testDeleteReturnsFalseWhenThereIsNoSuchRegistration() {
-        // Arrange
-        // (no hay ninguna inscripcion guardada)
+    public void testDeleteOfARegistrationThatDoesNotExistDeletesNothingAndReturnsFalse() {
+        // Arrange: otra inscripcion, que no es la del Act. Tiene que quedar.
+        final long other = insertRegistration(eventId, EMAIL, userId, NAME, RegistrationStatus.CONFIRMED);
 
         // Act
         final boolean result = registrationDao.delete(999_999L);
+        // El DAO escribe via JPA (dirty checking/remove): se manda a la base antes de leer por JDBC.
+        em.flush();
 
         // Assert
         assertFalse(result);
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "registration", "id = " + other));
     }
 
     @Test
-    public void testUpdateStatusReturnsTrueWhenTheRegistrationExisted() {
-        // Arrange
-        final long id = insertRegistration(eventId, EMAIL, userId, NAME, RegistrationStatus.PENDING);
-
-        // Act
-        final boolean result = registrationDao.updateStatus(id, RegistrationStatus.CONFIRMED);
-
-        // Assert
-        assertTrue(result);
-    }
-
-    @Test
-    public void testUpdateStatusReturnsFalseWhenThereIsNoSuchRegistration() {
-        // Arrange
-        // (no hay ninguna inscripcion guardada)
+    public void testUpdateStatusOfARegistrationThatDoesNotExistChangesNothingAndReturnsFalse() {
+        // Arrange: otra inscripcion, que no es la del Act. Tiene que seguir PENDING.
+        final long other = insertRegistration(eventId, EMAIL, userId, NAME, RegistrationStatus.PENDING);
 
         // Act
         final boolean result = registrationDao.updateStatus(999_999L, RegistrationStatus.CONFIRMED);
+        // El DAO escribe via JPA (dirty checking/remove): se manda a la base antes de leer por JDBC.
+        em.flush();
 
         // Assert
         assertFalse(result);
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "registration",
+                "id = " + other + " AND status = 'PENDING'"));
     }
 
     // ---- findAttendedEventIds() ----

@@ -12,6 +12,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.Rollback;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.springframework.test.jdbc.JdbcTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.persistence.EntityManager;
@@ -84,7 +85,7 @@ public class EventInvitationJpaDaoTest {
     // ---- create() ----
 
     @Test
-    public void testCreateAssignsAGeneratedId() {
+    public void testCreateInsertsTheInvitationRowAndReturnsItWithItsId() {
         // Arrange
         final EventInvitation toCreate = someInvitation(eventId);
 
@@ -93,17 +94,6 @@ public class EventInvitationJpaDaoTest {
 
         // Assert
         assertTrue(created.getId() > 0);
-    }
-
-    @Test
-    public void testCreateInsertsTheInvitationRow() {
-        // Arrange
-        final EventInvitation toCreate = someInvitation(eventId);
-
-        // Act
-        final EventInvitation created = invitationDao.create(toCreate);
-
-        // Assert
         final Map<String, Object> row = jdbcTemplate.queryForMap(
                 "SELECT event_id, email, invited_by FROM event_invitation WHERE id = ?", created.getId());
         assertEquals(eventId, ((Number) row.get("event_id")).longValue());
@@ -253,15 +243,16 @@ public class EventInvitationJpaDaoTest {
     // ---- linkUserId() ----
 
     @Test
-    public void testLinkUserIdFillsInThePreviouslyUnresolvedInvitation() {
+    public void testLinkUserIdFillsInThePreviouslyUnresolvedInvitationAndReturnsHowMany() {
         // Arrange
         final long id = insertInvitation(eventId, INVITEE_EMAIL, null);
         final long inviteeId = insertUser(INVITEE_EMAIL);
 
         // Act
-        invitationDao.linkUserId(INVITEE_EMAIL, inviteeId);
+        final int result = invitationDao.linkUserId(INVITEE_EMAIL, inviteeId);
 
         // Assert
+        assertEquals(1, result);
         final Long storedUserId = jdbcTemplate.queryForObject(
                 "SELECT user_id FROM event_invitation WHERE id = ?", Long.class, id);
         assertEquals(Long.valueOf(inviteeId), storedUserId);
@@ -449,21 +440,9 @@ public class EventInvitationJpaDaoTest {
     }
 
     @Test
-    public void testLinkUserIdReturnsHowManyInvitationsWereLinked() {
-        // Arrange
-        insertInvitation(eventId, INVITEE_EMAIL, null);
-        final long inviteeId = insertUser(INVITEE_EMAIL);
-
-        // Act
-        final int result = invitationDao.linkUserId(INVITEE_EMAIL, inviteeId);
-
-        // Assert
-        assertEquals(1, result);
-    }
-
-    @Test
-    public void testLinkUserIdReturnsZeroWhenNoInvitationWasWaiting() {
-        // Arrange
+    public void testLinkUserIdWithNoInvitationForThatEmailLinksNothingAndReturnsZero() {
+        // Arrange: una invitacion de otro email, sin cuenta. Tiene que seguir sin enlazar.
+        final long other = insertInvitation(eventId, "otra@mail.com", null);
         final long inviteeId = insertUser(INVITEE_EMAIL);
 
         // Act
@@ -471,6 +450,8 @@ public class EventInvitationJpaDaoTest {
 
         // Assert
         assertEquals(0, result);
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "event_invitation",
+                "id = " + other + " AND user_id IS NULL"));
     }
 
     // ---- existsByEventAndUserId() ----

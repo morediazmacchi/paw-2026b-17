@@ -84,19 +84,7 @@ public class ReviewJpaDaoTest {
     // ---- create() ----
 
     @Test
-    public void testCreateAssignsAGeneratedId() {
-        // Arrange
-        final Review toCreate = new Review(em.getReference(Event.class, eventId), em.getReference(User.class, userId), 5, "Buenisimo");
-
-        // Act
-        final Review created = reviewDao.create(toCreate);
-
-        // Assert
-        assertTrue(created.getId() > 0);
-    }
-
-    @Test
-    public void testCreateInsertsTheReviewRow() {
+    public void testCreateInsertsTheReviewRowAndReturnsItWithItsId() {
         // Arrange
         final Review toCreate = new Review(em.getReference(Event.class, eventId), em.getReference(User.class, userId), 4, "Muy bueno");
 
@@ -104,6 +92,7 @@ public class ReviewJpaDaoTest {
         final Review created = reviewDao.create(toCreate);
 
         // Assert
+        assertTrue(created.getId() > 0);
         final java.util.Map<String, Object> row = jdbcTemplate.queryForMap(
                 "SELECT rating, comment FROM review WHERE id = ?", created.getId());
         assertEquals(4, row.get("rating"));

@@ -78,61 +78,67 @@ public class FavoriteJpaDaoTest {
     // ---- add() ----
 
     @Test
-    public void testAddInsertsTheFavoriteRow() {
+    public void testAddInsertsTheFavoriteRowAndReturnsTrue() {
         // Arrange: userId/eventId ya vienen del setUp, sin favorito todavia.
 
         // Act
-        favoriteDao.add(userId, eventId);
+        final boolean result = favoriteDao.add(userId, eventId);
         // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
         em.flush();
 
         // Assert
+        assertTrue(result);
         assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "favorite", favoriteWhere(userId, eventId)));
     }
 
     @Test
-    public void testAddWhenItIsAlreadyAFavoriteIsIdempotent() {
+    public void testAddWhenItIsAlreadyAFavoriteKeepsOneRowAndReturnsFalse() {
         // Arrange: el favorito ya esta (insertado por SQL, no con add()).
         insertFavorite(userId, eventId);
 
         // Act
         // No hay ON CONFLICT (no es portable a HSQLDB): add() depende de que
         // el PRIMARY KEY compuesto absorba el duplicado sin explotar.
-        favoriteDao.add(userId, eventId);
+        final boolean result = favoriteDao.add(userId, eventId);
         // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
         em.flush();
 
         // Assert
+        assertFalse(result);
         assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "favorite", favoriteWhere(userId, eventId)));
     }
 
     // ---- remove() ----
 
     @Test
-    public void testRemoveDeletesTheFavoriteRow() {
+    public void testRemoveDeletesTheFavoriteRowAndReturnsTrue() {
         // Arrange
         insertFavorite(userId, eventId);
 
         // Act
-        favoriteDao.remove(userId, eventId);
+        final boolean result = favoriteDao.remove(userId, eventId);
         // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
         em.flush();
 
         // Assert
+        assertTrue(result);
         assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "favorite", favoriteWhere(userId, eventId)));
     }
 
     @Test
-    public void testRemoveWhenNeverAddedDoesNothing() {
-        // Arrange: no hay ningun favorito guardado.
+    public void testRemoveWhenItWasNeverAFavoriteDeletesNothingAndReturnsFalse() {
+        // Arrange: un favorito de la misma persona, pero de otro evento. Tiene que quedar.
+        final long otherEventId = insertEvent("Otro");
+        insertFavorite(userId, otherEventId);
 
         // Act
-        favoriteDao.remove(userId, eventId);
+        final boolean result = favoriteDao.remove(userId, eventId);
         // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
         em.flush();
 
         // Assert
-        assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "favorite", favoriteWhere(userId, eventId)));
+        assertFalse(result);
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "favorite", favoriteWhere(userId, otherEventId)));
     }
 
     // ---- isFavorite() ----
@@ -205,51 +211,4 @@ public class FavoriteJpaDaoTest {
 
     // ---- valores de retorno (true si cambio una fila) ----
 
-    @Test
-    public void testAddReturnsTrueWhenTheFavoriteWasInserted() {
-        // Arrange
-        // (sin favorito todavia)
-
-        // Act
-        final boolean result = favoriteDao.add(userId, eventId);
-
-        // Assert
-        assertTrue(result);
-    }
-
-    @Test
-    public void testAddReturnsFalseWhenItWasAlreadyAFavorite() {
-        // Arrange
-        insertFavorite(userId, eventId);
-
-        // Act
-        final boolean result = favoriteDao.add(userId, eventId);
-
-        // Assert
-        assertFalse(result);
-    }
-
-    @Test
-    public void testRemoveReturnsTrueWhenTheFavoriteWasDeleted() {
-        // Arrange
-        insertFavorite(userId, eventId);
-
-        // Act
-        final boolean result = favoriteDao.remove(userId, eventId);
-
-        // Assert
-        assertTrue(result);
-    }
-
-    @Test
-    public void testRemoveReturnsFalseWhenItWasNeverAFavorite() {
-        // Arrange
-        // (no hay ningun favorito guardado)
-
-        // Act
-        final boolean result = favoriteDao.remove(userId, eventId);
-
-        // Assert
-        assertFalse(result);
-    }
 }
