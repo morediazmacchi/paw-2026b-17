@@ -62,7 +62,8 @@ public class ErrorAdvice {
     // revelar que el evento existe pero no es tuyo. Sin sesion (solo pasa en rutas publicas como el
     // detalle de un evento) se relanza: lo toma el ExceptionTranslationFilter de Spring Security,
     // que manda al login y despues devuelve a la pagina pedida (asi siguen andando los links de
-    // invitacion por mail). Los 403 por rol los resuelve el filtro, no este handler.
+    // invitacion por mail). La denegacion por rol del filtro (AccessDeniedAsNotFoundHandler) responde lo mismo:
+    // en toda la app, lo que no se puede acceder se ve como "no encontrado", sin distinguir el motivo.
     @ExceptionHandler(AccessDeniedException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ModelAndView accessDenied(final AccessDeniedException e, final Principal principal) {

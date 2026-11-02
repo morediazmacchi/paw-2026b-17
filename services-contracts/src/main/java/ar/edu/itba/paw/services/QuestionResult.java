@@ -1,4 +1,4 @@
-// Resultado de intentar hacer una pregunta (EventController.ask()).
+// Resultado de intentar hacer una pregunta (EventQuestionController.ask()).
 package ar.edu.itba.paw.services;
 
 public enum QuestionResult {

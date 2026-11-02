@@ -3,7 +3,7 @@ package ar.edu.itba.paw.webapp.form;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.Size;
 
-// Texto de una pregunta o de una respuesta (EventController.ask() / answer()).
+// Texto de una pregunta o de una respuesta (EventQuestionController.ask() / answer()).
 public class QuestionForm {
 
     @NotBlank

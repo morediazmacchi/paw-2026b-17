@@ -25,13 +25,13 @@ public class AdminSecurity {
         this.moderationService = moderationService;
     }
 
-    // El admin puede suspender a ese usuario: no a si mismo, y a otro admin (o al superadmin) solo
-    // lo suspende un superadmin.
+    // Solo la parte de ROLES (acceso): a un admin o al superadmin solo lo suspende un superadmin. Que
+    // nadie se suspenda a si mismo NO va aca: es regla de negocio y la valida el service
+    // (UserService.suspend(User, long) -> SuspendResult.OWN_ACCOUNT), igual que revokeAdmin().
     public boolean canSuspend(final long targetId, final Authentication authentication) {
         return PlancitoUserDetails.from(authentication)
                 .flatMap(caller -> userService.findAccessById(targetId).map(target ->
-                        caller.getId() != targetId
-                                && (caller.hasRole(Role.SUPERADMIN) || !(target.isAdmin() || target.isSuperadmin()))))
+                        caller.hasRole(Role.SUPERADMIN) || !(target.isAdmin() || target.isSuperadmin())))
                 .orElse(false);
     }
 
@@ -48,7 +48,7 @@ public class AdminSecurity {
     // El admin puede resolver este reporte (descartar, pedir cambios, dar de baja): el reporte existe
     // y su evento NO es del admin. Solo se mira de quien es el evento, NO el estado del reporte: uno
     // ya resuelto por otro admin igual llega al service, que responde con su cartel ("ya estaba
-    // resuelto"); convertirlo en un 403 seria incorrecto. Un id que no existe da false.
+    // resuelto"); convertirlo en una denegacion seria incorrecto. Un id que no existe da false.
     public boolean canResolveReport(final long reportId, final Authentication authentication) {
         return PlancitoUserDetails.from(authentication)
                 .flatMap(admin -> moderationService.findReportTarget(reportId)

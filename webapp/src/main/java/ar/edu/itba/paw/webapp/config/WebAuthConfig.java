@@ -2,7 +2,8 @@ package ar.edu.itba.paw.webapp.config;
 
 import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.model.User;
-import ar.edu.itba.paw.services.PasswordNotSetException;
+import ar.edu.itba.paw.webapp.auth.AccountStatusAfterPasswordCheck;
+import ar.edu.itba.paw.webapp.auth.AccessDeniedAsNotFoundHandler;
 import ar.edu.itba.paw.services.UserService;
 import ar.edu.itba.paw.webapp.util.SafeRedirect;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,12 +21,15 @@ import org.springframework.security.core.session.SessionRegistryImpl;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.firewall.HttpStatusRequestRejectedHandler;
+import org.springframework.security.web.firewall.RequestRejectedHandler;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.SavedRequestAwareAuthenticationSuccessHandler;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.web.servlet.LocaleResolver;
 
+import javax.servlet.http.HttpServletResponse;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
@@ -65,39 +69,26 @@ public class WebAuthConfig {
         final DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
         provider.setUserDetailsService(userDetailsService);
         provider.setPasswordEncoder(passwordEncoder);
+        // El estado de la cuenta (suspendida, sin verificar...) se evalua DESPUES de verificar la clave:
+        // los chequeos previos de Spring (que corren antes) se reemplazan por uno vacio.
+        provider.setPreAuthenticationChecks(user -> { });
+        provider.setPostAuthenticationChecks(new AccountStatusAfterPasswordCheck());
         return provider;
     }
 
-    // PasswordNotSetException (usuario fantasma) no es una UsernameNotFoundException:
-    // por eso el DaoAuthenticationProvider no la "esconde" como generica (eso es lo
-    // que le pasaria si lo fuera, via hideUserNotFoundExceptions) y llega hasta aca
-    // envuelta en InternalAuthenticationServiceException. Cualquier otra falla
-    // (no existe, password incorrecta) cae en el else: mismo mensaje generico de siempre.
+    // Con la contraseña INCORRECTA todos los casos (cuenta inexistente, suspendida, sin verificar, fantasma) llegan
+    // aca como BadCredentialsException y terminan en el mismo "/login?error": no se revela si la cuenta existe
+    // ni en que estado esta. El estado solo se informa si la contraseña era correcta (ver
+    // AccountStatusAfterPasswordCheck, que corre despues de comparar la clave).
     @Bean
     public AuthenticationFailureHandler loginFailureHandler() {
         return (request, response, exception) -> {
-            if (exception.getCause() instanceof PasswordNotSetException) {
-                final String email = ((PasswordNotSetException) exception.getCause()).getEmail();
-                final String encodedEmail = URLEncoder.encode(email, StandardCharsets.UTF_8);
-                String target = "/login?needsPassword&email=" + encodedEmail;
-                // Si el login vino con ?redirect=... (boton "Inscribirme" anonimo),
-                // lo arrastramos por todo el desvio de "elegir contraseña": si no,
-                // al final del desvio se pierde y el usuario cae al home en vez de
-                // volver a donde estaba.
-                final String redirect = request.getParameter("redirect");
-                if (SafeRedirect.isSafe(redirect)) {
-                    target += "&redirect=" + URLEncoder.encode(redirect, StandardCharsets.UTF_8);
-                }
-                response.sendRedirect(request.getContextPath() + target);
-                return;
-            }
             // DisabledException: UserDetailsServiceImpl marca disabled=true si
             // verified=false (cuenta recien registrada, todavia no confirmo el
-            // mail) O si un admin la suspendio (ver User.isSuspended()). A
-            // diferencia de PasswordNotSetException, esta SI la tira directo el
-            // provider (no envuelta), asi que no hace falta getCause() -- pero
-            // hay que volver a mirar el usuario para saber cual de los dos motivos
-            // es, porque el mensaje que corresponde no es el mismo.
+            // mail) O si un admin la suspendio (ver User.isSuspended()). Solo llega aca
+            // con la contraseña CORRECTA (el estado se mira despues de comparar la clave), asi que
+            // no filtra nada a quien no es la persona. Hay que volver a mirar el usuario para saber cual
+            // de los dos motivos es, porque el mensaje que corresponde no es el mismo.
             if (exception instanceof DisabledException) {
                 final String email = request.getParameter("email");
                 final String encodedEmail = email == null ? "" : URLEncoder.encode(email, StandardCharsets.UTF_8);
@@ -146,6 +137,14 @@ public class WebAuthConfig {
         return new SessionRegistryImpl();
     }
 
+    // StrictHttpFirewall rechaza URLs raras ("//", ";", "%2F", "/./") lanzando RequestRejectedException; sin
+    // esto el contenedor la convierte en un 500. Spring Security toma este bean solo. El firewall bloquea
+    // igual: esto solo cambia el status (400) y el ruido en el log.
+    @Bean
+    public RequestRejectedHandler requestRejectedHandler() {
+        return new HttpStatusRequestRejectedHandler(HttpServletResponse.SC_BAD_REQUEST);
+    }
+
     @Bean
     public SecurityFilterChain filterChain(final HttpSecurity http) throws Exception {
         http.authenticationProvider(authenticationProvider())
@@ -183,6 +182,9 @@ public class WebAuthConfig {
                 // maximumSessions(-1) = sin limite de logins simultaneos: solo sirve para rastrear las
                 // sesiones en el registro e instalar el ConcurrentSessionFilter, que corta (antes de
                 // llegar a cualquier controller) una sesion marcada como expirada y manda al login.
+                // Denegacion A NIVEL FILTRO (usuario logueado sin el rol de un antMatcher): la misma respuesta
+                // generica que cualquier otra cosa a la que no se pueda acceder (404), con cualquier verbo.
+                .exceptionHandling(e -> e.accessDeniedHandler(new AccessDeniedAsNotFoundHandler("/error/404")))
                 .sessionManagement(sm -> sm
                         .maximumSessions(-1)
                         .sessionRegistry(sessionRegistry())

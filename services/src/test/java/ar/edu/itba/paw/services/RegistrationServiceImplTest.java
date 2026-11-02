@@ -41,7 +41,7 @@ public class RegistrationServiceImplTest {
     private static final String NORMALIZED_EMAIL = "test@mail.com";
     private static final String NAME = "Ana";
     private static final String CREATOR_EMAIL = "creador@mail.com";
-    // Quien se anota siempre esta logueado (ver EventController.rsvp()): el
+    // Quien se anota siempre esta logueado (ver EventRegistrationController.rsvp()): el
     // service ya no recibe un email/nombre sueltos, recibe el User entero
     // (con su id, que es lo que ahora identifica la fila). USER_ID/CREATOR_ID/
     // OTHER_ID son ids de "utileria" para estos tests con mocks, no hace falta

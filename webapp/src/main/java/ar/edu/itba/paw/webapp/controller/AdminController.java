@@ -10,16 +10,13 @@ import ar.edu.itba.paw.services.ModerationService;
 import ar.edu.itba.paw.services.PageResult;
 import ar.edu.itba.paw.services.ReportResolutionResult;
 import ar.edu.itba.paw.services.RevokeAdminResult;
+import ar.edu.itba.paw.services.SuspendResult;
 import ar.edu.itba.paw.services.UserService;
 import ar.edu.itba.paw.webapp.form.RejectEventForm;
 import ar.edu.itba.paw.webapp.form.RequestChangesForm;
 import ar.edu.itba.paw.webapp.util.Paging;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -212,13 +209,19 @@ public class AdminController {
         return mav;
     }
 
-    // Quien puede suspender a quien (no a si mismo; a otro admin solo un superadmin) lo decide
-    // @PreAuthorize antes de entrar (ver AdminSecurity.canSuspend). La pantalla ya esconde el boton
-    // cuando no corresponde: esto solo se llega con un POST armado a mano.
+    // Quien puede suspender a quien segun el ROL (a otro admin solo un superadmin) lo decide
+    // @PreAuthorize antes de entrar (ver AdminSecurity.canSuspend). Que nadie se suspenda a si mismo es
+    // regla de negocio del service (SuspendResult.OWN_ACCOUNT): la pantalla ya esconde el boton, esto
+    // solo se llega con un POST armado a mano.
     @PreAuthorize("@adminSecurity.canSuspend(#id, authentication)")
     @RequestMapping(value = "/usuarios/{id}/suspender", method = RequestMethod.POST)
-    public ModelAndView suspender(@PathVariable final long id) {
-        userService.suspend(id);
+    public ModelAndView suspender(@PathVariable final long id,
+                                  @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
+                                  final RedirectAttributes redirectAttributes) {
+        final SuspendResult result = userService.suspend(currentUser, id);
+        if (result != SuspendResult.OK) {
+            redirectAttributes.addFlashAttribute("suspendError", result.name());
+        }
         return new ModelAndView("redirect:/admin/usuarios");
     }
 
@@ -248,14 +251,6 @@ public class AdminController {
         return new ModelAndView("redirect:/admin/usuarios");
     }
 
-    // Un @PreAuthorize denegado en el area de admin responde 403 con la pagina de "sin permiso". En el
-    // resto de la app es un 404 (ver ErrorAdvice) para no revelar que un evento privado existe; aca
-    // quien actua es un admin y el usuario existe, asi que un 404 solo confundiria.
-    @ExceptionHandler(AccessDeniedException.class)
-    @ResponseStatus(HttpStatus.FORBIDDEN)
-    public ModelAndView accessDenied() {
-        return new ModelAndView("errors/403");
-    }
 
     // Banner
     @RequestMapping(value = "/eventos/{id}/destacar", method = RequestMethod.POST)

@@ -25,6 +25,9 @@
     <c:if test="${not empty revokeAdminError}">
         <p class="alert"><spring:message code="admin.users.revokeAdminError.${revokeAdminError}"/></p>
     </c:if>
+    <c:if test="${not empty suspendError}">
+        <p class="alert"><spring:message code="admin.users.suspendError.${suspendError}"/></p>
+    </c:if>
 
     <c:choose>
         <c:when test="${empty users}">
@@ -91,8 +94,10 @@
                                     </c:choose>
                                     <%-- Otorgar/revocar admin: solo si quien mira esta pantalla es
                                          superadmin (WebAuthConfig ya lo exige en el servidor; esto
-                                         solo evita ofrecer un boton que el POST va a rechazar). --%>
-                                    <c:if test="${isSuperadmin}">
+                                         solo evita ofrecer un boton que el POST va a rechazar). A un
+                                         superadmin no se le ofrece ninguno: ya es admin y no se le saca
+                                         el rol (RevokeAdminResult.TARGET_SUPERADMIN). --%>
+                                    <c:if test="${isSuperadmin and not targetUser.superadmin}">
                                         <c:choose>
                                             <c:when test="${targetUser.admin}">
                                                 <form action="<c:url value='/admin/usuarios/${targetUser.id}/revocar'/>" method="post">

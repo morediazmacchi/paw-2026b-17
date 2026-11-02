@@ -130,7 +130,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         // deberia dispararse en el camino normal: el lock de arriba serializa
         // los clics simultaneos del mismo usuario antes de llegar aca.
         // Quien se anota siempre esta logueado (el endpoint lo exige, ver
-        // EventController.rsvp()): no hace falta userService.findOrCreate() para garantizar
+        // EventRegistrationController.rsvp()): no hace falta userService.findOrCreate() para garantizar
         // una fila en users, el Principal autenticado ya la implica.
         final Registration registration = new Registration(event, user, normalizedEmail, user.getName(), status);
         registrationDao.create(registration);

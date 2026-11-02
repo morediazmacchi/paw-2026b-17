@@ -20,7 +20,6 @@ import javax.persistence.OrderBy;
 import javax.persistence.Table;
 import javax.persistence.Temporal;
 import javax.persistence.TemporalType;
-import javax.persistence.Transient;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Comparator;

@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.ModelAndView;
 
 import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpSession;
 import javax.validation.Valid;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -34,13 +36,17 @@ public class LoginController {
     private final UserService userService;
     private final MessageSource messageSource;
     private final UserDetailsService userDetailsService;
+    // El mismo registro de WebAuthConfig: el login normal lo alimenta solo (sessionManagement), pero
+    // autoLogin() arma la sesion a mano y tiene que registrarla el mismo.
+    private final SessionRegistry sessionRegistry;
 
     @Autowired
     public LoginController(final UserService userService, final MessageSource messageSource,
-                           final UserDetailsService userDetailsService) {
+                           final UserDetailsService userDetailsService, final SessionRegistry sessionRegistry) {
         this.userService = userService;
         this.messageSource = messageSource;
         this.userDetailsService = userDetailsService;
+        this.sessionRegistry = sessionRegistry;
     }
 
     // El submit del login normal (POST /login) lo intercepta el filtro de Spring
@@ -122,9 +128,14 @@ public class LoginController {
                 new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
         authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
         SecurityContextHolder.getContext().setAuthentication(authentication);
-        request.getSession(true).setAttribute(
-                HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY,
+        final HttpSession session = request.getSession(true);
+        session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY,
                 SecurityContextHolder.getContext());
+        // Al armar la sesion a mano no pasa por la estrategia de Spring Security que la registra: sin
+        // esto, SessionExpiringListener no la encuentra y una cuenta recien confirmada que despues
+        // suspenden conserva su sesion hasta el timeout. Se registra con el MISMO PlancitoUserDetails
+        // que lleva la Authentication, para que el listener lo encuentre por getId().
+        sessionRegistry.registerNewSession(session.getId(), userDetails);
         return true;
     }
 

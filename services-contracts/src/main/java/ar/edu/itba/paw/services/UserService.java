@@ -116,19 +116,19 @@ public interface UserService {
     boolean updateLocale(long userId, String locale);
 
     /**
-     * Como {@link #updateLocale(long, String)}, pero para quien solo tiene el email
-     * (el {@code Principal} autenticado, ver LocaleController): busca el id el mismo,
-     * para que el controller no tenga que resolverlo con un findByEmail() aparte antes
-     * de llamar a esto. Si no existe, no hace nada (no deberia pasar para alguien ya
-     * logueado, pero no corresponde que esto rompa el cambio de idioma de la pagina).
+     * Suspension desde el panel de admin: igual que {@link #suspend(long)}, pero valida como regla de
+     * negocio que nadie se suspenda a si mismo (OWN_ACCOUNT, antes de escribir; igual que revokeAdmin()).
+     * Quien puede suspender a quien segun el rol (a otro admin solo un superadmin) NO se valida aca: lo
+     * decide @PreAuthorize en AdminController (ver AdminSecurity.canSuspend).
      */
-    boolean updateLocale(String email, String locale);
+    SuspendResult suspend(User caller, long targetId);
 
     /**
      * Suspende la cuenta (ver UserDetailsServiceImpl): no va a poder loguearse
-     * hasta que un admin la reactive. Le avisa por mail y por la bandeja.
-     * Quien puede suspender a quien (no a si mismo; a otro admin solo un superadmin) NO se valida
-     * aca: lo decide @PreAuthorize en AdminController (ver AdminSecurity.canSuspend).
+     * hasta que un admin la reactive. Le avisa por mail y por la bandeja, y cierra sus sesiones abiertas.
+     * Sin ninguna validacion de quien la pide: es para los caminos ya autorizados (la baja por moderacion,
+     * que ya paso por AdminSecurity.canResolveReport). El panel de admin usa
+     * {@link #suspend(User, long)}.
      */
     boolean suspend(long userId);
 
@@ -145,8 +145,8 @@ public interface UserService {
     /**
      * Le saca el rol ADMIN a un usuario (no toca SUPERADMIN). Quien puede invocar esto (solo un
      * superadmin) lo controla la seguridad HTTP (ver WebAuthConfig), no este metodo. Si valida, como
-     * regla de negocio, que nadie se lo saque a si mismo (OWN_ACCOUNT), igual que
-     * EventQuestionService.ask() con el organizador (OWN_EVENT).
+     * reglas de negocio, que nadie se lo saque a si mismo (OWN_ACCOUNT) y que el objetivo no sea un
+     * superadmin (TARGET_SUPERADMIN: no hay herencia de roles, sin ADMIN perderia el acceso a /admin/**).
      */
     RevokeAdminResult revokeAdmin(User caller, long targetId);
 }

@@ -289,6 +289,20 @@ public class EventQuestionJpaDaoTest {
         assertEquals(Optional.of(creatorId), result);
     }
 
+    // creator_id puede ser NULL (evento legacy sin organizador): sin el filtro de nulos, findFirst() tiraba
+    // NullPointerException con ese elemento nulo y la regla de acceso terminaba en un 500.
+    @Test
+    public void testFindEventCreatorIdIsEmptyForAnEventWithoutCreator() {
+        // Arrange: insertEvent() deja creator_id en NULL; se pregunta sobre ese evento
+        final long questionId = insertQuestion(insertEvent("Evento sin organizador"), userId, "Hay lugar?");
+
+        // Act
+        final Optional<Long> result = questionDao.findEventCreatorId(questionId);
+
+        // Assert
+        assertFalse(result.isPresent());
+    }
+
     @Test
     public void testFindEventCreatorIdIsEmptyWhenTheQuestionDoesNotExist() {
         // Act

@@ -21,7 +21,7 @@ public interface EventInvitationService {
     /**
      * Si a este usuario se le mando una invitacion a este evento. Es lo que
      * deja ver (y anotarse a) un evento privado: el id es el del usuario
-     * logueado (ver EventController.canView). Por id y no por email: el
+     * logueado (ver EventSecurity.canView / EventAccessService.canView). Por id y no por email: el
      * email de la invitacion puede haber quedado desactualizado si la
      * persona invitada cambio el suyo despues (ver linkUserId).
      */

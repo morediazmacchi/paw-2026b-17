@@ -16,7 +16,6 @@ import javax.persistence.LockModeType;
 import javax.persistence.PersistenceContext;
 import javax.persistence.Query;
 import javax.persistence.TemporalType;
-import javax.persistence.TypedQuery;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;

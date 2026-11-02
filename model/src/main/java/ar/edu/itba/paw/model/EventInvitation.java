@@ -2,8 +2,6 @@ package ar.edu.itba.paw.model;
 
 import javax.persistence.Column;
 import javax.persistence.Entity;
-import javax.persistence.EnumType;
-import javax.persistence.Enumerated;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
@@ -20,7 +18,7 @@ import java.util.Date;
  * Invitacion personal del creador a alguien para que pueda ver (y, si quiere,
  * anotarse) a un evento privado. Quien entra tiene que SER la persona
  * invitada: logueado con la cuenta enlazada a esta invitacion (ver userId
- * mas abajo y EventController.canView()). Ya no hay un token/link que valga
+ * mas abajo y EventSecurity.canView() / EventAccessService.canView()). Ya no hay un token/link que valga
  * por si solo sin sesion (ver el comentario de la tabla event_invitation en
  * schema.sql).
  */

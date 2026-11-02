@@ -2,14 +2,23 @@ package ar.edu.itba.paw.webapp.auth;
 
 import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.services.UserAccessRevokedEvent;
+import ar.edu.itba.paw.services.UserCredentialsChangedEvent;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.core.session.SessionRegistryImpl;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpSession;
 
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SessionExpiringListenerTest {
 
@@ -94,5 +103,69 @@ public class SessionExpiringListenerTest {
 
         // Assert
         assertFalse(sessionRegistry.getSessionInformation("session-decoy").isExpired());
+    }
+
+    // ---- cambio de contraseña (UserCredentialsChangedEvent) ----
+
+    @After
+    public void clearRequest() {
+        RequestContextHolder.resetRequestAttributes();
+    }
+
+    // El pedido en curso (el hilo que hace el commit) es el de la sesion "current-session".
+    private static void currentRequestHasSession(final String sessionId) {
+        final HttpServletRequest request = mock(HttpServletRequest.class);
+        final HttpSession session = mock(HttpSession.class);
+        when(session.getId()).thenReturn(sessionId);
+        when(request.getSession(false)).thenReturn(session);
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+    }
+
+    @Test
+    public void testChangingThePasswordExpiresTheOtherSessionsButKeepsTheCurrentOne() {
+        // Arrange: el mismo usuario en dos navegadores + un senuelo de otro usuario
+        sessionRegistry.registerNewSession("current-session", principal(TARGET_ID, "target@test.com"));
+        sessionRegistry.registerNewSession("stolen-session", principal(TARGET_ID, "target@test.com"));
+        sessionRegistry.registerNewSession("session-decoy", principal(OTHER_ID, "otro@test.com"));
+        currentRequestHasSession("current-session");
+
+        // Act
+        listener.onCredentialsChanged(new UserCredentialsChangedEvent(TARGET_ID, true));
+
+        // Assert
+        assertFalse(sessionRegistry.getSessionInformation("current-session").isExpired());
+        assertTrue(sessionRegistry.getSessionInformation("stolen-session").isExpired());
+        assertFalse(sessionRegistry.getSessionInformation("session-decoy").isExpired());
+    }
+
+    @Test
+    public void testResettingThePasswordExpiresAllTheSessionsOfTheUser() {
+        // Arrange: el pedido que restablece la clave puede traer una sesion anonima cualquiera
+        sessionRegistry.registerNewSession("session-1", principal(TARGET_ID, "target@test.com"));
+        sessionRegistry.registerNewSession("session-2", principal(TARGET_ID, "target@test.com"));
+        sessionRegistry.registerNewSession("session-decoy", principal(OTHER_ID, "otro@test.com"));
+        currentRequestHasSession("session-1");
+
+        // Act
+        listener.onCredentialsChanged(new UserCredentialsChangedEvent(TARGET_ID, false));
+
+        // Assert
+        assertTrue(sessionRegistry.getSessionInformation("session-1").isExpired());
+        assertTrue(sessionRegistry.getSessionInformation("session-2").isExpired());
+        assertFalse(sessionRegistry.getSessionInformation("session-decoy").isExpired());
+    }
+
+    @Test
+    public void testWithoutARequestInProgressAllTheSessionsAreExpired() {
+        // Arrange: p. ej. el commit corre en otro hilo; no hay cual conservar
+        sessionRegistry.registerNewSession("session-1", principal(TARGET_ID, "target@test.com"));
+        sessionRegistry.registerNewSession("session-2", principal(TARGET_ID, "target@test.com"));
+
+        // Act
+        listener.onCredentialsChanged(new UserCredentialsChangedEvent(TARGET_ID, true));
+
+        // Assert
+        assertTrue(sessionRegistry.getSessionInformation("session-1").isExpired());
+        assertTrue(sessionRegistry.getSessionInformation("session-2").isExpired());
     }
 }

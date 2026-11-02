@@ -79,18 +79,13 @@ public class AdminSecurityTest {
         assertTrue(security.canSuspend(TARGET_ID, caller(Role.USER, Role.ADMIN)));
     }
 
+    // "No a vos mismo" ya no se decide aca (es regla de negocio del service: SuspendResult.OWN_ACCOUNT):
+    // la regla solo mira roles, asi que un superadmin pasa tambien cuando el objetivo es el mismo.
     @Test
-    public void testAnAdminCannotSuspendHimself() {
-        when(userService.findAccessById(CALLER_ID)).thenReturn(Optional.of(target(Role.USER, Role.ADMIN)));
-
-        assertFalse(security.canSuspend(CALLER_ID, caller(Role.USER, Role.ADMIN)));
-    }
-
-    @Test
-    public void testASuperadminCannotSuspendHimself() {
+    public void testTheRoleRuleDoesNotLookAtWhoTheTargetIs() {
         when(userService.findAccessById(CALLER_ID)).thenReturn(Optional.of(target(Role.USER, Role.ADMIN, Role.SUPERADMIN)));
 
-        assertFalse(security.canSuspend(CALLER_ID, caller(Role.USER, Role.ADMIN, Role.SUPERADMIN)));
+        assertTrue(security.canSuspend(CALLER_ID, caller(Role.USER, Role.ADMIN, Role.SUPERADMIN)));
     }
 
     @Test

@@ -2,7 +2,6 @@ package ar.edu.itba.paw.webapp.auth;
 
 import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.model.User;
-import ar.edu.itba.paw.services.PasswordNotSetException;
 import ar.edu.itba.paw.services.UserService;
 import org.junit.Before;
 import org.junit.Test;
@@ -150,18 +149,21 @@ public class UserDetailsServiceImplTest {
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
 
-    // Un usuario "fantasma" (creado antes de que existiera el login) existe pero no
-    // tiene contrasenia: se distingue de "no existe" para mandarlo a elegir una.
-    @Test(expected = PasswordNotSetException.class)
-    public void testLoadUserByUsernameThrowsPasswordNotSetForAUserWithoutPassword() {
+    // Un usuario "fantasma" (creado antes de que existiera el login) NO se distingue de una cuenta con otra
+    // clave: se devuelve deshabilitado y con un hash que ninguna contraseña verifica, asi que el login falla
+    // con el error generico (no revela que la cuenta existe).
+    @Test
+    public void testLoadUserByUsernameOfAUserWithoutPasswordReturnsADisabledAccountWithAnUnusablePassword() {
         // Arrange
         final User ghost = verifiedUser();
         ghost.setPassword(null);
         when(mockUserService.findByEmail(EMAIL)).thenReturn(Optional.of(ghost));
 
         // Act
-        userDetailsService.loadUserByUsername(EMAIL);
+        final UserDetails details = userDetailsService.loadUserByUsername(EMAIL);
 
-        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
+        // Assert
+        assertFalse(details.isEnabled());
+        assertTrue(details.getPassword().startsWith("$2a$10$"));
     }
 }

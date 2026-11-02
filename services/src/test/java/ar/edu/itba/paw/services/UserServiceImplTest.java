@@ -397,31 +397,6 @@ public class UserServiceImplTest {
         assertFalse(result);
     }
 
-    @Test
-    public void testUpdateLocaleByEmailResolvesTheIdAndSavesTheLanguage() {
-        // Arrange
-        when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(someUser()));
-        when(userDao.setLocale(USER_ID, "en")).thenReturn(true);
-
-        // Act
-        final boolean result = userService.updateLocale(EMAIL, "en");
-
-        // Assert
-        assertTrue(result);
-    }
-
-    @Test
-    public void testUpdateLocaleByEmailReturnsFalseWhenThereIsNoSuchUser() {
-        // Arrange
-        when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.empty());
-
-        // Act
-        final boolean result = userService.updateLocale(EMAIL, "en");
-
-        // Assert
-        assertFalse(result);
-    }
-
     // ---- confirmEmail() ----
 
     @Test
@@ -788,9 +763,14 @@ public class UserServiceImplTest {
         return caller;
     }
 
+    private static UserAccess accessOf(final long id, final Role... roles) {
+        return new UserAccess(id, EnumSet.copyOf(Arrays.asList(roles)));
+    }
+
     @Test
     public void testRevokeAdminOfAnotherAdminReturnsOk() {
         // Arrange
+        when(userDao.findAccessById(USER_ID)).thenReturn(Optional.of(accessOf(USER_ID, Role.USER, Role.ADMIN)));
         when(userDao.removeRole(USER_ID, Role.ADMIN)).thenReturn(true);
 
         // Act
@@ -805,6 +785,7 @@ public class UserServiceImplTest {
     @Test
     public void testRevokeAdminOnYourOwnAccountReturnsOwnAccount() {
         // Arrange
+        lenient().when(userDao.findAccessById(CALLER_ID)).thenReturn(Optional.of(accessOf(CALLER_ID, Role.USER, Role.ADMIN)));
         lenient().when(userDao.removeRole(CALLER_ID, Role.ADMIN)).thenReturn(true);
 
         // Act
@@ -814,11 +795,27 @@ public class UserServiceImplTest {
         assertEquals(RevokeAdminResult.OWN_ACCOUNT, result);
     }
 
+    // Un superadmin conserva ADMIN: si el service igual llamara a removeRole (que da true), el
+    // resultado seria OK y no TARGET_SUPERADMIN.
+    @Test
+    public void testRevokeAdminOfASuperadminReturnsTargetSuperadminAndKeepsTheRole() {
+        // Arrange
+        when(userDao.findAccessById(USER_ID))
+                .thenReturn(Optional.of(accessOf(USER_ID, Role.USER, Role.ADMIN, Role.SUPERADMIN)));
+        lenient().when(userDao.removeRole(USER_ID, Role.ADMIN)).thenReturn(true);
+
+        // Act
+        final RevokeAdminResult result = userService.revokeAdmin(callerUser(), USER_ID);
+
+        // Assert
+        assertEquals(RevokeAdminResult.TARGET_SUPERADMIN, result);
+    }
+
     @Test
     public void testRevokeAdminOfAUserWhoWasNotAdminReturnsOk() {
         // Arrange
+        when(userDao.findAccessById(USER_ID)).thenReturn(Optional.of(accessOf(USER_ID, Role.USER)));
         when(userDao.removeRole(USER_ID, Role.ADMIN)).thenReturn(false);
-        when(userDao.findAccessById(USER_ID)).thenReturn(Optional.of(new UserAccess(USER_ID, EnumSet.of(Role.USER))));
 
         // Act
         final RevokeAdminResult result = userService.revokeAdmin(callerUser(), USER_ID);
@@ -830,7 +827,6 @@ public class UserServiceImplTest {
     @Test
     public void testRevokeAdminOfAUserWhoDoesNotExistReturnsNotFound() {
         // Arrange
-        when(userDao.removeRole(USER_ID, Role.ADMIN)).thenReturn(false);
         when(userDao.findAccessById(USER_ID)).thenReturn(Optional.empty());
 
         // Act
@@ -838,6 +834,46 @@ public class UserServiceImplTest {
 
         // Assert
         assertEquals(RevokeAdminResult.NOT_FOUND, result);
+    }
+
+    // ---- suspend(caller, target): el panel de admin ----
+
+    // Validar antes de escribir: si el service suspendiera primero, setSuspended daria true y el
+    // resultado seria OK.
+    @Test
+    public void testSuspendYourOwnAccountReturnsOwnAccount() {
+        // Arrange
+        lenient().when(userDao.setSuspended(CALLER_ID, true)).thenReturn(true);
+
+        // Act
+        final SuspendResult result = userService.suspend(callerUser(), CALLER_ID);
+
+        // Assert
+        assertEquals(SuspendResult.OWN_ACCOUNT, result);
+    }
+
+    @Test
+    public void testSuspendAnotherUserReturnsOk() {
+        // Arrange
+        when(userDao.setSuspended(USER_ID, true)).thenReturn(true);
+
+        // Act
+        final SuspendResult result = userService.suspend(callerUser(), USER_ID);
+
+        // Assert
+        assertEquals(SuspendResult.OK, result);
+    }
+
+    @Test
+    public void testSuspendAUserWhoDoesNotExistReturnsNotFound() {
+        // Arrange
+        when(userDao.setSuspended(USER_ID, true)).thenReturn(false);
+
+        // Act
+        final SuspendResult result = userService.suspend(callerUser(), USER_ID);
+
+        // Assert
+        assertEquals(SuspendResult.NOT_FOUND, result);
     }
 
     // ---- findAll() ----

@@ -213,8 +213,11 @@ public class UserServiceImpl implements UserService {
         if (!found.isPresent()) {
             return PasswordResetResult.INVALID_TOKEN;
         }
-        userDao.setPassword(found.get().getUserId(), passwordEncoder.encode(newPassword));
+        final long userId = found.get().getUserId();
+        userDao.setPassword(userId, passwordEncoder.encode(newPassword));
         tokenDao.delete(token);
+        // Cualquier sesion que ya tuviera esa cuenta deja de valer (por eso se pidio restablecer la clave).
+        eventPublisher.publishEvent(new UserCredentialsChangedEvent(userId, false));
         return PasswordResetResult.OK;
     }
 
@@ -254,6 +257,8 @@ public class UserServiceImpl implements UserService {
         }
 
         userDao.setPassword(userId, passwordEncoder.encode(newPassword));
+        // Se cierran las OTRAS sesiones de esta cuenta; la actual (desde donde se cambio la clave) sigue.
+        eventPublisher.publishEvent(new UserCredentialsChangedEvent(userId, true));
         return true;
     }
 
@@ -265,10 +270,12 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public boolean updateLocale(final String email, final String locale) {
-        return userDao.findByEmail(email.trim().toLowerCase())
-                .map(user -> userDao.setLocale(user.getId(), locale))
-                .orElse(false);
+    public SuspendResult suspend(final User caller, final long targetId) {
+        // Se valida ANTES de escribir.
+        if (Long.valueOf(targetId).equals(caller.getId())) {
+            return SuspendResult.OWN_ACCOUNT;
+        }
+        return suspend(targetId) ? SuspendResult.OK : SuspendResult.NOT_FOUND;
     }
 
     @Override
@@ -310,13 +317,20 @@ public class UserServiceImpl implements UserService {
         if (Long.valueOf(targetId).equals(caller.getId())) {
             return RevokeAdminResult.OWN_ACCOUNT;
         }
+        final UserAccess target = userDao.findAccessById(targetId).orElse(null);
+        if (target == null) {
+            return RevokeAdminResult.NOT_FOUND;
+        }
+        // Tampoco a otro superadmin: no hay herencia de roles, sin ADMIN perderia el acceso a /admin/**.
+        if (target.isSuperadmin()) {
+            return RevokeAdminResult.TARGET_SUPERADMIN;
+        }
         if (userDao.removeRole(targetId, Role.ADMIN)) {
             // Su sesion todavia lleva el rol ADMIN del login: la web la cierra despues del commit.
             eventPublisher.publishEvent(new UserAccessRevokedEvent(targetId));
-            return RevokeAdminResult.OK;
         }
-        // removeRole da false si el usuario no existe O si no era admin: solo lo primero es un error.
-        return userDao.findAccessById(targetId).isPresent() ? RevokeAdminResult.OK : RevokeAdminResult.NOT_FOUND;
+        // Si ya no era admin el resultado buscado (sin el rol) ya se cumple.
+        return RevokeAdminResult.OK;
     }
 
     // Igual que InboxServiceImpl.add(), pero sin pasar por ese service (evitaria

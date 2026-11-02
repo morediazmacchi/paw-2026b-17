@@ -28,6 +28,7 @@ import org.springframework.validation.Validator;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
+import org.springframework.web.servlet.config.annotation.PathMatchConfigurer;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import org.springframework.web.servlet.view.InternalResourceViewResolver;
@@ -143,6 +144,16 @@ public class WebConfig implements WebMvcConfigurer {
     public void addInterceptors(final InterceptorRegistry registry) {
         registry.addInterceptor(new UnreadInboxInterceptor(inboxService));
         registry.addInterceptor(new CurrentLocaleInterceptor());
+    }
+
+    // Spring MVC, por defecto, enruta "/ruta/" al mismo handler que "/ruta". Los antMatchers de Spring
+    // Security (WebAuthConfig) NO: "/admin/usuarios/5/revocar/" no matcheaba la regla de SUPERADMIN, caia
+    // en "/admin/**" (cualquier ADMIN) y aun asi llegaba al controller. Sin la tolerancia de la barra
+    // final, las dos capas ven exactamente las mismas URLs y una regla de ruta no se puede esquivar.
+    // Ningun link, redirect ni form de la app termina en "/".
+    @Override
+    public void configurePathMatch(final PathMatchConfigurer configurer) {
+        configurer.setUseTrailingSlashMatch(false);
     }
 
     // Esto es lo que mostro Sotuyo en clase: le dice a Spring que las carpetas

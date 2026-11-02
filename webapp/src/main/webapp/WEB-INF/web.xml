@@ -89,6 +89,15 @@
 
   <session-config>
     <session-timeout>30</session-timeout>
+    <!-- HttpOnly: JavaScript no puede leer la cookie de sesion (si hubiera un XSS no la roba).
+         tracking-mode COOKIE: nunca se acepta el id de sesion por la URL (;jsessionid=).
+         NO se pone <secure> aca: la app local corre sobre HTTP y la cookie dejaria de enviarse. En el deploy
+         (Tomcat) el flag Secure y SameSite=Lax se configuran en el CookieProcessor del contexto
+         (<CookieProcessor sameSiteCookies="lax"/>) y, si hay HTTPS, con <secure>true</secure> aca. -->
+    <cookie-config>
+      <http-only>true</http-only>
+    </cookie-config>
+    <tracking-mode>COOKIE</tracking-mode>
   </session-config>
 
   <!-- Paginas de error propias en vez de las de Tomcat. Esto cubre lo que
