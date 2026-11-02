@@ -2,11 +2,13 @@
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.TokenPurpose;
+import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.VerificationToken;
 import org.springframework.stereotype.Repository;
 
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
@@ -17,13 +19,14 @@ public class VerificationTokenJpaDao implements VerificationTokenDao {
     private EntityManager em;
 
     @Override
-    public VerificationToken create(final VerificationToken token) {
-        em.persist(token);
+    public VerificationToken create(final String token, final User user, final TokenPurpose purpose, final Date expiresAt) {
+        final VerificationToken verificationToken = new VerificationToken(token, user, purpose, expiresAt);
+        em.persist(verificationToken);
         // El id es el token (lo asigna el service, no la base): a diferencia de IDENTITY,
         // persist() no inserta enseguida. flush() para que una violacion de FK/PK salga
         // desde este metodo y no mas tarde, al commit.
         em.flush();
-        return token;
+        return verificationToken;
     }
 
     @Override

@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface UserDao {
-    User create(User user);
+    User create(String email, String name);
 
     // Optional<User> siempre trae los roles ya cargados (ver User.getRoles()):
     // quien pide un usuario por id/email lo necesita para autenticacion, no aparte.

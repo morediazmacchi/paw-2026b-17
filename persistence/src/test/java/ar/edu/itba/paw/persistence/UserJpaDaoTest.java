@@ -74,11 +74,8 @@ public class UserJpaDaoTest {
 
     @Test
     public void testCreatePersistsTheGivenEmailAndNameAndAssignsAnId() {
-        // Arrange
-        final User toCreate = new User(EMAIL, NAME);
-
         // Act
-        final User created = userDao.create(toCreate);
+        final User created = userDao.create(EMAIL, NAME);
 
         // Assert
         assertTrue(created.getId() > 0);
@@ -90,11 +87,8 @@ public class UserJpaDaoTest {
 
     @Test
     public void testCreateWithNullNameSucceeds() {
-        // Arrange
-        final User toCreate = new User(EMAIL, null);
-
         // Act
-        final User created = userDao.create(toCreate);
+        final User created = userDao.create(EMAIL, null);
 
         // Assert
         final String name = jdbcTemplate.queryForObject(
@@ -104,11 +98,8 @@ public class UserJpaDaoTest {
 
     @Test
     public void testCreateDefaultsVerifiedToTrue() {
-        // Arrange
-        final User toCreate = new User(EMAIL, NAME);
-
         // Act
-        final User created = userDao.create(toCreate);
+        final User created = userDao.create(EMAIL, NAME);
 
         // Assert
         // DEFAULT TRUE es del backfill de cuentas viejas (ver schema.sql);
@@ -120,11 +111,8 @@ public class UserJpaDaoTest {
 
     @Test
     public void testCreateDefaultsSuspendedToFalse() {
-        // Arrange
-        final User toCreate = new User(EMAIL, NAME);
-
         // Act
-        final User created = userDao.create(toCreate);
+        final User created = userDao.create(EMAIL, NAME);
 
         // Assert
         final Boolean suspended = jdbcTemplate.queryForObject(
@@ -134,11 +122,8 @@ public class UserJpaDaoTest {
 
     @Test
     public void testCreateLeavesLocaleNull() {
-        // Arrange
-        final User toCreate = new User(EMAIL, NAME);
-
         // Act
-        final User created = userDao.create(toCreate);
+        final User created = userDao.create(EMAIL, NAME);
 
         // Assert
         final String locale = jdbcTemplate.queryForObject(
@@ -152,7 +137,7 @@ public class UserJpaDaoTest {
         insertUser(EMAIL, NAME);
 
         // Act
-        userDao.create(new User(EMAIL, "Otro Nombre"));
+        userDao.create(EMAIL, "Otro Nombre");
 
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }

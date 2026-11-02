@@ -18,7 +18,7 @@ public interface EventChatDao {
     // Si lo rechazaron o se dio de baja, deja de serlo sin tocar nada mas.
     boolean isMember(long eventId, long userId);
 
-    ChatMessage addMessage(ChatMessage message);
+    ChatMessage addMessage(long eventId, long userId, String body);
 
     // Los ultimos `limit` mensajes, del mas viejo al mas nuevo.
     List<ChatMessage> findLatest(long eventId, int limit);

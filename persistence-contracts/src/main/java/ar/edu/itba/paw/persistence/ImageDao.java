@@ -7,7 +7,7 @@ import ar.edu.itba.paw.model.Image;
 import java.util.Optional;
 
 public interface ImageDao {
-    Image create(Image image);
+    Image create(byte[] data, String contentType, String fileName);
     Optional<Image> findById(long id);
 
     // Los datos del evento del que cuelga la imagen que alcanzan para decidir quien puede verla

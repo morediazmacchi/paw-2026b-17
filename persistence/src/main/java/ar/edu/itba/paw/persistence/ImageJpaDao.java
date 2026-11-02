@@ -19,7 +19,8 @@ public class ImageJpaDao implements ImageDao {
     private EntityManager em;
 
     @Override
-    public Image create(final Image image) {
+    public Image create(final byte[] data, final String contentType, final String fileName) {
+        final Image image = new Image(data, contentType, fileName, data.length);
         em.persist(image);
         return image;
     }

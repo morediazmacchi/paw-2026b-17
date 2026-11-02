@@ -73,10 +73,9 @@ public class VerificationTokenJpaDaoTest {
     public void testCreateInsertsTheTokenRowAndReturnsIt() {
         // Arrange
         final Date expiresAt = inOneHour();
-        final VerificationToken toCreate = new VerificationToken(TOKEN, em.getReference(User.class, userId), TokenPurpose.VERIFY_EMAIL, expiresAt);
 
         // Act
-        final VerificationToken result = tokenDao.create(toCreate);
+        final VerificationToken result = tokenDao.create(TOKEN, em.getReference(User.class, userId), TokenPurpose.VERIFY_EMAIL, expiresAt);
         // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
         em.flush();
 

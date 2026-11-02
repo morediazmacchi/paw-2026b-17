@@ -99,7 +99,7 @@ public class EventChatServiceImpl implements EventChatService {
         if (body.isEmpty() || body.length() > MAX_MESSAGE_LENGTH) {
             return ChatSendResult.INVALID;
         }
-        chatDao.addMessage(new ChatMessage(eventId, user.getId(), body));
+        chatDao.addMessage(eventId, user.getId(), body);
         // Lo que uno manda ya lo vio: que no le aparezca como "sin leer" a si mismo.
         chatDao.markRead(eventId, user.getId());
         return ChatSendResult.SENT;

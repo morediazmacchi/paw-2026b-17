@@ -121,7 +121,7 @@ public class UserServiceImpl implements UserService {
             userId = user.getId();
         } else {
             try {
-                userId = userDao.create(new User(normalizedEmail, data.getName())).getId();
+                userId = userDao.create(normalizedEmail, data.getName()).getId();
             } catch (final DataIntegrityViolationException e) {
                 // Dos registros al mismo tiempo con el mismo email nuevo: el
                 // findByEmail de arriba no vio nada, pero el otro ya inserto
@@ -230,7 +230,7 @@ public class UserServiceImpl implements UserService {
     private String newToken(final User user, final TokenPurpose purpose, final long ttlMillis) {
         final String token = UUID.randomUUID().toString();
         final Date expiresAt = new Date(System.currentTimeMillis() + ttlMillis);
-        tokenDao.create(new VerificationToken(token, user, purpose, expiresAt));
+        tokenDao.create(token, user, purpose, expiresAt);
         return token;
     }
 
