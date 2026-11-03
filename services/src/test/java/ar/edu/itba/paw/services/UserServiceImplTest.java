@@ -31,7 +31,6 @@ import java.util.stream.Collectors;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
@@ -174,7 +173,7 @@ public class UserServiceImplTest {
     // Usuario nuevo: no existia y el dao lo crea con id USER_ID (y despues se lo vuelve a leer).
     private void newUserFlow() {
         when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.empty());
-        when(userDao.create(any(User.class)))
+        when(userDao.create(NORMALIZED_EMAIL, NAME))
                 .thenReturn(someUser());
         when(userDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
     }

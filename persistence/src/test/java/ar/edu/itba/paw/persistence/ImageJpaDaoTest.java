@@ -47,10 +47,6 @@ public class ImageJpaDaoTest {
         jdbcTemplate = new JdbcTemplate(ds);
     }
 
-    private static Image someImage() {
-        return new Image(DATA, CONTENT_TYPE, FILE_NAME, DATA.length);
-    }
-
     private long insertImage() {
         jdbcTemplate.update(
                 "INSERT INTO image (data, content_type, file_name, file_size) VALUES (?, ?, ?, ?)",
@@ -62,11 +58,8 @@ public class ImageJpaDaoTest {
 
     @Test
     public void testCreatePersistsTheBytesAndMetadataAndAssignsAnId() {
-        // Arrange
-        final Image toCreate = someImage();
-
         // Act
-        final Image created = imageDao.create(toCreate);
+        final Image created = imageDao.create(DATA, CONTENT_TYPE, FILE_NAME);
 
         // Assert
         assertTrue(created.getId() > 0);
@@ -82,11 +75,8 @@ public class ImageJpaDaoTest {
 
     @Test
     public void testCreateSetsUploadedAtAutomatically() {
-        // Arrange
-        final Image toCreate = someImage();
-
         // Act
-        final Image created = imageDao.create(toCreate);
+        final Image created = imageDao.create(DATA, CONTENT_TYPE, FILE_NAME);
 
         // Assert
         final java.sql.Timestamp uploadedAt = jdbcTemplate.queryForObject(

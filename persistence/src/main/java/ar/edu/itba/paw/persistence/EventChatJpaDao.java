@@ -65,7 +65,8 @@ public class EventChatJpaDao implements EventChatDao {
     }
 
     @Override
-    public ChatMessage addMessage(final ChatMessage message) {
+    public ChatMessage addMessage(final long eventId, final long userId, final String body) {
+        final ChatMessage message = new ChatMessage(eventId, userId, body);
         em.persist(message);
         // flush + refresh: trae lo que pone la base (fecha) y el nombre de quien escribio.
         em.flush();

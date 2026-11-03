@@ -21,7 +21,8 @@ public class UserJpaDao implements UserDao {
     private EntityManager em;
 
     @Override
-    public User create(final User user) {
+    public User create(final String email, final String name) {
+        final User user = new User(email, name);
         // IDENTITY: el INSERT corre aca mismo, asi que un email repetido
         // (UNIQUE) sale como DataIntegrityViolationException desde este metodo.
         em.persist(user);

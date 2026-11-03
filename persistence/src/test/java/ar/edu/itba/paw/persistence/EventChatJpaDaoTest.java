@@ -196,7 +196,7 @@ public class EventChatJpaDaoTest {
     @Test
     public void testAddMessageAssignsAnIdAndStoresTheRow() {
         // Act
-        final ChatMessage saved = chatDao.addMessage(new ChatMessage(eventId, ana, "Hola!"));
+        final ChatMessage saved = chatDao.addMessage(eventId, ana, "Hola!");
 
         // Assert
         assertTrue(saved.getId() > 0);

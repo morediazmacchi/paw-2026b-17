@@ -20,7 +20,6 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 // Unidad 5 - Unit Testing: el ImageDao es un mock de Mockito (sin base de datos); los
@@ -128,7 +127,7 @@ public class ImageServiceImplTest {
         // Arrange
         final Image saved = new Image(PNG_DATA, "image/png", "foto.png", PNG_DATA.length);
         saved.setId(IMAGE_ID);
-        when(imageDao.create(any(Image.class))).thenReturn(saved);
+        when(imageDao.create(PNG_DATA, "image/png", "foto.png")).thenReturn(saved);
 
         // Act
         final Image result = imageService.create(PNG_DATA, "image/png", "foto.png");

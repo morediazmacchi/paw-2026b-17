@@ -3,12 +3,14 @@
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.TokenPurpose;
+import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.VerificationToken;
 
+import java.util.Date;
 import java.util.Optional;
 
 public interface VerificationTokenDao {
-    VerificationToken create(VerificationToken token);
+    VerificationToken create(String token, User user, TokenPurpose purpose, Date expiresAt);
 
     Optional<VerificationToken> findByToken(String token);
 

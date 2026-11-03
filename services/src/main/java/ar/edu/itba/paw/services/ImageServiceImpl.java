@@ -52,8 +52,7 @@ public class ImageServiceImpl implements ImageService {
             throw new InvalidImageException(InvalidImageException.Reason.NOT_AN_IMAGE);
         }
 
-        final Image image = new Image(data, realType, fileName, data.length);
-        return imageDao.create(image);
+        return imageDao.create(data, realType, fileName);
     }
 
     @Override
