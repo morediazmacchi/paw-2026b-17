@@ -1153,6 +1153,20 @@ public class RegistrationServiceImplTest {
     }
 
     @Test
+    public void testARejectedUpcomingRegistrationCannotBeCancelled() {
+        givenTotals(1, 0);
+        final Registration rejected = new Registration(ModelFixtures.event(UPCOMING_EVENT_ID), null, NORMALIZED_EMAIL, NAME, RegistrationStatus.REJECTED);
+        when(mockRegistrationDao.findUpcomingByUserId(eq(USER_ID), any(Date.class), eq(1), eq(RegistrationServiceImpl.PAGE_SIZE)))
+                .thenReturn(Collections.singletonList(rejected));
+        when(mockEventDao.findByIds(Collections.singletonList(UPCOMING_EVENT_ID)))
+                .thenReturn(Collections.singletonList(upcomingEvent(UPCOMING_EVENT_ID)));
+
+        final RegistrationEntry entry = registrationService.findMyRegistrations(USER_ID, 1, 1).getUpcoming().getContent().get(0);
+
+        assertFalse(entry.isCanCancel());
+    }
+
+    @Test
     public void testAnUpcomingRegistrationToACancelledEventCannotBeCancelled() {
         givenTotals(1, 0);
         final Event cancelled = upcomingEvent(UPCOMING_EVENT_ID);

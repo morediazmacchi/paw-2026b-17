@@ -326,7 +326,8 @@ public class RegistrationServiceImpl implements RegistrationService {
             final boolean confirmed = registration.isConfirmed();
             final boolean canReview = withReviews && event.isReviewable() && confirmed && myReview == null;
             entries.add(new RegistrationEntry(registration, event, myReview, canReview,
-                    withReviews ? notAttendedReason(registration, event) : null, event.isActive()));
+                    withReviews ? notAttendedReason(registration, event) : null,
+                    event.isActive() && !registration.isRejected()));
         }
         return entries;
     }
@@ -380,7 +381,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         // justamente lo que le impide volver a anotarse. Si pudiera "darse de baja"
         // la borraria y se saltearia el rechazo (ademas de reactivar la invitacion
         // que hubiera tenido a un evento privado).
-        if (cancelled.getStatus() == RegistrationStatus.REJECTED) {
+        if (cancelled.isRejected()) {
             return UnregisterResult.REJECTED;
         }
         // Se mira ANTES de borrar: despues la fila ya no existe.

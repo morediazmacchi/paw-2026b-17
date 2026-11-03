@@ -49,6 +49,7 @@
                                           imagenId="${event.imageId}" cancelado="${event.cancelled}">
                                 <%-- Evento cancelado por la organizadora: se muestra con el cartel,
                                      pero no hay inscripcion que cancelar. --%>
+                                <paw:registrationStatus status="${registration.status}"/>
                                 <c:if test="${entry.canCancel}">
                                     <form action="<c:url value='/perfil/inscripciones/${registration.id}/cancelar'/>" method="post">
                                         <paw:button text="${cancelButtonLabel}" cssClass="btn-danger"/>

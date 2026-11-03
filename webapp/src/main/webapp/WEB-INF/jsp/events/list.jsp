@@ -10,6 +10,7 @@
     <script src="<c:url value='/js/modal.js'/>"></script>
     <script src="<c:url value='/js/date-filter-calendar.js'/>"></script>
     <script src="<c:url value='/js/price-range.js'/>"></script>
+    <script src="<c:url value='/js/filter-dropdown.js'/>"></script>
 </jsp:attribute>
 <jsp:body>
 <%-- Adonde vuelve el corazon de favorito despues de togglear: esta misma

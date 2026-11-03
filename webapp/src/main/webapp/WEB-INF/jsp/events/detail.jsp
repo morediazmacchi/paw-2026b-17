@@ -628,6 +628,12 @@
                         <sec:authorize access="isAuthenticated()">
                             <c:choose>
                                 <c:when test="${alreadyRegistered}">
+                                    <c:choose>
+                                        <c:when test="${action == 'LEAVE_WAITLIST'}"><c:set var="myRegistrationStatus" value="WAITLISTED"/></c:when>
+                                        <c:when test="${action == 'CANCEL_PENDING'}"><c:set var="myRegistrationStatus" value="PENDING"/></c:when>
+                                        <c:otherwise><c:set var="myRegistrationStatus" value="CONFIRMED"/></c:otherwise>
+                                    </c:choose>
+                                    <paw:registrationStatus status="${myRegistrationStatus}" cssClass="detail-rsvp-status"/>
                                     <form action="<c:url value='/eventos/${event.id}/darme-de-baja'/>" method="post" novalidate="novalidate">
                                         <paw:button text="${unregisterButtonLabel}" cssClass="btn-danger detail-rsvp-submit" />
                                     </form>

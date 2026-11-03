@@ -2333,6 +2333,20 @@ button.btn-accent {
     margin-top: 0;
 }
 
+/* El <form> del boton ("Darme de baja") era un bloque con el boton en linea: la
+   linea le sumaba alto de texto abajo y el boton quedaba corrido hacia arriba. */
+.event-row-actions form {
+    display: flex;
+    align-items: center;
+    margin: 0;
+}
+
+.detail-rsvp-status {
+    display: block;
+    width: fit-content;
+    margin: 0 auto 8px;
+}
+
 @media (max-width: 620px) {
     .event-row {
         flex-wrap: wrap;

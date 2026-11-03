@@ -91,5 +91,8 @@ public class Registration {
 
     // Tiene el lugar confirmado (ver RegistrationStatus.isConfirmed()).
     public boolean isConfirmed() { return status != null && status.isConfirmed(); }
+    // Rechazada o revocada por el organizador: estado terminal, la persona ya no puede darse de baja
+    // (ver RegistrationService.cancel()).
+    public boolean isRejected() { return status == RegistrationStatus.REJECTED; }
     public void setStatus(final RegistrationStatus status) { this.status = status; }
 }
