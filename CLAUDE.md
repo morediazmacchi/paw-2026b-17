@@ -68,7 +68,12 @@ original no está a mano (no es citable textual) · `[acordado]` = lo decidió l
 - Dos ids relacionados en una URL → verificar que el segundo pertenezca al primero (`isOwnerOfRegistrationEvent`). [TP1]
 - Nunca revelar con una respuesta distinta si un mail/usuario ya existe (registro, recupero). [TP1]
 - Escapar texto de usuario en HTML (`<c:out>`): nunca `${...}` crudo en texto visible o atributo (XSS). [TP1]
-- Filtro de encoding UTF-8 antes que el de Spring Security en `web.xml`. [TP1]
+- Filtro de encoding UTF-8 antes que el de Spring Security en `web.xml`. [TP1] **Resuelto (3/11):** el orden de los `<filter-mapping>`
+  es encoding → `springSecurityFilterChain` (`DelegatingFilterProxy`, dispatchers REQUEST/ERROR/ASYNC) → OpenEntityManagerInView, los tres
+  declarados en `web.xml` (más el listener `HttpSessionEventPublisher`). Se borró `SecurityWebApplicationInitializer`: registraba Security por
+  código y la API de servlet pone esos filtros ANTES de los de `web.xml`, por eso el login leía los parámetros sin UTF-8. No volver a
+  registrar Security por código. Probado: POST /login con body UTF-8 declarado `charset=ISO-8859-1` y email con 'ñ' (antes `?error`, ahora
+  llega a `?unverified`).
 - Mass assignment: **no hay `@InitBinder`/`setAllowedFields` en ningún controller** [código]. No estaba en TP1 pero es un
   gap real: revisar que ningún form exponga más campos bindeables de los necesarios.
 - **CSRF deshabilitado a propósito**: la cátedra lo dejó fuera de alcance, dicho en clase. No es un olvido. [TP1]
@@ -202,7 +207,14 @@ Registro honesto; no tapar ni "arreglar de pasada" sin avisar. Orden = prioridad
      `getEditableEvent` queda solo en `editarForm` (necesita el evento); el POST de `editar` ya no lo llama, así que un form
      inválido sobre un evento cancelado muestra el form con errores en vez de redirigir (con form válido `update` lanza
      `EventCancelledException` y redirige igual). `create` lanza `IllegalArgumentException` si el creador desapareció.
-     Pendiente (fuera de alcance): `FavoriteServiceImpl.findViewablePage` sigue paginando en memoria.
+     **Favoritos (3/11, resuelto):** `findViewablePage` pagina en SQL: `COUNT` + página de ids (`FavoriteDao.findViewableEventIdsByUser` /
+     `findEventIdsByUser(userId, page, size)` para admin, `ORDER BY created_at DESC, event_id DESC LIMIT/OFFSET`) con el MISMO `WHERE`
+     (constante `VIEWABLE_WHERE` en `FavoriteJpaDao`), y después `findByIds` de esos ≤10 ids. `FavoriteServiceImpl` ya no usa `EventAccessService`.
+     `PageResult.of()` queda solo para la rama CON historial de `EventSimilarityServiceImpl.searchRecommended` (el puntaje se calcula en Java sobre
+     `findAllMatching`: no se puede paginar en SQL sin rediseñar; deuda conocida, igual que `findSimilar`). La rama SIN historial ya pagina en
+     SQL (`searchByDate`: `countSearch` + `search`), aunque `EventService.search` casi no llega a ella (sin historial ya cae a `FECHA_ASC`).
+     **Corazones del listado (3/11):** `FavoriteService.findFavoriteEventIds(userId, idsDeLaPagina)` (un `IN`) reemplaza a
+     `findEventIdsByUser(userId)`, que traía todos los favoritos en cada carga de `/eventos` (se borró).
 3i. **Segunda auditoría "lógica fuera de su capa"** (2/11): la vista muestra, el service decide, y el service no maneja presentación.
    - **Qué se le ofrece a cada persona en el detalle lo decide `EventDetailServiceImpl`:** `EventDetail.getAction()` es un enum
      `EventAction` (`OWNER`, `OWNER_PENDING`, `OWNER_REJECTED`, `ADMIN_REVIEW_ONLY`, `VIEW_ONLY`, `CLOSED_*`, `REGISTRATION_REJECTED`,
@@ -247,7 +259,7 @@ Registro honesto; no tapar ni "arreglar de pasada" sin avisar. Orden = prioridad
    - **M2 (login):** `PlancitoUserDetails` separa `enabled` (clave + mail confirmado) de `accountNonLocked` (= no suspendida);
      `AccountStatusAfterPasswordCheck` lanza `LockedException` (suspendida) o `DisabledException` (sin confirmar) y el failure handler decide
      SOLO por el tipo de excepción (sin `findByEmail`). `User.isActive()` es la suma de las dos. Clave incorrecta sigue dando `?error` para todos.
-   - **No hecho a propósito:** B1–B3, B6, B9–B11 y el SQL-vs-Java de favoritos.
+   - **No hecho a propósito:** B1–B3, B6 y B9–B11.
 3a. **`currentUser` sale del principal, sin consulta** (31/10): `ErrorAdvice.currentUserFromPrincipal` arma un `User` con id, email, nombre y roles de `PlancitoUserDetails` (sin `findByEmail`; sin sesión es `null`). Es un `User` "de sesión": solo trae esos 4 datos. Los 4 `create` de DAO que reciben ese usuario (`RegistrationJpaDao`, `EventQuestionJpaDao`, `EventReportJpaDao`, `ReviewJpaDao`) lo reemplazan por `em.getReference(User.class, id)` antes de persistir (`NotificationService.notifyNewQuestion` recibe `askerName`/`askerEmail` ya resueltos desde `currentUser`: el envío es `@Async` y no debe leer la relación lazy; `register` copia nombre/mail en la fila y las notificaciones solo leen esas copias y el id del usuario).
    **Limitaciones conocidas (aceptadas, no arregladas a propósito):** (1) el **nombre** del principal es el del login: si se edita el perfil se sigue viendo el viejo (form de `/perfil`, copias en inscripciones y bandeja) hasta el próximo login; (2) los **roles** también son los del login: revocar `ROLE_ADMIN` no afecta la sesión activa (ver punto 3). Siguen pendientes los interceptores `UnreadInbox` y `Suspended` (hacen `findByEmail` por request).
 3. ~~**Revocar `ROLE_ADMIN` / suspender no cierra sesiones**~~ **Resuelto** (31/10): `UserServiceImpl.suspend` y `revokeAdmin` (cuando de verdad saca el rol) publican `UserAccessRevokedEvent` (services-contracts, POJO sin dependencias web) dentro de su transacción; `SessionExpiringListener` (`webapp.auth`, contexto raíz) con `@TransactionalEventListener(AFTER_COMMIT)` busca por `PlancitoUserDetails.getId()` en el `SessionRegistry` y hace `expireNow()`. `WebAuthConfig`: `SessionRegistryImpl` + `sessionManagement().maximumSessions(-1)...expiredUrl("/login?expired")` (instala el `ConcurrentSessionFilter`); `SecurityWebApplicationInitializer.enableHttpSessionEventPublisher()`. Se borró `SuspendedUserInterceptor` (ya no hay `findByEmail` por request). El suspendido que reintenta entrar ve `?suspended` (por `isEnabled`). `reactivate` y `grantAdmin` no publican. **Limitaciones:** el registro es en memoria de una sola JVM (no sirve para clúster) y no conoce sesiones abiertas antes de un deploy/reinicio. El "service publica el evento" no tiene test unitario (sería verify/verify casero): se cubre con la prueba manual de dos navegadores.

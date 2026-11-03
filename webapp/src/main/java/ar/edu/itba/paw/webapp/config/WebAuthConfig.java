@@ -128,7 +128,7 @@ public class WebAuthConfig {
     // Registro de las sesiones abiertas, para poder cerrar las de un usuario al quitarle acceso
     // (suspension, rol ADMIN revocado): ver SessionExpiringListener. Se alimenta solo, via
     // sessionManagement().maximumSessions(...) de filterChain y HttpSessionEventPublisher (ver
-    // SecurityWebApplicationInitializer). Vive en memoria de esta JVM.
+    // el listener HttpSessionEventPublisher de web.xml). Vive en memoria de esta JVM.
     @Bean
     public SessionRegistry sessionRegistry() {
         return new SessionRegistryImpl();

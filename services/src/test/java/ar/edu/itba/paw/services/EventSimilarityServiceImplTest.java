@@ -4,6 +4,7 @@ import ar.edu.itba.paw.model.Barrio;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventApprovalStatus;
 import ar.edu.itba.paw.model.EventSearchCriteria;
+import ar.edu.itba.paw.model.EventSort;
 import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.RegistrationDao;
 import org.junit.Before;
@@ -115,16 +116,64 @@ public class EventSimilarityServiceImplTest {
         assertThrows(NullPointerException.class, () -> service.searchRecommended(new EventSearchCriteria()));
     }
 
-    @Test
-    public void testWithoutHistoryTheOrderIsTheOneTheDaoGaveByDate() {
-        final EventSearchCriteria criteria = criteria();
+    // Sin historial el listado sale de la base ya paginado (LIMIT/OFFSET): el dao solo devuelve la pagina si
+    // le piden la correcta y por fecha. findAllMatching es el senuelo: si el service lo usara, el resultado cambia.
+    private void noHistory(final EventSearchCriteria criteria, final long total, final int expectedPage,
+                           final Event... pageContent) {
         when(registrationDao.findAttendedEventIds(VIEWER_ID, NOW_DATE, 30)).thenReturn(Collections.emptyList());
-        candidates(criteria, sportsTuesday(1).build(), musicFriday(2).at("2026-10-24T21:00").build());
+        when(eventDao.countSearch(criteria)).thenReturn(total);
+        when(eventDao.search(argThat(c -> c != null && c.getPage() == expectedPage
+                && c.getSort() == EventSort.FECHA_ASC))).thenReturn(Arrays.asList(pageContent));
+        lenient().when(eventDao.findAllMatching(criteria)).thenReturn(Arrays.asList(
+                sportsTuesday(900).build(), sportsTuesday(901).build()));
+    }
+
+    @Test
+    public void testWithoutHistoryThePageComesFromTheDatabaseOrderedByDate() {
+        final EventSearchCriteria criteria = criteria();
+        noHistory(criteria, 2, 1, sportsTuesday(1).build(), musicFriday(2).at("2026-10-24T21:00").build());
 
         final PageResult<Event> result = service.searchRecommended(criteria);
 
         assertEquals(Arrays.asList(1L, 2L), ids(result.getContent()));
         assertEquals(2, result.getTotalElements());
+    }
+
+    @Test
+    public void testWithoutHistoryAPageBeyondTheLastFallsBackToTheLastPage() {
+        final EventSearchCriteria criteria = criteria();
+        criteria.setPageSize(2);
+        criteria.setPage(99);
+        noHistory(criteria, 3, 2, sportsTuesday(3).build());
+
+        final PageResult<Event> result = service.searchRecommended(criteria);
+
+        assertEquals(2, result.getPage());
+        assertEquals(2, result.getTotalPages());
+        assertEquals(Collections.singletonList(3L), ids(result.getContent()));
+    }
+
+    @Test
+    public void testWithoutHistoryAskedSortIsIgnoredAndTheOrderIsByDate() {
+        final EventSearchCriteria criteria = criteria();
+        criteria.setSort(EventSort.PRECIO_ASC);
+        noHistory(criteria, 1, 1, sportsTuesday(1).build());
+
+        final PageResult<Event> result = service.searchRecommended(criteria);
+
+        assertEquals(Collections.singletonList(1L), ids(result.getContent()));
+    }
+
+    @Test
+    public void testWithoutHistoryAndNothingMatchingGivesAnEmptyFirstPage() {
+        final EventSearchCriteria criteria = criteria();
+        criteria.setPage(4);
+        noHistory(criteria, 0, 1);
+
+        final PageResult<Event> result = service.searchRecommended(criteria);
+
+        assertEquals(1, result.getPage());
+        assertTrue(result.getContent().isEmpty());
     }
 
     @Test
@@ -252,7 +301,7 @@ public class EventSimilarityServiceImplTest {
         final EventSearchCriteria criteria = criteria();
         criteria.setPageSize(2);
         criteria.setPage(2);
-        when(registrationDao.findAttendedEventIds(VIEWER_ID, NOW_DATE, 30)).thenReturn(Collections.emptyList());
+        attended(musicFriday(100).build());   // ninguno de los candidatos se le parece: empatan y manda la fecha
         candidates(criteria, sportsTuesday(1).build(), sportsTuesday(2).build(), sportsTuesday(3).build(),
                 sportsTuesday(4).build(), sportsTuesday(5).build());
 
@@ -269,7 +318,7 @@ public class EventSimilarityServiceImplTest {
         final EventSearchCriteria criteria = criteria();
         criteria.setPageSize(2);
         criteria.setPage(99);
-        when(registrationDao.findAttendedEventIds(VIEWER_ID, NOW_DATE, 30)).thenReturn(Collections.emptyList());
+        attended(musicFriday(100).build());   // ninguno de los candidatos se le parece: empatan y manda la fecha
         candidates(criteria, sportsTuesday(1).build(), sportsTuesday(2).build(), sportsTuesday(3).build());
 
         final PageResult<Event> result = service.searchRecommended(criteria);

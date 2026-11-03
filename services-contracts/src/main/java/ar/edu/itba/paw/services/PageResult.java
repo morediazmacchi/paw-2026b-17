@@ -35,9 +35,10 @@ public class PageResult<T> {
         return totalPages == 0 ? 1 : Math.min(Math.max(page, 1), totalPages);
     }
 
-    // Para quien ya tiene la lista completa en memoria (ver FavoriteServiceImpl.findViewablePage(),
-    // que filtra por visibilidad antes de cortar): corta el pedazo que corresponde y arma el
-    // PageResult, con el mismo criterio que EventServiceImpl.search().
+    // Para quien YA tiene la lista completa en memoria porque no sale de una consulta (ver
+    // EventSimilarityServiceImpl, que ordena por puntaje calculado): corta el pedazo que corresponde y
+    // arma el PageResult, con el mismo criterio que EventServiceImpl.search(). Si la lista sale de la
+    // base, NO usar esto: paginar con LIMIT/OFFSET y clampPage().
     public static <T> PageResult<T> of(final List<T> all, final int page, final int pageSize) {
         final int totalElements = all.size();
         final int totalPages = pageSize <= 0 ? 0 : (int) Math.ceil((double) totalElements / pageSize);

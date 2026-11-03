@@ -15,7 +15,10 @@ import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 import javax.sql.DataSource;
 import java.sql.Timestamp;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -166,44 +169,42 @@ public class FavoriteJpaDaoTest {
         assertFalse(result);
     }
 
-    // ---- findEventIdsByUser() ----
+    // ---- findFavoriteEventIds() (los corazones de una pagina) ----
 
     @Test
-    public void testFindEventIdsByUserReturnsAllFavoritesOfThatUser() {
-        // Arrange
+    public void testFindFavoriteEventIdsReturnsOnlyTheGivenEventsThatAreFavorites() {
+        // Arrange: favorito de dos eventos, se pregunta por uno de ellos y por uno que no es favorito
+        final long notFavorite = insertEvent("Libre");
         insertFavorite(userId, eventId);
         insertFavorite(userId, otherEventId);
 
         // Act
-        final List<Long> found = favoriteDao.findEventIdsByUser(userId);
+        final Set<Long> found = favoriteDao.findFavoriteEventIds(userId, Arrays.asList(eventId, notFavorite));
 
-        // Assert
-        assertEquals(2, found.size());
-        assertTrue(found.contains(eventId));
-        assertTrue(found.contains(otherEventId));
+        // Assert: otherEventId es favorito pero no se pregunto por el
+        assertEquals(Collections.singleton(eventId), found);
     }
 
     @Test
-    public void testFindEventIdsByUserExcludesOtherUsersFavorites() {
-        // Arrange
+    public void testFindFavoriteEventIdsExcludesOtherUsersFavorites() {
+        // Arrange: senuelo = el mismo evento es favorito de OTRA persona
         final long otherUserId = insertUser("otro@mail.com");
-        insertFavorite(userId, eventId);
-        insertFavorite(otherUserId, otherEventId);
+        insertFavorite(otherUserId, eventId);
 
         // Act
-        final List<Long> found = favoriteDao.findEventIdsByUser(userId);
+        final Set<Long> found = favoriteDao.findFavoriteEventIds(userId, Arrays.asList(eventId, otherEventId));
 
         // Assert
-        assertEquals(1, found.size());
-        assertTrue(found.contains(eventId));
+        assertTrue(found.isEmpty());
     }
 
     @Test
-    public void testFindEventIdsByUserReturnsEmptyWhenNoneFavorited() {
-        // Arrange: no hay ningun favorito guardado.
+    public void testFindFavoriteEventIdsWithNoEventsReturnsEmpty() {
+        // Arrange: tiene favoritos, pero no se pregunta por ninguno
+        insertFavorite(userId, eventId);
 
         // Act
-        final List<Long> found = favoriteDao.findEventIdsByUser(userId);
+        final Set<Long> found = favoriteDao.findFavoriteEventIds(userId, Collections.emptyList());
 
         // Assert
         assertTrue(found.isEmpty());
@@ -334,5 +335,141 @@ public class FavoriteJpaDaoTest {
 
         // Assert
         assertEquals(0, count);
+    }
+
+    // ---- findViewableEventIdsByUser() / findEventIdsByUser(userId, page, pageSize) (paginado en SQL) ----
+
+    // `minutesAgo` fija el orden de forma explicita: sin esto los INSERT de un mismo test comparten el now().
+    private void insertFavoriteMinutesAgo(final long userId, final long eventId, final int minutesAgo) {
+        jdbcTemplate.update("INSERT INTO favorite (user_id, event_id, created_at) VALUES (?, ?, ?)",
+                userId, eventId, new Timestamp(System.currentTimeMillis() - minutesAgo * 60_000L));
+    }
+
+    @Test
+    public void testFindViewableEventIdsReturnsTheRequestedSliceNewestFirst() {
+        // Arrange: 3 publicos aprobados; el favorito mas reciente es el "c"
+        final long a = insertEventWith("A", "PUBLIC", "APPROVED", null);
+        final long b = insertEventWith("B", "PUBLIC", "APPROVED", null);
+        final long c = insertEventWith("C", "PUBLIC", "APPROVED", null);
+        insertFavoriteMinutesAgo(userId, a, 30);
+        insertFavoriteMinutesAgo(userId, b, 20);
+        insertFavoriteMinutesAgo(userId, c, 10);
+
+        // Act
+        final List<Long> secondPage = favoriteDao.findViewableEventIdsByUser(userId, 2, 2);
+
+        // Assert: pagina 1 = [c, b]; la 2 trae solo lo que queda
+        assertEquals(Collections.singletonList(a), secondPage);
+    }
+
+    @Test
+    public void testFindViewableEventIdsFirstPageIsOrderedNewestFirst() {
+        // Arrange
+        final long a = insertEventWith("A", "PUBLIC", "APPROVED", null);
+        final long b = insertEventWith("B", "PUBLIC", "APPROVED", null);
+        final long c = insertEventWith("C", "PUBLIC", "APPROVED", null);
+        insertFavoriteMinutesAgo(userId, a, 30);
+        insertFavoriteMinutesAgo(userId, b, 20);
+        insertFavoriteMinutesAgo(userId, c, 10);
+
+        // Act
+        final List<Long> firstPage = favoriteDao.findViewableEventIdsByUser(userId, 1, 2);
+
+        // Assert
+        assertEquals(Arrays.asList(c, b), firstPage);
+    }
+
+    @Test
+    public void testFindViewableEventIdsAppliesTheVisibilityFilterBeforeTheLimit() {
+        // Arrange: el favorito MAS reciente es de un privado sin acceso. Si el LIMIT se aplicara antes del
+        // filtro, la pagina de tamaño 1 saldria vacia; tiene que salir el mas reciente de los que SI se ven.
+        final long visible = insertEventWith("Visible", "PUBLIC", "APPROVED", null);
+        final long hidden = insertEventWith("Oculto", "PRIVATE", "APPROVED", null);
+        insertFavoriteMinutesAgo(userId, visible, 20);
+        insertFavoriteMinutesAgo(userId, hidden, 10);
+
+        // Act
+        final List<Long> found = favoriteDao.findViewableEventIdsByUser(userId, 1, 1);
+
+        // Assert
+        assertEquals(Collections.singletonList(visible), found);
+    }
+
+    @Test
+    public void testFindViewableEventIdsIncludesOwnEventsAndInvitedPrivateOnesAndSkipsPendingOnes() {
+        // Arrange
+        final long own = insertEventWith("Propio", "PRIVATE", "PENDING", userId);
+        final long invited = insertEventWith("Invitado", "PRIVATE", "APPROVED", null);
+        final long pending = insertEventWith("Pendiente", "PUBLIC", "PENDING", null);
+        insertFavoriteMinutesAgo(userId, own, 30);
+        insertFavoriteMinutesAgo(userId, invited, 20);
+        insertFavoriteMinutesAgo(userId, pending, 10);
+        jdbcTemplate.update("INSERT INTO event_invitation (event_id, email, invited_by, user_id) VALUES (?, ?, ?, ?)",
+                invited, "fan@mail.com", "creador@mail.com", userId);
+
+        // Act
+        final List<Long> found = favoriteDao.findViewableEventIdsByUser(userId, 1, 10);
+
+        // Assert
+        assertEquals(Arrays.asList(invited, own), found);
+    }
+
+    @Test
+    public void testFindViewableEventIdsExcludesTheFavoritesOfOtherUsers() {
+        // Arrange: senuelo = un favorito visible de OTRA persona
+        final long otherUserId = insertUser("otra@mail.com");
+        final long mine = insertEventWith("Mio", "PUBLIC", "APPROVED", null);
+        final long theirs = insertEventWith("Suyo", "PUBLIC", "APPROVED", null);
+        insertFavoriteMinutesAgo(userId, mine, 20);
+        insertFavoriteMinutesAgo(otherUserId, theirs, 10);
+
+        // Act
+        final List<Long> found = favoriteDao.findViewableEventIdsByUser(userId, 1, 10);
+
+        // Assert
+        assertEquals(Collections.singletonList(mine), found);
+    }
+
+    @Test
+    public void testFindViewableEventIdsBeyondTheLastPageIsEmpty() {
+        // Arrange
+        insertFavoriteMinutesAgo(userId, insertEventWith("A", "PUBLIC", "APPROVED", null), 10);
+
+        // Act
+        final List<Long> found = favoriteDao.findViewableEventIdsByUser(userId, 2, 10);
+
+        // Assert
+        assertTrue(found.isEmpty());
+    }
+
+    @Test
+    public void testFindEventIdsPageReturnsTheRequestedSliceOfAnyEventNewestFirst() {
+        // Arrange: lo que ve un admin = todos, tambien un privado sin acceso y uno pendiente
+        final long a = insertEventWith("A", "PRIVATE", "APPROVED", null);
+        final long b = insertEventWith("B", "PUBLIC", "PENDING", null);
+        final long c = insertEventWith("C", "PUBLIC", "APPROVED", null);
+        insertFavoriteMinutesAgo(userId, a, 30);
+        insertFavoriteMinutesAgo(userId, b, 20);
+        insertFavoriteMinutesAgo(userId, c, 10);
+
+        // Act
+        final List<Long> secondPage = favoriteDao.findEventIdsByUser(userId, 2, 2);
+
+        // Assert: pagina 1 = [c, b]
+        assertEquals(Collections.singletonList(a), secondPage);
+    }
+
+    @Test
+    public void testFindEventIdsPageExcludesTheFavoritesOfOtherUsers() {
+        // Arrange
+        final long otherUserId = insertUser("otra@mail.com");
+        insertFavoriteMinutesAgo(userId, eventId, 20);
+        insertFavoriteMinutesAgo(otherUserId, otherEventId, 10);
+
+        // Act
+        final List<Long> found = favoriteDao.findEventIdsByUser(userId, 1, 10);
+
+        // Assert
+        assertEquals(Collections.singletonList(eventId), found);
     }
 }

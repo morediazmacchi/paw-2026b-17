@@ -1,6 +1,7 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.persistence.FavoriteDao;
 import org.junit.Before;
@@ -13,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -31,15 +33,13 @@ public class FavoriteServiceImplTest {
     @Mock
     private FavoriteDao favoriteDao;
     @Mock
-    private EventAccessService accessChecker;
-    @Mock
     private EventService eventService;
 
     private FavoriteServiceImpl favoriteService;
 
     @Before
     public void setUp() {
-        favoriteService = new FavoriteServiceImpl(favoriteDao, accessChecker, eventService);
+        favoriteService = new FavoriteServiceImpl(favoriteDao, eventService);
     }
 
     private static User someUser() {
@@ -124,27 +124,29 @@ public class FavoriteServiceImplTest {
     }
 
     @Test
-    public void testFindEventIdsByUserReturnsThatUsersFavorites() {
-        // Arrange
-        when(favoriteDao.findEventIdsByUser(USER_ID)).thenReturn(Arrays.asList(EVENT_ID, EVENT_ID + 1));
+    public void testFindFavoriteEventIdsReturnsWhichOfTheGivenEventsAreFavorites() {
+        // Arrange: el dao solo responde si le pasan los ids de ESA pagina
+        final List<Long> pageIds = Arrays.asList(EVENT_ID, EVENT_ID + 1, EVENT_ID + 2);
+        when(favoriteDao.findFavoriteEventIds(USER_ID, pageIds)).thenReturn(Collections.singleton(EVENT_ID + 1));
 
         // Act
-        final List<Long> result = favoriteService.findEventIdsByUser(USER_ID);
+        final Set<Long> result = favoriteService.findFavoriteEventIds(USER_ID, pageIds);
 
         // Assert
-        assertEquals(Arrays.asList(EVENT_ID, EVENT_ID + 1), result);
+        assertEquals(Collections.singleton(EVENT_ID + 1), result);
     }
 
     @Test
-    public void testFindEventIdsByUserReturnsEmptyWhenTheUserHasNoFavorites() {
+    public void testFindFavoriteEventIdsIsEmptyWhenNoneOfTheEventsIsAFavorite() {
         // Arrange
-        when(favoriteDao.findEventIdsByUser(USER_ID)).thenReturn(Collections.emptyList());
+        final List<Long> pageIds = Arrays.asList(EVENT_ID, EVENT_ID + 1);
+        when(favoriteDao.findFavoriteEventIds(USER_ID, pageIds)).thenReturn(Collections.emptySet());
 
         // Act
-        final List<Long> result = favoriteService.findEventIdsByUser(USER_ID);
+        final Set<Long> result = favoriteService.findFavoriteEventIds(USER_ID, pageIds);
 
         // Assert
-        assertEquals(Collections.emptyList(), result);
+        assertTrue(result.isEmpty());
     }
 
     // ---- findViewablePage() / countViewable() ----
@@ -155,24 +157,10 @@ public class FavoriteServiceImplTest {
         return event;
     }
 
-    // Los favoritos 1..count del usuario, mas recientes primero. Los ids de
-    // "hidden" son de eventos privados a los que ya no puede entrar; el resto
-    // los ve. Devuelve los eventos tal como los devuelve eventService.findByIds().
-    private void givenFavorites(final User user, final int count, final long... hidden) {
-        final List<Long> favoriteIds = new ArrayList<>();
-        final List<Event> events = new ArrayList<>();
-        for (long id = 1; id <= count; id++) {
-            favoriteIds.add(id);
-            final Event event = eventWithId(id);
-            events.add(event);
-            boolean visible = true;
-            for (final long hiddenId : hidden) {
-                visible = visible && hiddenId != id;
-            }
-            when(accessChecker.canView(event, user)).thenReturn(visible);
-        }
-        when(favoriteDao.findEventIdsByUser(USER_ID)).thenReturn(favoriteIds);
-        when(eventService.findByIds(favoriteIds)).thenReturn(events);
+    private static User adminUser() {
+        final User admin = someUser();
+        admin.getRoles().add(Role.ADMIN);
+        return admin;
     }
 
     private static List<Long> idsOf(final PageResult<Event> page) {
@@ -183,14 +171,28 @@ public class FavoriteServiceImplTest {
         return ids;
     }
 
+    // La base devuelve estos ids como la pagina `page` (solo con ESA pagina responde: si el service pidiera
+    // otra, el mock devuelve una lista vacia y el test falla) y estos eventos para esos ids.
+    private void givenViewablePage(final int page, final long total, final Long... ids) {
+        when(favoriteDao.countViewableByUserId(USER_ID)).thenReturn(total);
+        when(favoriteDao.findViewableEventIdsByUser(USER_ID, page, FavoriteServiceImpl.PAGE_SIZE))
+                .thenReturn(Arrays.asList(ids));
+        final List<Event> events = new ArrayList<>();
+        for (final Long id : ids) {
+            events.add(eventWithId(id));
+        }
+        // findByIds no garantiza el orden: se devuelven al reves a proposito.
+        Collections.reverse(events);
+        when(eventService.findByIds(Arrays.asList(ids))).thenReturn(events);
+    }
+
     @Test
     public void testFindViewablePageReturnsTheRequestedPageWithItsTotals() {
         // Arrange: 12 favoritos visibles, de a PAGE_SIZE (10) por pagina -> 2 paginas
-        final User user = someUser();
-        givenFavorites(user, 12);
+        givenViewablePage(2, 12, 11L, 12L);
 
         // Act
-        final PageResult<Event> result = favoriteService.findViewablePage(user, 2);
+        final PageResult<Event> result = favoriteService.findViewablePage(someUser(), 2);
 
         // Assert
         assertEquals(Arrays.asList(11L, 12L), idsOf(result));
@@ -200,41 +202,24 @@ public class FavoriteServiceImplTest {
     }
 
     @Test
-    public void testFindViewablePageDoesNotCountFavoritesTheUserCanNoLongerView() {
-        // Arrange: el 2 es de un evento privado sin acceso
-        final User user = someUser();
-        givenFavorites(user, 3, 2L);
+    public void testFindViewablePageKeepsTheOrderOfTheDatabase() {
+        // Arrange: la base ordena 3, 1, 2 (mas recientes primero)
+        givenViewablePage(1, 3, 3L, 1L, 2L);
 
         // Act
-        final PageResult<Event> result = favoriteService.findViewablePage(user, 1);
+        final PageResult<Event> result = favoriteService.findViewablePage(someUser(), 1);
 
         // Assert
-        assertEquals(Arrays.asList(1L, 3L), idsOf(result));
-        assertEquals(2L, result.getTotalElements());
-    }
-
-    @Test
-    public void testFindViewablePageFillsTheFirstPageEvenWhenAHiddenFavoriteWouldHaveBeenOnIt() {
-        // Arrange: 11 favoritos y el 5 oculto -> 10 visibles = una pagina llena, sin pagina 2
-        final User user = someUser();
-        givenFavorites(user, 11, 5L);
-
-        // Act
-        final PageResult<Event> result = favoriteService.findViewablePage(user, 1);
-
-        // Assert
-        assertEquals(FavoriteServiceImpl.PAGE_SIZE, result.getContent().size());
-        assertEquals(1, result.getTotalPages());
+        assertEquals(Arrays.asList(3L, 1L, 2L), idsOf(result));
     }
 
     @Test
     public void testFindViewablePageShowsTheLastPageWhenThePageIsBeyondIt() {
-        // Arrange
-        final User user = someUser();
-        givenFavorites(user, 12);
+        // Arrange: 12 favoritos = 2 paginas; se pide la 99
+        givenViewablePage(2, 12, 11L, 12L);
 
         // Act
-        final PageResult<Event> result = favoriteService.findViewablePage(user, 99);
+        final PageResult<Event> result = favoriteService.findViewablePage(someUser(), 99);
 
         // Assert
         assertEquals(2, result.getPage());
@@ -244,11 +229,10 @@ public class FavoriteServiceImplTest {
     @Test
     public void testFindViewablePageShowsTheFirstPageWhenThePageIsBelowOne() {
         // Arrange
-        final User user = someUser();
-        givenFavorites(user, 12);
+        givenViewablePage(1, 12, 1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L);
 
         // Act
-        final PageResult<Event> result = favoriteService.findViewablePage(user, 0);
+        final PageResult<Event> result = favoriteService.findViewablePage(someUser(), 0);
 
         // Assert
         assertEquals(1, result.getPage());
@@ -258,7 +242,7 @@ public class FavoriteServiceImplTest {
     @Test
     public void testFindViewablePageWithNoFavoritesReturnsAnEmptyFirstPage() {
         // Arrange
-        when(favoriteDao.findEventIdsByUser(USER_ID)).thenReturn(Collections.emptyList());
+        when(favoriteDao.countViewableByUserId(USER_ID)).thenReturn(0L);
 
         // Act
         final PageResult<Event> result = favoriteService.findViewablePage(someUser(), 4);
@@ -272,17 +256,36 @@ public class FavoriteServiceImplTest {
     @Test
     public void testFindViewablePageSkipsAFavoriteWhoseEventNoLongerExists() {
         // Arrange: el favorito 2 no vuelve en findByIds()
-        final User user = someUser();
-        final Event first = eventWithId(1);
-        when(favoriteDao.findEventIdsByUser(USER_ID)).thenReturn(Arrays.asList(1L, 2L));
-        when(eventService.findByIds(Arrays.asList(1L, 2L))).thenReturn(Collections.singletonList(first));
-        when(accessChecker.canView(first, user)).thenReturn(true);
+        when(favoriteDao.countViewableByUserId(USER_ID)).thenReturn(2L);
+        when(favoriteDao.findViewableEventIdsByUser(USER_ID, 1, FavoriteServiceImpl.PAGE_SIZE))
+                .thenReturn(Arrays.asList(1L, 2L));
+        when(eventService.findByIds(Arrays.asList(1L, 2L))).thenReturn(Collections.singletonList(eventWithId(1)));
 
         // Act
-        final PageResult<Event> result = favoriteService.findViewablePage(user, 1);
+        final PageResult<Event> result = favoriteService.findViewablePage(someUser(), 1);
 
         // Assert
         assertEquals(Collections.singletonList(1L), idsOf(result));
+    }
+
+    @Test
+    public void testFindViewablePageForAnAdminListsAllTheirFavorites() {
+        // Arrange: un admin ve todos; senuelo = lo que veria alguien que no es admin
+        when(favoriteDao.countByUserId(USER_ID)).thenReturn(3L);
+        when(favoriteDao.findEventIdsByUser(USER_ID, 1, FavoriteServiceImpl.PAGE_SIZE))
+                .thenReturn(Arrays.asList(5L, 6L, 7L));
+        when(eventService.findByIds(Arrays.asList(5L, 6L, 7L)))
+                .thenReturn(Arrays.asList(eventWithId(5), eventWithId(6), eventWithId(7)));
+        lenient().when(favoriteDao.countViewableByUserId(USER_ID)).thenReturn(1L);
+        lenient().when(favoriteDao.findViewableEventIdsByUser(USER_ID, 1, FavoriteServiceImpl.PAGE_SIZE))
+                .thenReturn(Collections.singletonList(5L));
+
+        // Act
+        final PageResult<Event> result = favoriteService.findViewablePage(adminUser(), 1);
+
+        // Assert
+        assertEquals(Arrays.asList(5L, 6L, 7L), idsOf(result));
+        assertEquals(3L, result.getTotalElements());
     }
 
     @Test

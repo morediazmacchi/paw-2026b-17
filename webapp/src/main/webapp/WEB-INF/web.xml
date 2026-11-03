@@ -22,6 +22,17 @@
     <listener-class>org.springframework.web.context.ContextLoaderListener</listener-class>
   </listener>
 
+  <!-- Avisa al SessionRegistry de Spring Security cuando una sesion termina (logout, timeout) o cambia
+       de id (al loguearse). Sin esto el registro nunca olvida las sesiones muertas (ver
+       SessionExpiringListener y WebAuthConfig.sessionRegistry). -->
+  <listener>
+    <listener-class>org.springframework.security.web.session.HttpSessionEventPublisher</listener-class>
+  </listener>
+
+  <!-- ORDEN DE LOS FILTROS: los filtros corren en el orden de sus <filter-mapping> (no de sus <filter>),
+       siempre antes de cualquier controller. 1) encoding UTF-8, 2) Spring Security, 3) OpenEntityManagerInView.
+       El encoding va PRIMERO porque el login de Spring Security lee los parametros del form (email,
+       password): si los lee antes de que se fije UTF-8, acentos y "n" con tilde se decodifican mal. -->
   <filter>
     <filter-name>characterEncodingFilter</filter-name>
     <filter-class>org.springframework.web.filter.CharacterEncodingFilter</filter-class>
@@ -34,20 +45,37 @@
       <param-value>true</param-value>
     </init-param>
   </filter>
-  <filter-mapping>
-    <filter-name>characterEncodingFilter</filter-name>
-    <url-pattern>/*</url-pattern>
-  </filter-mapping>
+
+  <!-- Delega en el bean "springSecurityFilterChain" que arma WebAuthConfig (@EnableWebSecurity) en el
+       contexto raiz. -->
+  <filter>
+    <filter-name>springSecurityFilterChain</filter-name>
+    <filter-class>org.springframework.web.filter.DelegatingFilterProxy</filter-class>
+    <async-supported>true</async-supported>
+  </filter>
 
   <!-- Mantiene abierta la sesion de Hibernate (el EntityManager) durante todo el request,
        incluido el renderizado del JSP. Sin esto, tocar una relacion lazy desde el JSP tira
        LazyInitializationException porque la transaccion del service ya cerro. Tiene que ir
-       DESPUES del filtro de Spring Security (ese se registra por codigo, ver
-       SecurityWebApplicationInitializer). -->
+       DESPUES del filtro de Spring Security (ver el orden de los mappings de abajo). -->
   <filter>
     <filter-name>openEntityManagerInViewFilter</filter-name>
     <filter-class>org.springframework.orm.jpa.support.OpenEntityManagerInViewFilter</filter-class>
   </filter>
+
+  <filter-mapping>
+    <filter-name>characterEncodingFilter</filter-name>
+    <url-pattern>/*</url-pattern>
+  </filter-mapping>
+  <!-- REQUEST + ERROR + ASYNC: ERROR para que las paginas de error (ver <error-page> abajo) vean la sesion
+       de quien las pide, ASYNC por si algun dia hay requests asincronicos. -->
+  <filter-mapping>
+    <filter-name>springSecurityFilterChain</filter-name>
+    <url-pattern>/*</url-pattern>
+    <dispatcher>REQUEST</dispatcher>
+    <dispatcher>ERROR</dispatcher>
+    <dispatcher>ASYNC</dispatcher>
+  </filter-mapping>
   <filter-mapping>
     <filter-name>openEntityManagerInViewFilter</filter-name>
     <url-pattern>/*</url-pattern>

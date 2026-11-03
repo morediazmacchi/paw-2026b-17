@@ -11,7 +11,11 @@ import org.springframework.stereotype.Repository;
 
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Repository
 public class FavoriteJpaDao implements FavoriteDao {
@@ -57,16 +61,19 @@ public class FavoriteJpaDao implements FavoriteDao {
                 .getSingleResult();
     }
 
+    // El WHERE de visibilidad (EventAccessService.canView para quien no es admin), en un solo lugar: lo usan
+    // el COUNT y la pagina, asi nunca se desincronizan. Espera los alias f (Favorite) y e (su evento).
+    private static final String VIEWABLE_WHERE = "f.user.id = :userId AND ("
+            + "e.creator.id = :userId OR (e.approvalStatus = :approved AND ("
+            + "e.visibility = :publicVisibility "
+            + "OR EXISTS (SELECT r.id FROM Registration r "
+            + "WHERE r.event.id = e.id AND r.user.id = :userId) "
+            + "OR EXISTS (SELECT i.id FROM EventInvitation i "
+            + "WHERE i.event.id = e.id AND i.user.id = :userId))))";
+
     @Override
     public long countViewableByUserId(final long userId) {
-        return em.createQuery(
-                        "SELECT COUNT(f) FROM Favorite f JOIN f.event e WHERE f.user.id = :userId AND ("
-                                + "e.creator.id = :userId OR (e.approvalStatus = :approved AND ("
-                                + "e.visibility = :publicVisibility "
-                                + "OR EXISTS (SELECT r.id FROM Registration r "
-                                + "WHERE r.event.id = e.id AND r.user.id = :userId) "
-                                + "OR EXISTS (SELECT i.id FROM EventInvitation i "
-                                + "WHERE i.event.id = e.id AND i.user.id = :userId))))", Long.class)
+        return em.createQuery("SELECT COUNT(f) FROM Favorite f JOIN f.event e WHERE " + VIEWABLE_WHERE, Long.class)
                 .setParameter("userId", userId)
                 .setParameter("approved", EventApprovalStatus.APPROVED)
                 .setParameter("publicVisibility", EventVisibility.PUBLIC)
@@ -74,11 +81,42 @@ public class FavoriteJpaDao implements FavoriteDao {
     }
 
     @Override
-    public List<Long> findEventIdsByUser(final long userId) {
+    public List<Long> findViewableEventIdsByUser(final long userId, final int page, final int pageSize) {
+        // Solo ids: la pagina trae a lo sumo pageSize numeros; los eventos (con sus categorias) los busca
+        // despues quien llama con un unico IN (...). El desempate por id fija el orden si dos favoritos
+        // comparten createdAt.
         return em.createQuery(
-                        "SELECT f.event.id FROM Favorite f WHERE f.user.id = :userId ORDER BY f.createdAt DESC",
+                        "SELECT e.id FROM Favorite f JOIN f.event e WHERE " + VIEWABLE_WHERE
+                                + " ORDER BY f.createdAt DESC, e.id DESC", Long.class)
+                .setParameter("userId", userId)
+                .setParameter("approved", EventApprovalStatus.APPROVED)
+                .setParameter("publicVisibility", EventVisibility.PUBLIC)
+                .setFirstResult((page - 1) * pageSize)
+                .setMaxResults(pageSize)
+                .getResultList();
+    }
+
+    @Override
+    public Set<Long> findFavoriteEventIds(final long userId, final Collection<Long> eventIds) {
+        if (eventIds.isEmpty()) {
+            return Collections.emptySet();
+        }
+        return new HashSet<>(em.createQuery(
+                        "SELECT f.event.id FROM Favorite f WHERE f.user.id = :userId AND f.event.id IN :eventIds",
                         Long.class)
                 .setParameter("userId", userId)
+                .setParameter("eventIds", eventIds)
+                .getResultList());
+    }
+
+    @Override
+    public List<Long> findEventIdsByUser(final long userId, final int page, final int pageSize) {
+        return em.createQuery(
+                        "SELECT f.event.id FROM Favorite f WHERE f.user.id = :userId "
+                                + "ORDER BY f.createdAt DESC, f.event.id DESC", Long.class)
+                .setParameter("userId", userId)
+                .setFirstResult((page - 1) * pageSize)
+                .setMaxResults(pageSize)
                 .getResultList();
     }
 }

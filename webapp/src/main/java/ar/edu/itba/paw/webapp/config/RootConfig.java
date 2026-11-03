@@ -45,7 +45,7 @@ import java.util.Properties;
 })
 // WebAuthConfig esta en este mismo paquete (webapp.config), que el @ComponentScan de arriba
 // no barre: se importa a mano. La seguridad tiene que vivir en el contexto raiz porque el
-// filtro "springSecurityFilterChain" (ver SecurityWebApplicationInitializer) lo busca ahi.
+// filtro "springSecurityFilterChain" (un DelegatingFilterProxy declarado en web.xml) lo busca ahi.
 @Import(WebAuthConfig.class)
 @Configuration
 // La conexion a la base vive en db.properties (mismo criterio que mail.properties/MailConfig):

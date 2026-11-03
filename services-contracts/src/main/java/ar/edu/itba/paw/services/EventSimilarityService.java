@@ -18,7 +18,8 @@ public interface EventSimilarityService {
      * de mas puntos, desempate por fecha del evento (el mas proximo primero) y por id.
      *
      * criteria.getViewerId() es obligatorio. Si esa persona todavia no asistio a nada, nadie suma
-     * puntos y el orden queda por fecha (el mismo que FECHA_ASC). Ignora criteria.getSort().
+     * puntos y el orden queda por fecha (el mismo que FECHA_ASC), paginado en la base con LIMIT/OFFSET. Con
+     * historial el puntaje se calcula en memoria sobre los eventos que matchean los filtros. Ignora criteria.getSort().
      */
     @Transactional(readOnly = true)
     PageResult<Event> searchRecommended(EventSearchCriteria criteria);

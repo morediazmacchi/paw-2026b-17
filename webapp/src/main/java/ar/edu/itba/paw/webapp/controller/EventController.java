@@ -45,7 +45,6 @@ import javax.validation.Valid;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -137,11 +136,13 @@ public class EventController {
         mav.addObject("filterErrors", filterErrors);
         // Anonimo no ve el corazon de favorito ni las etiquetas de estado.
         if (currentUser != null) {
-            mav.addObject("favoriteEventIds", new HashSet<>(favoriteService.findEventIdsByUser(currentUser.getId())));
+            final List<Long> pageEventIds = result.getContent().stream().map(Event::getId).collect(Collectors.toList());
+            // Cuales de los eventos de ESTA pagina son favoritos (no la lista completa de favoritos).
+            mav.addObject("favoriteEventIds", favoriteService.findFavoriteEventIds(currentUser.getId(), pageEventIds));
             // Estado de la inscripcion propia en cada evento de la pagina: una card sin etiqueta
             // significa que la persona nunca se inscribio (o se dio de baja).
-            mav.addObject("registrationStatuses", registrationService.findStatusesByEventIds(
-                    currentUser.getId(), result.getContent().stream().map(Event::getId).collect(Collectors.toList())));
+            mav.addObject("registrationStatuses",
+                    registrationService.findStatusesByEventIds(currentUser.getId(), pageEventIds));
         }
         return mav;
     }

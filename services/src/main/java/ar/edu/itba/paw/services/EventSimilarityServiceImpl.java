@@ -3,6 +3,7 @@ package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventSearchCriteria;
+import ar.edu.itba.paw.model.EventSort;
 import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.RegistrationDao;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -62,13 +63,16 @@ public class EventSimilarityServiceImpl implements EventSimilarityService {
         final Long viewerId = Objects.requireNonNull(criteria.getViewerId(), "viewerId");
         final Date now = Date.from(clock.instant());
 
-        // Ya vienen por fecha ascendente y id ascendente: el desempate final del orden.
-        final List<Event> candidates = eventDao.findAllMatching(criteria);
         final List<Event> attended = loadAttended(viewerId, now);
-        if (attended.isEmpty() || candidates.isEmpty()) {
-            // Sin historial nadie suma puntos y el orden por fecha es justamente este.
-            return PageResult.of(candidates, criteria.getPage(), criteria.getPageSize());
+        if (attended.isEmpty()) {
+            // Sin historial nadie suma puntos y el orden queda por fecha, que es SQL: se pagina en la base
+            // (como el resto del listado) sin traer todos los candidatos.
+            return searchByDate(criteria);
         }
+
+        // Ya vienen por fecha ascendente y id ascendente: el desempate final del orden. El puntaje no es una
+        // columna (se calcula en Java con EventSimilarity), asi que aca hace falta tener todos los candidatos.
+        final List<Event> candidates = eventDao.findAllMatching(criteria);
 
         final PriceDistribution prices = priceDistributionCache.get();
 
@@ -89,6 +93,16 @@ public class EventSimilarityServiceImpl implements EventSimilarityService {
                 .thenComparing(Event::getEventDate)
                 .thenComparing(Event::getId));
         return PageResult.of(ranked, criteria.getPage(), criteria.getPageSize());
+    }
+
+    // La pagina por fecha (FECHA_ASC) con LIMIT/OFFSET: el COUNT y la pagina comparten el WHERE de la busqueda.
+    // Pide la pagina pedida si existe y, si no, la ultima con resultados (igual que EventService.search()).
+    private PageResult<Event> searchByDate(final EventSearchCriteria criteria) {
+        criteria.setSort(EventSort.FECHA_ASC);
+        final long total = eventDao.countSearch(criteria);
+        final int page = PageResult.clampPage(criteria.getPage(), total, criteria.getPageSize());
+        criteria.setPage(page);
+        return new PageResult<>(eventDao.search(criteria), total, page, criteria.getPageSize());
     }
 
     @Override
