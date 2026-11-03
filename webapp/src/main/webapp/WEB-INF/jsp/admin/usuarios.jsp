@@ -1,6 +1,7 @@
 <%@ page contentType="text/html;charset=UTF-8" pageEncoding="UTF-8" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
+<%@ taglib prefix="sec" uri="http://www.springframework.org/security/tags" %>
 <%@ taglib prefix="paw" tagdir="/WEB-INF/tags" %>
 <paw:layout titleCode="admin.users.title">
 <jsp:attribute name="head">
@@ -92,12 +93,13 @@
                                             </form>
                                         </c:when>
                                     </c:choose>
-                                    <%-- Otorgar/revocar admin: solo si quien mira esta pantalla es
-                                         superadmin (WebAuthConfig ya lo exige en el servidor; esto
-                                         solo evita ofrecer un boton que el POST va a rechazar). A un
-                                         superadmin no se le ofrece ninguno: ya es admin y no se le saca
-                                         el rol (RevokeAdminResult.TARGET_SUPERADMIN). --%>
-                                    <c:if test="${targetUser.canHaveAdminRoleChangedBy(isSuperadmin)}">
+                                    <%-- Otorgar/revocar admin: solo si quien mira esta pantalla es superadmin (es el
+                                         mismo criterio del antMatcher de WebAuthConfig: el rol da el acceso; esto solo
+                                         evita ofrecer un boton que el POST va a rechazar). A un superadmin no se le
+                                         ofrece ninguno: ya es admin y no se le saca el rol (el service lo rechaza con
+                                         RevokeAdminResult.TARGET_SUPERADMIN, la misma propiedad que se mira aca). --%>
+                                    <sec:authorize access="hasRole('SUPERADMIN')">
+                                    <c:if test="${not targetUser.superadmin}">
                                         <c:choose>
                                             <c:when test="${targetUser.admin}">
                                                 <form action="<c:url value='/admin/usuarios/${targetUser.id}/revocar'/>" method="post">
@@ -111,6 +113,7 @@
                                             </c:otherwise>
                                         </c:choose>
                                     </c:if>
+                                    </sec:authorize>
                                 </c:if>
                             </td>
                         </tr>

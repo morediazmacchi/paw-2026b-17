@@ -2,6 +2,7 @@ package ar.edu.itba.paw.webapp.security;
 
 import ar.edu.itba.paw.model.EventAccessData;
 import ar.edu.itba.paw.model.EventAccessSummary;
+import ar.edu.itba.paw.model.HasCreator;
 import ar.edu.itba.paw.model.RegistrationAccess;
 import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.Role;
@@ -58,7 +59,7 @@ public class EventSecurity {
     public boolean canAnswerQuestion(final long questionId, final Authentication authentication) {
         return PlancitoUserDetails.from(authentication)
                 .flatMap(user -> eventQuestionService.findEventCreatorId(questionId)
-                        .map(creatorId -> creatorId == user.getId()))
+                        .map(creatorId -> HasCreator.isCreator(user.getId(), creatorId)))
                 .orElse(false);
     }
 

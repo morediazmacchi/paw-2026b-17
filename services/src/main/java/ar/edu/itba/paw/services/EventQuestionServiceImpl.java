@@ -41,7 +41,7 @@ public class EventQuestionServiceImpl implements EventQuestionService {
         // se alcanza si desaparece justo en el medio (carrera). Es la excepcion de siempre (ErrorAdvice
         // la mapea a 404), no un resultado: los resultados son para conflictos de negocio.
         final Event event = eventService.findById(eventId).orElseThrow(() -> new EventNotFoundException(eventId));
-        if (Long.valueOf(asker.getId()).equals(event.getCreatorId())) {
+        if (event.isCreatedBy(asker.getId())) {
             return QuestionResult.OWN_EVENT;
         }
         if (!event.isOpenForQuestions()) {

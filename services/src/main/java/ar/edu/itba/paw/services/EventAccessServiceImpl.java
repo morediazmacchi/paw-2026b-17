@@ -41,7 +41,7 @@ public class EventAccessServiceImpl implements EventAccessService {
                                final boolean hasRegistration) {
         // El creador y un admin lo ven siempre, este aprobado o no (el admin
         // necesita verlo justamente para poder aprobarlo/rechazarlo).
-        if (userId != null && userId.equals(event.getCreatorId())) {
+        if (event.isCreatedBy(userId)) {
             return true;
         }
         if (isAdmin) {

@@ -94,7 +94,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         // aprobacion a si mismo en uno con requiresApproval, ni "invitarse" a
         // uno privado del que ya es dueño. Va antes de tocar la base: no se
         // crea ninguna fila ni sale ningun mail.
-        if (Long.valueOf(user.getId()).equals(event.getCreatorId())) {
+        if (event.isCreatedBy(user.getId())) {
             return RegistrationResult.of(RegistrationResult.Status.OWN_EVENT);
         }
 

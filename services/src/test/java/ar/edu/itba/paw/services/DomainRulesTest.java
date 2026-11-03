@@ -2,6 +2,7 @@ package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventApprovalStatus;
+import ar.edu.itba.paw.model.HasCreator;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.ReportTarget;
@@ -134,8 +135,22 @@ public class DomainRulesTest {
     public void testAnAdminCannotResolveAReportOnTheirOwnEventButCanOnOthers() {
         final ReportTarget target = new ReportTarget(1L, 7L);
 
-        assertFalse(target.canBeResolvedBy(7L));
-        assertTrue(target.canBeResolvedBy(8L));
+        assertFalse(target.canBeModeratedBy(7L));
+        assertTrue(target.canBeModeratedBy(8L));
+    }
+
+    @Test
+    public void testAReportOnAnEventWithoutAKnownCreatorCanBeResolvedByAnyAdmin() {
+        // fila vieja que todavia no paso por el backfill: no hay creador contra quien comparar
+        assertTrue(new ReportTarget(1L, null).canBeModeratedBy(7L));
+    }
+
+    @Test
+    public void testIsCreatorComparesOnlyWhenThereIsAPerson() {
+        assertTrue(HasCreator.isCreator(7L, 7L));
+        assertFalse(HasCreator.isCreator(8L, 7L));
+        assertFalse(HasCreator.isCreator(null, 7L));
+        assertFalse(HasCreator.isCreator(7L, null));
     }
 
     // ---- inscripcion revocable ----
@@ -171,18 +186,6 @@ public class DomainRulesTest {
 
         assertFalse(superadmin.canBeSuspendedBy(false));
         assertTrue(superadmin.canBeSuspendedBy(true));
-    }
-
-    @Test
-    public void testOnlyASuperadminCanChangeTheAdminRoleOfARegularUserOrAnAdmin() {
-        assertFalse(userWith(Role.USER).canHaveAdminRoleChangedBy(false));
-        assertTrue(userWith(Role.USER).canHaveAdminRoleChangedBy(true));
-        assertTrue(userWith(Role.USER, Role.ADMIN).canHaveAdminRoleChangedBy(true));
-    }
-
-    @Test
-    public void testNobodyChangesTheAdminRoleOfASuperadmin() {
-        assertFalse(userWith(Role.ADMIN, Role.SUPERADMIN).canHaveAdminRoleChangedBy(true));
     }
 
     @Test

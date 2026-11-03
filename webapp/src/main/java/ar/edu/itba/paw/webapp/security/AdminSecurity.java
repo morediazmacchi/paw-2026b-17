@@ -52,7 +52,7 @@ public class AdminSecurity {
     public boolean canResolveReport(final long reportId, final Authentication authentication) {
         return PlancitoUserDetails.from(authentication)
                 .flatMap(admin -> moderationService.findReportTarget(reportId)
-                        .map(target -> target.canBeResolvedBy(admin.getId())))
+                        .map(target -> target.canBeModeratedBy(admin.getId())))
                 .orElse(false);
     }
 }
