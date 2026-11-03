@@ -1,5 +1,6 @@
 package ar.edu.itba.paw.webapp.form;
 
+import ar.edu.itba.paw.services.EventQuestionService;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.Size;
 
@@ -7,7 +8,7 @@ import javax.validation.constraints.Size;
 public class QuestionForm {
 
     @NotBlank
-    @Size(max = 300)
+    @Size(max = EventQuestionService.MAX_QUESTION_LENGTH)
     private String text;
 
     public String getText() { return text; }

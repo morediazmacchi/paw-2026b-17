@@ -11,5 +11,7 @@ public enum ReviewResult {
     // cancelado, o no tuvo su lugar confirmado. Desde la UI no se llega (el
     // boton no aparece), solo con un POST armado a mano: no hace falta un
     // mensaje distinto para cada caso.
-    NOT_ELIGIBLE
+    NOT_ELIGIBLE,
+    // El puntaje esta fuera de rango o el comentario es demasiado largo (ver ReviewService.MIN_RATING...).
+    INVALID
 }

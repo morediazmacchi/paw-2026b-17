@@ -3,7 +3,6 @@ package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.Registration;
-import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.Review;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.persistence.EventDao;
@@ -13,8 +12,8 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.SQLException;
 import java.util.Collections;
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -51,6 +50,11 @@ public class ReviewServiceImpl implements ReviewService {
     @Transactional(rollbackFor = Exception.class)
     public ReviewResult create(final long eventId, final User user, final int rating, final String comment) {
         Objects.requireNonNull(user, "user");
+        // Se valida ANTES de escribir (y antes del lock). El form ya lo chequea para dar feedback.
+        if (rating < MIN_RATING || rating > MAX_RATING
+                || (comment != null && comment.length() > MAX_COMMENT_LENGTH)) {
+            return ReviewResult.INVALID;
+        }
         // Lockea el evento primero (mismo criterio que RegistrationServiceImpl.
         // register()): dos envios simultaneos del mismo usuario se serializan
         // aca, en vez de pasar los dos el chequeo de "ya la mando" y recien
@@ -66,23 +70,32 @@ public class ReviewServiceImpl implements ReviewService {
         // Solo quien tuvo su lugar confirmado fue al evento. Estar en lista de
         // espera, pendiente de aprobacion o rechazado no alcanza.
         final Optional<Registration> registration = registrationService.findByEventAndUserId(eventId, user.getId());
-        if (!registration.isPresent() || registration.get().getStatus() != RegistrationStatus.CONFIRMED) {
+        if (!registration.isPresent() || !registration.get().isConfirmed()) {
             return ReviewResult.NOT_ELIGIBLE;
         }
         try {
             reviewDao.create(new Review(event.get(), user, rating, comment));
         } catch (final DataIntegrityViolationException e) {
-            // Dos envios al mismo tiempo: el SELECT de arriba no vio nada, pero el
-            // otro ya inserto justo antes y choca contra el UNIQUE(event_id, user_id).
-            // El contrato de create() promete que el resultado es el unico canal de
-            // salida (ver ReviewService): no corresponde dejar escapar esto hacia el
-            // controller.
-            // Con JPA, el insert fallido ya dejo la transaccion marcada para rollback: se lo
-            // decimos explicitamente, asi Spring hace rollback sin tirar UnexpectedRollbackException.
+            // Solo la violacion del UNIQUE(event_id, user_id) es "ya la mando": dos envios al mismo tiempo, el SELECT
+            // de arriba no vio nada pero el otro ya inserto justo antes. Cualquier otra violacion (un CHECK, un largo)
+            // es un error de verdad: no se la disfraza de ALREADY_REVIEWED.
+            if (!isUniqueViolation(e)) {
+                throw e;
+            }
+            // El contrato de create() promete que el resultado es el unico canal de salida (ver ReviewService): no
+            // corresponde dejar escapar esto hacia el controller.
+            // Con JPA, el insert fallido ya dejo la transaccion marcada para rollback: se lo decimos
+            // explicitamente, asi Spring hace rollback sin tirar UnexpectedRollbackException.
             RollbackOnly.ifInTransaction();
             return ReviewResult.ALREADY_REVIEWED;
         }
         return ReviewResult.CREATED;
+    }
+
+    // SQLSTATE 23505 = unique_violation (Postgres y HSQLDB).
+    private static boolean isUniqueViolation(final DataIntegrityViolationException e) {
+        final Throwable cause = e.getMostSpecificCause();
+        return cause instanceof SQLException && "23505".equals(((SQLException) cause).getSQLState());
     }
 
     @Override

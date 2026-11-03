@@ -9,6 +9,7 @@ import ar.edu.itba.paw.model.EventApprovalStatus;
 import ar.edu.itba.paw.model.EventCategoryInfo;
 import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.EventSort;
+import ar.edu.itba.paw.model.EventVisibility;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.exception.EventCancelledException;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
@@ -149,10 +150,10 @@ public class EventServiceImplTest {
                 .thenReturn(persisted);
 
         // Act
-        final Event result = eventService.create(CREATOR_ID, someDto());
+        final EventCreation result = eventService.create(CREATOR_ID, someDto());
 
         // Assert
-        assertSame(persisted, result);
+        assertSame(persisted, result.getEvent());
     }
 
     @Test
@@ -241,10 +242,10 @@ public class EventServiceImplTest {
         when(eventDao.create(any(Event.class))).thenReturn(persisted);
 
         // Act
-        final Event result = eventService.create(CREATOR_ID, dto);
+        final EventCreation result = eventService.create(CREATOR_ID, dto);
 
         // Assert
-        assertSame(persisted, result);
+        assertSame(persisted, result.getEvent());
     }
 
     @Test
@@ -283,6 +284,63 @@ public class EventServiceImplTest {
     }
 
     @Test
+    public void testCreateOfAPrivateEventSaysTheNextStepIsInviting() {
+        // Arrange
+        final Event persisted = someEvent();
+        persisted.setVisibility(EventVisibility.PRIVATE);
+        when(eventDao.create(any(Event.class))).thenReturn(persisted);
+
+        // Act
+        final EventCreation result = eventService.create(CREATOR_ID, someDto());
+
+        // Assert
+        assertTrue(result.isNeedsInvitations());
+    }
+
+    @Test
+    public void testCreateOfAPublicEventDoesNotNeedInvitations() {
+        // Arrange
+        final Event persisted = someEvent();
+        persisted.setVisibility(EventVisibility.PUBLIC);
+        when(eventDao.create(any(Event.class))).thenReturn(persisted);
+
+        // Act
+        final EventCreation result = eventService.create(CREATOR_ID, someDto());
+
+        // Assert
+        assertFalse(result.isNeedsInvitations());
+    }
+
+    @Test
+    public void testRejectWithABlankReasonReturnsInvalid() {
+        // Arrange: el evento existe y esta pendiente; si el service lo rechazara igual, el resultado seria OK
+        final Event pending = someEvent();
+        pending.setApprovalStatus(EventApprovalStatus.PENDING);
+        lenient().when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(pending));
+
+        // Act
+        final EventApprovalResult result = eventService.reject(EVENT_ID, "  ");
+
+        // Assert
+        assertEquals(EventApprovalResult.INVALID, result);
+    }
+
+    @Test
+    public void testRejectWithAReasonLongerThanTheMaximumReturnsInvalid() {
+        // Arrange
+        final Event pending = someEvent();
+        pending.setApprovalStatus(EventApprovalStatus.PENDING);
+        lenient().when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(pending));
+        final String tooLong = new String(new char[EventService.MAX_REJECT_REASON_LENGTH + 1]).replace('\0', 'a');
+
+        // Act
+        final EventApprovalResult result = eventService.reject(EVENT_ID, tooLong);
+
+        // Assert
+        assertEquals(EventApprovalResult.INVALID, result);
+    }
+
+    @Test
     public void testCreateWithAnUnknownCreatorThrowsIllegalArgumentException() {
         // Arrange: el mail del evento sale de la cuenta del creador; si esa fila desaparecio no hay con que armarlo
         when(userService.findById(CREATOR_ID)).thenReturn(Optional.empty());
@@ -299,10 +357,10 @@ public class EventServiceImplTest {
                 .thenReturn(persisted);
 
         // Act
-        final Event result = eventService.create(CREATOR_ID, someDto());
+        final EventCreation result = eventService.create(CREATOR_ID, someDto());
 
         // Assert
-        assertSame(persisted, result);
+        assertSame(persisted, result.getEvent());
     }
 
     // ---- findById / findByIds / findAll / findByCategory / findByCreatorId ----

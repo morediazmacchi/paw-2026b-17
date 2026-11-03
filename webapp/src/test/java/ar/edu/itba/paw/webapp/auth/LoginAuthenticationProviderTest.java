@@ -11,6 +11,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.core.Authentication;
@@ -95,7 +96,7 @@ public class LoginAuthenticationProviderTest {
         login("nadie@mail.com", "clave-mala");
     }
 
-    @Test(expected = DisabledException.class)
+    @Test(expected = LockedException.class)
     public void testCorrectPasswordOnASuspendedAccountIsStillBlocked() {
         account("susp@mail.com", correctHash, true, true);
 

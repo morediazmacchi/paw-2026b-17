@@ -10,5 +10,11 @@ public enum RegistrationStatus {
     // Solo existe en eventos con requiresApproval=true: espera a que el creador la acepte o la rechace.
     PENDING,
     // Estado terminal: el creador la rechazo (ver RegistrationServiceImpl.reject()).
-    REJECTED
+    REJECTED;
+
+    // Tiene el lugar confirmado (no esta pendiente, ni en espera, ni rechazada). Es la UNICA definicion de "tiene
+    // el lugar": la usan el chat, las reseñas, revocar y las pantallas.
+    public boolean isConfirmed() {
+        return this == CONFIRMED;
+    }
 }

@@ -36,11 +36,14 @@ public class NotificationServiceImplTest {
 
     @Mock
     private UserDao mockUserDao;
+    // Los links de los mails los arma la capa web (MailLinks): aca no importa su valor.
+    @Mock
+    private MailLinks mockMailLinks;
 
     private NotificationServiceImpl notificationService;
 
     private void setUp() {
-        notificationService = new NotificationServiceImpl(mockMailService, mockMessageSource, mockUserDao);
+        notificationService = new NotificationServiceImpl(mockMailService, mockMessageSource, mockUserDao, mockMailLinks);
     }
 
     private static User userWithLocale(final long id, final String locale) {

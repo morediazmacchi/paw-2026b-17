@@ -52,7 +52,7 @@
             <p class="alert"><spring:message code="auth.invite.fullMessage"/></p>
         </c:if>
         <%-- No "event.private": "private" es palabra reservada y EL la rechaza (ver detail.jsp). --%>
-        <c:if test="${event.visibility != 'PRIVATE'}">
+        <c:if test="${not event.inviteOnly}">
             <p class="alert"><spring:message code="auth.invite.eventPublicMessage"/></p>
         </c:if>
         <c:if test="${param.selfInvite != null}">
@@ -61,7 +61,7 @@
 
         <%-- El formulario y la lista solo tienen sentido en un evento privado; en uno publico queda
              solo el cartel de arriba. --%>
-        <c:if test="${event.visibility == 'PRIVATE'}">
+        <c:if test="${event.inviteOnly}">
             <spring:message code="auth.invite.emailLabel" var="emailLabel"/>
             <spring:message code="auth.invite.submitButton" var="submitButtonLabel"/>
             <form action="<c:url value='/perfil/eventos/${event.id}/invitar'/>" method="post" novalidate="novalidate">

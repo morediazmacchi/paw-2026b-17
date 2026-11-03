@@ -20,5 +20,7 @@ public enum UnregisterResult {
     NOT_FOUND,
 
     // El evento ya paso: no se puede "des-anotar" de algo que ya sucedio. No se borro nada.
-    FINISHED
+    FINISHED,
+    // El evento se cancelo: no hay nada que cancelar. No se borro nada.
+    EVENT_CANCELLED
 }

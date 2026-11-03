@@ -595,6 +595,13 @@ public class RegistrationServiceImplTest {
     private static final long PAST_EVENT_ID = 50;
     private static final long UPCOMING_EVENT_ID = 60;
 
+    // Un evento que todavia no paso (el service decide por su fecha si todavia se puede cancelar la inscripcion).
+    private static Event upcomingEvent(final long id) {
+        final Event event = ModelFixtures.event(id);
+        event.setEventDate(new Date(System.currentTimeMillis() + ONE_DAY_MILLIS));
+        return event;
+    }
+
     // Un evento que ya paso (el service lo clasifica por su fecha para decidir si se puede reseñar).
     private static Event pastEvent(final long id) {
         final Event event = ModelFixtures.event(id);
@@ -615,7 +622,7 @@ public class RegistrationServiceImplTest {
         when(mockRegistrationDao.findUpcomingByUserId(eq(USER_ID), any(Date.class), eq(page), eq(RegistrationServiceImpl.PAGE_SIZE)))
                 .thenReturn(Collections.singletonList(registrationAt(eventId)));
         when(mockEventDao.findByIds(Collections.singletonList(eventId)))
-                .thenReturn(Collections.singletonList(ModelFixtures.event(eventId)));
+                .thenReturn(Collections.singletonList(upcomingEvent(eventId)));
     }
 
     private void givenPastPage(final int page, final long eventId) {
@@ -787,7 +794,7 @@ public class RegistrationServiceImplTest {
     public void testFindMyRegistrationsDoesNotAttachReviewsToUpcomingRegistrations() {
         // Arrange: aunque la base tuviera una reseña de ese evento, en las proximas no se busca
         givenTotals(1, 0);
-        final Event event = ModelFixtures.event(UPCOMING_EVENT_ID);
+        final Event event = upcomingEvent(UPCOMING_EVENT_ID);
         when(mockRegistrationDao.findUpcomingByUserId(eq(USER_ID), any(Date.class), eq(1), eq(RegistrationServiceImpl.PAGE_SIZE)))
                 .thenReturn(Collections.singletonList(registrationAt(UPCOMING_EVENT_ID)));
         when(mockEventDao.findByIds(Collections.singletonList(UPCOMING_EVENT_ID))).thenReturn(Collections.singletonList(event));
@@ -869,6 +876,24 @@ public class RegistrationServiceImplTest {
 
         // Assert: no se llamo a delete() (sin stub devolveria false y el resultado seria otro)
         assertEquals(UnregisterResult.FINISHED, result);
+    }
+
+    @Test
+    public void testCancelReturnsEventCancelledAndKeepsTheRowWhenTheEventWasCancelled() {
+        // Arrange: el evento no paso, pero se cancelo: no hay nada que cancelar (misma regla, Event.isActive)
+        final Registration registration = new Registration(ModelFixtures.event(EVENT_ID), null, NORMALIZED_EMAIL, NAME, RegistrationStatus.CONFIRMED);
+        registration.setId(5L);
+        registration.setUser(ModelFixtures.user(USER_ID));
+        final Event cancelled = eventWithCapacity(10);
+        cancelled.setCancelledAt(new Date());
+        when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(cancelled));
+
+        // Act
+        final UnregisterResult result = registrationService.cancel(5);
+
+        // Assert
+        assertEquals(UnregisterResult.EVENT_CANCELLED, result);
     }
 
     @Test
@@ -1115,6 +1140,32 @@ public class RegistrationServiceImplTest {
 
         assertFalse(entry.isCanReview());
         assertEquals(NotAttendedReason.REJECTED, entry.getNotAttendedReason());
+    }
+
+    @Test
+    public void testAnUpcomingRegistrationToAnActiveEventCanBeCancelled() {
+        givenTotals(1, 0);
+        givenUpcomingPage(1, UPCOMING_EVENT_ID);
+
+        final RegistrationEntry entry = registrationService.findMyRegistrations(USER_ID, 1, 1).getUpcoming().getContent().get(0);
+
+        assertTrue(entry.isCanCancel());
+    }
+
+    @Test
+    public void testAnUpcomingRegistrationToACancelledEventCannotBeCancelled() {
+        givenTotals(1, 0);
+        final Event cancelled = upcomingEvent(UPCOMING_EVENT_ID);
+        cancelled.setEventDate(new Date(System.currentTimeMillis() + ONE_DAY_MILLIS));
+        cancelled.setCancelledAt(new Date());
+        when(mockRegistrationDao.findUpcomingByUserId(eq(USER_ID), any(Date.class), eq(1), eq(RegistrationServiceImpl.PAGE_SIZE)))
+                .thenReturn(Collections.singletonList(registrationAt(UPCOMING_EVENT_ID)));
+        when(mockEventDao.findByIds(Collections.singletonList(UPCOMING_EVENT_ID)))
+                .thenReturn(Collections.singletonList(cancelled));
+
+        final RegistrationEntry entry = registrationService.findMyRegistrations(USER_ID, 1, 1).getUpcoming().getContent().get(0);
+
+        assertFalse(entry.isCanCancel());
     }
 
     @Test

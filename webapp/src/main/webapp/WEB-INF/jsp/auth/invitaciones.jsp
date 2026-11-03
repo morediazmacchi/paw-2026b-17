@@ -24,7 +24,7 @@
                 <div class="event-row-list">
                     <c:forEach var="event" items="${invitedEvents}">
                         <paw:eventRow id="${event.id}" nombre="${event.title}" fecha="${event.eventDate}"
-                                      ubicacion="${event.neighborhood.displayName}" precio="${event.price}"
+                                      ubicacion="${event.neighborhood.displayName}" precio="${event.price}" gratis="${event.free}"
                                       imagenId="${event.imageId}" cancelado="${event.cancelled}"/>
                     </c:forEach>
                 </div>

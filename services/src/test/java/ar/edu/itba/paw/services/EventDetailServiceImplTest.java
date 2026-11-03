@@ -59,6 +59,8 @@ public class EventDetailServiceImplTest {
     private EventQuestionService eventQuestionService;
     @Mock
     private EventAccessService eventAccessService;
+    @Mock
+    private EventInvitationService eventInvitationService;
 
     private EventDetailServiceImpl detailService;
     private Event event;
@@ -66,7 +68,8 @@ public class EventDetailServiceImplTest {
     @Before
     public void setUp() {
         detailService = new EventDetailServiceImpl(eventService, registrationService, favoriteService,
-                eventChatService, reviewService, eventSimilarityService, eventQuestionService, eventAccessService);
+                eventChatService, reviewService, eventSimilarityService, eventQuestionService, eventAccessService,
+                eventInvitationService);
         event = ModelFixtures.event(EVENT_ID);
         event.setCreator(ModelFixtures.user(CREATOR_ID));
         // Un evento que todavia no paso (el estado "finalizado" se prueba aparte).
@@ -282,6 +285,26 @@ public class EventDetailServiceImplTest {
     }
 
     @Test
+    public void testActionIsRegisterForAnInviteeToAnEventThatRequiresApproval() {
+        // Arrange: lo invitaron, asi que register() la deja confirmada (no hay aprobacion que pedir)
+        event.setRequiresApproval(true);
+        viewer(null, true);
+        when(eventInvitationService.isInvited(EVENT_ID, VIEWER_ID)).thenReturn(true);
+
+        assertEquals(EventAction.REGISTER, actionFor(VIEWER_ID));
+    }
+
+    @Test
+    public void testActionIsRequestApprovalForSomeoneNotInvitedToAnEventThatRequiresApproval() {
+        // Arrange: hay una invitacion senuelo para OTRA persona
+        event.setRequiresApproval(true);
+        viewer(null, true);
+        lenient().when(eventInvitationService.isInvited(EVENT_ID, VIEWER_ID + 1)).thenReturn(true);
+
+        assertEquals(EventAction.REQUEST_APPROVAL, actionFor(VIEWER_ID));
+    }
+
+    @Test
     public void testActionIsJoinWaitlistWhenTheEventIsFullForThatViewer() {
         viewer(null, true);
         when(registrationService.isFullFor(EVENT_ID, VIEWER_ID)).thenReturn(true);
@@ -420,6 +443,45 @@ public class EventDetailServiceImplTest {
         event.setCancelledAt(new Date());
 
         assertEquals(EventAction.CLOSED_CANCELLED, actionFor(null));
+    }
+
+    @Test
+    public void testAViewerCanAskAndReportButCannotAnswerOnSomeoneElsesOpenEvent() {
+        viewer(null, true);
+
+        final EventDetail result = detailService.getDetail(EVENT_ID, VIEWER_ID, QUESTIONS_PAGE, REVIEWS_PAGE);
+
+        assertTrue(result.isCanAsk());
+        assertTrue(result.isCanReport());
+        assertFalse(result.isCanAnswer());
+    }
+
+    @Test
+    public void testTheOrganizerCanAnswerButCannotAskNorReportOnTheirOwnEvent() {
+        final EventDetail result = detailService.getDetail(EVENT_ID, CREATOR_ID, QUESTIONS_PAGE, REVIEWS_PAGE);
+
+        assertTrue(result.isCanAnswer());
+        assertFalse(result.isCanAsk());
+        assertFalse(result.isCanReport());
+    }
+
+    @Test
+    public void testNobodyCanAskOnAnEventThatIsNoLongerOpenForQuestions() {
+        event.setEventDate(new Date(System.currentTimeMillis() - ONE_DAY_MILLIS));
+        viewer(null, true);
+
+        final EventDetail result = detailService.getDetail(EVENT_ID, VIEWER_ID, QUESTIONS_PAGE, REVIEWS_PAGE);
+
+        assertFalse(result.isCanAsk());
+    }
+
+    @Test
+    public void testAnAnonymousVisitorCanAskAndReport() {
+        final EventDetail result = detailService.getDetail(EVENT_ID, null, QUESTIONS_PAGE, REVIEWS_PAGE);
+
+        assertTrue(result.isCanAsk());
+        assertTrue(result.isCanReport());
+        assertFalse(result.isCanAnswer());
     }
 
     @Test

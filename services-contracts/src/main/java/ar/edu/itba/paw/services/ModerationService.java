@@ -12,6 +12,11 @@ import java.util.Optional;
 
 public interface ModerationService {
 
+    // Largos maximos de los textos que escribe quien reporta y quien pide cambios. Los forms ya los validan para
+    // dar feedback; los metodos los vuelven a chequear y devuelven INVALID (antes de escribir).
+    int MAX_REPORT_REASON_LENGTH = 500;
+    int MAX_CHANGES_MESSAGE_LENGTH = 1000;
+
     /**
      * Reporta un evento. OWN_EVENT si quien reporta es su creador (no tiene
      * sentido reportarse a si mismo); ALREADY_REPORTED si esa misma persona ya

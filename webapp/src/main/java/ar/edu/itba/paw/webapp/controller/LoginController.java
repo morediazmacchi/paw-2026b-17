@@ -4,6 +4,8 @@ import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.UserRegistrationResult;
 import ar.edu.itba.paw.services.UserService;
 import ar.edu.itba.paw.webapp.form.SetPasswordForm;
+import ar.edu.itba.paw.webapp.auth.PlancitoUserDetails;
+import ar.edu.itba.paw.webapp.auth.UserDetailsServiceImpl;
 import ar.edu.itba.paw.webapp.util.FormErrors;
 import ar.edu.itba.paw.webapp.util.SafeRedirect;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,8 +13,6 @@ import org.springframework.context.MessageSource;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.session.SessionRegistry;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.stereotype.Controller;
@@ -35,14 +35,14 @@ public class LoginController {
 
     private final UserService userService;
     private final MessageSource messageSource;
-    private final UserDetailsService userDetailsService;
+    private final UserDetailsServiceImpl userDetailsService;
     // El mismo registro de WebAuthConfig: el login normal lo alimenta solo (sessionManagement), pero
     // autoLogin() arma la sesion a mano y tiene que registrarla el mismo.
     private final SessionRegistry sessionRegistry;
 
     @Autowired
     public LoginController(final UserService userService, final MessageSource messageSource,
-                           final UserDetailsService userDetailsService, final SessionRegistry sessionRegistry) {
+                           final UserDetailsServiceImpl userDetailsService, final SessionRegistry sessionRegistry) {
         this.userService = userService;
         this.messageSource = messageSource;
         this.userDetailsService = userDetailsService;
@@ -117,8 +117,8 @@ public class LoginController {
 
     // Arma la Authentication a mano y la guarda en la sesion HTTP.
     private boolean autoLogin(final User user, final HttpServletRequest request) {
-        final UserDetails userDetails = userDetailsService.loadUserByUsername(user.getEmail());
-        if (!userDetails.isEnabled()) {
+        final PlancitoUserDetails userDetails = userDetailsService.loadUserByUsername(user.getEmail());
+        if (!userDetails.isActive()) {
             return false;
         }
         if (request.getSession(false) != null) {

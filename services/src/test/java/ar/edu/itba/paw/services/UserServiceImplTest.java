@@ -320,7 +320,7 @@ public class UserServiceImplTest {
         final UserRegistrationDTO data = registrationData();
         data.setRawPassword("1234567");
         lenient().when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.empty());
-        lenient().when(userDao.create(any(User.class))).thenReturn(someUser());
+        lenient().when(userDao.create(NORMALIZED_EMAIL, NAME)).thenReturn(someUser());
         lenient().when(passwordEncoder.encode("1234567")).thenReturn(HASHED_PASSWORD);
 
         // Act
@@ -356,10 +356,47 @@ public class UserServiceImplTest {
         when(userDao.updateProfile(USER_ID, "Nuevo Nombre")).thenReturn(true);
 
         // Act
-        final boolean result = userService.updateProfile(USER_ID, "Nuevo Nombre");
+        final UpdateProfileResult result = userService.updateProfile(USER_ID, "Nuevo Nombre");
 
         // Assert
-        assertTrue(result);
+        assertEquals(UpdateProfileResult.OK, result);
+    }
+
+    @Test
+    public void testUpdateProfileReturnsNotFoundWhenThereIsNoSuchUser() {
+        // Arrange
+        when(userDao.updateProfile(USER_ID, "Nuevo Nombre")).thenReturn(false);
+
+        // Act
+        final UpdateProfileResult result = userService.updateProfile(USER_ID, "Nuevo Nombre");
+
+        // Assert
+        assertEquals(UpdateProfileResult.NOT_FOUND, result);
+    }
+
+    @Test
+    public void testUpdateProfileRejectsABlankName() {
+        // Arrange: el dao diria que si; si el service guardara el nombre igual, el resultado seria OK
+        lenient().when(userDao.updateProfile(USER_ID, "   ")).thenReturn(true);
+
+        // Act
+        final UpdateProfileResult result = userService.updateProfile(USER_ID, "   ");
+
+        // Assert
+        assertEquals(UpdateProfileResult.INVALID_NAME, result);
+    }
+
+    @Test
+    public void testUpdateProfileRejectsANameLongerThanTheMaximum() {
+        // Arrange
+        final String tooLong = new String(new char[UserService.MAX_NAME_LENGTH + 1]).replace('\0', 'a');
+        lenient().when(userDao.updateProfile(USER_ID, tooLong)).thenReturn(true);
+
+        // Act
+        final UpdateProfileResult result = userService.updateProfile(USER_ID, tooLong);
+
+        // Assert
+        assertEquals(UpdateProfileResult.INVALID_NAME, result);
     }
 
     // ---- changePassword() ----

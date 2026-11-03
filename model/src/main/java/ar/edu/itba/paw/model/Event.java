@@ -311,6 +311,24 @@ public class Event implements EventAccessData {
         return eventDate.before(new Date());
     }
 
+    // Es un evento privado: solo se ve y se anota con invitacion. Existe porque "private" es palabra reservada
+    // en EL (no se puede escribir ${event.private} en una JSP).
+    public boolean isInviteOnly() { return isPrivate(); }
+
+    // En que estado queda quien se anota a este evento, segun este lleno (para esa persona) y si tiene una
+    // invitacion sin usar. Es la UNICA definicion: la usan register() (para crear la inscripcion) y el detalle (para
+    // mostrar de antemano lo que va a pasar). Lleno -> lista de espera; con invitacion -> confirmada (su lugar ya
+    // estaba reservado y el organizador ya la eligio); si el evento pide aprobacion -> pendiente; si no, confirmada.
+    public RegistrationStatus registrationStatusFor(final boolean full, final boolean invited) {
+        if (full) {
+            return RegistrationStatus.WAITLISTED;
+        }
+        if (invited) {
+            return RegistrationStatus.CONFIRMED;
+        }
+        return isRequiresApproval() ? RegistrationStatus.PENDING : RegistrationStatus.CONFIRMED;
+    }
+
     // Vigente: ni cancelado ni pasado. Es lo que habilita unirse al chat, darse de baja, etc.
     public boolean isActive() {
         return !isCancelled() && !isFinished();

@@ -45,11 +45,11 @@
                             <c:set var="registration" value="${entry.registration}"/>
                             <c:set var="event" value="${entry.event}"/>
                             <paw:eventRow id="${event.id}" nombre="${event.title}" fecha="${event.eventDate}"
-                                          ubicacion="${event.neighborhood.displayName}" precio="${event.price}"
+                                          ubicacion="${event.neighborhood.displayName}" precio="${event.price}" gratis="${event.free}"
                                           imagenId="${event.imageId}" cancelado="${event.cancelled}">
                                 <%-- Evento cancelado por la organizadora: se muestra con el cartel,
                                      pero no hay inscripcion que cancelar. --%>
-                                <c:if test="${!event.cancelled}">
+                                <c:if test="${entry.canCancel}">
                                     <form action="<c:url value='/perfil/inscripciones/${registration.id}/cancelar'/>" method="post">
                                         <paw:button text="${cancelButtonLabel}" cssClass="btn-danger"/>
                                     </form>
@@ -76,7 +76,7 @@
                             <c:set var="myReview" value="${entry.myReview}"/>
                             <div>
                                 <paw:eventRow id="${event.id}" nombre="${event.title}" fecha="${event.eventDate}"
-                                              ubicacion="${event.neighborhood.displayName}" precio="${event.price}"
+                                              ubicacion="${event.neighborhood.displayName}" precio="${event.price}" gratis="${event.free}"
                                               imagenId="${event.imageId}" cancelado="${event.cancelled}">
                                     <%-- Integrado en la misma card, a la derecha, como el resto de los
                                          botones de accion (Cancelar en los eventos que vienen).

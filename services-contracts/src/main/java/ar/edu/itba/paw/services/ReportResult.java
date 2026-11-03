@@ -9,5 +9,7 @@ public enum ReportResult {
     ALREADY_REPORTED,
 
     /** El creador del evento no puede reportar su propio evento. */
-    OWN_EVENT
+    OWN_EVENT,
+    /** El motivo esta vacio o supera ModerationService.MAX_REPORT_REASON_LENGTH. */
+    INVALID
 }

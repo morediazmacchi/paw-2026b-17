@@ -10,13 +10,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.MessageSource;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.text.DateFormat;
 import java.text.NumberFormat;
 import java.util.HashMap;
@@ -36,15 +33,14 @@ public class NotificationServiceImpl implements NotificationService {
     private final MessageSource messageSource;
     private final UserDao userDao;
 
-    // De donde sale la parte fija de los links. Vive en mail.properties porque
-    // cambia entre tu maquina y pampero.
-    @Value("${app.base-url}")
-    private String baseUrl;
+    // Los links de los mails: el service pide cada uno por lo que es y no conoce rutas ni servidor.
+    private final MailLinks links;
 
     @Autowired
     public NotificationServiceImpl(final MailService mailService,
                                    @Qualifier("mailMessageSource") final MessageSource messageSource,
-                                   final UserDao userDao) {
+                                   final UserDao userDao, final MailLinks links) {
+        this.links = links;
         this.mailService = mailService;
         this.messageSource = messageSource;
         this.userDao = userDao;
@@ -79,7 +75,7 @@ public class NotificationServiceImpl implements NotificationService {
             // El CTA manda a "Mis inscripciones", no al evento: quien se anoto ya
             // esta viendo estos datos en este mismo mail, lo util es llevarlo a
             // donde puede gestionar (o mas adelante reseñar) sus inscripciones.
-            variables.put("registrationsUrl", baseUrl + "/perfil/inscripciones");
+            variables.put("registrationsUrl", links.registrations());
 
             mailService.send(registration.getEmail(),
                     "registration-confirmed",
@@ -120,7 +116,7 @@ public class NotificationServiceImpl implements NotificationService {
             final Locale locale = localeForUserId(registration.getUserId());
             final Map<String, Object> variables = eventVariables(event, locale);
             variables.put("personName", displayName(registration.getName(), registration.getEmail()));
-            variables.put("registrationsUrl", baseUrl + "/perfil/inscripciones");
+            variables.put("registrationsUrl", links.registrations());
 
             mailService.send(registration.getEmail(),
                     "registration-pending",
@@ -144,7 +140,7 @@ public class NotificationServiceImpl implements NotificationService {
             variables.put("registrantEmail", registration.getEmail());
             // Manda directo al evento: ahi vive la pantalla de aceptar/rechazar
             // (ver ProfileController), no hace falta un link aparte.
-            variables.put("reviewUrl", baseUrl + "/perfil/eventos/" + event.getId() + "/inscriptos");
+            variables.put("reviewUrl", links.attendees(event.getId()));
 
             mailService.send(event.getCreatorEmail(),
                     "new-pending-registration",
@@ -164,7 +160,7 @@ public class NotificationServiceImpl implements NotificationService {
             final Locale locale = localeForUserId(registration.getUserId());
             final Map<String, Object> variables = eventVariables(event, locale);
             variables.put("personName", displayName(registration.getName(), registration.getEmail()));
-            variables.put("registrationsUrl", baseUrl + "/perfil/inscripciones");
+            variables.put("registrationsUrl", links.registrations());
 
             mailService.send(registration.getEmail(),
                     "registration-approved",
@@ -184,7 +180,7 @@ public class NotificationServiceImpl implements NotificationService {
             final Locale locale = localeForUserId(registration.getUserId());
             final Map<String, Object> variables = eventVariables(event, locale);
             variables.put("personName", displayName(registration.getName(), registration.getEmail()));
-            variables.put("eventsUrl", baseUrl + "/eventos");
+            variables.put("eventsUrl", links.events());
 
             mailService.send(registration.getEmail(),
                     "registration-rejected",
@@ -229,7 +225,7 @@ public class NotificationServiceImpl implements NotificationService {
             variables.put("personName", displayName(registration.getName(), registration.getEmail()));
             // Mismo CTA que el mail de inscripcion confirmada: desde "Mis
             // inscripciones" puede salirse de la lista si ya no le interesa.
-            variables.put("registrationsUrl", baseUrl + "/perfil/inscripciones");
+            variables.put("registrationsUrl", links.registrations());
 
             mailService.send(registration.getEmail(),
                     "waitlist-joined",
@@ -270,7 +266,7 @@ public class NotificationServiceImpl implements NotificationService {
             final Locale locale = localeForUserId(registration.getUserId());
             final Map<String, Object> variables = eventVariables(event, locale);
             variables.put("personName", displayName(registration.getName(), registration.getEmail()));
-            variables.put("registrationsUrl", baseUrl + "/perfil/inscripciones");
+            variables.put("registrationsUrl", links.registrations());
 
             mailService.send(registration.getEmail(),
                     "waitlist-promoted",
@@ -290,7 +286,7 @@ public class NotificationServiceImpl implements NotificationService {
             final Locale locale = localeForUserId(registration.getUserId());
             final Map<String, Object> variables = eventVariables(event, locale);
             variables.put("personName", displayName(registration.getName(), registration.getEmail()));
-            variables.put("eventsUrl", baseUrl + "/eventos");
+            variables.put("eventsUrl", links.events());
 
             mailService.send(registration.getEmail(),
                     "registration-revoked",
@@ -354,11 +350,9 @@ public class NotificationServiceImpl implements NotificationService {
             final Locale locale = localeFor(user);
             final Map<String, Object> variables = new HashMap<>();
             variables.put("personName", displayName(user.getName(), user.getEmail()));
-            // Si venia de algun lado (una invitacion a un evento privado), el
-            // link lo lleva: al confirmar y loguearse vuelve ahi en vez de al home.
-            final String redirectParam = redirectAfterConfirm == null ? ""
-                    : "&redirect=" + URLEncoder.encode(redirectAfterConfirm, StandardCharsets.UTF_8);
-            variables.put("confirmUrl", baseUrl + "/confirmar-cuenta?token=" + token + redirectParam);
+            // Si venia de algun lado (una invitacion a un evento privado), el link lo lleva: al confirmar y
+            // loguearse vuelve ahi en vez de al home. Como viaja eso en la URL lo sabe MailLinks, no el service.
+            variables.put("confirmUrl", links.confirmAccount(token, redirectAfterConfirm));
 
             mailService.send(user.getEmail(),
                     "account-verification",
@@ -378,7 +372,7 @@ public class NotificationServiceImpl implements NotificationService {
             final Locale locale = localeFor(user);
             final Map<String, Object> variables = new HashMap<>();
             variables.put("personName", displayName(user.getName(), user.getEmail()));
-            variables.put("resetUrl", baseUrl + "/login/restablecer?token=" + token);
+            variables.put("resetUrl", links.resetPassword(token));
 
             mailService.send(user.getEmail(),
                     "password-reset",
@@ -398,7 +392,7 @@ public class NotificationServiceImpl implements NotificationService {
             final Locale locale = localeForUserId(registration.getUserId());
             final Map<String, Object> variables = eventVariables(event, locale);
             variables.put("personName", displayName(registration.getName(), registration.getEmail()));
-            variables.put("eventsUrl", baseUrl + "/eventos");
+            variables.put("eventsUrl", links.events());
 
             mailService.send(registration.getEmail(),
                     "event-cancelled",
@@ -456,7 +450,7 @@ public class NotificationServiceImpl implements NotificationService {
             final Locale locale = localeForUserId(event.getCreatorId());
             final Map<String, Object> variables = eventVariables(event, locale);
             variables.put("personName", displayName(null, event.getCreatorEmail()));
-            variables.put("attendeesUrl", baseUrl + "/perfil/eventos/" + event.getId() + "/inscriptos");
+            variables.put("attendeesUrl", links.attendees(event.getId()));
 
             mailService.send(event.getCreatorEmail(),
                     "event-reminder-organizer",
@@ -480,7 +474,7 @@ public class NotificationServiceImpl implements NotificationService {
             variables.put("askerName", displayName(askerName, askerEmail));
             variables.put("questionText", question.getText());
             // Directo a la sección de preguntas del detalle.
-            variables.put("eventUrl", baseUrl + "/eventos/" + event.getId() + "#preguntas");
+            variables.put("eventUrl", links.eventQuestions(event.getId()));
 
             mailService.send(event.getCreatorEmail(),
                     "new-question",
@@ -503,7 +497,7 @@ public class NotificationServiceImpl implements NotificationService {
             variables.put("personName", displayName(askerName, askerEmail));
             variables.put("questionText", question.getText());
             variables.put("answerText", question.getAnswer());
-            variables.put("eventUrl", baseUrl + "/eventos/" + event.getId() + "#preguntas");
+            variables.put("eventUrl", links.eventQuestions(event.getId()));
 
             mailService.send(askerEmail,
                     "question-answered",
@@ -524,7 +518,7 @@ public class NotificationServiceImpl implements NotificationService {
             final Map<String, Object> variables = eventVariables(event, locale);
             variables.put("personName", displayName(null, event.getCreatorEmail()));
             variables.put("reason", reason);
-            variables.put("eventsUrl", baseUrl + "/eventos");
+            variables.put("eventsUrl", links.events());
 
             mailService.send(event.getCreatorEmail(),
                     "event-removed-by-admin",
@@ -567,7 +561,7 @@ public class NotificationServiceImpl implements NotificationService {
             // El evento rechazado nunca llega a ser accesible: el CTA va al
             // listado general, no a eventUrl (mismo criterio que
             // notifyEventRemovedByAdmin).
-            variables.put("eventsUrl", baseUrl + "/eventos");
+            variables.put("eventsUrl", links.events());
 
             mailService.send(event.getCreatorEmail(),
                     "event-rejected",
@@ -589,7 +583,7 @@ public class NotificationServiceImpl implements NotificationService {
             variables.put("personName", displayName(null, event.getCreatorEmail()));
             variables.put("message", message);
             // Al editar directo, no al detalle: es lo que la persona tiene que hacer.
-            variables.put("editEventUrl", baseUrl + "/eventos/" + event.getId() + "/editar");
+            variables.put("editEventUrl", links.editEvent(event.getId()));
 
             mailService.send(event.getCreatorEmail(),
                     "event-changes-requested",
@@ -628,7 +622,7 @@ public class NotificationServiceImpl implements NotificationService {
             final Locale locale = localeFor(user);
             final Map<String, Object> variables = new HashMap<>();
             variables.put("personName", displayName(user.getName(), user.getEmail()));
-            variables.put("loginUrl", baseUrl + "/login");
+            variables.put("loginUrl", links.login());
 
             mailService.send(user.getEmail(),
                     "account-reactivated",
@@ -654,7 +648,7 @@ public class NotificationServiceImpl implements NotificationService {
         variables.put("eventPlace", formatPlace(event));
         variables.put("eventPrice", formatPrice(event, locale));
         // El link tiene que ser absoluto: el mail se abre en Gmail, no en la app.
-        variables.put("eventUrl", baseUrl + "/eventos/" + event.getId());
+        variables.put("eventUrl", links.event(event.getId()));
         return variables;
     }
 

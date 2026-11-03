@@ -4,7 +4,6 @@ import ar.edu.itba.paw.model.EventAccessData;
 import ar.edu.itba.paw.model.EventAccessSummary;
 import ar.edu.itba.paw.model.HasCreator;
 import ar.edu.itba.paw.model.RegistrationAccess;
-import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.services.EventAccessService;
 import ar.edu.itba.paw.services.EventChatService;
@@ -118,7 +117,7 @@ public class EventSecurity {
     public boolean isConfirmedAttendee(final long eventId, final Authentication authentication) {
         return PlancitoUserDetails.from(authentication)
                 .flatMap(user -> registrationService.findAccessByEventAndUserId(eventId, user.getId()))
-                .map(registration -> registration.getStatus() == RegistrationStatus.CONFIRMED)
+                .map(registration -> registration.getStatus().isConfirmed())
                 .orElse(false);
     }
 

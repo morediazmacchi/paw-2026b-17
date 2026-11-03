@@ -40,9 +40,16 @@ public class ModerationServiceImpl implements ModerationService {
         this.inboxService = inboxService;
     }
 
+    private static boolean isBlankOrLongerThan(final String text, final int max) {
+        return text == null || text.trim().isEmpty() || text.length() > max;
+    }
+
     @Override
     @Transactional
     public ReportResult report(final long eventId, final User reporter, final String reason) {
+        if (isBlankOrLongerThan(reason, MAX_REPORT_REASON_LENGTH)) {
+            return ReportResult.INVALID;
+        }
         // Evento inexistente: el 404 ya lo da @PreAuthorize en el controller antes de llegar aca; esto solo
         // se alcanza si desaparece justo en el medio (carrera). Es la excepcion de siempre (ErrorAdvice
         // la mapea a 404), no un resultado: los resultados son para conflictos de negocio.
@@ -112,6 +119,9 @@ public class ModerationServiceImpl implements ModerationService {
     @Override
     @Transactional
     public ReportResolutionResult requestChanges(final long reportId, final long adminUserId, final String message) {
+        if (isBlankOrLongerThan(message, MAX_CHANGES_MESSAGE_LENGTH)) {
+            return ReportResolutionResult.INVALID;
+        }
         // Solo desde PENDING (no isOpen): no tiene sentido "pedir cambios" de
         // nuevo sobre un reporte que ya esta esperando una revision, primero
         // hay que resolver ese pedido (dismiss/removeEvent).

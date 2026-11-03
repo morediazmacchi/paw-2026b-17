@@ -11,6 +11,7 @@ import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.CategoryService;
 import ar.edu.itba.paw.services.CreatorReputation;
 import ar.edu.itba.paw.services.EventAccessService;
+import ar.edu.itba.paw.services.EventCreation;
 import ar.edu.itba.paw.services.EventDetail;
 import ar.edu.itba.paw.services.EventDetailService;
 import ar.edu.itba.paw.services.EventParticipation;
@@ -164,13 +165,15 @@ public class EventController {
         mav.addObject("action", detail.getAction());
         mav.addObject("chatAccess", detail.getChatAccess());
         mav.addObject("canUnregister", detail.isCanUnregister());
+        mav.addObject("canAsk", detail.isCanAsk());
+        mav.addObject("canAnswer", detail.isCanAnswer());
+        mav.addObject("canReport", detail.isCanReport());
         final EventParticipation participation = detail.getParticipation();
         if (participation != null) {
             // La relacion de esta persona con el evento ya viene resuelta por el service.
             mav.addObject("favorite", detail.isFavorite());
             mav.addObject("waitlisted", participation.isWaitlisted());
             mav.addObject("pendingApproval", participation.isPendingApproval());
-            mav.addObject("isOwner", participation.isOwner());
         }
         addCreatorReputation(mav, detail.getCreatorReputation());
         // "Eventos que te pueden interesar": vacio si el evento es privado o no esta aprobado.
@@ -238,7 +241,7 @@ public class EventController {
         // El creador es quien esta logueado. Subir las imagenes y crear el evento pasa todo DENTRO de
         // la misma transaccion, adentro de eventService.create(): una imagen invalida o una categoria
         // inexistente deshacen las dos cosas juntas.
-        final Event created;
+        final EventCreation created;
         try {
             created = eventService.create(currentUser.getId(), dto);
         } catch (final InvalidImageException e) {
@@ -249,10 +252,11 @@ public class EventController {
         // Todo evento nuevo arranca pendiente de aprobacion (ver EventApprovalStatus):
         // se avisa con un popup en la pantalla a la que se redirige, sea cual sea.
         redirectAttributes.addFlashAttribute("justPublished", true);
-        // Privado: a invitar. Publico: al detalle del evento.
-        return created.isPrivate()
-                ? new ModelAndView("redirect:/perfil/eventos/" + created.getId() + "/invitar")
-                : new ModelAndView("redirect:/eventos/" + created.getId());
+        // A donde sigue lo decide el service (EventCreation): a invitar, o al detalle del evento.
+        final long createdId = created.getEvent().getId();
+        return created.isNeedsInvitations()
+                ? new ModelAndView("redirect:/perfil/eventos/" + createdId + "/invitar")
+                : new ModelAndView("redirect:/eventos/" + createdId);
     }
 
     // El service avisa POR QUE fallo con un codigo (no con un texto): la clave i18n del mensaje que ve la persona

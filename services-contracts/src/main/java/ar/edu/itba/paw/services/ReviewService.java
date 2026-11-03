@@ -12,6 +12,12 @@ import java.util.Optional;
 // para el mismo criterio).
 public interface ReviewService {
 
+    // Puntaje valido (estrellas) y largo maximo del comentario. El form ya los valida para dar feedback; create() los
+    // vuelve a chequear (el puntaje tambien lo exige un CHECK en la base).
+    int MIN_RATING = 0;
+    int MAX_RATING = 5;
+    int MAX_COMMENT_LENGTH = 100;
+
     /** Para "Mis inscripciones": este usuario ya reseño este evento? */
     @Transactional(readOnly = true)
     Optional<Review> findByEventAndUser(long eventId, long userId);

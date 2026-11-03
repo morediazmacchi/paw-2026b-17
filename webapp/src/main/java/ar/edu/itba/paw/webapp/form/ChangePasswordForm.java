@@ -4,6 +4,7 @@ package ar.edu.itba.paw.webapp.form;
 
 import ar.edu.itba.paw.webapp.validation.PasswordsMatch;
 
+import ar.edu.itba.paw.services.UserService;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.Size;
 
@@ -17,7 +18,7 @@ public class ChangePasswordForm {
     private String currentPassword;
 
     @NotBlank
-    @Size(min = 8, max = 72)
+    @Size(min = UserService.MIN_PASSWORD_LENGTH, max = 72)
     private String newPassword;
 
     @NotBlank

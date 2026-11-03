@@ -48,20 +48,7 @@
                             <td><c:out value="${registration.email}"/></td>
                             <td><paw:date value="${registration.registeredAt}" format="dateTimeTable"/></td>
                             <td>
-                                <c:choose>
-                                    <c:when test="${registration.status == 'CONFIRMED'}">
-                                        <span class="pill pill-active"><spring:message code="event.attendees.statusConfirmed"/></span>
-                                    </c:when>
-                                    <c:when test="${registration.status == 'PENDING'}">
-                                        <span class="pill"><spring:message code="event.attendees.statusPending"/></span>
-                                    </c:when>
-                                    <c:when test="${registration.status == 'REJECTED'}">
-                                        <span class="pill"><spring:message code="event.attendees.statusRejected"/></span>
-                                    </c:when>
-                                    <c:otherwise>
-                                        <span class="pill"><spring:message code="event.attendees.statusWaitlisted"/></span>
-                                    </c:otherwise>
-                                </c:choose>
+                                <span class="pill${registration.confirmed ? ' pill-active' : ''}"><spring:message code="event.attendees.status.${registration.status}"/></span>
                             </td>
                             <td>
                                 <%-- Solo a quien tiene el lugar confirmado se lo puede sacar: el

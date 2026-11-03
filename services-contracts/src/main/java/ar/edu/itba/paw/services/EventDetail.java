@@ -19,6 +19,9 @@ public class EventDetail {
     private final EventAction action;
     private final ChatAccess chatAccess;
     private final boolean canUnregister;
+    private final boolean canAsk;
+    private final boolean canAnswer;
+    private final boolean canReport;
     private final boolean favorite;
     private final boolean chatMember;
     private final CreatorReputation creatorReputation;
@@ -28,7 +31,8 @@ public class EventDetail {
 
     public EventDetail(final Event event, final boolean full, final Integer availableSpots,
                        final EventParticipation participation, final EventAction action,
-                       final ChatAccess chatAccess, final boolean canUnregister,
+                       final ChatAccess chatAccess, final boolean canUnregister, final boolean canAsk,
+                       final boolean canAnswer, final boolean canReport,
                        final boolean favorite, final boolean chatMember,
                        final CreatorReputation creatorReputation, final List<Event> relatedEvents,
                        final Map<Long, RegistrationStatus> relatedStatuses,
@@ -40,6 +44,9 @@ public class EventDetail {
         this.action = action;
         this.chatAccess = chatAccess;
         this.canUnregister = canUnregister;
+        this.canAsk = canAsk;
+        this.canAnswer = canAnswer;
+        this.canReport = canReport;
         this.favorite = favorite;
         this.chatMember = chatMember;
         this.creatorReputation = creatorReputation;
@@ -67,6 +74,16 @@ public class EventDetail {
 
     // Esta anotada (en cualquier estado menos rechazada) y el evento sigue vigente: puede retirarse.
     public boolean isCanUnregister() { return canUnregister; }
+
+    // Se le ofrece el formulario de preguntar: el evento sigue abierto a preguntas y no es su organizador (ver
+    // QuestionResult.CLOSED / OWN_EVENT). Un visitante sin sesion tambien: la pantalla lo manda a iniciar sesion.
+    public boolean isCanAsk() { return canAsk; }
+
+    // Se le ofrece responder las preguntas: es el organizador del evento (ver EventSecurity.canAnswerQuestion).
+    public boolean isCanAnswer() { return canAnswer; }
+
+    // Se le ofrece reportar el evento: no es su organizador (ver ReportResult.OWN_EVENT).
+    public boolean isCanReport() { return canReport; }
     public boolean isFavorite() { return favorite; }
     public boolean isChatMember() { return chatMember; }
 

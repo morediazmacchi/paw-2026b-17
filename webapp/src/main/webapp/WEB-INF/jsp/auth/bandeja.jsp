@@ -55,10 +55,6 @@
             <c:otherwise>
                 <%-- "Marcar como leidas" (POST): solo los sin leer de ESTA pagina. Abrir la
                      bandeja no marca nada; lo que esta en otra pagina sigue sin leer. --%>
-                <c:set var="hasUnread" value="false"/>
-                <c:forEach var="message" items="${messages}">
-                    <c:if test="${message.unread}"><c:set var="hasUnread" value="true"/></c:if>
-                </c:forEach>
                 <c:if test="${hasUnread}">
                     <spring:message code="inbox.markRead" var="markReadLabel"/>
                     <form action="<c:url value='/perfil/bandeja/marcar-leidas'/>" method="post">

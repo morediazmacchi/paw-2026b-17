@@ -39,7 +39,7 @@ public class EventParticipation {
 
     // Confirmada: se le ofrece unirse al grupo de chat.
     public boolean isChatConfirmed() {
-        return registrationStatus == RegistrationStatus.CONFIRMED;
+        return registrationStatus != null && registrationStatus.isConfirmed();
     }
 
     // El creador no se anota a su propio evento.

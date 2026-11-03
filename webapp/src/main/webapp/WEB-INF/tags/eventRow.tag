@@ -4,6 +4,8 @@
 <%@ attribute name="fecha" required="true" type="java.util.Date" %>
 <%@ attribute name="ubicacion" required="false" %>
 <%@ attribute name="precio" required="false" type="java.lang.Double" %>
+<%-- gratis: lo dice el evento (Event.isFree), la tag no lo vuelve a deducir del precio. --%>
+<%@ attribute name="gratis" required="false" type="java.lang.Boolean" %>
 <%@ attribute name="imagenId" required="false" type="java.lang.Long" %>
 <%-- Solo la usa "Mis eventos" (los privados no aparecen en ningun otro
      listado que use este tag, asi que en el resto siempre viene false). --%>
@@ -55,7 +57,7 @@
                     &middot;
                     <span class="event-row-price">
                         <c:choose>
-                            <c:when test="${precio == 0}"><spring:message code="event.price.free"/></c:when>
+                            <c:when test="${gratis}"><spring:message code="event.price.free"/></c:when>
                             <c:otherwise><paw:price value="${precio}"/></c:otherwise>
                         </c:choose>
                     </span>

@@ -5,6 +5,7 @@ package ar.edu.itba.paw.webapp.form;
 import ar.edu.itba.paw.dto.UserRegistrationDTO;
 import ar.edu.itba.paw.webapp.validation.PasswordsMatch;
 
+import ar.edu.itba.paw.services.UserService;
 import javax.validation.constraints.Email;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.Size;
@@ -22,7 +23,7 @@ public class SetPasswordForm {
     private String email;
 
     @NotBlank
-    @Size(min = 8, max = 72)
+    @Size(min = UserService.MIN_PASSWORD_LENGTH, max = 72)
     private String password;
 
     @NotBlank

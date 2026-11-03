@@ -14,6 +14,9 @@ public interface UserService {
     // contraseña (register, resetPassword, changePassword) lo vuelven a chequear: la regla es del service.
     int MIN_PASSWORD_LENGTH = 8;
 
+    // Largo maximo del nombre (updateProfile() devuelve INVALID_NAME si esta vacio o lo supera).
+    int MAX_NAME_LENGTH = 150;
+
     Optional<User> findById(long id);
 
     /**
@@ -101,7 +104,7 @@ public interface UserService {
      * aca (ver ProfileController), asi que no hace falta recibirlo ni chequear
      * duplicados.
      */
-    boolean updateProfile(long userId, String name);
+    UpdateProfileResult updateProfile(long userId, String name);
 
     /**
      * Cambia la contraseña de un usuario ya logueado. Devuelve WRONG_CURRENT_PASSWORD (y no

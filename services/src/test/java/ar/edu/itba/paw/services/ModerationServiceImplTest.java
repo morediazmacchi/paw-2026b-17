@@ -23,6 +23,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 // Unidad 5 - Unit Testing: todas las dependencias son @Mock; los comandos del dao
@@ -111,6 +112,57 @@ public class ModerationServiceImplTest {
 
         // Assert
         assertEquals(ReportResult.CREATED, result);
+    }
+
+    @Test
+    public void testReportWithABlankReasonReturnsInvalid() {
+        // Arrange: el evento existe; si el service creara el reporte igual, el resultado seria CREATED
+        lenient().when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(someEvent()));
+        lenient().when(reportDao.existsPendingByEventAndReporter(EVENT_ID, REPORTER_ID)).thenReturn(false);
+
+        // Act
+        final ReportResult result = moderationService.report(EVENT_ID, someUser(REPORTER_ID), "  ");
+
+        // Assert
+        assertEquals(ReportResult.INVALID, result);
+    }
+
+    @Test
+    public void testReportWithAReasonLongerThanTheMaximumReturnsInvalid() {
+        // Arrange
+        lenient().when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(someEvent()));
+        final String tooLong = new String(new char[ModerationService.MAX_REPORT_REASON_LENGTH + 1]).replace('\0', 'a');
+
+        // Act
+        final ReportResult result = moderationService.report(EVENT_ID, someUser(REPORTER_ID), tooLong);
+
+        // Assert
+        assertEquals(ReportResult.INVALID, result);
+    }
+
+    @Test
+    public void testRequestChangesWithABlankMessageReturnsInvalid() {
+        // Arrange: el reporte esta pendiente; si el service pidiera los cambios igual, el resultado seria RESOLVED
+        lenient().when(reportDao.findById(REPORT_ID)).thenReturn(Optional.of(somePendingReport()));
+
+        // Act
+        final ReportResolutionResult result = moderationService.requestChanges(REPORT_ID, ADMIN_ID, " ");
+
+        // Assert
+        assertEquals(ReportResolutionResult.INVALID, result);
+    }
+
+    @Test
+    public void testRequestChangesWithAMessageLongerThanTheMaximumReturnsInvalid() {
+        // Arrange
+        lenient().when(reportDao.findById(REPORT_ID)).thenReturn(Optional.of(somePendingReport()));
+        final String tooLong = new String(new char[ModerationService.MAX_CHANGES_MESSAGE_LENGTH + 1]).replace('\0', 'a');
+
+        // Act
+        final ReportResolutionResult result = moderationService.requestChanges(REPORT_ID, ADMIN_ID, tooLong);
+
+        // Assert
+        assertEquals(ReportResolutionResult.INVALID, result);
     }
 
     @Test

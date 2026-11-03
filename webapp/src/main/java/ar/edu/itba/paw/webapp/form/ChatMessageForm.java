@@ -1,5 +1,6 @@
 package ar.edu.itba.paw.webapp.form;
 
+import ar.edu.itba.paw.services.EventChatService;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.Size;
 
@@ -8,7 +9,7 @@ import javax.validation.constraints.Size;
 public class ChatMessageForm {
 
     @NotBlank
-    @Size(max = 1000)
+    @Size(max = EventChatService.MAX_MESSAGE_LENGTH)
     private String text;
 
     public String getText() { return text; }

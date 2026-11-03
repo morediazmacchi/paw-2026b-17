@@ -228,6 +228,26 @@ Registro honesto; no tapar ni "arreglar de pasada" sin avisar. Orden = prioridad
      lo mapea a la clave (`messageKeyOf`). No volver a lanzar excepciones con claves de mensaje.
    - **Pendiente a propósito (ver auditoría):** M2 (estado de cuenta en el failure handler/`UserDetails`), M5 (redirect de `publish`),
      M6 (rutas de mail en `NotificationService`) y los B1–B11.
+3j. **Tercera auditoría "lógica fuera de su capa"** (3/11): una regla = una implementación, compartida por la vista y el enforcement.
+   - **Resultado de anotarse:** `Event.registrationStatusFor(full, invited)` es la única función (la usan `register()` y el detalle).
+     Un invitado a un evento con aprobación ve `REGISTER` (queda confirmado), no `REQUEST_APPROVAL`.
+   - **"Tiene el lugar confirmado":** `RegistrationStatus.isConfirmed()` / `Registration.isConfirmed()` (chat, reseñas, revocar, recordatorios).
+   - **Cancelar inscripción:** solo si `Event.isActive()`: `RegistrationService.cancel` devuelve `FINISHED` o `EVENT_CANCELLED`; el
+     detalle (`canUnregister`) y "Mis inscripciones" (`RegistrationEntry.isCanCancel`) usan la misma regla.
+   - **Detalle:** `EventDetail.canAsk/canAnswer/canReport` (ya no se decide con `isOwner` en la JSP). Usuarios: `User.isSameAccountAs`
+     (misma regla que `OWN_ACCOUNT`) y un solo mecanismo para "quien mira es superadmin" (`<sec:authorize ... var=...>`).
+   - **Defensas del service (devuelven un resultado, no un 500 de base):** reseña (`ReviewService.MIN/MAX_RATING`, `MAX_COMMENT_LENGTH` →
+     `ReviewResult.INVALID`; el `catch` de `DataIntegrityViolationException` solo traduce SQLSTATE 23505, el resto se relanza), reporte,
+     pedir cambios, rechazar evento, perfil (`UpdateProfileResult`) e invitar (`INVALID_EMAIL`). Los forms usan las constantes del service.
+   - **`EventService.create` devuelve `EventCreation`** (`isNeedsInvitations()`): el controller ya no mira `isPrivate()`.
+   - **Links de mail:** `MailLinks` (services-contracts) la implementa `webapp.mail.WebMailLinks` (rutas + `app.base-url`); el service no
+     conoce rutas ni el prefijo del servidor. `UserRegistrationDTO.redirectAfterConfirm` sigue viajando, pero como valor opaco.
+   - **B4/B5/B7/B8:** `gratis` sale de `Event.isFree` (tags), `hasUnread` de `InboxPage`, `Event.isInviteOnly()` reemplaza `'PRIVATE'` en las
+     JSP, y los pills de estado de `inscriptos.jsp` usan `registration.confirmed` + `event.attendees.status.${status}`.
+   - **M2 (login):** `PlancitoUserDetails` separa `enabled` (clave + mail confirmado) de `accountNonLocked` (= no suspendida);
+     `AccountStatusAfterPasswordCheck` lanza `LockedException` (suspendida) o `DisabledException` (sin confirmar) y el failure handler decide
+     SOLO por el tipo de excepción (sin `findByEmail`). `User.isActive()` es la suma de las dos. Clave incorrecta sigue dando `?error` para todos.
+   - **No hecho a propósito:** B1–B3, B6, B9–B11 y el SQL-vs-Java de favoritos.
 3a. **`currentUser` sale del principal, sin consulta** (31/10): `ErrorAdvice.currentUserFromPrincipal` arma un `User` con id, email, nombre y roles de `PlancitoUserDetails` (sin `findByEmail`; sin sesión es `null`). Es un `User` "de sesión": solo trae esos 4 datos. Los 4 `create` de DAO que reciben ese usuario (`RegistrationJpaDao`, `EventQuestionJpaDao`, `EventReportJpaDao`, `ReviewJpaDao`) lo reemplazan por `em.getReference(User.class, id)` antes de persistir (`NotificationService.notifyNewQuestion` recibe `askerName`/`askerEmail` ya resueltos desde `currentUser`: el envío es `@Async` y no debe leer la relación lazy; `register` copia nombre/mail en la fila y las notificaciones solo leen esas copias y el id del usuario).
    **Limitaciones conocidas (aceptadas, no arregladas a propósito):** (1) el **nombre** del principal es el del login: si se edita el perfil se sigue viendo el viejo (form de `/perfil`, copias en inscripciones y bandeja) hasta el próximo login; (2) los **roles** también son los del login: revocar `ROLE_ADMIN` no afecta la sesión activa (ver punto 3). Siguen pendientes los interceptores `UnreadInbox` y `Suspended` (hacen `findByEmail` por request).
 3. ~~**Revocar `ROLE_ADMIN` / suspender no cierra sesiones**~~ **Resuelto** (31/10): `UserServiceImpl.suspend` y `revokeAdmin` (cuando de verdad saca el rol) publican `UserAccessRevokedEvent` (services-contracts, POJO sin dependencias web) dentro de su transacción; `SessionExpiringListener` (`webapp.auth`, contexto raíz) con `@TransactionalEventListener(AFTER_COMMIT)` busca por `PlancitoUserDetails.getId()` en el `SessionRegistry` y hace `expireNow()`. `WebAuthConfig`: `SessionRegistryImpl` + `sessionManagement().maximumSessions(-1)...expiredUrl("/login?expired")` (instala el `ConcurrentSessionFilter`); `SecurityWebApplicationInitializer.enableHttpSessionEventPublisher()`. Se borró `SuspendedUserInterceptor` (ya no hay `findByEmail` por request). El suspendido que reintenta entrar ve `?suspended` (por `isEnabled`). `reactivate` y `grantAdmin` no publican. **Limitaciones:** el registro es en memoria de una sola JVM (no sirve para clúster) y no conoce sesiones abiertas antes de un deploy/reinicio. El "service publica el evento" no tiene test unitario (sería verify/verify casero): se cubre con la prueba manual de dos navegadores.

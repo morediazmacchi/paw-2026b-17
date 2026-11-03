@@ -33,7 +33,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     }
 
     @Override
-    public UserDetails loadUserByUsername(final String email) throws UsernameNotFoundException {
+    public PlancitoUserDetails loadUserByUsername(final String email) throws UsernameNotFoundException {
         final User user = userService.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("Email o contraseña invalidos"));
 
@@ -46,15 +46,12 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         // fuera incorrecta (no revela que la cuenta existe). Completar la cuenta se hace desde /registro.
         final String passwordHash = user.getPassword() == null ? UNUSABLE_PASSWORD_HASH : user.getPassword();
 
-        // disabled=true si todavia no confirmo el mail, O si un admin suspendio
-        // la cuenta (ver User.isSuspended()/UserService.suspend()):
-        // DaoAuthenticationProvider chequea esto ANTES de comparar la
-        // contraseña y tira DisabledException (WebAuthConfig.loginFailureHandler
-        // distingue los dos casos, mirando el usuario de nuevo, para mandar a
-        // "confirmá tu cuenta" o al aviso de cuenta suspendida segun corresponda).
-        final boolean enabled = user.getPassword() != null && user.isVerified() && !user.isSuspended();
+        // enabled = tiene clave y confirmo el mail; accountNonLocked = un admin NO la suspendio (ver User.isActive(),
+        // que es la suma de las dos). DaoAuthenticationProvider NO decide con esto antes de comparar la clave (ver
+        // WebAuthConfig): despues, AccountStatusAfterPasswordCheck lanza LockedException si esta suspendida o
+        // DisabledException si no confirmo el mail, y el failure handler mira solo el tipo de excepcion.
         return new PlancitoUserDetails(user.getId(), user.getEmail(), user.getName(), passwordHash,
-                enabled, toAuthorities(user));
+                user.hasPassword() && user.isVerified(), !user.isSuspended(), toAuthorities(user));
     }
 
     // El nombre que espera Spring Security ("ROLE_ADMIN") sale del enum (Role.getAuthority()).

@@ -9,5 +9,7 @@ public enum EventApprovalResult {
 
     // Ya no estaba PENDING (otro admin ya lo aprobo o rechazo mientras tanto):
     // no se toca de nuevo, no se manda un segundo aviso al creador.
-    ALREADY_DECIDED
+    ALREADY_DECIDED,
+    // (Solo reject()) El motivo esta vacio o supera EventService.MAX_REJECT_REASON_LENGTH.
+    INVALID
 }

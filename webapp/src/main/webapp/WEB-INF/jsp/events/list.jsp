@@ -370,7 +370,7 @@
                         <spring:message code="category.${ecat.categoryName}" text="${ecat.categoryName}" var="ecatName"/>
                         <c:set var="cardCategoria" value="${cardCategoria}${ecatStatus.first ? '' : ', '}${ecatName}"/>
                     </c:forEach>
-                    <paw:card id="${event.id}" nombre="${event.title}" precio="${cardPrecio}"
+                    <paw:card id="${event.id}" nombre="${event.title}" precio="${cardPrecio}" gratis="${event.free}"
                               fecha="${event.eventDate}" categoria="${cardCategoria}"
                               ubicacion="${cardUbicacion}" imagenId="${event.imageId}"
                               favorito="${not empty favoriteEventIds and favoriteEventIds.contains(event.id)}"

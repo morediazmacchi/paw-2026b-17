@@ -42,6 +42,10 @@ public class EventInvitationServiceImpl implements EventInvitationService {
     @Override
     @Transactional
     public EventInvitationResult invite(final long eventId, final String inviteeEmail) {
+        // El form ya valida el formato (@Email) y el largo para dar feedback; esto es la defensa del service.
+        if (inviteeEmail == null || inviteeEmail.trim().isEmpty() || inviteeEmail.trim().length() > MAX_EMAIL_LENGTH) {
+            return EventInvitationResult.INVALID_EMAIL;
+        }
         // Con lock: dos invitaciones simultaneas no pueden pasar el cupo (cada una
         // reserva un lugar y se cuenta contra el cupo).
         final Event event = eventDao.findByIdForUpdate(eventId).orElse(null);

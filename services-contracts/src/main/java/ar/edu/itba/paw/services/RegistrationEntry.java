@@ -13,14 +13,16 @@ public class RegistrationEntry {
     private final Review myReview;
     private final boolean canReview;
     private final NotAttendedReason notAttendedReason;
+    private final boolean canCancel;
 
     public RegistrationEntry(final Registration registration, final Event event, final Review myReview,
-                             final boolean canReview, final NotAttendedReason notAttendedReason) {
+                             final boolean canReview, final NotAttendedReason notAttendedReason, final boolean canCancel) {
         this.registration = registration;
         this.event = event;
         this.myReview = myReview;
         this.canReview = canReview;
         this.notAttendedReason = notAttendedReason;
+        this.canCancel = canCancel;
     }
 
     public Registration getRegistration() { return registration; }
@@ -33,4 +35,7 @@ public class RegistrationEntry {
 
     // Por que no fue al evento (null si fue, o si el evento todavia no paso).
     public NotAttendedReason getNotAttendedReason() { return notAttendedReason; }
+
+    // Puede darse de baja: el evento sigue vigente (misma regla que RegistrationService.cancel()).
+    public boolean isCanCancel() { return canCancel; }
 }

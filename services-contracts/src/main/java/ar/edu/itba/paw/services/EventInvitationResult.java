@@ -20,5 +20,7 @@ public enum EventInvitationResult {
      */
     EVENT_PUBLIC,
     /** El evento no existe, esta cancelado o ya paso. (Quien invita lo decide @PreAuthorize.) */
-    NOT_ALLOWED
+    NOT_ALLOWED,
+    /** El mail esta vacio o supera EventInvitationService.MAX_EMAIL_LENGTH. */
+    INVALID_EMAIL
 }

@@ -13,6 +13,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -83,18 +84,14 @@ public class WebAuthConfig {
     @Bean
     public AuthenticationFailureHandler loginFailureHandler() {
         return (request, response, exception) -> {
-            // DisabledException: UserDetailsServiceImpl marca disabled=true si
-            // verified=false (cuenta recien registrada, todavia no confirmo el
-            // mail) O si un admin la suspendio (ver User.isSuspended()). Solo llega aca
-            // con la contraseña CORRECTA (el estado se mira despues de comparar la clave), asi que
-            // no filtra nada a quien no es la persona. Hay que volver a mirar el usuario para saber cual
-            // de los dos motivos es, porque el mensaje que corresponde no es el mismo.
-            if (exception instanceof DisabledException) {
+            // Solo llega LockedException (cuenta suspendida por un admin) o DisabledException (todavia no confirmo el
+            // mail) con la contraseña CORRECTA: el estado se mira despues de comparar la clave (ver
+            // AccountStatusAfterPasswordCheck), asi que no filtra nada a quien no es la persona. El tipo de la
+            // excepcion ya dice cual de los dos es: no hace falta volver a buscar al usuario.
+            if (exception instanceof LockedException || exception instanceof DisabledException) {
                 final String email = request.getParameter("email");
                 final String encodedEmail = email == null ? "" : URLEncoder.encode(email, StandardCharsets.UTF_8);
-                final boolean suspended = email != null
-                        && userService.findByEmail(email).map(User::isSuspended).orElse(false);
-                final String param = suspended ? "suspended" : "unverified";
+                final String param = exception instanceof LockedException ? "suspended" : "unverified";
                 response.sendRedirect(request.getContextPath() + "/login?" + param + "&email=" + encodedEmail);
                 return;
             }

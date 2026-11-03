@@ -1,7 +1,10 @@
 package ar.edu.itba.paw.webapp.validation;
 
+import ar.edu.itba.paw.services.EventService;
+
 import javax.validation.ConstraintValidator;
 import javax.validation.ConstraintValidatorContext;
+
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
@@ -41,7 +44,7 @@ public class EventDateValidator implements ConstraintValidator<ValidEventDate, S
 
     private static Date maxEventDate() {
         final Calendar calendar = Calendar.getInstance();
-        calendar.add(Calendar.YEAR, 2);
+        calendar.add(Calendar.YEAR, EventService.MAX_YEARS_AHEAD);
         return calendar.getTime();
     }
 

@@ -87,6 +87,9 @@ public class Registration {
     public RegistrationStatus getStatus() { return status; }
 
     // Al organizador se le puede sacar el lugar solo si lo tiene confirmado (ver RegistrationService.revoke()).
-    public boolean isRevocable() { return status == RegistrationStatus.CONFIRMED; }
+    public boolean isRevocable() { return isConfirmed(); }
+
+    // Tiene el lugar confirmado (ver RegistrationStatus.isConfirmed()).
+    public boolean isConfirmed() { return status != null && status.isConfirmed(); }
     public void setStatus(final RegistrationStatus status) { this.status = status; }
 }

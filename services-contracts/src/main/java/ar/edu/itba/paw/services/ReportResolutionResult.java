@@ -6,5 +6,7 @@ public enum ReportResolutionResult {
     RESOLVED,
 
     /** No existe ese reporte, o ya estaba resuelto de antes. */
-    NOT_FOUND
+    NOT_FOUND,
+    /** El mensaje esta vacio o supera ModerationService.MAX_CHANGES_MESSAGE_LENGTH. */
+    INVALID
 }

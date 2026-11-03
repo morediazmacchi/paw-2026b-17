@@ -29,7 +29,7 @@
                 <div class="event-row-list">
                     <c:forEach var="event" items="${favoriteEvents}">
                         <paw:eventRow id="${event.id}" nombre="${event.title}" fecha="${event.eventDate}"
-                                      ubicacion="${event.neighborhood.displayName}" precio="${event.price}"
+                                      ubicacion="${event.neighborhood.displayName}" precio="${event.price}" gratis="${event.free}"
                                       imagenId="${event.imageId}" cancelado="${event.cancelled}">
                             <form action="<c:url value='/eventos/${event.id}/favorito/quitar'/>" method="post">
                                 <input type="hidden" name="returnTo" value="${favoritosUrl}"/>

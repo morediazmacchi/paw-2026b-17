@@ -14,6 +14,7 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 import org.springframework.dao.DataIntegrityViolationException;
 
+import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
@@ -25,6 +26,7 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
+import static org.junit.Assert.assertThrows;
 import static org.mockito.Mockito.when;
 
 /**
@@ -152,19 +154,69 @@ public class ReviewServiceImplTest {
     }
 
     // Dos pedidos a la vez: el segundo pasa el chequeo de arriba pero la base lo
-    // rechaza por la clave unica (evento + usuario).
+    // rechaza por la clave unica (evento + usuario): SQLSTATE 23505.
     @Test
     public void testCreateReturnsAlreadyReviewedWhenTheDatabaseRejectsADuplicate() {
         // Arrange
         eligibleUser();
         when(reviewDao.create(any(Review.class)))
-                .thenThrow(new DataIntegrityViolationException("unique evento+usuario"));
+                .thenThrow(new DataIntegrityViolationException("unique evento+usuario",
+                        new SQLException("duplicado", "23505")));
 
         // Act
         final ReviewResult result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
 
         // Assert
         assertEquals(ReviewResult.ALREADY_REVIEWED, result);
+    }
+
+    @Test
+    public void testCreateRethrowsADatabaseViolationThatIsNotTheDuplicate() {
+        // Arrange: un CHECK (SQLSTATE 23514) no es "ya la mando": no se disfraza de ALREADY_REVIEWED
+        eligibleUser();
+        when(reviewDao.create(any(Review.class)))
+                .thenThrow(new DataIntegrityViolationException("check", new SQLException("check", "23514")));
+
+        // Act + Assert
+        assertThrows(DataIntegrityViolationException.class,
+                () -> reviewService.create(EVENT_ID, someUser(), RATING, COMMENT));
+    }
+
+    @Test
+    public void testCreateWithARatingAboveTheMaximumReturnsInvalid() {
+        // Arrange: usuario elegible; si el service guardara la resenia igual, el resultado seria CREATED
+        lenient().when(reviewDao.findByEventAndUser(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
+        lenient().when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(pastEvent()));
+        lenient().when(registrationService.findByEventAndUserId(EVENT_ID, USER_ID))
+                .thenReturn(Optional.of(registrationOfTheUser(RegistrationStatus.CONFIRMED)));
+        lenient().when(reviewDao.create(any(Review.class))).thenReturn(reviewOfEvent(EVENT_ID));
+
+        // Act
+        final ReviewResult result = reviewService.create(EVENT_ID, someUser(), ReviewService.MAX_RATING + 1, COMMENT);
+
+        // Assert
+        assertEquals(ReviewResult.INVALID, result);
+    }
+
+    @Test
+    public void testCreateWithANegativeRatingReturnsInvalid() {
+        // Act
+        final ReviewResult result = reviewService.create(EVENT_ID, someUser(), ReviewService.MIN_RATING - 1, COMMENT);
+
+        // Assert
+        assertEquals(ReviewResult.INVALID, result);
+    }
+
+    @Test
+    public void testCreateWithACommentLongerThanTheMaximumReturnsInvalid() {
+        // Arrange
+        final String tooLong = new String(new char[ReviewService.MAX_COMMENT_LENGTH + 1]).replace('\0', 'a');
+
+        // Act
+        final ReviewResult result = reviewService.create(EVENT_ID, someUser(), RATING, tooLong);
+
+        // Assert
+        assertEquals(ReviewResult.INVALID, result);
     }
 
     @Test

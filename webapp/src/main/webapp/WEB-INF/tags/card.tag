@@ -2,6 +2,8 @@
 <%@ attribute name="id" required="true" type="java.lang.Long" %>
 <%@ attribute name="nombre" required="true" %>
 <%@ attribute name="precio" required="false" type="java.lang.Double" %>
+<%-- gratis: lo dice el evento (Event.isFree), la tag no lo vuelve a deducir del precio. --%>
+<%@ attribute name="gratis" required="false" type="java.lang.Boolean" %>
 <%@ attribute name="fecha" required="true" type="java.util.Date" %>
 <%@ attribute name="categoria" required="false" %>
 <%@ attribute name="ubicacion" required="false" %>
@@ -32,7 +34,7 @@
             </c:if>
             <span class="card-precio">
                 <c:choose>
-                    <c:when test="${empty precio or precio == 0}"><spring:message code="event.price.free"/></c:when>
+                    <c:when test="${gratis}"><spring:message code="event.price.free"/></c:when>
                     <c:otherwise><paw:price value="${precio}"/></c:otherwise>
                 </c:choose>
             </span>

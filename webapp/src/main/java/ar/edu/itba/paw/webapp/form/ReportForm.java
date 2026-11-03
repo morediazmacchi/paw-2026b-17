@@ -1,5 +1,6 @@
 package ar.edu.itba.paw.webapp.form;
 
+import ar.edu.itba.paw.services.ModerationService;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.Size;
 
@@ -7,7 +8,7 @@ import javax.validation.constraints.Size;
 public class ReportForm {
 
     @NotBlank
-    @Size(max = 500)
+    @Size(max = ModerationService.MAX_REPORT_REASON_LENGTH)
     private String motivo;
 
     public String getMotivo() { return motivo; }

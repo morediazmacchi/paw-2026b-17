@@ -131,7 +131,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         // y entra confirmado sin pasar por la aprobacion del organizador, que ya
         // lo eligio al invitarlo.
         final boolean full = isFull(event, invited);
-        final RegistrationStatus status = registrationStatus(event, full, invited);
+        final RegistrationStatus status = event.registrationStatusFor(full, invited);
 
         // El UNIQUE(event_id, email) sigue siendo la ultima red, pero ya no
         // deberia dispararse en el camino normal: el lock de arriba serializa
@@ -199,17 +199,6 @@ public class RegistrationServiceImpl implements RegistrationService {
     // para un lugar que no hay. Con lugar: quien tiene invitacion -> confirmed;
     // el evento pide confirmacion -> pending (no ocupa cupo hasta que lo acepten);
     // si no -> confirmed, como siempre.
-    private static RegistrationStatus registrationStatus(final Event event, final boolean full,
-                                                          final boolean invited) {
-        if (full) {
-            return RegistrationStatus.WAITLISTED;
-        }
-        if (invited) {
-            return RegistrationStatus.CONFIRMED;
-        }
-        return event.isRequiresApproval() ? RegistrationStatus.PENDING : RegistrationStatus.CONFIRMED;
-    }
-
     private static RegistrationResult.Status registrationResult(final RegistrationStatus status) {
         if (status == RegistrationStatus.WAITLISTED) {
             return RegistrationResult.Status.WAITLISTED;
@@ -334,10 +323,10 @@ public class RegistrationServiceImpl implements RegistrationService {
             final Review myReview = reviewsByEventId.get(registration.getEventId());
             // Solo en las pasadas: se puede reseñar si el evento es reseñable, tuvo su lugar confirmado y no la
             // dejo todavia (misma regla que ReviewService.create()); si no fue, se dice por que.
-            final boolean confirmed = registration.getStatus() == RegistrationStatus.CONFIRMED;
+            final boolean confirmed = registration.isConfirmed();
             final boolean canReview = withReviews && event.isReviewable() && confirmed && myReview == null;
             entries.add(new RegistrationEntry(registration, event, myReview, canReview,
-                    withReviews ? notAttendedReason(registration, event) : null));
+                    withReviews ? notAttendedReason(registration, event) : null, event.isActive()));
         }
         return entries;
     }
@@ -374,12 +363,12 @@ public class RegistrationServiceImpl implements RegistrationService {
         if (event == null) {
             return UnregisterResult.NOT_FOUND;
         }
-        // Un evento que ya paso no se "des-anota": ya sucedio (y la inscripcion
-        // es lo que habilita despues la resena). Va antes que el resto, igual que
-        // lo hacia el controller cuando esta regla vivia ahi: gana incluso sobre
-        // REJECTED.
-        if (event.isFinished()) {
-            return UnregisterResult.FINISHED;
+        // Solo se des-anota de un evento vigente (Event.isActive(), la misma regla con la que el detalle ofrece el
+        // boton: EventDetail.canUnregister). Uno que ya paso no se "des-anota": ya sucedio (y la inscripcion es lo
+        // que habilita despues la resena). Uno cancelado tampoco: no hay nada que cancelar. Va antes que el resto,
+        // igual que lo hacia el controller cuando esta regla vivia ahi: gana incluso sobre REJECTED.
+        if (!event.isActive()) {
+            return event.isFinished() ? UnregisterResult.FINISHED : UnregisterResult.EVENT_CANCELLED;
         }
         // Se vuelve a leer ya con el lock: mientras esperaba, el organizador pudo
         // aceptarla, revocarla, etc.
@@ -395,7 +384,7 @@ public class RegistrationServiceImpl implements RegistrationService {
             return UnregisterResult.REJECTED;
         }
         // Se mira ANTES de borrar: despues la fila ya no existe.
-        final boolean wasConfirmed = cancelled.getStatus() == RegistrationStatus.CONFIRMED;
+        final boolean wasConfirmed = cancelled.isConfirmed();
         final boolean wasPending = cancelled.getStatus() == RegistrationStatus.PENDING;
         // Al organizador le importa tambien si se baja alguien pendiente: tenia
         // ese pedido para responder, y ya no esta.

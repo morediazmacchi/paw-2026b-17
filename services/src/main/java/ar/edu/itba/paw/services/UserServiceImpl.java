@@ -255,8 +255,11 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public boolean updateProfile(final long userId, final String name) {
-        return userDao.updateProfile(userId, name);
+    public UpdateProfileResult updateProfile(final long userId, final String name) {
+        if (name == null || name.trim().isEmpty() || name.length() > MAX_NAME_LENGTH) {
+            return UpdateProfileResult.INVALID_NAME;
+        }
+        return userDao.updateProfile(userId, name) ? UpdateProfileResult.OK : UpdateProfileResult.NOT_FOUND;
     }
 
     @Override
@@ -293,7 +296,7 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public SuspendResult suspend(final User caller, final long targetId) {
         // Se valida ANTES de escribir.
-        if (Long.valueOf(targetId).equals(caller.getId())) {
+        if (caller.isSameAccountAs(targetId)) {
             return SuspendResult.OWN_ACCOUNT;
         }
         return suspend(targetId) ? SuspendResult.OK : SuspendResult.NOT_FOUND;
@@ -335,7 +338,7 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public RevokeAdminResult revokeAdmin(final User caller, final long targetId) {
         // Se valida ANTES de escribir. Un superadmin que se sacara el rol quedaria afuera de /admin/**.
-        if (Long.valueOf(targetId).equals(caller.getId())) {
+        if (caller.isSameAccountAs(targetId)) {
             return RevokeAdminResult.OWN_ACCOUNT;
         }
         final UserAccess target = userDao.findAccessById(targetId).orElse(null);

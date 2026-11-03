@@ -2,6 +2,7 @@
 // validados con JSR-303.
 package ar.edu.itba.paw.webapp.form;
 
+import ar.edu.itba.paw.services.ReviewService;
 import javax.validation.constraints.Max;
 import javax.validation.constraints.Min;
 import javax.validation.constraints.NotNull;
@@ -10,11 +11,11 @@ import javax.validation.constraints.Size;
 public class ReviewForm {
 
     @NotNull
-    @Min(value = 0)
-    @Max(value = 5)
+    @Min(value = ReviewService.MIN_RATING)
+    @Max(value = ReviewService.MAX_RATING)
     private Integer rating;
 
-    @Size(max = 100)
+    @Size(max = ReviewService.MAX_COMMENT_LENGTH)
     private String comment;
 
     public ReviewForm() {

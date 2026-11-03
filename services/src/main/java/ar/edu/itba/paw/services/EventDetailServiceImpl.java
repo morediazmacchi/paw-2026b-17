@@ -24,6 +24,7 @@ public class EventDetailServiceImpl implements EventDetailService {
     private final EventSimilarityService eventSimilarityService;
     private final EventQuestionService eventQuestionService;
     private final EventAccessService eventAccessService;
+    private final EventInvitationService eventInvitationService;
 
     @Autowired
     public EventDetailServiceImpl(final EventService eventService, final RegistrationService registrationService,
@@ -31,7 +32,8 @@ public class EventDetailServiceImpl implements EventDetailService {
                                   final ReviewService reviewService,
                                   final EventSimilarityService eventSimilarityService,
                                   final EventQuestionService eventQuestionService,
-                                  final EventAccessService eventAccessService) {
+                                  final EventAccessService eventAccessService,
+                                  final EventInvitationService eventInvitationService) {
         this.eventService = eventService;
         this.registrationService = registrationService;
         this.favoriteService = favoriteService;
@@ -40,6 +42,7 @@ public class EventDetailServiceImpl implements EventDetailService {
         this.eventSimilarityService = eventSimilarityService;
         this.eventQuestionService = eventQuestionService;
         this.eventAccessService = eventAccessService;
+        this.eventInvitationService = eventInvitationService;
     }
 
     @Override
@@ -64,9 +67,15 @@ public class EventDetailServiceImpl implements EventDetailService {
                 : registrationService.findStatusesByEventIds(
                         viewerId, related.stream().map(Event::getId).collect(Collectors.toList()));
 
+        // Una invitacion sin usar a un evento con aprobacion cambia el resultado de anotarse (queda confirmada): solo
+        // hace falta saberlo en ese caso.
+        final boolean invited = viewerId != null && event.isRequiresApproval()
+                && eventInvitationService.isInvited(eventId, viewerId);
+        final boolean owner = event.isCreatedBy(viewerId);
         return new EventDetail(event, full, registrationService.availableSpots(eventId), participation,
-                actionOf(event, participation, full), chatAccessOf(event, participation, chatMember),
-                participation != null && participation.isRegistered() && event.isActive(), favorite, chatMember,
+                actionOf(event, participation, full, invited), chatAccessOf(event, participation, chatMember),
+                participation != null && participation.isRegistered() && event.isActive(),
+                event.isOpenForQuestions() && !owner, owner, !owner, favorite, chatMember,
                 reputationOf(event, reviewsPage), related, relatedStatuses,
                 eventQuestionService.findPage(eventId, questionsPage));
     }
@@ -83,7 +92,8 @@ public class EventDetailServiceImpl implements EventDetailService {
     // Que se le ofrece en el detalle, en orden de prioridad: la duenia gana sobre todo, despues quien solo puede
     // mirar (admin), despues el estado del evento (cancelado, finalizado), despues su inscripcion, y recien al
     // final inscribirse. Sin sesion (participation null) no hay duenia ni "solo mirar".
-    private static EventAction actionOf(final Event event, final EventParticipation participation, final boolean full) {
+    private static EventAction actionOf(final Event event, final EventParticipation participation, final boolean full,
+                                        final boolean invited) {
         if (participation != null) {
             if (participation.isOwner()) {
                 if (event.isPendingApproval()) {
@@ -110,10 +120,15 @@ public class EventDetailServiceImpl implements EventDetailService {
             }
             return participation.isPendingApproval() ? EventAction.CANCEL_PENDING : EventAction.UNREGISTER;
         }
-        if (full) {
-            return EventAction.JOIN_WAITLIST;
+        // Lo que va a pasar al anotarse lo decide la MISMA funcion que usa register() (Event.registrationStatusFor).
+        switch (event.registrationStatusFor(full, invited)) {
+            case WAITLISTED:
+                return EventAction.JOIN_WAITLIST;
+            case PENDING:
+                return EventAction.REQUEST_APPROVAL;
+            default:
+                return EventAction.REGISTER;
         }
-        return event.isRequiresApproval() ? EventAction.REQUEST_APPROVAL : EventAction.REGISTER;
     }
 
     // Quien ya es miembro ve el acceso al chat aunque el evento haya terminado (queda de solo lectura); quien tiene

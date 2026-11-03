@@ -24,6 +24,7 @@ import ar.edu.itba.paw.services.RegistrationService;
 import ar.edu.itba.paw.services.ReviewResult;
 import ar.edu.itba.paw.services.ReviewService;
 import ar.edu.itba.paw.services.UnregisterResult;
+import ar.edu.itba.paw.services.UpdateProfileResult;
 import ar.edu.itba.paw.services.UserService;
 import ar.edu.itba.paw.webapp.form.ChangePasswordForm;
 import ar.edu.itba.paw.webapp.form.InviteForm;
@@ -116,16 +117,24 @@ public class ProfileController {
     public ModelAndView updateProfile(@Valid final ProfileForm form, final BindingResult errors,
                                        @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         if (errors.hasErrors()) {
-            final ModelAndView mav = new ModelAndView("auth/perfil");
-            mav.addObject("user", currentUser);
-            mav.addObject("profileForm", form);
-            mav.addObject("profileFieldErrors", fieldErrorsOf(errors));
-            mav.addObject("changePasswordForm", new ChangePasswordForm());
-            return mav;
+            return profileWithErrors(form, errors, currentUser);
         }
 
-        userService.updateProfile(currentUser.getId(), form.getNombre());
+        final UpdateProfileResult result = userService.updateProfile(currentUser.getId(), form.getNombre());
+        if (result == UpdateProfileResult.INVALID_NAME) {
+            errors.rejectValue("nombre", "Size.profileForm.nombre");
+            return profileWithErrors(form, errors, currentUser);
+        }
         return new ModelAndView("redirect:/perfil?updated");
+    }
+
+    private ModelAndView profileWithErrors(final ProfileForm form, final BindingResult errors, final User currentUser) {
+        final ModelAndView mav = new ModelAndView("auth/perfil");
+        mav.addObject("user", currentUser);
+        mav.addObject("profileForm", form);
+        mav.addObject("profileFieldErrors", fieldErrorsOf(errors));
+        mav.addObject("changePasswordForm", new ChangePasswordForm());
+        return mav;
     }
 
     @RequestMapping(value = "/perfil/contrasena", method = RequestMethod.POST)
@@ -190,7 +199,7 @@ public class ProfileController {
     private static boolean wasCancelled(final UnregisterResult result) {
         return switch (result) {
             case CANCELLED, CANCELLED_WAITLISTED, CANCELLED_PENDING -> true;
-            case NOT_FOUND, REJECTED, FINISHED -> false;
+            case NOT_FOUND, REJECTED, FINISHED, EVENT_CANCELLED -> false;
         };
     }
 
@@ -253,6 +262,7 @@ public class ProfileController {
         final ModelAndView mav = new ModelAndView("auth/bandeja");
         mav.addObject("user", currentUser);
         mav.addObject("messages", result.getContent());
+        mav.addObject("hasUnread", inbox.isHasUnread());
         mav.addObject("chatGroups", eventChatService.findGroups(currentUser.getId()));
         mav.addObject("eventsById", inbox.getEventsById());
         mav.addObject("currentPage", result.getPage());
@@ -381,6 +391,10 @@ public class ProfileController {
         if (result == EventInvitationResult.NOT_ALLOWED) {
             return new ModelAndView("redirect:/perfil/eventos");
         }
+        if (result == EventInvitationResult.INVALID_EMAIL) {
+            errors.rejectValue("email", "Size.inviteForm.email");
+            return inviteFormView(event, currentUser, form, errors, false, false);
+        }
         return new ModelAndView("redirect:/perfil/eventos/" + id + "/invitar?" + inviteParam(result));
     }
 
@@ -394,7 +408,7 @@ public class ProfileController {
             case FULL -> "full";
             case SELF_INVITE -> "selfInvite";
             case EVENT_PUBLIC -> "eventPublic";
-            case NOT_ALLOWED -> throw new IllegalStateException("NOT_ALLOWED ya se filtro antes de llegar aca");
+            case NOT_ALLOWED, INVALID_EMAIL -> throw new IllegalStateException(result + " ya se filtro antes de llegar aca");
         };
     }
 

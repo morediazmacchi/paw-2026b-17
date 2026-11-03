@@ -165,6 +165,64 @@ public class DomainRulesTest {
         assertFalse(new Registration(event, null, "a@mail.com", "A", RegistrationStatus.REJECTED).isRevocable());
     }
 
+    // ---- como queda quien se anota (la funcion que usan register() y el detalle) ----
+
+    @Test
+    public void testRegisteringInAFullEventLeavesYouOnTheWaitlistEvenIfInvited() {
+        assertTrue(event().registrationStatusFor(true, true) == RegistrationStatus.WAITLISTED);
+    }
+
+    @Test
+    public void testRegisteringWithAnInvitationConfirmsEvenIfTheEventRequiresApproval() {
+        final Event event = event();
+        event.setRequiresApproval(true);
+
+        assertTrue(event.registrationStatusFor(false, true) == RegistrationStatus.CONFIRMED);
+    }
+
+    @Test
+    public void testRegisteringInAnEventThatRequiresApprovalLeavesYouPendingWithoutInvitation() {
+        final Event event = event();
+        event.setRequiresApproval(true);
+
+        assertTrue(event.registrationStatusFor(false, false) == RegistrationStatus.PENDING);
+    }
+
+    @Test
+    public void testRegisteringInAnOrdinaryEventWithRoomConfirms() {
+        assertTrue(event().registrationStatusFor(false, false) == RegistrationStatus.CONFIRMED);
+    }
+
+    // ---- "tiene el lugar confirmado" ----
+
+    @Test
+    public void testOnlyConfirmedMeansHavingThePlace() {
+        assertTrue(RegistrationStatus.CONFIRMED.isConfirmed());
+        assertFalse(RegistrationStatus.PENDING.isConfirmed());
+        assertFalse(RegistrationStatus.WAITLISTED.isConfirmed());
+        assertFalse(RegistrationStatus.REJECTED.isConfirmed());
+    }
+
+    // ---- privado / misma cuenta ----
+
+    @Test
+    public void testAPrivateEventIsInviteOnly() {
+        final Event event = event();
+        event.setVisibility(ar.edu.itba.paw.model.EventVisibility.PRIVATE);
+
+        assertTrue(event.isInviteOnly());
+        assertFalse(event().isInviteOnly());
+    }
+
+    @Test
+    public void testSameAccountComparesTheIds() {
+        final User user = ModelFixtures.user(7);
+
+        assertTrue(user.isSameAccountAs(7L));
+        assertFalse(user.isSameAccountAs(8L));
+        assertFalse(user.isSameAccountAs(null));
+    }
+
     // ---- roles: quien puede actuar sobre quien (User y su proyeccion UserAccess dan lo mismo) ----
 
     @Test

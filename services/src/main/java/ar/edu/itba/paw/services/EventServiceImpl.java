@@ -89,7 +89,7 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional
-    public Event create(final long creatorId, final EventDTO dto) {
+    public EventCreation create(final long creatorId, final EventDTO dto) {
         Objects.requireNonNull(dto, "dto");
         // El dueno es un objeto User (relacion), no solo su numero; de el sale tambien el mail del creador.
         // Dentro de la transaccion findById lo trae una vez y despues sale de la memoria.
@@ -111,7 +111,7 @@ public class EventServiceImpl implements EventService {
                     ? InvalidEventException.Reason.CATEGORY_NOT_FOUND : InvalidEventException.Reason.INVALID_DATA, e);
         }
         notificationService.notifyEventPendingApproval(created, creator.getName());
-        return created;
+        return new EventCreation(created, created.isPrivate());
     }
     @Override
     @Transactional(readOnly = true)
@@ -254,7 +254,7 @@ public class EventServiceImpl implements EventService {
         // pendiente/rechazado/en lista de espera todavia no tiene un lugar
         // asegurado en base al cual le importe que cambio el evento.
         for (final Registration registration : registrationService.findByEventId(eventId)) {
-            if (registration.getStatus() == RegistrationStatus.CONFIRMED) {
+            if (registration.isConfirmed()) {
                 notificationService.notifyEventUpdated(changes, registration);
                 inboxService.add(registration.getEmail(), InboxMessageType.EVENT_UPDATED, eventId, null, null);
             }
@@ -327,6 +327,9 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public EventApprovalResult reject(final long eventId, final String reason) {
+        if (reason == null || reason.trim().isEmpty() || reason.length() > MAX_REJECT_REASON_LENGTH) {
+            return EventApprovalResult.INVALID;
+        }
         final Optional<Event> existing = eventDao.findByIdForUpdate(eventId);
         if (!existing.isPresent()) {
             return EventApprovalResult.NOT_FOUND;
@@ -429,7 +432,7 @@ public class EventServiceImpl implements EventService {
     // el aviso que le corresponde.
     private void notifyRegistrantsOfCancellation(final Event event) {
         for (final Registration registration : registrationService.findByEventId(event.getId())) {
-            if (registration.getStatus() == RegistrationStatus.CONFIRMED) {
+            if (registration.isConfirmed()) {
                 notificationService.notifyEventCancelled(event, registration);
             }
             if (registration.getStatus() != RegistrationStatus.REJECTED) {

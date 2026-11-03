@@ -18,5 +18,10 @@ public class InboxPage {
     }
 
     public PageResult<InboxMessage> getMessages() { return messages; }
+
+    // Alguno de los avisos de ESTA pagina sigue sin leer (habilita "marcar como leidas").
+    public boolean isHasUnread() {
+        return messages.getContent().stream().anyMatch(InboxMessage::isUnread);
+    }
     public Map<Long, Event> getEventsById() { return eventsById; }
 }

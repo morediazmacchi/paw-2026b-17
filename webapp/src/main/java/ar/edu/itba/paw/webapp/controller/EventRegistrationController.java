@@ -74,6 +74,7 @@ public class EventRegistrationController {
             case CANCELLED_WAITLISTED -> "baja-waitlist";
             case CANCELLED_PENDING -> "baja-pendiente";
             case FINISHED -> "finalizado";
+            case EVENT_CANCELLED -> "cancelado";
             case NOT_FOUND, CANCELLED -> "baja";
         };
     }

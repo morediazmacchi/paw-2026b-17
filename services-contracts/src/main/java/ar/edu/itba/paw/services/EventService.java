@@ -20,17 +20,21 @@ public interface EventService {
     // create() y update() lo vuelven a chequear (la fecha tampoco puede ser pasada).
     int MAX_YEARS_AHEAD = 2;
 
+    // Largo maximo del motivo con el que un admin rechaza un evento (reject() devuelve INVALID si lo supera o esta vacio).
+    int MAX_REJECT_REASON_LENGTH = 500;
+
     /**
      * Crea un evento nuevo de ese creador a partir de un DTO ya validado (ver EventForm.toDTO()):
      * el service arma el Event final (con el mail del creador, que busca por su id) y lo persiste, sin
-     * que el caller tenga que tocar el modelo de dominio.
+     * que el caller tenga que tocar el modelo de dominio. Devuelve ademas cual es el proximo paso del flujo
+     * (EventCreation.isNeedsInvitations()).
      *
      * @throws InvalidEventException si la fecha es pasada o a mas de {@link #MAX_YEARS_AHEAD} años, si no se
      *         eligio ninguna categoria, si alguna no existe, o si la base rechaza un dato.
      * @throws InvalidImageException si se suben mas de Event.MAX_IMAGES imagenes o alguna es invalida.
      */
     @Transactional(rollbackFor = Exception.class)
-    Event create(long creatorId, EventDTO dto);
+    EventCreation create(long creatorId, EventDTO dto);
     @Transactional(readOnly = true)
     Optional<Event> findById(long id);
 

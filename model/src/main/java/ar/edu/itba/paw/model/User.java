@@ -78,6 +78,12 @@ public class User implements RoleHolder {
     public Set<Role> getRoles() { return roles; }
     public void setRoles(final Set<Role> roles) { this.roles = roles; }
     // Para no preguntar por el rol con un literal en cada lugar (ver Role).
+    // Es la misma cuenta que ese id. Es la regla de "nadie actua sobre su propia cuenta" (suspenderse, sacarse el
+    // rol ADMIN): la usan los services (OWN_ACCOUNT) y la pantalla de usuarios.
+    public boolean isSameAccountAs(final Long userId) {
+        return getId() != null && getId().equals(userId);
+    }
+
     @Override
     public boolean isAdmin() { return roles.contains(Role.ADMIN); }
     @Override
@@ -87,5 +93,12 @@ public class User implements RoleHolder {
     public String getLocale() { return locale; }
     public void setLocale(final String locale) { this.locale = locale; }
     public boolean isSuspended() { return suspended; }
+
+    // Tiene clave (no es una fila "fantasma" de antes del login).
+    public boolean hasPassword() { return password != null; }
+
+    // La cuenta puede entrar: tiene clave, confirmo el mail y no esta suspendida. Es la definicion que lleva el login
+    // (ver PlancitoUserDetails.isActive()): "habilitada" = clave + mail confirmado, "bloqueada" = suspendida.
+    public boolean isActive() { return hasPassword() && isVerified() && !isSuspended(); }
     public void setSuspended(final boolean suspended) { this.suspended = suspended; }
 }

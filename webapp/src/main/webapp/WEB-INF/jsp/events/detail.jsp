@@ -45,7 +45,7 @@
         <%-- No "event.private": "private" es palabra reservada de Java y el
              parser de EL la rechaza como nombre de propiedad, aunque el
              getter se llame isPrivate(). Se compara el enum directo. --%>
-        <c:if test="${event.visibility == 'PRIVATE'}">
+        <c:if test="${event.inviteOnly}">
             <span class="detail-hero-badge"><spring:message code="event.publish.privateLabel"/></span>
         </c:if>
         <c:if test="${event.cancelled}">
@@ -371,7 +371,7 @@
                 <c:when test="${not event.openForQuestions}">
                     <p class="creator-rating-empty"><spring:message code="event.questions.closed"/></p>
                 </c:when>
-                <c:when test="${isOwner}"></c:when>
+                <c:when test="${not canAsk}"></c:when>
                 <c:otherwise>
                     <sec:authorize access="isAuthenticated()">
                         <form action="<c:url value='/eventos/${event.id}/preguntas'/>" method="post" novalidate="novalidate">
@@ -417,7 +417,7 @@
                                         <c:out value="${question.answer}"/>
                                     </p>
                                 </c:when>
-                                <c:when test="${isOwner}">
+                                <c:when test="${canAnswer}">
                                     <form class="question-answer-form"
                                           action="<c:url value='/eventos/${event.id}/preguntas/${question.id}/responder'/>"
                                           method="post" novalidate="novalidate">
@@ -703,7 +703,7 @@
                  propio evento no tiene sentido, ademas el service lo rechaza igual).
                  No hace falta esconderlo si ya esta cancelado/removido: reportar
                  igual puede servir para avisar de algo del organizador. --%>
-            <c:if test="${not isOwner}">
+            <c:if test="${canReport}">
                 <sec:authorize access="isAuthenticated()">
                     <button type="button" class="btn-link detail-report-link" data-open-modal="reportModal">
                         <spring:message code="event.detail.reportButton"/>
@@ -734,7 +734,7 @@
     </c:if>
 </main>
 
-<c:if test="${not isOwner}">
+<c:if test="${canReport}">
     <sec:authorize access="isAuthenticated()">
         <spring:message code="event.detail.closeButton" var="reportCloseLabel"/>
         <div class="modal-overlay" id="reportModal" hidden>

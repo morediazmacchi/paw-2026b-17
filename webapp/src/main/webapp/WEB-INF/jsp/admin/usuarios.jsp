@@ -55,6 +55,8 @@
                     </tr>
                     </thead>
                     <tbody>
+                    <%-- Quien mira es superadmin: UN solo mecanismo (el rol de la sesion, como el antMatcher de WebAuthConfig). --%>
+                    <sec:authorize access="hasRole('SUPERADMIN')" var="callerIsSuperadmin"/>
                     <c:forEach var="targetUser" items="${users}">
                         <tr>
                             <td data-label="${emailColumnLabel}"><c:out value="${targetUser.email}"/></td>
@@ -79,7 +81,7 @@
                             <td class="admin-report-actions">
                                 <%-- Nadie actua sobre su propia fila (ver AdminController): ni
                                      suspenderse ni sacarse su propio rol ADMIN. --%>
-                                <c:if test="${targetUser.id != currentUserId}">
+                                <c:if test="${not targetUser.isSameAccountAs(currentUserId)}">
                                     <c:choose>
                                         <c:when test="${targetUser.suspended}">
                                             <form action="<c:url value='/admin/usuarios/${targetUser.id}/reactivar'/>" method="post">
@@ -87,7 +89,7 @@
                                             </form>
                                         </c:when>
                                         <%-- A un admin solo lo suspende un superadmin (ver AdminController.suspender). --%>
-                                        <c:when test="${targetUser.canBeSuspendedBy(isSuperadmin)}">
+                                        <c:when test="${targetUser.canBeSuspendedBy(callerIsSuperadmin)}">
                                             <form action="<c:url value='/admin/usuarios/${targetUser.id}/suspender'/>" method="post">
                                                 <paw:button text="${suspendButtonLabel}" cssClass="btn-danger"/>
                                             </form>
@@ -98,8 +100,7 @@
                                          evita ofrecer un boton que el POST va a rechazar). A un superadmin no se le
                                          ofrece ninguno: ya es admin y no se le saca el rol (el service lo rechaza con
                                          RevokeAdminResult.TARGET_SUPERADMIN, la misma propiedad que se mira aca). --%>
-                                    <sec:authorize access="hasRole('SUPERADMIN')">
-                                    <c:if test="${not targetUser.superadmin}">
+                                    <c:if test="${callerIsSuperadmin and not targetUser.superadmin}">
                                         <c:choose>
                                             <c:when test="${targetUser.admin}">
                                                 <form action="<c:url value='/admin/usuarios/${targetUser.id}/revocar'/>" method="post">
@@ -113,7 +114,6 @@
                                             </c:otherwise>
                                         </c:choose>
                                     </c:if>
-                                    </sec:authorize>
                                 </c:if>
                             </td>
                         </tr>

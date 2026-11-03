@@ -1,5 +1,6 @@
 package ar.edu.itba.paw.webapp.form;
 
+import ar.edu.itba.paw.services.ModerationService;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.Size;
 
@@ -7,7 +8,7 @@ import javax.validation.constraints.Size;
 public class RequestChangesForm {
 
     @NotBlank
-    @Size(max = 1000)
+    @Size(max = ModerationService.MAX_CHANGES_MESSAGE_LENGTH)
     private String mensaje;
 
     public String getMensaje() { return mensaje; }

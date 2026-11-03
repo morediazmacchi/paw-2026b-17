@@ -95,6 +95,31 @@ public class EventInvitationServiceImplTest {
     }
 
     @Test
+    public void testInviteWithABlankEmailReturnsInvalidEmail() {
+        // Arrange: el evento privado existe; si el service invitara igual, el resultado seria otro
+        lenient().when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
+
+        // Act
+        final EventInvitationResult result = invitationService.invite(EVENT_ID, "   ");
+
+        // Assert
+        assertEquals(EventInvitationResult.INVALID_EMAIL, result);
+    }
+
+    @Test
+    public void testInviteWithAnEmailLongerThanTheMaximumReturnsInvalidEmail() {
+        // Arrange
+        lenient().when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
+        final String tooLong = new String(new char[EventInvitationService.MAX_EMAIL_LENGTH]).replace('\0', 'a') + "@mail.com";
+
+        // Act
+        final EventInvitationResult result = invitationService.invite(EVENT_ID, tooLong);
+
+        // Assert
+        assertEquals(EventInvitationResult.INVALID_EMAIL, result);
+    }
+
+    @Test
     public void testInviteReturnsSentWhenTheInviteeAlreadyHasAnAccount() {
         // Arrange
         final User invitee = new User(NORMALIZED_INVITEE_EMAIL, "Invitado");

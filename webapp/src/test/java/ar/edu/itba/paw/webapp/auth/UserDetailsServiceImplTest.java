@@ -125,7 +125,7 @@ public class UserDetailsServiceImplTest {
     }
 
     @Test
-    public void testLoadUserByUsernameReturnsADisabledAccountWhenAnAdminSuspendedIt() {
+    public void testLoadUserByUsernameReturnsALockedAccountWhenAnAdminSuspendedIt() {
         // Arrange
         final User suspended = verifiedUser();
         suspended.setSuspended(true);
@@ -134,8 +134,42 @@ public class UserDetailsServiceImplTest {
         // Act
         final UserDetails result = userDetailsService.loadUserByUsername(EMAIL);
 
+        // Assert: suspendida = bloqueada (no "deshabilitada"): el login las distingue por el tipo de excepcion
+        assertFalse(result.isAccountNonLocked());
+        assertTrue(result.isEnabled());
+    }
+
+    @Test
+    public void testLoadUserByUsernameReturnsAnUnlockedAccountWhenTheMailWasNotConfirmed() {
+        // Arrange
+        final User unverified = verifiedUser();
+        unverified.setVerified(false);
+        when(mockUserService.findByEmail(EMAIL)).thenReturn(Optional.of(unverified));
+
+        // Act
+        final UserDetails result = userDetailsService.loadUserByUsername(EMAIL);
+
         // Assert
-        assertFalse(result.isEnabled());
+        assertTrue(result.isAccountNonLocked());
+    }
+
+    @Test
+    public void testTheDetailsAreActiveExactlyWhenTheUserIsActive() {
+        // Arrange: las 4 combinaciones de verificado/suspendido
+        for (final boolean verified : new boolean[] {true, false}) {
+            for (final boolean suspended : new boolean[] {true, false}) {
+                final User user = verifiedUser();
+                user.setVerified(verified);
+                user.setSuspended(suspended);
+                when(mockUserService.findByEmail(EMAIL)).thenReturn(Optional.of(user));
+
+                // Act
+                final boolean detailsActive = userDetailsService.loadUserByUsername(EMAIL).isActive();
+
+                // Assert
+                assertEquals("verified=" + verified + " suspended=" + suspended, user.isActive(), detailsActive);
+            }
+        }
     }
 
     @Test(expected = UsernameNotFoundException.class)

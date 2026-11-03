@@ -59,8 +59,8 @@
                     <c:forEach var="stats" items="${createdEvents}">
                         <c:set var="event" value="${stats.event}"/>
                         <paw:eventRow id="${event.id}" nombre="${event.title}" fecha="${event.eventDate}"
-                                      ubicacion="${event.neighborhood.displayName}" precio="${event.price}"
-                                      imagenId="${event.imageId}" privado="${event.visibility == 'PRIVATE'}"
+                                      ubicacion="${event.neighborhood.displayName}" precio="${event.price}" gratis="${event.free}"
+                                      imagenId="${event.imageId}" privado="${event.inviteOnly}"
                                       cancelado="${event.cancelled}" pendiente="${event.pendingApproval}"
                                       rechazado="${event.rejected}">
                             <a class="btn btn-medium" href="<c:url value='/eventos/${event.id}/inscriptos'/>">
@@ -68,7 +68,7 @@
                             </a>
                             <%-- Solo tiene sentido en un evento privado: uno publico ya
                                  tiene un link que se puede compartir sin necesitar esto. --%>
-                            <c:if test="${event.visibility == 'PRIVATE'}">
+                            <c:if test="${event.inviteOnly}">
                                 <a class="btn btn-medium btn-accent" href="<c:url value='/perfil/eventos/${event.id}/invitar'/>">
                                     <c:out value="${inviteButtonLabel}"/>
                                 </a>

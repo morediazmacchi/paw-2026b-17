@@ -74,4 +74,19 @@ public class PlancitoUserDetailsTest {
 
         assertFalse(PlancitoUserDetails.from(authentication).isPresent());
     }
+
+    @Test
+    public void testAnEnabledAndUnlockedAccountIsActive() {
+        assertTrue(new PlancitoUserDetails(7L, "ana@test.com", "Ana", "x", true, true, AuthorityUtils.NO_AUTHORITIES).isActive());
+    }
+
+    @Test
+    public void testASuspendedAccountIsNotActiveEvenIfEnabled() {
+        assertFalse(new PlancitoUserDetails(7L, "ana@test.com", "Ana", "x", true, false, AuthorityUtils.NO_AUTHORITIES).isActive());
+    }
+
+    @Test
+    public void testAnUnverifiedAccountIsNotActive() {
+        assertFalse(new PlancitoUserDetails(7L, "ana@test.com", "Ana", "x", false, true, AuthorityUtils.NO_AUTHORITIES).isActive());
+    }
 }

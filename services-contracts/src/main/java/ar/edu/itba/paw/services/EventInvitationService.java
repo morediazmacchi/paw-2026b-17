@@ -9,6 +9,9 @@ import java.util.List;
 
 public interface EventInvitationService {
 
+    // Largo maximo del mail invitado (invite() devuelve INVALID_EMAIL si esta vacio o lo supera).
+    int MAX_EMAIL_LENGTH = 150;
+
     /**
      * El creador invita a alguien a su evento privado: genera un token y le
      * manda un mail con el link. No hace nada y devuelve NOT_ALLOWED si el

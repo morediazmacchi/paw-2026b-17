@@ -30,9 +30,23 @@ public class PlancitoUserDetails extends User {
     // hay que reconstruir este objeto se pasa "" (no se vuelve a usar para autenticar).
     public PlancitoUserDetails(final long id, final String email, final String name, final String passwordHash,
                                final boolean enabled, final Collection<? extends GrantedAuthority> authorities) {
-        super(email, passwordHash, enabled, true, true, true, authorities);
+        this(id, email, name, passwordHash, enabled, true, authorities);
+    }
+
+    // enabled = la cuenta esta completa (tiene clave y confirmo el mail); accountNonLocked = un admin NO la suspendio.
+    // Son dos cosas distintas a proposito: el login las distingue por el tipo de excepcion (DisabledException =
+    // sin confirmar, LockedException = suspendida), sin volver a buscar al usuario en la base.
+    public PlancitoUserDetails(final long id, final String email, final String name, final String passwordHash,
+                               final boolean enabled, final boolean accountNonLocked,
+                               final Collection<? extends GrantedAuthority> authorities) {
+        super(email, passwordHash, enabled, true, true, accountNonLocked, authorities);
         this.id = id;
         this.name = name;
+    }
+
+    // La cuenta puede entrar: habilitada y no suspendida (el equivalente de la entidad: User.isActive()).
+    public boolean isActive() {
+        return isEnabled() && isAccountNonLocked();
     }
 
     // El usuario autenticado de esta sesion, o vacio si no hay uno: sin sesion, no autenticado, o un

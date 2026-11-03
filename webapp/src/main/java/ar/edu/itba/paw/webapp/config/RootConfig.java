@@ -1,5 +1,7 @@
 package ar.edu.itba.paw.webapp.config;
 
+import ar.edu.itba.paw.services.MailLinks;
+import ar.edu.itba.paw.webapp.mail.WebMailLinks;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
@@ -83,6 +85,14 @@ public class RootConfig {
     @Bean
     public LocaleResolver localeResolver() {
         return cookieLocaleResolver();
+    }
+
+    // Los links que llevan los mails (NotificationServiceImpl los pide por lo que son: "mis inscripciones", "el
+    // detalle del evento"...). Las rutas de la web las conoce solo esta clase; el prefijo del servidor sale de
+    // mail.properties (app.base-url), que cambia entre la maquina de desarrollo y pampero.
+    @Bean
+    public MailLinks mailLinks(@Value("${app.base-url}") final String baseUrl) {
+        return new WebMailLinks(baseUrl);
     }
 
     // Aparte del @Bean de arriba porque WebConfig (el contexto hijo) tiene que crear el mismo
