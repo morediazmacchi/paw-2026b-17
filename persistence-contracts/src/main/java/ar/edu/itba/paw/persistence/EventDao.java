@@ -66,6 +66,15 @@ public interface EventDao {
     /** Para el badge de "Mis eventos" (ver ProfileController): sin traer las filas. */
     long countByCreatorId(long creatorId);
 
+    // Panel de admin "Eventos" (ver EventService.findAllEventsPage()): TODOS los eventos, cualquier
+    // estado de aprobacion, visibilidad o cancelacion, de cualquier creador. A diferencia de
+    // search()/findByCreatorId(), no filtra nada: es la unica forma de moderar algo que todavia no
+    // esta publico (pendiente/rechazado) o que ya se dio de baja. Mas recientes primero.
+    List<Event> findAll(int page, int pageSize);
+
+    /** Para el paginado del panel de admin "Eventos": sin traer las filas. */
+    long countAll();
+
     // Combina todos los filtros con AND (un campo en null en criteria significa "sin filtrar por
     // esto"); solo eventos futuros y no cancelados; ordenado y paginado segun criteria.
     List<Event> search(EventSearchCriteria criteria);

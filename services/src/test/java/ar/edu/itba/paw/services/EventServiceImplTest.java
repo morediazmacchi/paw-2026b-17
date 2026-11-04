@@ -1214,6 +1214,44 @@ public class EventServiceImplTest {
         assertEquals(1, result.getPage());
     }
 
+    // ---- findAllEventsPage() (panel de admin: cualquier evento, no solo los del creador) ----
+
+    @Test
+    public void testFindAllEventsPageUsesFindAllInsteadOfFindByCreatorId() {
+        // Arrange: un evento de un creador cualquiera que pide aprobacion, sin cancelar.
+        final Event withApproval = eventWith(APPROVAL_EVENT_ID, CATEGORY_ID, CREATOR_ID);
+        withApproval.setRequiresApproval(true);
+        when(eventDao.countAll()).thenReturn(1L);
+        when(eventDao.findAll(1, EventServiceImpl.PAGE_SIZE)).thenReturn(Collections.singletonList(withApproval));
+        when(registrationService.countPendingByEvents(Collections.singletonList(APPROVAL_EVENT_ID)))
+                .thenReturn(Collections.singletonMap(APPROVAL_EVENT_ID, 3L));
+        when(registrationService.countConfirmedByEvents(Collections.singletonList(APPROVAL_EVENT_ID)))
+                .thenReturn(Collections.singletonMap(APPROVAL_EVENT_ID, 5L));
+
+        // Act
+        final PageResult<EventWithRegistrationStats> result = eventService.findAllEventsPage(1);
+
+        // Assert: trajo el evento y sus conteos (si hubiera llamado a findByCreatorId, estos mocks
+        // no habrian matcheado y el resultado habria quedado vacio).
+        assertEquals(1, result.getContent().size());
+        assertEquals(APPROVAL_EVENT_ID, result.getContent().get(0).getEvent().getId().longValue());
+        assertEquals(Long.valueOf(3), result.getContent().get(0).getPendingCount());
+        assertEquals(5L, result.getContent().get(0).getConfirmedCount());
+    }
+
+    @Test
+    public void testFindAllEventsPageWithoutEventsIsEmpty() {
+        // Arrange
+        when(eventDao.countAll()).thenReturn(0L);
+
+        // Act
+        final PageResult<EventWithRegistrationStats> result = eventService.findAllEventsPage(3);
+
+        // Assert
+        assertTrue(result.getContent().isEmpty());
+        assertEquals(1, result.getPage());
+    }
+
     @Test
     public void testSetFeaturedTrueReturnsTrueWhenTheEventWasMarked() {
         // Arrange

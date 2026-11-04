@@ -138,10 +138,23 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional(readOnly = true)
     public PageResult<EventWithRegistrationStats> findMyEventsPage(final long creatorId, final int page) {
-        final PageResult<Event> events = findPageByCreatorId(creatorId, page);
-        // Que se cuenta de cada evento es regla de negocio: pendientes solo si pide aprobacion y confirmados
-        // solo si no esta cancelado (uno cancelado no muestra el boton de cancelar). Se filtran los ids y
-        // despues es UNA consulta por tipo para toda la pagina.
+        return withRegistrationStats(findPageByCreatorId(creatorId, page));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResult<EventWithRegistrationStats> findAllEventsPage(final int page) {
+        final long total = eventDao.countAll();
+        final int effectivePage = PageResult.clampPage(page, total, PAGE_SIZE);
+        final List<Event> content = eventDao.findAll(effectivePage, PAGE_SIZE);
+        return withRegistrationStats(new PageResult<>(content, total, effectivePage, PAGE_SIZE));
+    }
+
+    // Le agrega a cada evento de la pagina sus conteos de inscripciones (ver findMyEventsPage()/
+    // findAllEventsPage()). Que se cuenta es regla de negocio: pendientes solo si pide aprobacion y
+    // confirmados solo si no esta cancelado (uno cancelado no muestra el boton de cancelar). Se
+    // filtran los ids y despues es UNA consulta por tipo para toda la pagina, no una por evento.
+    private PageResult<EventWithRegistrationStats> withRegistrationStats(final PageResult<Event> events) {
         final List<Long> requiringApprovalIds = new ArrayList<>();
         final List<Long> activeIds = new ArrayList<>();
         for (final Event event : events.getContent()) {

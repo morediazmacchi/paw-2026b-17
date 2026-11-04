@@ -96,6 +96,16 @@ public interface EventService {
     long countByCreatorId(long creatorId);
 
     /**
+     * Panel de admin "Eventos": una pagina de TODOS los eventos (cualquier estado de aprobacion,
+     * visibilidad o cancelacion, de cualquier creador), mas recientes primero, con sus conteos de
+     * inscripciones (mismo criterio que findMyEventsPage: pendientes solo si pide aprobacion,
+     * confirmados solo si no esta cancelado). Es la unica forma de moderar algo que todavia no es
+     * publico o que ya se dio de baja: search() nunca los muestra.
+     */
+    @Transactional(readOnly = true)
+    PageResult<EventWithRegistrationStats> findAllEventsPage(int page);
+
+    /**
      * Edita un evento existente. No cambia quien lo creo ni cuando se creo.
      * Si dto.getNewImages() viene vacio, se mantiene la galeria que el evento
      * ya tenia; si no, las nuevas imagenes se suben (dentro de esta misma

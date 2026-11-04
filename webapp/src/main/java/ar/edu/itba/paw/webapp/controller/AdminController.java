@@ -5,8 +5,10 @@ import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.EventApprovalResult;
 import ar.edu.itba.paw.services.EventQuestionService;
 import ar.edu.itba.paw.services.EventService;
+import ar.edu.itba.paw.services.EventWithRegistrationStats;
 import ar.edu.itba.paw.services.ModerationService;
 import ar.edu.itba.paw.services.PageResult;
+import ar.edu.itba.paw.services.RegistrationService;
 import ar.edu.itba.paw.services.ReportQueuePage;
 import ar.edu.itba.paw.services.ReportResolutionResult;
 import ar.edu.itba.paw.services.RevokeAdminResult;
@@ -38,14 +40,17 @@ public class AdminController {
     private final UserService userService;
     private final EventService eventService;
     private final EventQuestionService eventQuestionService;
+    private final RegistrationService registrationService;
 
     @Autowired
     public AdminController(final ModerationService moderationService, final UserService userService,
-                            final EventService eventService, final EventQuestionService eventQuestionService) {
+                            final EventService eventService, final EventQuestionService eventQuestionService,
+                            final RegistrationService registrationService) {
         this.moderationService = moderationService;
         this.userService = userService;
         this.eventService = eventService;
         this.eventQuestionService = eventQuestionService;
+        this.registrationService = registrationService;
     }
 
     @RequestMapping(value = "", method = RequestMethod.GET)
@@ -233,6 +238,32 @@ public class AdminController {
         return new ModelAndView("redirect:/admin/usuarios");
     }
 
+
+    // Moderacion: ver TODOS los eventos (cualquier estado) y, de cada uno, sus inscriptos. A
+    // diferencia de "eventos-pendientes" (solo PENDING) esto es el panel completo para auditar la
+    // plataforma. Nadie mas lo necesita: isOwner (ver EventController.inscriptos) sigue siendo la
+    // regla para el organizador, esta ruta es exclusiva de /admin/** (role ADMIN en WebAuthConfig).
+    @RequestMapping(value = "/eventos", method = RequestMethod.GET)
+    public ModelAndView eventos(@RequestParam(value = "page", required = false) final String page) {
+        final PageResult<EventWithRegistrationStats> result = eventService.findAllEventsPage(Paging.parsePage(page));
+        final ModelAndView mav = new ModelAndView("admin/eventos");
+        mav.addObject("events", result.getContent());
+        mav.addObject("currentPage", result.getPage());
+        mav.addObject("totalPages", result.getTotalPages());
+        return mav;
+    }
+
+    // Inscriptos de un evento cualquiera, de solo lectura: a diferencia de
+    // /perfil/eventos/{id}/inscriptos (del organizador, con boton de revocar), este panel es para
+    // mirar y moderar, no para administrar inscripciones ajenas.
+    @RequestMapping(value = "/eventos/{id}/inscriptos", method = RequestMethod.GET)
+    public ModelAndView inscriptos(@PathVariable final long id) {
+        final Event event = eventService.findByIdOrThrow(id);
+        final ModelAndView mav = new ModelAndView("admin/eventoInscriptos");
+        mav.addObject("event", event);
+        mav.addObject("registrations", registrationService.findByEventId(id));
+        return mav;
+    }
 
     // Banner
     @RequestMapping(value = "/eventos/{id}/destacar", method = RequestMethod.POST)

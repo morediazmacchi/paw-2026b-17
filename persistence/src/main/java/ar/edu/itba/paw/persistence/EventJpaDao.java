@@ -348,6 +348,21 @@ public class EventJpaDao implements EventDao {
     }
 
     @Override
+    public List<Event> findAll(final int page, final int pageSize) {
+        // Sin WHERE a proposito (ver el comentario del contrato): el panel de admin tiene que poder
+        // ver pendientes, rechazados y dados de baja, no solo lo que search() deja pasar.
+        return em.createQuery("FROM Event e ORDER BY e.createdAt DESC, e.id DESC", Event.class)
+                .setFirstResult((page - 1) * pageSize)
+                .setMaxResults(pageSize)
+                .getResultList();
+    }
+
+    @Override
+    public long countAll() {
+        return em.createQuery("SELECT COUNT(e) FROM Event e", Long.class).getSingleResult();
+    }
+
+    @Override
     public List<Event> findPendingApproval(final int page, final int pageSize) {
         return em.createQuery(
                         "FROM Event e WHERE e.approvalStatus = :status ORDER BY e.createdAt ASC, e.id ASC",

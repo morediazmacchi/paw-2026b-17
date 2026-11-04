@@ -875,6 +875,64 @@ public class EventJpaDaoTest {
     }
 
     // ==================================================================
+    // panel de admin: findAll/countAll (cualquier estado)
+    // ==================================================================
+
+    @Test
+    public void testFindAllReturnsEveryEventRegardlessOfStatusNewestFirst() {
+        // Arrange
+        final Timestamp antes = new Timestamp(System.currentTimeMillis() - 3000);
+        final Timestamp medio = new Timestamp(System.currentTimeMillis() - 2000);
+        final Timestamp despues = new Timestamp(System.currentTimeMillis() - 1000);
+        final long oldestId = insertEvent(cols("address", "Mas vieja", "created_at", antes,
+                "approval_status", EventApprovalStatus.PENDING.name()));
+        final long middleId = insertEvent(cols("address", "Cancelada", "created_at", medio,
+                "cancelled_at", medio));
+        final long newestId = insertEvent(cols("address", "Mas nueva", "created_at", despues,
+                "approval_status", EventApprovalStatus.REJECTED.name()));
+
+        // Act
+        final List<Event> result = eventDao.findAll(1, 10);
+
+        // Assert
+        assertEquals(3, result.size());
+        assertEquals(newestId, result.get(0).getId().longValue());
+        assertEquals(middleId, result.get(1).getId().longValue());
+        assertEquals(oldestId, result.get(2).getId().longValue());
+    }
+
+    @Test
+    public void testFindAllRespectsPageAndPageSize() {
+        // Arrange: orden es mas nueva primero, asi que la pagina 2 (de a 1) tiene que traer la mas vieja.
+        final Timestamp antes = new Timestamp(System.currentTimeMillis() - 2000);
+        final Timestamp despues = new Timestamp(System.currentTimeMillis() - 1000);
+        final long oldestId = insertEvent(cols("address", "Mas vieja", "created_at", antes));
+        insertEvent(cols("address", "Mas nueva", "created_at", despues));
+
+        // Act
+        final List<Event> secondPage = eventDao.findAll(2, 1);
+
+        // Assert
+        assertEquals(1, secondPage.size());
+        assertEquals(oldestId, secondPage.get(0).getId().longValue());
+    }
+
+    @Test
+    public void testCountAllCountsEveryEventRegardlessOfStatus() {
+        // Arrange
+        insertEvent(cols("approval_status", EventApprovalStatus.PENDING.name()));
+        insertEvent(cols("approval_status", EventApprovalStatus.REJECTED.name()));
+        insertEvent(cols("cancelled_at", fromNow(-HORA)));
+        insertEvent();
+
+        // Act
+        final long count = eventDao.countAll();
+
+        // Assert
+        assertEquals(4, count);
+    }
+
+    // ==================================================================
     // visibility
     // ==================================================================
 

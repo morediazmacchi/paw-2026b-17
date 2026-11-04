@@ -16,11 +16,13 @@
     <spring:message code="admin.reports.tabLabel" var="reportsTabLabel"/>
     <spring:message code="admin.reports.trackingTabLabel" var="trackingTabLabel"/>
     <spring:message code="admin.pendingEvents.tabLabel" var="pendingEventsTabLabel"/>
+    <spring:message code="admin.allEvents.tabLabel" var="allEventsTabLabel"/>
     <spring:message code="admin.users.tabLabel" var="usersTabLabel"/>
     <div class="auth-tabs">
         <a class="pill auth-tab" href="<c:url value='/admin/reportes'/>"><c:out value="${reportsTabLabel}"/></a>
         <span class="pill pill-active auth-tab"><c:out value="${trackingTabLabel}"/></span>
         <a class="pill auth-tab" href="<c:url value='/admin/eventos-pendientes'/>"><c:out value="${pendingEventsTabLabel}"/></a>
+        <a class="pill auth-tab" href="<c:url value='/admin/eventos'/>"><c:out value="${allEventsTabLabel}"/></a>
         <a class="pill auth-tab" href="<c:url value='/admin/usuarios'/>"><c:out value="${usersTabLabel}"/></a>
     </div>
 
