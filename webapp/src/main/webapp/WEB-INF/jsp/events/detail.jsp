@@ -361,138 +361,159 @@
                 </c:otherwise>
             </c:choose>
 
-            <h2 class="detail-section-heading" id="preguntas"><spring:message code="event.questions.heading"/></h2>
-            <c:if test="${not empty questionMessage}">
-                <p class="alert<c:if test="${questionMessage == 'CREATED' or questionMessage == 'ANSWERED'}"> alert-success</c:if>"><spring:message code="event.questions.flash.${questionMessage}"/></p>
-            </c:if>
+            <section class="qa-card" id="preguntas">
+                <div class="qa-header">
+                    <span class="qa-header-icon"><paw:icon name="message-circle"/></span>
+                    <div>
+                        <h2 class="qa-title"><spring:message code="event.questions.heading"/></h2>
+                        <p class="qa-subtitle"><spring:message code="event.questions.subheading"/></p>
+                    </div>
+                </div>
 
-            <%-- Preguntar: logueado, no organizador, evento abierto. Anonimo: link al login
-                 que vuelve aca. Cerrado: solo el aviso. --%>
-            <c:choose>
-                <c:when test="${not event.openForQuestions}">
-                    <p class="creator-rating-empty"><spring:message code="event.questions.closed"/></p>
-                </c:when>
-                <c:when test="${not canAsk}"></c:when>
-                <c:otherwise>
-                    <sec:authorize access="isAuthenticated()">
-                        <form action="<c:url value='/eventos/${event.id}/preguntas'/>" method="post" novalidate="novalidate">
-                            <div class="form-group">
-                                <label for="question-text"><spring:message code="event.questions.askLabel"/></label>
-                                <textarea id="question-text" name="text" maxlength="300"></textarea>
-                            </div>
-                            <spring:message code="event.questions.askButton" var="askButtonLabel"/>
-                            <paw:button text="${askButtonLabel}" cssClass="btn-accent"/>
-                        </form>
-                    </sec:authorize>
-                    <sec:authorize access="isAnonymous()">
-                        <c:set var="questionsReturnPath" value="/eventos/${event.id}"/>
-                        <c:url value="/login" var="loginToAskUrl">
-                            <c:param name="redirect" value="${questionsReturnPath}"/>
-                        </c:url>
-                        <p><a class="btn-link" href="${loginToAskUrl}"><spring:message code="event.questions.loginToAsk"/></a></p>
-                    </sec:authorize>
-                </c:otherwise>
-            </c:choose>
+                <c:if test="${not empty questionMessage}">
+                    <p class="alert<c:if test="${questionMessage == 'CREATED' or questionMessage == 'ANSWERED'}"> alert-success</c:if>"><spring:message code="event.questions.flash.${questionMessage}"/></p>
+                </c:if>
 
-            <c:choose>
-                <c:when test="${empty questions}">
-                    <p class="creator-rating-empty"><spring:message code="event.questions.empty"/></p>
-                </c:when>
-                <c:otherwise>
-                    <c:forEach var="question" items="${questions}">
-                        <div class="creator-review-item">
-                            <div class="creator-review-event">
-                                <span class="creator-review-event-title">
-                                    <c:choose>
-                                        <c:when test="${not empty question.askerName}"><c:out value="${question.askerName}"/></c:when>
-                                        <c:otherwise><spring:message code="event.questions.unnamedAsker"/></c:otherwise>
-                                    </c:choose>
-                                </span>
-                                <span class="creator-review-date"><paw:date value="${question.createdAt}" format="date"/></span>
-                            </div>
-                            <p class="review-comment"><c:out value="${question.text}"/></p>
-                            <c:choose>
-                                <c:when test="${question.answered}">
-                                    <p class="review-comment question-answer">
-                                        <strong><spring:message code="event.questions.answerPrefix"/></strong>
-                                        <c:out value="${question.answer}"/>
-                                    </p>
-                                </c:when>
-                                <c:when test="${canAnswer}">
-                                    <form class="question-answer-form"
-                                          action="<c:url value='/eventos/${event.id}/preguntas/${question.id}/responder'/>"
-                                          method="post" novalidate="novalidate">
-                                        <div class="form-group">
-                                            <label for="answer-${question.id}"><spring:message code="event.questions.answerLabel"/></label>
-                                            <textarea id="answer-${question.id}" name="text" maxlength="300"></textarea>
+                <c:choose>
+                    <c:when test="${empty questions}">
+                        <p class="qa-empty"><spring:message code="event.questions.empty"/></p>
+                    </c:when>
+                    <c:otherwise>
+                        <div class="qa-list">
+                            <c:forEach var="question" items="${questions}">
+                                <div class="qa-item">
+                                    <span class="qa-avatar">
+                                        <c:choose>
+                                            <c:when test="${not empty question.askerName}"><c:out value="${fn:toUpperCase(fn:substring(question.askerName, 0, 1))}"/></c:when>
+                                            <c:otherwise>?</c:otherwise>
+                                        </c:choose>
+                                    </span>
+                                    <div class="qa-item-body">
+                                        <div class="qa-item-head">
+                                            <span class="qa-item-name">
+                                                <c:choose>
+                                                    <c:when test="${not empty question.askerName}"><c:out value="${question.askerName}"/></c:when>
+                                                    <c:otherwise><spring:message code="event.questions.unnamedAsker"/></c:otherwise>
+                                                </c:choose>
+                                            </span>
+                                            <span class="qa-item-date"><paw:date value="${question.createdAt}" format="date"/></span>
                                         </div>
-                                        <spring:message code="event.questions.answerButton" var="answerButtonLabel"/>
-                                        <paw:button text="${answerButtonLabel}" cssClass="btn-accent"/>
-                                    </form>
-                                </c:when>
-                                <c:otherwise>
-                                    <p class="creator-rating-empty"><spring:message code="event.questions.unanswered"/></p>
-                                </c:otherwise>
-                            </c:choose>
-                            <%-- Moderacion: borra la pregunta (y su respuesta, si tenia).
-                                 La accion vive bajo /admin/** (ver AdminController), que
-                                 ya exige el rol ADMIN. --%>
-                            <sec:authorize access="hasRole('ADMIN')">
-                                <spring:message code="admin.questions.deleteButton" var="deleteQuestionLabel"/>
-                                <button type="button" class="btn-link" data-open-modal="deleteQuestionModal-${question.id}">
-                                    <c:out value="${deleteQuestionLabel}"/>
-                                </button>
-                            </sec:authorize>
-                        </div>
-                    </c:forEach>
-
-                    <sec:authorize access="hasRole('ADMIN')">
-                        <spring:message code="event.detail.closeButton" var="deleteQuestionCloseLabel"/>
-                        <spring:message code="admin.questions.deleteCancelButton" var="deleteQuestionCancelLabel"/>
-                        <spring:message code="admin.questions.deleteConfirmButton" var="deleteQuestionConfirmLabel"/>
-                        <c:forEach var="question" items="${questions}">
-                            <div class="modal-overlay" id="deleteQuestionModal-${question.id}" hidden>
-                                <div class="modal-box">
-                                    <div class="modal-header">
-                                        <h2><spring:message code="admin.questions.deleteModalTitle"/></h2>
-                                        <button type="button" class="modal-close" data-close-modal aria-label="${deleteQuestionCloseLabel}">
-                                            <paw:icon name="close"/>
-                                        </button>
-                                    </div>
-                                    <div class="modal-body">
-                                        <p><c:out value="${question.text}"/></p>
-                                        <p><spring:message code="admin.questions.deleteModalBody"/></p>
-                                        <form action="<c:url value='/admin/preguntas/${question.id}/eliminar'/>" method="post">
-                                            <div class="modal-confirm-actions">
-                                                <button type="button" class="btn btn-medium" data-close-modal>
-                                                    <c:out value="${deleteQuestionCancelLabel}"/>
-                                                </button>
-                                                <paw:button text="${deleteQuestionConfirmLabel}" cssClass="btn-danger"/>
-                                            </div>
-                                        </form>
+                                        <p class="qa-item-text"><c:out value="${question.text}"/></p>
+                                        <c:choose>
+                                            <c:when test="${question.answered}">
+                                                <p class="qa-answer">
+                                                    <strong><spring:message code="event.questions.answerPrefix"/></strong>
+                                                    <c:out value="${question.answer}"/>
+                                                </p>
+                                            </c:when>
+                                            <c:when test="${canAnswer}">
+                                                <spring:message code="event.questions.answerPlaceholder" var="answerPlaceholder"/>
+                                                <spring:message code="event.questions.answerLabel" var="answerLabel"/>
+                                                <form class="qa-composer"
+                                                      action="<c:url value='/eventos/${event.id}/preguntas/${question.id}/responder'/>"
+                                                      method="post" novalidate="novalidate">
+                                                    <textarea id="answer-${question.id}" name="text" maxlength="300" rows="1"
+                                                              placeholder="${answerPlaceholder}" aria-label="${answerLabel}"></textarea>
+                                                    <spring:message code="event.questions.answerButton" var="answerButtonLabel"/>
+                                                    <paw:button text="${answerButtonLabel}" cssClass="btn-accent"/>
+                                                </form>
+                                            </c:when>
+                                            <c:otherwise>
+                                                <p class="qa-unanswered"><spring:message code="event.questions.unanswered"/></p>
+                                            </c:otherwise>
+                                        </c:choose>
+                                        <%-- Moderacion: borra la pregunta (y su respuesta, si tenia).
+                                             La accion vive bajo /admin/** (ver AdminController), que
+                                             ya exige el rol ADMIN. --%>
+                                        <sec:authorize access="hasRole('ADMIN')">
+                                            <spring:message code="admin.questions.deleteButton" var="deleteQuestionLabel"/>
+                                            <button type="button" class="btn-link qa-delete" data-open-modal="deleteQuestionModal-${question.id}">
+                                                <c:out value="${deleteQuestionLabel}"/>
+                                            </button>
+                                        </sec:authorize>
                                     </div>
                                 </div>
-                            </div>
-                        </c:forEach>
-                    </sec:authorize>
+                            </c:forEach>
+                        </div>
 
-                    <c:if test="${questionsTotalPages > 1}">
-                        <nav class="pager">
-                            <c:if test="${questionsPage > 1}">
-                                <a class="pager-arrow" href="<c:url value='/eventos/${event.id}'><c:param name='preguntasPage' value='${questionsPage - 1}'/></c:url>#preguntas">
-                                    <spring:message code="event.list.prevPage"/>
-                                </a>
-                            </c:if>
-                            <span class="pager-number pager-number-active"><c:out value="${questionsPage}"/> / <c:out value="${questionsTotalPages}"/></span>
-                            <c:if test="${questionsPage < questionsTotalPages}">
-                                <a class="pager-arrow" href="<c:url value='/eventos/${event.id}'><c:param name='preguntasPage' value='${questionsPage + 1}'/></c:url>#preguntas">
-                                    <spring:message code="event.list.nextPage"/>
-                                </a>
-                            </c:if>
-                        </nav>
-                    </c:if>
-                </c:otherwise>
-            </c:choose>
+                        <sec:authorize access="hasRole('ADMIN')">
+                            <spring:message code="event.detail.closeButton" var="deleteQuestionCloseLabel"/>
+                            <spring:message code="admin.questions.deleteCancelButton" var="deleteQuestionCancelLabel"/>
+                            <spring:message code="admin.questions.deleteConfirmButton" var="deleteQuestionConfirmLabel"/>
+                            <c:forEach var="question" items="${questions}">
+                                <div class="modal-overlay" id="deleteQuestionModal-${question.id}" hidden>
+                                    <div class="modal-box">
+                                        <div class="modal-header">
+                                            <h2><spring:message code="admin.questions.deleteModalTitle"/></h2>
+                                            <button type="button" class="modal-close" data-close-modal aria-label="${deleteQuestionCloseLabel}">
+                                                <paw:icon name="close"/>
+                                            </button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <p><c:out value="${question.text}"/></p>
+                                            <p><spring:message code="admin.questions.deleteModalBody"/></p>
+                                            <form action="<c:url value='/admin/preguntas/${question.id}/eliminar'/>" method="post">
+                                                <div class="modal-confirm-actions">
+                                                    <button type="button" class="btn btn-medium" data-close-modal>
+                                                        <c:out value="${deleteQuestionCancelLabel}"/>
+                                                    </button>
+                                                    <paw:button text="${deleteQuestionConfirmLabel}" cssClass="btn-danger"/>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            </c:forEach>
+                        </sec:authorize>
+
+                        <c:if test="${questionsTotalPages > 1}">
+                            <nav class="pager">
+                                <c:if test="${questionsPage > 1}">
+                                    <a class="pager-arrow" href="<c:url value='/eventos/${event.id}'><c:param name='preguntasPage' value='${questionsPage - 1}'/></c:url>#preguntas">
+                                        <spring:message code="event.list.prevPage"/>
+                                    </a>
+                                </c:if>
+                                <span class="pager-number pager-number-active"><c:out value="${questionsPage}"/> / <c:out value="${questionsTotalPages}"/></span>
+                                <c:if test="${questionsPage < questionsTotalPages}">
+                                    <a class="pager-arrow" href="<c:url value='/eventos/${event.id}'><c:param name='preguntasPage' value='${questionsPage + 1}'/></c:url>#preguntas">
+                                        <spring:message code="event.list.nextPage"/>
+                                    </a>
+                                </c:if>
+                            </nav>
+                        </c:if>
+                    </c:otherwise>
+                </c:choose>
+
+                <%-- Preguntar: logueado, no organizador, evento abierto. Anonimo: link al login
+                     que vuelve aca. Cerrado: solo el aviso. Va al pie, como un composer de chat
+                     (ver .qa-composer / .chat-composer), no arriba de la lista. --%>
+                <c:choose>
+                    <c:when test="${not event.openForQuestions}">
+                        <p class="qa-footer-note"><spring:message code="event.questions.closed"/></p>
+                    </c:when>
+                    <c:when test="${not canAsk}"></c:when>
+                    <c:otherwise>
+                        <sec:authorize access="isAuthenticated()">
+                            <spring:message code="event.questions.askPlaceholder" var="askPlaceholder"/>
+                            <spring:message code="event.questions.askLabel" var="askLabel"/>
+                            <form class="qa-composer qa-composer-main" action="<c:url value='/eventos/${event.id}/preguntas'/>" method="post" novalidate="novalidate">
+                                <span class="qa-composer-icon"><paw:icon name="message-circle"/></span>
+                                <textarea id="question-text" name="text" maxlength="300" rows="1"
+                                          placeholder="${askPlaceholder}" aria-label="${askLabel}"></textarea>
+                                <spring:message code="event.questions.askButton" var="askButtonLabel"/>
+                                <paw:button text="${askButtonLabel}" cssClass="btn-accent"/>
+                            </form>
+                        </sec:authorize>
+                        <sec:authorize access="isAnonymous()">
+                            <c:set var="questionsReturnPath" value="/eventos/${event.id}"/>
+                            <c:url value="/login" var="loginToAskUrl">
+                                <c:param name="redirect" value="${questionsReturnPath}"/>
+                            </c:url>
+                            <p class="qa-footer-note"><a class="btn-link" href="${loginToAskUrl}"><spring:message code="event.questions.loginToAsk"/></a></p>
+                        </sec:authorize>
+                    </c:otherwise>
+                </c:choose>
+            </section>
         </div>
 
         <aside class="detail-side">

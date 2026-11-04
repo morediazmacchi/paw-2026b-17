@@ -2998,11 +2998,211 @@ button.btn-accent {
     font-size: 0.8rem;
 }
 
-/* Respuesta del organizador debajo de su pregunta (detail.jsp, #preguntas). */
-.question-answer {
-    margin-left: 16px;
-    padding-left: 12px;
-    border-left: 2px solid #e5e7eb;
+/* Preguntas y respuestas (detail.jsp, #preguntas): tarjeta propia en vez de
+   reusar el bloque de reseñas del organizador, para que tenga jerarquia
+   visual clara (header con icono, lista con avatar+nombre+fecha, composer al
+   pie con el mismo patron que .chat-composer). Opcion A elegida con el equipo. */
+.qa-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    margin-top: 28px;
+}
+
+.qa-card:first-child {
+    margin-top: 0;
+}
+
+.qa-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.qa-header-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--bg);
+    color: var(--accent);
+}
+
+.qa-header-icon .icon {
+    width: 20px;
+    height: 20px;
+}
+
+.qa-title {
+    margin: 0;
+    font-size: 1.05rem;
+}
+
+.qa-subtitle {
+    margin: 2px 0 0;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+.qa-empty {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    margin: 18px 0 0;
+    padding-top: 18px;
+    border-top: 1px solid var(--border);
+}
+
+.qa-list {
+    margin-top: 18px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border);
+}
+
+.qa-item {
+    display: flex;
+    gap: 12px;
+    padding: 14px 0;
+    border-top: 1px solid var(--border);
+}
+
+.qa-item:first-child {
+    border-top: none;
+    padding-top: 0;
+}
+
+.qa-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--accent-text);
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.qa-item-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.qa-item-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 0.9rem;
+}
+
+.qa-item-name {
+    font-weight: 700;
+}
+
+.qa-item-date {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+
+.qa-item-text {
+    margin: 4px 0 0;
+    font-size: 0.9rem;
+}
+
+.qa-unanswered {
+    margin: 8px 0 0;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+/* Respuesta del organizador debajo de su pregunta: antes usaba un gris fijo
+   (#e5e7eb) que casi no se veia sobre el fondo oscuro de la app; ahora usa
+   los mismos tokens que el resto (acento a la izquierda, fondo levemente
+   distinto al de la tarjeta). */
+.qa-answer {
+    margin: 10px 0 0;
+    padding: 10px 14px;
+    border-left: 2px solid var(--accent);
+    background: var(--bg);
+    border-radius: 0 10px 10px 0;
+    font-size: 0.88rem;
+}
+
+.qa-answer strong {
+    display: block;
+    color: var(--accent);
+    font-size: 0.8rem;
+    margin-bottom: 2px;
+}
+
+.qa-delete {
+    display: block;
+    margin-top: 8px;
+}
+
+.qa-footer-note {
+    margin: 18px 0 0;
+    padding-top: 18px;
+    border-top: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+/* Composer (preguntar / responder): mismo patron que .chat-composer (textarea
+   tipo pill + boton en la misma fila), para que se sienta consistente con el
+   chat del evento en vez de un form generico de label+textarea+boton abajo. */
+.qa-composer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.qa-composer-main {
+    margin-top: 18px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border);
+}
+
+.qa-composer-icon {
+    display: flex;
+    flex-shrink: 0;
+    color: var(--text-muted);
+}
+
+.qa-composer textarea {
+    flex: 1;
+    resize: none;
+    max-height: 120px;
+    padding: 10px 16px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+}
+
+.qa-composer textarea::placeholder {
+    color: var(--text-muted);
+}
+
+.qa-composer .char-counter {
+    order: 3;
+    flex-basis: 100%;
+    margin-top: -2px;
+    padding-left: 16px;
+}
+
+.qa-composer .btn {
+    flex-shrink: 0;
+    margin-top: 0;
 }
 
 /* Almanaque propio para elegir la fecha del evento (publish.jsp/editar.jsp,
