@@ -2682,6 +2682,12 @@ button.btn-accent {
     border-top: 1px solid var(--border);
 }
 
+/* Un boton dentro de una celda va envuelto en su <form> (ej. "Revocar lugar"): sin esto el
+   form suma un margen abajo y el boton queda corrido hacia arriba respecto del resto de la fila. */
+.attendees-table form {
+    margin: 0;
+}
+
 /* Varias acciones (forms) en una misma celda de "Reportes"/"Usuarios" del
    panel de admin: en fila, no una debajo de la otra como el nowrap del td haria. */
 .admin-report-actions {
@@ -3608,38 +3614,115 @@ button.btn-accent {
     margin-bottom: 14px;
 }
 
-.related-events-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
+/* La fila de similares con sus flechas a los costados (related-carousel.js). */
+.related-events-carousel {
+    position: relative;
 }
 
-.related-event-chip {
-    display: inline-flex;
+.related-events-list {
+    /* Una sola fila de cards de tamaño fijo, sean 1 o 5: las que no entran se ven con las
+       flechas o deslizando. Sin barra de scroll a la vista: para eso estan las flechas. */
+    display: flex;
+    gap: 16px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    /* Lugar para el hover de la card (sube 2px, ver .card:hover): sin esto el overflow de la
+       fila le cortaba el borde de arriba y no se iluminaba entero. */
+    padding: 4px 0 6px;
+    scrollbar-width: none;
+}
+
+.related-events-list::-webkit-scrollbar {
+    display: none;
+}
+
+.related-events-list .card-wrapper {
+    flex: 0 0 240px;
+    scroll-snap-align: start;
+}
+
+/* Mismo alto en todas: el titulo reserva siempre sus 2 lineas y la fecha/barrio va en una
+   sola (con "..." si no entra), aunque un titulo sea corto y otro largo. */
+.related-events-list .card-nombre {
+    min-height: 2.6em;
+}
+
+.related-events-list .card-meta {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.related-events-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 3;
+    display: flex;
     align-items: center;
-    gap: 10px;
-    max-width: 100%;
-    padding: 8px 16px;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
     border-radius: 999px;
     border: 1px solid var(--border);
     background: var(--bg-elevated);
     color: var(--text);
-    text-decoration: none;
+    cursor: pointer;
 }
 
-.related-event-chip:hover {
+.related-events-arrow:hover {
     border-color: var(--accent);
 }
 
-.related-event-chip-title {
-    font-weight: 700;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+.related-events-arrow[hidden] {
+    display: none;
 }
 
-.related-event-chip-meta {
+.related-events-arrow-prev {
+    left: -18px;
+}
+
+.related-events-arrow-next {
+    right: -18px;
+}
+
+/* ==========================================================================
+   Busquedas guardadas ("watchlist"): el aviso con el boton "Guardar busqueda"
+   de /eventos (aparece despues de filtrar, solo con sesion).
+   ========================================================================== */
+.save-search {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 18px;
+    margin-bottom: 20px;
+}
+
+.save-search-text {
+    margin: 0;
     color: var(--text-muted);
-    font-size: 0.8rem;
-    white-space: nowrap;
+    font-size: 0.95rem;
+}
+
+.save-search form {
+    margin: 0;
+}
+
+.save-search-btn {
+    gap: 8px;
+}
+
+/* Ya guardada: se ve como el boton pero no se puede tocar. */
+.save-search-saved {
+    cursor: default;
+    color: var(--text-muted);
+}
+
+.save-search-saved:hover {
+    border-color: var(--border);
 }

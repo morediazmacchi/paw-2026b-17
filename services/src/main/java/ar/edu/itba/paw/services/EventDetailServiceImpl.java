@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -62,10 +63,15 @@ public class EventDetailServiceImpl implements EventDetailService {
         // "Eventos que te pueden interesar": findSimilar ya devuelve vacio si el evento es privado o no esta
         // aprobado. Es evento contra evento: no depende de quien mira, salvo que sus propios eventos no se sugieren.
         final List<Event> related = eventSimilarityService.findSimilar(eventId, viewerId);
-        final Map<Long, RegistrationStatus> relatedStatuses = viewerId == null || related.isEmpty()
-                ? Collections.emptyMap()
-                : registrationService.findStatusesByEventIds(
-                        viewerId, related.stream().map(Event::getId).collect(Collectors.toList()));
+        final List<Long> relatedIds = related.stream().map(Event::getId).collect(Collectors.toList());
+        final boolean relatedForViewer = viewerId != null && !relatedIds.isEmpty();
+        final Map<Long, RegistrationStatus> relatedStatuses = relatedForViewer
+                ? registrationService.findStatusesByEventIds(viewerId, relatedIds)
+                : Collections.emptyMap();
+        // El corazon de cada card relacionada: una consulta acotada a esos ids (un IN), no todos sus favoritos.
+        final Set<Long> relatedFavoriteIds = relatedForViewer
+                ? favoriteService.findFavoriteEventIds(viewerId, relatedIds)
+                : Collections.emptySet();
 
         // Una invitacion sin usar a un evento con aprobacion cambia el resultado de anotarse (queda confirmada): solo
         // hace falta saberlo en ese caso.
@@ -76,7 +82,7 @@ public class EventDetailServiceImpl implements EventDetailService {
                 actionOf(event, participation, full, invited), chatAccessOf(event, participation, chatMember),
                 participation != null && participation.isRegistered() && event.isActive(),
                 event.isOpenForQuestions() && !owner, owner, !owner, favorite, chatMember,
-                reputationOf(event, reviewsPage), related, relatedStatuses,
+                reputationOf(event, reviewsPage), related, relatedStatuses, relatedFavoriteIds,
                 eventQuestionService.findPage(eventId, questionsPage));
     }
 

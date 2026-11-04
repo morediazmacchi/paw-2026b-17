@@ -19,6 +19,8 @@ public enum InboxMessageType {
     EVENT_CANCELLED,
     // Recordatorio automatico: el evento empieza en menos de 24 hs.
     EVENT_REMINDER,
+    // Se publicaron eventos nuevos que coinciden con una de sus busquedas guardadas (ver SavedSearch).
+    SAVED_SEARCH_MATCHES,
 
     // ---- Para quien organiza ----
     NEW_REGISTRATION,

@@ -54,6 +54,7 @@
         <span class="status-pill card-status status-pill-${fn:toLowerCase(estado)}"><spring:message code="event.status.${estado}"/></span>
     </c:if>
     <sec:authorize access="isAuthenticated()">
+    <c:if test="${not empty returnTo}">
         <c:url value="/eventos/${id}/favorito" var="favAddUrl"/>
         <c:url value="/eventos/${id}/favorito/quitar" var="favRemoveUrl"/>
         <spring:message code="event.favorite.add" var="favAddLabel"/>
@@ -68,5 +69,6 @@
                 <span class="favorite-icon-filled"${favorito ? '' : ' hidden'}><paw:icon name="heart-filled"/></span>
             </button>
         </form>
+    </c:if>
     </sec:authorize>
 </div>

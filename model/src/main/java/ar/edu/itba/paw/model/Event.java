@@ -181,6 +181,12 @@ public class Event implements EventAccessData {
     @Column(name = "featured_at")
     @Temporal(TemporalType.TIMESTAMP)
     private Date featuredAt;
+    // Cuando un admin lo aprobo (lo pone EventJpaDao.approve()): desde ahi es visible para todos. Lo usan las
+    // busquedas guardadas (SavedSearch) para saber que eventos son NUEVOS desde el ultimo aviso. Null en los
+    // aprobados antes de que existiera esta columna: para ninguna busqueda guardada son nuevos.
+    @Column(name = "approved_at")
+    @Temporal(TemporalType.TIMESTAMP)
+    private Date approvedAt;
     // Recordatorio "falta menos de 24 hs" (ver EventReminderScheduler): null = todavia
     // no se mando. Lo maneja EventJpaDao (markReminderSent, y update() cuando cambia
     // la fecha); no va en el constructor ni lo setea el resto del codigo.
@@ -285,6 +291,8 @@ public class Event implements EventAccessData {
     public void setFeatured(final boolean featured) { this.featured = featured; }
     public Date getFeaturedAt() { return featuredAt; }
     public void setFeaturedAt(final Date featuredAt) { this.featuredAt = featuredAt; }
+    public Date getApprovedAt() { return approvedAt; }
+    public void setApprovedAt(final Date approvedAt) { this.approvedAt = approvedAt; }
     public Date getReminderSentAt() { return reminderSentAt; }
     public void setReminderSentAt(final Date reminderSentAt) { this.reminderSentAt = reminderSentAt; }
 

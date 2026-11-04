@@ -33,6 +33,10 @@ public class EventSearchCriteria {
     // Solo eventos sin lugares libres ("Sold out"). Se puede combinar con el de
     // arriba: si estan los dos, trae los de pocos cupos Y los agotados.
     private boolean onlySoldOut;
+    // Solo eventos aprobados dentro de la ventana (approvedAfter, approvedUntil]. Las usan las busquedas guardadas
+    // (ver SavedSearchService) para contar los eventos NUEVOS desde el ultimo aviso; el listado no las usa.
+    private Date approvedAfter;
+    private Date approvedUntil;
     // Quien esta navegando (null = anonimo). Sus propios eventos no se listan en el
     // home, y con EventSort.RECOMENDADOS el orden se calcula para esta persona.
     private Long viewerId;
@@ -58,6 +62,10 @@ public class EventSearchCriteria {
     public void setOnlyFewSpotsLeft(final boolean onlyFewSpotsLeft) { this.onlyFewSpotsLeft = onlyFewSpotsLeft; }
     public boolean isOnlySoldOut() { return onlySoldOut; }
     public void setOnlySoldOut(final boolean onlySoldOut) { this.onlySoldOut = onlySoldOut; }
+    public Date getApprovedAfter() { return approvedAfter; }
+    public void setApprovedAfter(final Date approvedAfter) { this.approvedAfter = approvedAfter; }
+    public Date getApprovedUntil() { return approvedUntil; }
+    public void setApprovedUntil(final Date approvedUntil) { this.approvedUntil = approvedUntil; }
     public Long getViewerId() { return viewerId; }
     public void setViewerId(final Long viewerId) { this.viewerId = viewerId; }
     public EventSort getSort() { return sort; }

@@ -16,6 +16,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 import java.util.Collections;
 import java.util.Date;
 import java.util.Map;
+import java.util.Set;
 import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
@@ -204,6 +205,36 @@ public class EventDetailServiceImplTest {
         // Assert
         assertEquals(Collections.singletonList(related), result.getRelatedEvents());
         assertEquals(statuses, result.getRelatedStatuses());
+    }
+
+    @Test
+    public void testGetDetailHoldsWhichRelatedEventsAreTheViewersFavorites() {
+        // Arrange
+        final Event related = ModelFixtures.event(11L);
+        final Set<Long> favorites = Collections.singleton(11L);
+        when(eventSimilarityService.findSimilar(EVENT_ID, VIEWER_ID)).thenReturn(Collections.singletonList(related));
+        when(favoriteService.findFavoriteEventIds(VIEWER_ID, Collections.singletonList(11L))).thenReturn(favorites);
+
+        // Act
+        final EventDetail result = detailService.getDetail(EVENT_ID, VIEWER_ID, QUESTIONS_PAGE, REVIEWS_PAGE);
+
+        // Assert
+        assertEquals(favorites, result.getRelatedFavoriteIds());
+    }
+
+    @Test
+    public void testGetDetailForAnAnonymousVisitorHasNoFavoritesAmongTheRelatedEvents() {
+        // Arrange: el senuelo solo aparece si se buscan favoritos sin haber una persona con sesion
+        final Event related = ModelFixtures.event(11L);
+        when(eventSimilarityService.findSimilar(EVENT_ID, null)).thenReturn(Collections.singletonList(related));
+        lenient().when(favoriteService.findFavoriteEventIds(anyLong(), org.mockito.ArgumentMatchers.anyCollection()))
+                .thenReturn(Collections.singleton(11L));
+
+        // Act
+        final EventDetail result = detailService.getDetail(EVENT_ID, null, QUESTIONS_PAGE, REVIEWS_PAGE);
+
+        // Assert
+        assertTrue(result.getRelatedFavoriteIds().isEmpty());
     }
 
     @Test

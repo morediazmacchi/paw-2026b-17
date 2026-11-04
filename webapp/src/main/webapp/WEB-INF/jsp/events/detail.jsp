@@ -16,6 +16,7 @@
     <script src="<c:url value='/js/disable-on-submit.js'/>"></script>
     <script src="<c:url value='/js/event-gallery.js'/>"></script>
     <script src="<c:url value='/js/modal.js'/>"></script>
+    <script src="<c:url value='/js/related-carousel.js'/>"></script>
 </jsp:attribute>
 <jsp:body>
 <paw:navbar/>
@@ -724,17 +725,39 @@
     <c:if test="${not empty relatedEvents}">
         <section class="related-events">
             <h2 class="related-events-title"><spring:message code="event.detail.related.title"/></h2>
-            <div class="related-events-list">
-                <c:forEach var="rel" items="${relatedEvents}">
-                    <c:set var="relStatus" value="${relatedStatuses[rel.id]}"/>
-                    <a class="related-event-chip" href="<c:url value='/eventos/${rel.id}'/>">
-                        <span class="related-event-chip-title"><c:out value="${rel.title}"/></span>
-                        <span class="related-event-chip-meta"><paw:date value="${rel.eventDate}" format="shortDateTime"/></span>
-                        <c:if test="${not empty relStatus}">
-                            <span class="status-pill status-pill-${fn:toLowerCase(relStatus)}"><spring:message code="event.status.${relStatus}"/></span>
-                        </c:if>
-                    </a>
-                </c:forEach>
+            <%-- Las mismas cards del listado (foto, precio, categoria, fecha y barrio, y el corazon), en
+                 una fila que se desliza de costado si no entran. Al tocar el corazon se vuelve a este
+                 detalle (returnTo sin <c:url>, igual que el corazon de arriba). --%>
+            <c:set var="relReturnTo" value="/eventos/${event.id}"/>
+            <spring:message code="event.detail.related.prev" var="relatedPrevLabel"/>
+            <spring:message code="event.detail.related.next" var="relatedNextLabel"/>
+            <%-- Las flechas de los costados arrancan ocultas: related-carousel.js muestra cada una solo
+                 si hay cards para ese lado. Sin JS la fila igual se desliza de costado. --%>
+            <div class="related-events-carousel" data-related-carousel>
+                <button type="button" class="related-events-arrow related-events-arrow-prev" data-related-prev
+                        aria-label="${relatedPrevLabel}" hidden>
+                    <paw:icon name="chevron-left"/>
+                </button>
+                <div class="related-events-list" data-related-list>
+                    <c:forEach var="rel" items="${relatedEvents}">
+                        <c:set var="relPrecio" value="${rel.free ? null : rel.price}" />
+                        <c:set var="relUbicacion" value="${empty rel.neighborhood ? rel.address : rel.neighborhood.displayName}" />
+                        <c:set var="relCategoria" value=""/>
+                        <c:forEach var="relCat" items="${rel.categories}" varStatus="relCatStatus">
+                            <spring:message code="category.${relCat.categoryName}" text="${relCat.categoryName}" var="relCatName"/>
+                            <c:set var="relCategoria" value="${relCategoria}${relCatStatus.first ? '' : ', '}${relCatName}"/>
+                        </c:forEach>
+                        <paw:card id="${rel.id}" nombre="${rel.title}" precio="${relPrecio}" gratis="${rel.free}"
+                                  fecha="${rel.eventDate}" categoria="${relCategoria}"
+                                  ubicacion="${relUbicacion}" imagenId="${rel.imageId}"
+                                  favorito="${relatedFavoriteIds.contains(rel.id)}"
+                                  returnTo="${relReturnTo}" />
+                    </c:forEach>
+                </div>
+                <button type="button" class="related-events-arrow related-events-arrow-next" data-related-next
+                        aria-label="${relatedNextLabel}" hidden>
+                    <paw:icon name="chevron-right"/>
+                </button>
             </div>
         </section>
     </c:if>

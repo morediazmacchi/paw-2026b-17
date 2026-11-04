@@ -20,6 +20,8 @@ import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.FavoriteService;
 import ar.edu.itba.paw.services.PageResult;
 import ar.edu.itba.paw.services.RegistrationService;
+import ar.edu.itba.paw.services.SaveSearchResult;
+import ar.edu.itba.paw.services.SavedSearchService;
 import ar.edu.itba.paw.model.exception.InvalidEventException;
 import ar.edu.itba.paw.model.exception.InvalidImageException;
 import ar.edu.itba.paw.webapp.form.EventForm;
@@ -60,19 +62,22 @@ public class EventController {
     private final FavoriteService favoriteService;
     private final EventDetailService eventDetailService;
     private final EventAccessService accessChecker;
+    private final SavedSearchService savedSearchService;
     private final MessageSource messageSource;
 
     @Autowired
     public EventController(final EventService eventService, final CategoryService categoryService,
                             final RegistrationService registrationService,
                             final FavoriteService favoriteService, final EventDetailService eventDetailService,
-                            final EventAccessService accessChecker, final MessageSource messageSource) {
+                            final EventAccessService accessChecker, final SavedSearchService savedSearchService,
+                            final MessageSource messageSource) {
         this.eventService = eventService;
         this.categoryService = categoryService;
         this.registrationService = registrationService;
         this.favoriteService = favoriteService;
         this.eventDetailService = eventDetailService;
         this.accessChecker = accessChecker;
+        this.savedSearchService = savedSearchService;
         this.messageSource = messageSource;
     }
 
@@ -80,6 +85,27 @@ public class EventController {
     // errores de negocio) se resuelven aca contra el idioma del pedido actual.
     private String message(final String code, final Object... args) {
         return messageSource.getMessage(code, args, LocaleContextHolder.getLocale());
+    }
+
+    // El resultado de "Guardar busqueda" vuelve en la URL (?busqueda=SAVED). Cualquier otro valor se ignora: la URL
+    // la puede tocar cualquiera, y el JSP arma una clave de mensaje con esto.
+    private static SaveSearchResult parseSaveSearchResult(final String value) {
+        for (final SaveSearchResult result : SaveSearchResult.values()) {
+            if (result.name().equals(value)) {
+                return result;
+            }
+        }
+        return null;
+    }
+
+    // "Guardar busqueda" (watchlist) de /eventos: guarda los filtros puestos para avisar de los eventos nuevos que
+    // los cumplan. Exige sesion (WebAuthConfig: todo lo que no es publico la pide) y llama a UN solo metodo del
+    // service (correccion 06). Vuelve al listado con los mismos filtros y el resultado.
+    @RequestMapping(value = "/eventos/busquedas", method = RequestMethod.POST)
+    public ModelAndView saveSearch(final EventSearchForm filters,
+                                   @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
+        final SaveSearchResult result = savedSearchService.save(currentUser.getId(), filters.toCriteria());
+        return new ModelAndView("redirect:/eventos?" + filters.toFilterQuery() + "busqueda=" + result.name());
     }
 
     @RequestMapping(value = "/", method = RequestMethod.GET)
@@ -92,6 +118,7 @@ public class EventController {
     // viven en EventSearchForm.
     @RequestMapping(value = "/eventos", method = RequestMethod.GET)
     public ModelAndView list(final EventSearchForm filters,
+                              @RequestParam(value = "busqueda", required = false) final String saveSearchResult,
                               @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final Map<String, String> filterErrors = new HashMap<>();
         if (filters.isPriceRangeInvalid()) {
@@ -143,6 +170,13 @@ public class EventController {
             // significa que la persona nunca se inscribio (o se dio de baja).
             mav.addObject("registrationStatuses",
                     registrationService.findStatusesByEventIds(currentUser.getId(), pageEventIds));
+            // Boton "Guardar busqueda" (solo despues de filtrar): si estos filtros ya estan guardados, se muestra
+            // que ya lo estan en vez del boton.
+            if (filters.hasActiveFilters()) {
+                mav.addObject("searchSaved", savedSearchService.isSaved(currentUser.getId(), criteria));
+            }
+            mav.addObject("saveSearchResult", parseSaveSearchResult(saveSearchResult));
+            mav.addObject("maxSavedSearches", SavedSearchService.MAX_PER_USER);
         }
         return mav;
     }
@@ -180,6 +214,7 @@ public class EventController {
         // "Eventos que te pueden interesar": vacio si el evento es privado o no esta aprobado.
         mav.addObject("relatedEvents", detail.getRelatedEvents());
         mav.addObject("relatedStatuses", detail.getRelatedStatuses());
+        mav.addObject("relatedFavoriteIds", detail.getRelatedFavoriteIds());
         final PageResult<EventQuestion> questions = detail.getQuestions();
         mav.addObject("questions", questions.getContent());
         mav.addObject("questionsPage", questions.getPage());

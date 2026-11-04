@@ -2,6 +2,7 @@
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions" %>
 <%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
+<%@ taglib prefix="sec" uri="http://www.springframework.org/security/tags" %>
 <%@ taglib prefix="paw" tagdir="/WEB-INF/tags" %>
 <paw:layout titleCode="event.list.title">
 <jsp:attribute name="head">
@@ -11,6 +12,8 @@
     <script src="<c:url value='/js/date-filter-calendar.js'/>"></script>
     <script src="<c:url value='/js/price-range.js'/>"></script>
     <script src="<c:url value='/js/filter-dropdown.js'/>"></script>
+    <%-- Que "Guardar busqueda" no se mande dos veces con un doble click. --%>
+    <script src="<c:url value='/js/disable-on-submit.js'/>"></script>
 </jsp:attribute>
 <jsp:body>
 <%-- Adonde vuelve el corazon de favorito despues de togglear: esta misma
@@ -356,6 +359,54 @@
         </label>
     </div>
     </form>
+
+    <%-- "Guardar busqueda" (watchlist): solo con sesion iniciada y despues de filtrar. Es un POST aparte del form de
+         filtros (un form no puede ir adentro de otro), asi que repite como campos ocultos los filtros que estan
+         puestos. Si estos filtros ya estan guardados, en vez del boton se ve que ya lo estan. --%>
+    <sec:authorize access="isAuthenticated()">
+    <c:if test="${hasActiveFilters}">
+        <c:choose>
+            <c:when test="${saveSearchResult == 'LIMIT_REACHED'}">
+                <p class="alert"><spring:message code="event.list.saveSearch.result.LIMIT_REACHED" arguments="${maxSavedSearches}"/></p>
+            </c:when>
+            <c:when test="${not empty saveSearchResult}">
+                <p class="alert alert-success"><spring:message code="event.list.saveSearch.result.${saveSearchResult}"/></p>
+            </c:when>
+        </c:choose>
+        <div class="save-search">
+            <p class="save-search-text"><spring:message code="event.list.saveSearch.title"/></p>
+            <c:choose>
+                <c:when test="${searchSaved}">
+                    <span class="btn btn-medium save-search-btn save-search-saved">
+                        <paw:icon name="bell"/> <spring:message code="event.list.saveSearch.savedState"/>
+                    </span>
+                </c:when>
+                <c:otherwise>
+                    <form action="<c:url value='/eventos/busquedas'/>" method="post">
+                        <c:forEach var="savedCategoria" items="${selectedCategorias}">
+                            <input type="hidden" name="categoria" value="${savedCategoria}"/>
+                        </c:forEach>
+                        <c:forEach var="savedBarrio" items="${selectedBarrios}">
+                            <input type="hidden" name="barrio" value="${savedBarrio.name()}"/>
+                        </c:forEach>
+                        <input type="hidden" name="precioMin" value="${fn:escapeXml(precioMin)}"/>
+                        <input type="hidden" name="precioMax" value="${fn:escapeXml(precioMax)}"/>
+                        <input type="hidden" name="fechaDesde" value="${fn:escapeXml(fechaDesde)}"/>
+                        <input type="hidden" name="fechaHasta" value="${fn:escapeXml(fechaHasta)}"/>
+                        <%-- Estos tres no se guardan (cambian solos con el tiempo), pero viajan para volver al
+                             listado con los mismos filtros que tenia puestos. --%>
+                        <input type="hidden" name="puntajeMin" value="${fn:escapeXml(puntajeMin)}"/>
+                        <input type="hidden" name="pocosCupos" value="${fn:escapeXml(pocosCupos)}"/>
+                        <input type="hidden" name="agotados" value="${fn:escapeXml(agotados)}"/>
+                        <button type="submit" class="btn btn-medium btn-accent save-search-btn">
+                            <paw:icon name="bell"/> <spring:message code="event.list.saveSearch.button"/>
+                        </button>
+                    </form>
+                </c:otherwise>
+            </c:choose>
+        </div>
+    </c:if>
+    </sec:authorize>
 
     <c:choose>
         <c:when test="${empty events}">

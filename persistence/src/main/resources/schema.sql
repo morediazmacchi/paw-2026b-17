@@ -413,3 +413,35 @@ CREATE TABLE IF NOT EXISTS event_chat_message (
 -- El chat siempre se lee por evento, en orden de llegada.
 CREATE INDEX IF NOT EXISTS idx_event_chat_message_event
     ON event_chat_message (event_id, id);
+
+-- Cuando un admin aprobo el evento (lo pone EventJpaDao.approve()). Lo usan las busquedas guardadas para saber que
+-- eventos son nuevos. Queda NULL en los aprobados antes de que existiera la columna: para nadie son "nuevos".
+ALTER TABLE event ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP WITH TIME ZONE;
+
+-- Busquedas guardadas ("watchlist", ver SavedSearch): los filtros de /eventos que una persona guardo para que le
+-- avisen de eventos nuevos. filters_key son esos filtros escritos siempre igual (SavedSearch.keyOf()): el UNIQUE
+-- impide que la misma persona guarde dos veces la misma busqueda. last_checked_at = hasta cuando ya se le aviso.
+CREATE TABLE IF NOT EXISTS saved_search (
+    id              SERIAL PRIMARY KEY,
+    user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    min_price       NUMERIC(10,2),
+    max_price       NUMERIC(10,2),
+    from_date       TIMESTAMP WITH TIME ZONE,
+    to_date         TIMESTAMP WITH TIME ZONE,
+    filters_key     VARCHAR(2000) NOT NULL,
+    created_at      TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+    last_checked_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    UNIQUE (user_id, filters_key)
+);
+
+CREATE TABLE IF NOT EXISTS saved_search_category (
+    saved_search_id INTEGER NOT NULL REFERENCES saved_search(id) ON DELETE CASCADE,
+    category_id     INTEGER NOT NULL REFERENCES category(id) ON DELETE CASCADE,
+    PRIMARY KEY (saved_search_id, category_id)
+);
+
+CREATE TABLE IF NOT EXISTS saved_search_barrio (
+    saved_search_id INTEGER NOT NULL REFERENCES saved_search(id) ON DELETE CASCADE,
+    barrio          VARCHAR(80) NOT NULL,
+    PRIMARY KEY (saved_search_id, barrio)
+);

@@ -552,6 +552,26 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Async
     @Override
+    public void notifySavedSearchMatches(final User user, final Event example, final long newEventsCount) {
+        try {
+            final Locale locale = localeForUserId(user.getId());
+            final Map<String, Object> variables = eventVariables(example, locale);
+            variables.put("personName", displayName(user.getName(), user.getEmail()));
+            variables.put("newEventsCount", newEventsCount);
+
+            mailService.send(user.getEmail(),
+                    "saved-search-matches",
+                    "mail.savedSearchMatches.subject",
+                    new Object[]{ newEventsCount },
+                    variables,
+                    locale);
+        } catch (final RuntimeException e) {
+            LOGGER.error("Fallo el aviso de busqueda guardada, usuario {}", user.getId(), e);
+        }
+    }
+
+    @Async
+    @Override
     public void notifyEventRejected(final Event event, final String reason) {
         try {
             final Locale locale = localeForUserId(event.getCreatorId());

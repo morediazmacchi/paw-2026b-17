@@ -199,6 +199,8 @@ public class EventJpaDao implements EventDao {
             return false;
         }
         event.setApprovalStatus(EventApprovalStatus.APPROVED);
+        // Desde ahora es visible para todos: las busquedas guardadas lo cuentan como nuevo a partir de aca.
+        event.setApprovedAt(new Date());
         return true;
     }
 
@@ -487,6 +489,17 @@ public class EventJpaDao implements EventDao {
         if (criteria.getToDate() != null) {
             sql.append(" AND e.event_date < :toDate");
             params.put("toDate", criteria.getToDate());
+        }
+        // Solo los aprobados en una ventana de tiempo: los eventos NUEVOS para una busqueda guardada (ver
+        // SavedSearchService). Es el mismo WHERE del listado mas esta condicion, asi una busqueda guardada avisa
+        // exactamente de los eventos que la persona veria en /eventos con esos filtros.
+        if (criteria.getApprovedAfter() != null) {
+            sql.append(" AND e.approved_at > :approvedAfter");
+            params.put("approvedAfter", criteria.getApprovedAfter());
+        }
+        if (criteria.getApprovedUntil() != null) {
+            sql.append(" AND e.approved_at <= :approvedUntil");
+            params.put("approvedUntil", criteria.getApprovedUntil());
         }
         if (criteria.getBarrios() != null && !criteria.getBarrios().isEmpty()) {
             sql.append(" AND e.neighborhood IN (:barrios)");

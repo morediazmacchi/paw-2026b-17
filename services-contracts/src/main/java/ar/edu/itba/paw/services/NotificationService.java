@@ -124,6 +124,12 @@ public interface NotificationService {
     /** Un admin rechazo el evento recien creado -> le avisa al creador con el motivo. */
     void notifyEventRejected(Event event, String reason);
 
+    /**
+     * Se aprobaron newEventsCount eventos nuevos que cumplen una busqueda guardada de user -> le avisa, mostrando
+     * example (uno de ellos).
+     */
+    void notifySavedSearchMatches(User user, Event example, long newEventsCount);
+
     /** Un admin le pidio al creador que corrija algo del evento -> le avisa con el mensaje. */
     void notifyEventChangesRequested(Event event, String message);
 

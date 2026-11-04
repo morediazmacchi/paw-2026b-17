@@ -757,6 +757,40 @@ public class EventJpaDaoTest {
     }
 
     @Test
+    public void testApproveStampsWhenItWasApproved() {
+        // Arrange
+        final long id = insertEvent(cols("approval_status", EventApprovalStatus.PENDING.name()));
+
+        // Act
+        eventDao.approve(id);
+        em.flush();
+
+        // Assert
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "event",
+                "id = " + id + " AND approved_at IS NOT NULL"));
+    }
+
+    @Test
+    public void testSearchWithAnApprovalWindowKeepsOnlyTheEventsApprovedInsideIt() {
+        // Arrange: uno aprobado antes de la ventana, uno adentro, uno despues y uno sin fecha de aprobacion
+        final Timestamp windowStart = fromNow(-2 * DAY);
+        final Timestamp windowEnd = fromNow(-DAY);
+        insertEvent(cols("title", "Antes", "approved_at", fromNow(-3 * DAY)));
+        final long inside = insertEvent(cols("title", "Adentro", "approved_at", fromNow(-36 * 60 * 60 * 1000L)));
+        insertEvent(cols("title", "Despues", "approved_at", fromNow(-60 * 60 * 1000L)));
+        insertEvent(cols("title", "Sin fecha"));
+        final EventSearchCriteria criteria = new EventSearchCriteria();
+        criteria.setApprovedAfter(windowStart);
+        criteria.setApprovedUntil(windowEnd);
+
+        // Act
+        final List<Event> result = eventDao.search(criteria);
+
+        // Assert
+        assertEquals(Collections.singletonList(inside), idsOf(result));
+    }
+
+    @Test
     public void testApproveOfAnEventThatDoesNotExistChangesNothingAndReturnsFalse() {
         // Arrange: otro evento pendiente, que no es el del Act. Tiene que seguir pendiente.
         final long other = insertEvent(cols("approval_status", EventApprovalStatus.PENDING.name()));

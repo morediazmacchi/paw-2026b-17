@@ -9,6 +9,7 @@ import ar.edu.itba.paw.model.RegistrationStatus;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class EventDetail {
 
@@ -27,6 +28,7 @@ public class EventDetail {
     private final CreatorReputation creatorReputation;
     private final List<Event> relatedEvents;
     private final Map<Long, RegistrationStatus> relatedStatuses;
+    private final Set<Long> relatedFavoriteIds;
     private final PageResult<EventQuestion> questions;
 
     public EventDetail(final Event event, final boolean full, final Integer availableSpots,
@@ -35,7 +37,7 @@ public class EventDetail {
                        final boolean canAnswer, final boolean canReport,
                        final boolean favorite, final boolean chatMember,
                        final CreatorReputation creatorReputation, final List<Event> relatedEvents,
-                       final Map<Long, RegistrationStatus> relatedStatuses,
+                       final Map<Long, RegistrationStatus> relatedStatuses, final Set<Long> relatedFavoriteIds,
                        final PageResult<EventQuestion> questions) {
         this.event = event;
         this.full = full;
@@ -52,6 +54,7 @@ public class EventDetail {
         this.creatorReputation = creatorReputation;
         this.relatedEvents = relatedEvents;
         this.relatedStatuses = relatedStatuses;
+        this.relatedFavoriteIds = relatedFavoriteIds;
         this.questions = questions;
     }
 
@@ -95,5 +98,9 @@ public class EventDetail {
 
     // Estado de la inscripcion propia en cada evento relacionado (vacio sin sesion).
     public Map<Long, RegistrationStatus> getRelatedStatuses() { return relatedStatuses; }
+
+    // Cuales de los eventos relacionados son favoritos de quien mira (vacio sin sesion).
+    public Set<Long> getRelatedFavoriteIds() { return relatedFavoriteIds; }
+
     public PageResult<EventQuestion> getQuestions() { return questions; }
 }
