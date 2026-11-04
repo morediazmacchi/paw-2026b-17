@@ -2328,10 +2328,54 @@ button.btn-accent {
     margin: 0;
 }
 
+/* Pastilla de estado en "Tu inscripcion": alineada a la izquierda, con un punto del color del
+   estado (currentColor) y un tinte de fondo suave. */
 .detail-rsvp-status {
-    display: block;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     width: fit-content;
-    margin: 0 auto 8px;
+    margin: 12px 0 14px;
+    padding: 5px 14px;
+    font-size: 0.85rem;
+    background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.detail-rsvp-status::before {
+    content: "";
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+/* Fecha y hora de la inscripcion, separadas por una linea vertical. */
+.detail-rsvp-when {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 4px;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+}
+
+.detail-rsvp-when .icon {
+    margin-right: 4px;
+}
+
+.detail-rsvp-when-divider {
+    width: 1px;
+    height: 20px;
+    background: var(--border);
+}
+
+/* Boton "Darme de baja" del mismo card: ancho completo, borde rojo y hueco entre el icono y el texto. */
+.detail-rsvp-card .btn-danger.detail-rsvp-submit {
+    margin-top: 16px;
+    padding-top: 12px;
+    padding-bottom: 12px;
+    gap: 10px;
 }
 
 @media (max-width: 620px) {

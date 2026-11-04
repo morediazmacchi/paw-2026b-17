@@ -519,7 +519,14 @@
             </div>
 
             <div class="detail-rsvp-card">
-                <h2 class="detail-rsvp-heading"><spring:message code="event.detail.registerCardHeading"/></h2>
+                <%-- Quien ya tiene inscripcion (confirmada, pendiente o en lista) ve "Tu inscripcion";
+                     el resto, el titulo para anotarse. Misma regla que alreadyRegistered mas abajo. --%>
+                <h2 class="detail-rsvp-heading">
+                    <c:choose>
+                        <c:when test="${action == 'UNREGISTER' or action == 'LEAVE_WAITLIST' or action == 'CANCEL_PENDING'}"><spring:message code="event.detail.myRegistrationHeading"/></c:when>
+                        <c:otherwise><spring:message code="event.detail.registerCardHeading"/></c:otherwise>
+                    </c:choose>
+                </h2>
                 <c:choose>
                     <%-- Sos el organizador: gana sobre todo lo demas (cancelado,
                          finalizado, lleno, etc.), ninguna de esas ramas te aplica
@@ -633,8 +640,15 @@
                                         <c:otherwise><c:set var="myRegistrationStatus" value="CONFIRMED"/></c:otherwise>
                                     </c:choose>
                                     <paw:registrationStatus status="${myRegistrationStatus}" cssClass="detail-rsvp-status"/>
+                                    <div class="detail-rsvp-when">
+                                        <span><paw:icon name="calendar"/> <paw:date value="${event.eventDate}" format="longDate"/></span>
+                                        <span class="detail-rsvp-when-divider" aria-hidden="true"></span>
+                                        <span><paw:icon name="clock"/> <paw:date value="${event.eventDate}" format="time"/></span>
+                                    </div>
                                     <form action="<c:url value='/eventos/${event.id}/darme-de-baja'/>" method="post" novalidate="novalidate">
-                                        <paw:button text="${unregisterButtonLabel}" cssClass="btn-danger detail-rsvp-submit" />
+                                        <button type="submit" class="btn btn-medium btn-danger detail-rsvp-submit">
+                                            <paw:icon name="trash"/> <c:out value="${unregisterButtonLabel}"/>
+                                        </button>
                                     </form>
                                 </c:when>
                                 <c:otherwise>

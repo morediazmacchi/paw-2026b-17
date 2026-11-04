@@ -369,7 +369,7 @@
         </div>
         <paw:input name="price" label="${priceLabel}" digitsOnly="${true}" maxLength="8" placeholder="10000"
                    value="${eventForm.price}" errorMessage="${fieldErrors.price}"
-                   toggleText="${freeOptionLabel}" />
+                   toggleText="${freeOptionLabel}" toggleBelow="${true}" />
         <paw:input name="maxCapacity" label="${capacityLabel}" digitsOnly="${true}" maxLength="9" placeholder="100"
                    value="${eventForm.maxCapacity}" errorMessage="${fieldErrors.maxCapacity}"
                    toggleText="${noLimitOptionLabel}" toggleBelow="${true}" />
