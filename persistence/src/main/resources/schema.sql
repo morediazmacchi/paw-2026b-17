@@ -341,11 +341,9 @@ ALTER TABLE event ADD COLUMN IF NOT EXISTS removed_reason VARCHAR(500);
 ALTER TABLE event ADD COLUMN IF NOT EXISTS approval_status VARCHAR(20) NOT NULL DEFAULT 'APPROVED';
 ALTER TABLE event ADD COLUMN IF NOT EXISTS rejected_reason VARCHAR(500);
 
--- Banner destacado de /eventos, curado por un admin (ver EventDao.findFeatured()/
--- setFeatured(), AdminController.destacar()/quitarDestacado()). featured_at
--- ordena el banner (mas reciente primero) y se limpia al desmarcar.
-ALTER TABLE event ADD COLUMN IF NOT EXISTS featured BOOLEAN NOT NULL DEFAULT false;
-ALTER TABLE event ADD COLUMN IF NOT EXISTS featured_at TIMESTAMP WITH TIME ZONE;
+-- (El banner de /eventos ya no se cura a mano: lo arma EventDao.findMostRegistered() por cantidad de
+-- inscriptos. Las columnas event.featured / event.featured_at de ese esquema viejo siguen en las bases que ya
+-- las tenian, sin uso y con DEFAULT, y no se borran para no perder datos; una base nueva no las crea.)
 
 -- Reporte de un evento (ver ModerationService): lo puede hacer cualquier
 -- usuario logueado (admins incluidos), y lo revisa despues un admin, que lo

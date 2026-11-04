@@ -1889,123 +1889,203 @@ public class EventJpaDaoTest {
     }
 
     // ==================================================================
-    // findFeatured() / setFeatured()
+    // findMostRegistered() (banner de /eventos)
     // ==================================================================
 
-    @Test
-    public void testFindFeaturedReturnsOnlyEventsMarkedAsFeatured() {
-        // Arrange
-        insertEvent(cols("address", "No destacado"));
-        final long featuredId = insertEvent(cols("address", "Destacado", "featured", true,
-                "featured_at", new Timestamp(System.currentTimeMillis())));
-
-        // Act
-        final List<Event> featured = eventDao.findFeatured(10);
-
-        // Assert
-        assertEquals(1, featured.size());
-        assertEquals(featuredId, featured.get(0).getId().longValue());
-        assertTrue(featured.get(0).isFeatured());
-    }
-
-    @Test
-    public void testFindFeaturedOrdersByMostRecentlyFeaturedFirst() {
-        // Arrange
-        final Timestamp antes = new Timestamp(System.currentTimeMillis() - 2000);
-        final Timestamp despues = new Timestamp(System.currentTimeMillis() - 1000);
-        final long firstFeaturedId = insertEvent(cols("address", "Primero", "featured", true, "featured_at", antes));
-        final long secondFeaturedId = insertEvent(cols("address", "Segundo", "featured", true, "featured_at", despues));
-
-        // Act
-        final List<Event> featured = eventDao.findFeatured(10);
-
-        // Assert
-        assertEquals(2, featured.size());
-        assertEquals(secondFeaturedId, featured.get(0).getId().longValue());
-        assertEquals(firstFeaturedId, featured.get(1).getId().longValue());
-    }
-
-    @Test
-    public void testFindFeaturedRespectsTheLimit() {
-        // Arrange
-        for (int i = 0; i < 3; i++) {
-            insertEvent(cols("address", "Destacado " + i, "featured", true,
-                    "featured_at", new Timestamp(System.currentTimeMillis())));
+    // Inscripciones del estado dado, con un mail distinto cada una (UNIQUE (event_id, email)).
+    private void insertRegistrations(final long eventId, final String status, final int count) {
+        for (int i = 0; i < count; i++) {
+            insertRegistration(eventId, status.toLowerCase() + i + "-" + eventId + "@mail.com", status);
         }
-
-        // Act
-        final List<Event> featured = eventDao.findFeatured(2);
-
-        // Assert
-        assertEquals(2, featured.size());
     }
 
     @Test
-    public void testFindFeaturedExcludesPrivateCancelledAndPastEvents() {
+    public void testFindMostRegisteredOrdersByConfirmedRegistrationsFromMostToLeast() {
         // Arrange
-        insertEvent(cols("address", "Privado", "featured", true,
-                "featured_at", new Timestamp(System.currentTimeMillis()), "visibility", EventVisibility.PRIVATE.name()));
-        insertEvent(cols("address", "Cancelado", "featured", true,
-                "featured_at", new Timestamp(System.currentTimeMillis()), "cancelled_at", new Timestamp(System.currentTimeMillis())));
-        insertEvent(cols("address", "Pasado", "featured", true,
-                "featured_at", new Timestamp(System.currentTimeMillis()),
-                "event_date", new Timestamp(System.currentTimeMillis() - 86_400_000L)));
+        final long one = insertEvent(cols("address", "Uno"));
+        final long three = insertEvent(cols("address", "Tres"));
+        final long two = insertEvent(cols("address", "Dos"));
+        insertRegistrations(one, "CONFIRMED", 1);
+        insertRegistrations(three, "CONFIRMED", 3);
+        insertRegistrations(two, "CONFIRMED", 2);
 
         // Act
-        final List<Event> featured = eventDao.findFeatured(10);
+        final List<Long> ids = idsOf(eventDao.findMostRegistered(10));
 
         // Assert
-        assertTrue(featured.isEmpty());
+        assertEquals(Arrays.asList(three, two, one), ids);
     }
 
     @Test
-    public void testFindFeaturedExcludesPendingApprovalAndRejectedEvents() {
-        // Arrange
-        insertEvent(cols("address", "Pendiente", "featured", true,
-                "featured_at", new Timestamp(System.currentTimeMillis()),
-                "approval_status", EventApprovalStatus.PENDING.name()));
-        insertEvent(cols("address", "Rechazado", "featured", true,
-                "featured_at", new Timestamp(System.currentTimeMillis()),
-                "approval_status", EventApprovalStatus.REJECTED.name()));
+    public void testFindMostRegisteredCountsOnlyConfirmedRegistrations() {
+        // Arrange: "muchos" tiene mas filas en total, pero solo 1 confirmada; "pocos" tiene 2 confirmadas
+        final long many = insertEvent(cols("address", "Muchos"));
+        insertRegistrations(many, "CONFIRMED", 1);
+        insertRegistrations(many, "PENDING", 3);
+        insertRegistrations(many, "WAITLISTED", 2);
+        insertRegistrations(many, "REJECTED", 1);
+        final long few = insertEvent(cols("address", "Pocos"));
+        insertRegistrations(few, "CONFIRMED", 2);
 
         // Act
-        final List<Event> featured = eventDao.findFeatured(10);
+        final List<Long> ids = idsOf(eventDao.findMostRegistered(10));
 
         // Assert
-        assertTrue(featured.isEmpty());
+        assertEquals(Arrays.asList(few, many), ids);
     }
 
     @Test
-    public void testSetFeaturedTrueMarksTheEventFeaturedAndSetsFeaturedAtAndReturnsTrue() {
-        // Arrange
-        final long id = insertEvent();
+    public void testFindMostRegisteredLeavesOutEventsWithoutConfirmedRegistrations() {
+        // Arrange: uno sin nadie, uno con solo pedidos pendientes, y uno con un confirmado
+        insertEvent(cols("address", "Vacio"));
+        final long onlyPending = insertEvent(cols("address", "Solo pendientes"));
+        insertRegistrations(onlyPending, "PENDING", 4);
+        final long confirmed = insertEvent(cols("address", "Con confirmado"));
+        insertRegistrations(confirmed, "CONFIRMED", 1);
 
         // Act
-        final boolean result = eventDao.setFeatured(id, true);
-        em.flush();
+        final List<Long> ids = idsOf(eventDao.findMostRegistered(10));
 
         // Assert
-        assertTrue(result);
-        final Map<String, Object> row = jdbcTemplate.queryForMap(
-                "SELECT featured, featured_at FROM event WHERE id = ?", id);
-        assertTrue((Boolean) row.get("featured"));
-        assertNotNull(row.get("featured_at"));
+        assertEquals(Collections.singletonList(confirmed), ids);
     }
 
     @Test
-    public void testSetFeaturedFalseClearsFeaturedAt() {
+    public void testFindMostRegisteredWithoutAnyRegistrationReturnsAnEmptyList() {
         // Arrange
-        final long id = insertEvent(cols("featured", true, "featured_at", new Timestamp(System.currentTimeMillis())));
+        insertEvent(cols("address", "Vacio"));
 
         // Act
-        eventDao.setFeatured(id, false);
-        em.flush();
+        final List<Event> result = eventDao.findMostRegistered(10);
 
         // Assert
-        final Map<String, Object> row = jdbcTemplate.queryForMap(
-                "SELECT featured, featured_at FROM event WHERE id = ?", id);
-        assertFalse((Boolean) row.get("featured"));
-        assertNull(row.get("featured_at"));
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    public void testFindMostRegisteredKeepsTheMostRegisteredWhenThereAreMoreThanTheLimit() {
+        // Arrange
+        final long first = insertEvent(cols("address", "Uno"));
+        final long second = insertEvent(cols("address", "Dos"));
+        final long third = insertEvent(cols("address", "Tres"));
+        insertRegistrations(first, "CONFIRMED", 1);
+        insertRegistrations(second, "CONFIRMED", 2);
+        insertRegistrations(third, "CONFIRMED", 3);
+
+        // Act
+        final List<Long> ids = idsOf(eventDao.findMostRegistered(2));
+
+        // Assert
+        assertEquals(Arrays.asList(third, second), ids);
+    }
+
+    @Test
+    public void testFindMostRegisteredBreaksATieWithTheSoonestEventFirst() {
+        // Arrange: mismas inscripciones; el que ocurre antes se inserta ultimo, para que no gane por id
+        final long later = insertEvent(cols("address", "Despues", "event_date", fromNow(3 * DAY)));
+        final long sooner = insertEvent(cols("address", "Antes", "event_date", fromNow(1 * DAY)));
+        insertRegistrations(later, "CONFIRMED", 2);
+        insertRegistrations(sooner, "CONFIRMED", 2);
+
+        // Act
+        final List<Long> ids = idsOf(eventDao.findMostRegistered(10));
+
+        // Assert
+        assertEquals(Arrays.asList(sooner, later), ids);
+    }
+
+    @Test
+    public void testFindMostRegisteredBreaksATieOnTheSameDateWithTheLowestId() {
+        // Arrange: mismas inscripciones y misma fecha
+        final Timestamp sameDate = fromNow(2 * DAY);
+        final long lower = insertEvent(cols("address", "Primero", "event_date", sameDate));
+        final long higher = insertEvent(cols("address", "Segundo", "event_date", sameDate));
+        insertRegistrations(higher, "CONFIRMED", 2);
+        insertRegistrations(lower, "CONFIRMED", 2);
+
+        // Act
+        final List<Long> ids = idsOf(eventDao.findMostRegistered(10));
+
+        // Assert
+        assertEquals(Arrays.asList(lower, higher), ids);
+    }
+
+    // Cada exclusion se prueba con el evento excluido MAS inscripto que el que si entra: si el filtro
+    // faltara, el excluido ganaria y el resultado cambiaria.
+
+    @Test
+    public void testFindMostRegisteredExcludesPrivateEvents() {
+        // Arrange
+        final long privateEvent = insertEvent(cols("address", "Privado", "visibility", EventVisibility.PRIVATE.name()));
+        insertRegistrations(privateEvent, "CONFIRMED", 5);
+        final long publicEvent = insertEvent(cols("address", "Publico"));
+        insertRegistrations(publicEvent, "CONFIRMED", 1);
+
+        // Act
+        final List<Long> ids = idsOf(eventDao.findMostRegistered(10));
+
+        // Assert
+        assertEquals(Collections.singletonList(publicEvent), ids);
+    }
+
+    @Test
+    public void testFindMostRegisteredExcludesCancelledEvents() {
+        // Arrange
+        final long cancelled = insertEvent(cols("address", "Cancelado", "cancelled_at", fromNow(0)));
+        insertRegistrations(cancelled, "CONFIRMED", 5);
+        final long active = insertEvent(cols("address", "Activo"));
+        insertRegistrations(active, "CONFIRMED", 1);
+
+        // Act
+        final List<Long> ids = idsOf(eventDao.findMostRegistered(10));
+
+        // Assert
+        assertEquals(Collections.singletonList(active), ids);
+    }
+
+    @Test
+    public void testFindMostRegisteredExcludesEventsThatAlreadyHappened() {
+        // Arrange
+        final long past = insertEvent(cols("address", "Pasado", "event_date", fromNow(-DAY)));
+        insertRegistrations(past, "CONFIRMED", 5);
+        final long upcoming = insertEvent(cols("address", "Futuro"));
+        insertRegistrations(upcoming, "CONFIRMED", 1);
+
+        // Act
+        final List<Long> ids = idsOf(eventDao.findMostRegistered(10));
+
+        // Assert
+        assertEquals(Collections.singletonList(upcoming), ids);
+    }
+
+    @Test
+    public void testFindMostRegisteredExcludesEventsPendingApproval() {
+        // Arrange
+        final long pending = insertEvent(cols("address", "Pendiente", "approval_status", EventApprovalStatus.PENDING.name()));
+        insertRegistrations(pending, "CONFIRMED", 5);
+        final long approved = insertEvent(cols("address", "Aprobado"));
+        insertRegistrations(approved, "CONFIRMED", 1);
+
+        // Act
+        final List<Long> ids = idsOf(eventDao.findMostRegistered(10));
+
+        // Assert
+        assertEquals(Collections.singletonList(approved), ids);
+    }
+
+    @Test
+    public void testFindMostRegisteredExcludesRejectedEvents() {
+        // Arrange
+        final long rejected = insertEvent(cols("address", "Rechazado", "approval_status", EventApprovalStatus.REJECTED.name()));
+        insertRegistrations(rejected, "CONFIRMED", 5);
+        final long approved = insertEvent(cols("address", "Aprobado"));
+        insertRegistrations(approved, "CONFIRMED", 1);
+
+        // Act
+        final List<Long> ids = idsOf(eventDao.findMostRegistered(10));
+
+        // Assert
+        assertEquals(Collections.singletonList(approved), ids);
     }
 
     // ==================================================================
@@ -2218,20 +2298,6 @@ public class EventJpaDaoTest {
         assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "event", "removed_by_admin = true"));
     }
 
-    @Test
-    public void testSetFeaturedOfAnEventThatDoesNotExistChangesNothingAndReturnsFalse() {
-        // Arrange: otro evento, que no es el del Act. Tiene que seguir sin destacar.
-        insertEvent();
-
-        // Act
-        final boolean result = eventDao.setFeatured(999_999L, true);
-        em.flush();
-
-        // Assert
-        assertFalse(result);
-        assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "event", "featured = true"));
-    }
-
     // La portada y las categorias de una lista de eventos tienen que venir ya cargadas: se
     // limpia el EntityManager (los eventos quedan "sueltos", sin sesion) y recien ahi se leen.
     // Si algo siguiera lazy, leerlo fallaria con LazyInitializationException.
@@ -2286,20 +2352,20 @@ public class EventJpaDaoTest {
     }
 
     @Test
-    public void testFindFeaturedLoadsTheCategoriesOfEachEvent() {
+    public void testFindMostRegisteredLoadsTheCategoriesOfEachEvent() {
         // Arrange
-        final long eventId = insertEvent(cols("featured", true,
-                "featured_at", new Timestamp(System.currentTimeMillis())));
+        final long eventId = insertEvent(cols());
         insertEventCategory(eventId, categoryId, null);
+        insertRegistrations(eventId, "CONFIRMED", 1);
 
         // Act
-        final List<Event> featured = eventDao.findFeatured(10);
+        final List<Event> mostRegistered = eventDao.findMostRegistered(10);
         em.clear();
 
         // Assert
-        assertEquals(1, featured.size());
+        assertEquals(1, mostRegistered.size());
         assertEquals(Collections.singletonList(CATEGORY_NAME),
-                featured.get(0).getCategories().stream()
+                mostRegistered.get(0).getCategories().stream()
                         .map(EventCategory::getCategoryName).collect(Collectors.toList()));
     }
 
@@ -2364,14 +2430,18 @@ public class EventJpaDaoTest {
     }
 
     @Test
-    public void testFindFeaturedKeepsEveryFeaturedEventEvenTheCreators() {
-        // Arrange
-        final Timestamp featuredAt = new Timestamp(System.currentTimeMillis());
-        insertEvent(cols("creator_id", creatorId, "featured", true, "featured_at", featuredAt));
-        insertEvent(cols("featured", true, "featured_at", featuredAt));
+    public void testFindMostRegisteredIncludesEventsWithAndWithoutAnOwner() {
+        // Arrange: el banner no depende de quien navega, asi que no filtra por creador
+        final long owned = insertEvent(cols("creator_id", creatorId));
+        final long legacy = insertEvent(cols());
+        insertRegistrations(owned, "CONFIRMED", 2);
+        insertRegistrations(legacy, "CONFIRMED", 1);
 
-        // Act + Assert
-        assertEquals(2, eventDao.findFeatured(10).size());
+        // Act
+        final List<Long> ids = idsOf(eventDao.findMostRegistered(10));
+
+        // Assert
+        assertEquals(Arrays.asList(owned, legacy), ids);
     }
 
     // ---- findAllMatching() ----

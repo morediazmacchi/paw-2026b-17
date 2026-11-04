@@ -169,15 +169,12 @@ public interface EventService {
     PageResult<Event> findPendingApprovalPage(int page);
 
     /**
-     * Banner de /eventos (ver EventController.eventos()): los eventos que un
-     * admin destaco, mas reciente primero. Ya vienen filtrados a
-     * publicos/activos/futuros, igual que search(). Se ven siempre, tambien
-     * los de quien navega.
+     * Banner de /eventos (ver EventController.eventos()): los eventos con mas inscripciones
+     * CONFIRMADAS en este momento, de mas a menos (a lo sumo "limit"). Ya vienen filtrados a
+     * publicos/aprobados/activos/futuros, igual que search(); un evento sin ninguna inscripcion
+     * confirmada no entra, asi que puede venir menos de "limit" o ninguno. Si dos empatan va primero
+     * el que ocurre antes. Se ven siempre, tambien los de quien navega.
      */
     @Transactional(readOnly = true)
-    List<Event> findFeatured(int limit);
-
-    /** Un admin marca o desmarca este evento para el banner (ver AdminController). */
-    @Transactional(rollbackFor = Exception.class)
-    boolean setFeatured(long eventId, boolean featured);
+    List<Event> findMostRegistered(int limit);
 }

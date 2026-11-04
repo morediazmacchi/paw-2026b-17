@@ -74,6 +74,7 @@
                                     <c:choose>
                                         <c:when test="${not empty reportedEvent}">
                                             <a href="<c:url value='/eventos/${reportedEvent.id}'/>"><c:out value="${reportedEvent.title}"/></a>
+                                            <c:if test="${reportedEvent.isCreatedBy(myId)}"><paw:ownEventBadge/></c:if>
                                         </c:when>
                                         <c:otherwise>&mdash;</c:otherwise>
                                     </c:choose>

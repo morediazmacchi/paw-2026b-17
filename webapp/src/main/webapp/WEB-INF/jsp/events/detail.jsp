@@ -78,29 +78,6 @@
                 </button>
             </form>
         </sec:authorize>
-        <%-- Banner de /eventos (ver EventController.eventos()): un admin elige
-             que eventos van ahi. La accion vive bajo /admin/** (ver
-             AdminController), que ya exige el rol ADMIN. --%>
-        <sec:authorize access="hasRole('ADMIN')">
-            <c:choose>
-                <c:when test="${event.featured}">
-                    <spring:message code="admin.events.unfeatureButton" var="unfeatureLabel"/>
-                    <form action="<c:url value='/admin/eventos/${event.id}/destacar/quitar'/>" method="post">
-                        <button type="submit" class="detail-hero-badge detail-hero-badge-accent detail-hero-feature-btn">
-                            <c:out value="${unfeatureLabel}"/>
-                        </button>
-                    </form>
-                </c:when>
-                <c:otherwise>
-                    <spring:message code="admin.events.featureButton" var="featureLabel"/>
-                    <form action="<c:url value='/admin/eventos/${event.id}/destacar'/>" method="post">
-                        <button type="submit" class="detail-hero-badge detail-hero-feature-btn">
-                            <c:out value="${featureLabel}"/>
-                        </button>
-                    </form>
-                </c:otherwise>
-            </c:choose>
-        </sec:authorize>
     </div>
     <h1 class="detail-hero-title"><c:out value="${event.title}"/></h1>
 </section>

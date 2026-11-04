@@ -172,15 +172,6 @@ public class Event implements EventAccessData {
     // todavia esta pendiente o ya fue aprobado.
     @Column(name = "rejected_reason", length = 500)
     private String rejectedReason;
-    // Un admin lo eligio para el banner de /eventos (ver EventController.eventos()
-    // y AdminController.destacar()). featuredAt ordena el banner (mas reciente
-    // primero) y se limpia al desmarcar: si se vuelve a destacar despues, entra
-    // "de nuevo" al tope, no donde habia quedado la primera vez.
-    @Column(name = "featured", nullable = false)
-    private boolean featured;
-    @Column(name = "featured_at")
-    @Temporal(TemporalType.TIMESTAMP)
-    private Date featuredAt;
     // Cuando un admin lo aprobo (lo pone EventJpaDao.approve()): desde ahi es visible para todos. Lo usan las
     // busquedas guardadas (SavedSearch) para saber que eventos son NUEVOS desde el ultimo aviso. Null en los
     // aprobados antes de que existiera esta columna: para ninguna busqueda guardada son nuevos.
@@ -287,10 +278,6 @@ public class Event implements EventAccessData {
     public void setApprovalStatus(final EventApprovalStatus approvalStatus) { this.approvalStatus = approvalStatus; }
     public String getRejectedReason() { return rejectedReason; }
     public void setRejectedReason(final String rejectedReason) { this.rejectedReason = rejectedReason; }
-    public boolean isFeatured() { return featured; }
-    public void setFeatured(final boolean featured) { this.featured = featured; }
-    public Date getFeaturedAt() { return featuredAt; }
-    public void setFeaturedAt(final Date featuredAt) { this.featuredAt = featuredAt; }
     public Date getApprovedAt() { return approvedAt; }
     public void setApprovedAt(final Date approvedAt) { this.approvedAt = approvedAt; }
     public Date getReminderSentAt() { return reminderSentAt; }

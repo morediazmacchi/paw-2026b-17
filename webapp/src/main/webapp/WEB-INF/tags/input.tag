@@ -16,6 +16,9 @@
 <%-- Texto de un atajo opcional al lado de la etiqueta (ej: "Gratis", "Sin limite").
      Si no se pasa, no se dibuja ningun boton y el campo queda como siempre. --%>
 <%@ attribute name="toggleText" required="false" %>
+<%-- true = el atajo se dibuja DEBAJO del campo en vez de al lado de la etiqueta (ej: "Sin limite"
+     de "Cupo maximo"). Solo tiene efecto si hay toggleText. --%>
+<%@ attribute name="toggleBelow" required="false" type="java.lang.Boolean" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions" %>
 <%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
@@ -23,16 +26,18 @@
 
 <c:set var="inputType" value="${empty type ? 'text' : type}" />
 <c:set var="isRequired" value="${empty required ? true : required}" />
+<%-- El boton del atajo se arma una sola vez y se dibuja arriba (junto a la etiqueta) o abajo del campo. --%>
+<c:if test="${not empty toggleText}">
+    <c:set var="toggleButton"><button type="button" class="chip-toggle${toggleBelow ? ' chip-toggle-below' : ''}"
+            data-target="${name}" aria-pressed="false"><c:out value="${toggleText}" /></button></c:set>
+</c:if>
 
 <div class="form-group">
     <div class="label-row">
         <c:if test="${not empty label}">
             <label for="${name}"><c:out value="${label}" /></label>
         </c:if>
-        <c:if test="${not empty toggleText}">
-            <button type="button" class="chip-toggle" data-target="${name}"
-                    aria-pressed="false"><c:out value="${toggleText}" /></button>
-        </c:if>
+        <c:if test="${not empty toggleText and not toggleBelow}">${toggleButton}</c:if>
     </div>
 
     <c:choose>
@@ -92,4 +97,6 @@
     <c:if test="${not empty errorMessage}">
         <span class="error-message"><c:out value="${errorMessage}" /></span>
     </c:if>
+
+    <c:if test="${not empty toggleText and toggleBelow}">${toggleButton}</c:if>
 </div>

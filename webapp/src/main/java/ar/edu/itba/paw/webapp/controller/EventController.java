@@ -135,8 +135,8 @@ public class EventController {
         final EventSearchResult searchResult = eventService.search(criteria);
         final PageResult<Event> result = searchResult.getPage();
 
-        // Banner destacado
-        final List<Event> featured = eventService.findFeatured(FEATURED_COUNT);
+        // Banner: los eventos con mas inscriptos en este momento (nadie los elige a mano)
+        final List<Event> featured = eventService.findMostRegistered(FEATURED_COUNT);
 
         final ModelAndView mav = new ModelAndView("events/list");
         mav.addObject("events", result.getContent());

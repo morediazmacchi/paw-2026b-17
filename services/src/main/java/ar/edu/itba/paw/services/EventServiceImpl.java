@@ -367,14 +367,8 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<Event> findFeatured(final int limit) {
-        return eventDao.findFeatured(limit);
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public boolean setFeatured(final long eventId, final boolean featured) {
-        return eventDao.setFeatured(eventId, featured);
+    public List<Event> findMostRegistered(final int limit) {
+        return eventDao.findMostRegistered(limit);
     }
 
     // La fecha no puede ser pasada ni estar a mas de MAX_YEARS_AHEAD años. El form (EventDateValidator) lo valida

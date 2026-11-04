@@ -423,10 +423,6 @@ a {
     border-radius: 999px;
     background: rgba(13, 13, 13, 0.6);
     border: 1px solid rgba(255, 255, 255, 0.2);
-    /* En un <span> esto ya se heredaba del body y sobraba, pero el boton de
-       Destacar/Quitar (ver .detail-hero-feature-btn) es un <button> de
-       verdad: el color de texto NO se hereda ahi, usa el default del
-       navegador (negro) -- ilegible contra este fondo casi negro. */
     color: var(--text);
     font-size: 0.75rem;
     font-weight: 700;
@@ -444,21 +440,6 @@ a {
     background: var(--accent);
     border-color: var(--accent);
     color: var(--accent-text);
-}
-
-/* Destacar/quitar del banner (ver EventController.eventos()): mismo look que
-   las badges de al lado (categoria, privado), no el boton "grande" de
-   paw:button -- es un <button> de verdad (hace un POST), pero tiene que
-   pertenecer visualmente a esta fila de chips, no verse como una accion aparte.
-   Solo family (no el shorthand "font"): ese resetea tambien size/weight, y
-   pisaria los que ya pone .detail-hero-badge -- por eso se veia gigante. */
-.detail-hero-feature-btn {
-    font-family: inherit;
-    cursor: pointer;
-}
-
-.detail-hero-feature-btn:hover {
-    border-color: var(--accent);
 }
 
 .detail-hero-favorite-btn {
@@ -1890,6 +1871,12 @@ button.btn-accent {
     white-space: nowrap;
     margin-bottom: 6px;
     transition: color 0.12s, border-color 0.12s, background 0.12s;
+}
+
+/* Atajo debajo del campo (input.tag con toggleBelow, ej: "Sin limite" de "Cupo maximo"): el margen de abajo
+   de .chip-toggle lo separaba de la etiqueta; aca lo separa del campo (o del mensaje de error) de arriba. */
+.chip-toggle-below {
+    margin: 8px 0 0;
 }
 
 .chip-toggle:hover {
@@ -3790,6 +3777,14 @@ button.btn-accent {
 .status-pill-rejected {
     color: #ff8080;
     border-color: var(--danger-border);
+}
+
+/* "Tu evento" en las listas de moderacion del admin (ownEventBadge.tag): va al lado del titulo. */
+.status-pill-own {
+    color: var(--accent);
+    border-color: var(--accent);
+    margin-left: 8px;
+    vertical-align: middle;
 }
 
 .card-status {

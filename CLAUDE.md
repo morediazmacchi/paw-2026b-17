@@ -155,6 +155,19 @@ original no está a mano (no es citable textual) · `[acordado]` = lo decidió l
   `PendingRegistrations`. También: `EventService.create(creatorId, dto)` (el mail del creador sale de su cuenta; `EventDTO`
   ya no trae creador), `EventQuestionService.deleteByAdmin` devuelve `Optional<Long>` (id del evento para el redirect) y
   `SupportedLocale` (model) es la única lista de idiomas (`UserService.updateLocale` valida).
+- **Distintivo "Tu evento" (4/11):** en las tres listas de moderación del admin (`eventosPendientes.jsp`, `reportes.jsp`,
+  `seguimiento.jsp`) las filas cuyo evento es del admin que mira llevan `<paw:ownEventBadge/>` junto al título. Se muestra con
+  `${evento.isCreatedBy(myId)}` (`HasCreator`, la misma regla de la que sale `canBeModeratedBy`, que esconde los botones): una sola
+  regla, sin lógica nueva ni consultas nuevas. Texto en `admin.ownEventBadge`; estilo `.status-pill-own`. No es la "Bandeja de
+  mensajes" (`/perfil/bandeja`): esa no se tocó.
+- **Banner de `/eventos` automático (4/11):** ya no lo cura un admin. `EventService.findMostRegistered(5)` → `EventDao.findMostRegistered`: UNA
+  consulta (JOIN con `registration` CONFIRMED + `GROUP BY` + `ORDER BY COUNT DESC, event_date ASC, id ASC` + `LIMIT`) sobre eventos
+  públicos, aprobados, no cancelados y futuros (mismas 4 reglas que `search`). Solo cuentan los CONFIRMADOS (pendientes, lista de
+  espera y rechazados no); un evento con 0 confirmados NO entra, así que el banner puede tener menos de 5 slides o ninguno (la
+  sección no se dibuja). Se calcula en cada carga, sin caché. Se borraron `setFeatured`/`findFeatured`, `Event.featured/featuredAt`,
+  los endpoints `/admin/eventos/{id}/destacar[/quitar]` (ahora 404), el botón del detalle y sus textos. **Las columnas
+  `event.featured`/`featured_at` NO se borraron de las bases que ya las tienen** (Pampero y la local; sin DROP para no perder datos):
+  quedan sin uso y con DEFAULT; `schema.sql` ya no las crea. El cartel de cada slide sigue siendo "Destacado" (`event.list.featuredBadge`).
 - Resúmenes de motivos de diseño para la defensa: ver §5.
 
 ## 3. Deuda conocida — dónde el código actual NO cumple las reglas de arriba

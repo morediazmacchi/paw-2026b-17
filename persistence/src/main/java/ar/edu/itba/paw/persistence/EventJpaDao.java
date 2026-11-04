@@ -115,7 +115,7 @@ public class EventJpaDao implements EventDao {
             return false;
         }
         // Mismo conjunto de columnas que siempre se pudo editar: nunca creator_email,
-        // created_at, cancelled_at, featured, etc.
+        // created_at, cancelled_at, approved_at, etc.
         // Si cambia la fecha, el recordatorio de 24 hs vuelve a "no mandado" para que
         // salga para la fecha nueva (hay que compararla antes de pisarla).
         if (managed.getEventDate().getTime() != event.getEventDate().getTime()) {
@@ -216,35 +216,27 @@ public class EventJpaDao implements EventDao {
     }
 
     @Override
-    public List<Event> findFeatured(final int limit) {
-        // Mismas cuatro reglas que buildSearchFilter() para search(): publico,
-        // no cancelado, no pasado, y aprobado. Un destacado que se cancela,
-        // vence, o (no deberia pasar, pero por las dudas) queda pendiente de
-        // nuevo, deja de aparecer solo en el banner, sin desmarcarlo a mano.
+    public List<Event> findMostRegistered(final int limit) {
+        // Mismas cuatro reglas que buildSearchFilter() para search(): publico, no cancelado, no pasado, y
+        // aprobado. El JOIN con las inscripciones confirmadas deja afuera solo a los eventos sin ninguna.
+        // Todo (filtro, cuenta, orden y limite) en la base: nunca se traen las inscripciones a memoria.
+        // El desempate por fecha y por id fija el orden cuando dos tienen la misma cantidad.
         // Dos pasos (ver findOrderedByIds): primero solo los ids, ya ordenados y con el limite;
         // despues los eventos con sus categorias, que el banner muestra.
         final List<Long> ids = em.createQuery(
-                        "SELECT e.id FROM Event e WHERE e.featured = true AND e.eventDate >= :now "
+                        "SELECT e.id FROM Registration r JOIN r.event e "
+                                + "WHERE r.status = :confirmed AND e.eventDate >= :now "
                                 + "AND e.visibility = :visibility AND e.cancelledAt IS NULL "
                                 + "AND e.approvalStatus = :approvalStatus "
-                                + "ORDER BY e.featuredAt DESC", Long.class)
+                                + "GROUP BY e.id, e.eventDate "
+                                + "ORDER BY COUNT(r) DESC, e.eventDate ASC, e.id ASC", Long.class)
+                .setParameter("confirmed", RegistrationStatus.CONFIRMED)
                 .setParameter("now", new Date(), TemporalType.TIMESTAMP)
                 .setParameter("visibility", EventVisibility.PUBLIC)
                 .setParameter("approvalStatus", EventApprovalStatus.APPROVED)
                 .setMaxResults(limit)
                 .getResultList();
         return findOrderedByIds(ids);
-    }
-
-    @Override
-    public boolean setFeatured(final long eventId, final boolean featured) {
-        final Event event = em.find(Event.class, eventId);
-        if (event == null) {
-            return false;
-        }
-        event.setFeatured(featured);
-        event.setFeaturedAt(featured ? new Date() : null);
-        return true;
     }
 
     @Override

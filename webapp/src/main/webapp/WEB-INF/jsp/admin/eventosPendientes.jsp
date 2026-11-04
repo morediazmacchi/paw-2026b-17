@@ -65,7 +65,10 @@
                         <tbody>
                         <c:forEach var="pendingEvent" items="${pendingEvents}">
                             <tr>
-                                <td><a href="<c:url value='/eventos/${pendingEvent.id}'/>"><c:out value="${pendingEvent.title}"/></a></td>
+                                <td>
+                                    <a href="<c:url value='/eventos/${pendingEvent.id}'/>"><c:out value="${pendingEvent.title}"/></a>
+                                    <c:if test="${pendingEvent.isCreatedBy(myId)}"><paw:ownEventBadge/></c:if>
+                                </td>
                                 <td><c:out value="${pendingEvent.creatorEmail}"/></td>
                                 <td><paw:date value="${pendingEvent.createdAt}" format="dateTimeTable"/></td>
                                 <td class="admin-report-actions">

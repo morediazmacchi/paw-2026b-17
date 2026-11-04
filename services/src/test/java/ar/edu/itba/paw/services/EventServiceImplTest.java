@@ -47,7 +47,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * Tests unitarios con Mockito: EventDao, UserService y RegistrationService son @Mock.
- * Los comandos del dao (update, cancel, removeByAdmin, setFeatured) devuelven boolean: el
+ * Los comandos del dao (update, cancel, removeByAdmin) devuelven boolean: el
  * test los stubea con argumentos especificos (si el service no los invoca, Mockito falla por
  * stub sin usar) y asierta sobre lo que devuelve el service. Los avisos (mail e inbox) son
  * "disparar y olvidar" (void) y no se testean aca: verificar que se llamaron seria testear la
@@ -947,19 +947,19 @@ public class EventServiceImplTest {
         assertEquals(EventApprovalResult.ALREADY_DECIDED, result);
     }
 
-    // ---- findFeatured() / setFeatured() (banner de /eventos) ----
+    // ---- findMostRegistered() (banner de /eventos) ----
 
     @Test
-    public void testFindFeaturedReturnsTheFeaturedEventsTheDaoFinds() {
-        // Arrange
-        final List<Event> featured = Arrays.asList(eventWith(2, CATEGORY_ID, CREATOR_ID), eventWith(3, CATEGORY_ID, CREATOR_ID));
-        when(eventDao.findFeatured(2)).thenReturn(featured);
+    public void testFindMostRegisteredReturnsTheEventsTheDaoFindsForThatLimit() {
+        // Arrange: el dao solo responde con el limite pedido
+        final List<Event> mostRegistered = Arrays.asList(eventWith(2, CATEGORY_ID, CREATOR_ID), eventWith(3, CATEGORY_ID, CREATOR_ID));
+        when(eventDao.findMostRegistered(2)).thenReturn(mostRegistered);
 
         // Act
-        final List<Event> result = eventService.findFeatured(2);
+        final List<Event> result = eventService.findMostRegistered(2);
 
         // Assert
-        assertEquals(featured, result);
+        assertEquals(mostRegistered, result);
     }
 
     // ---- search() con RECOMENDADOS ----
@@ -1250,41 +1250,5 @@ public class EventServiceImplTest {
         // Assert
         assertTrue(result.getContent().isEmpty());
         assertEquals(1, result.getPage());
-    }
-
-    @Test
-    public void testSetFeaturedTrueReturnsTrueWhenTheEventWasMarked() {
-        // Arrange
-        when(eventDao.setFeatured(EVENT_ID, true)).thenReturn(true);
-
-        // Act
-        final boolean result = eventService.setFeatured(EVENT_ID, true);
-
-        // Assert
-        assertTrue(result);
-    }
-
-    @Test
-    public void testSetFeaturedFalseReturnsTrueWhenTheEventWasUnmarked() {
-        // Arrange
-        when(eventDao.setFeatured(EVENT_ID, false)).thenReturn(true);
-
-        // Act
-        final boolean result = eventService.setFeatured(EVENT_ID, false);
-
-        // Assert
-        assertTrue(result);
-    }
-
-    @Test
-    public void testSetFeaturedReturnsFalseWhenTheEventDoesNotExist() {
-        // Arrange
-        when(eventDao.setFeatured(EVENT_ID, true)).thenReturn(false);
-
-        // Act
-        final boolean result = eventService.setFeatured(EVENT_ID, true);
-
-        // Assert
-        assertFalse(result);
     }
 }

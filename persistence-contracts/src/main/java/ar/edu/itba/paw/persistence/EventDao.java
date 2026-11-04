@@ -101,14 +101,11 @@ public interface EventDao {
     // ya estaba marcado devuelve false): asi nunca se manda dos veces.
     boolean markReminderSent(long id, java.util.Date when);
 
-    // Banner de /eventos (ver EventController.eventos()): los que un admin
-    // destaco, mas reciente primero (por featured_at). Mismos filtros de base
-    // que search() (publicos, no cancelados, futuros): un evento destacado que
-    // se cancela o vence deja de aparecer solo, sin que un admin tenga que
-    // acordarse de desmarcarlo. Se ven siempre, tambien los de quien navega.
-    List<Event> findFeatured(int limit);
-
-    // Marca o desmarca un evento para el banner (ver AdminController.destacar()/
-    // quitarDestacado()). Al desmarcar limpia featured_at.
-    boolean setFeatured(long eventId, boolean featured);
+    // Banner de /eventos (ver EventController.eventos()): los eventos con mas inscripciones CONFIRMADAS
+    // en este momento, de mas a menos. Mismos filtros de base que search() (publicos, aprobados, no
+    // cancelados, futuros): uno que se cancela, vence o se vuelve privado sale solo del banner. Ni los
+    // pedidos pendientes, ni la lista de espera, ni los rechazados cuentan. Uno sin ninguna inscripcion
+    // confirmada no entra: puede devolver menos de "limit" eventos, o ninguno. Si dos empatan va primero
+    // el que ocurre antes, y despues el de menor id. Se ven siempre, tambien los de quien navega.
+    List<Event> findMostRegistered(int limit);
 }

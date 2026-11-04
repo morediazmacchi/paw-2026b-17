@@ -265,19 +265,6 @@ public class AdminController {
         return mav;
     }
 
-    // Banner
-    @RequestMapping(value = "/eventos/{id}/destacar", method = RequestMethod.POST)
-    public ModelAndView destacar(@PathVariable final long id) {
-        eventService.setFeatured(id, true);
-        return new ModelAndView("redirect:/eventos/" + id);
-    }
-
-    @RequestMapping(value = "/eventos/{id}/destacar/quitar", method = RequestMethod.POST)
-    public ModelAndView quitarDestacado(@PathVariable final long id) {
-        eventService.setFeatured(id, false);
-        return new ModelAndView("redirect:/eventos/" + id);
-    }
-
     // Moderacion de preguntas
     // borra la pregunta con su respuesta si tenia.
     @RequestMapping(value = "/preguntas/{id}/eliminar", method = RequestMethod.POST)
