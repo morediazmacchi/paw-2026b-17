@@ -1876,6 +1876,9 @@ button.btn-accent {
 /* Atajo debajo del campo (input.tag con toggleBelow, ej: "Sin limite" de "Cupo maximo"): el margen de abajo
    de .chip-toggle lo separaba de la etiqueta; aca lo separa del campo (o del mensaje de error) de arriba. */
 .chip-toggle-below {
+    /* En bloque: en linea, un atajo corto ("Gratis") entraba al costado del campo y uno mas largo ("Sin limite")
+       bajaba, y quedaban en lugares distintos. */
+    display: block;
     margin: 8px 0 0;
 }
 
