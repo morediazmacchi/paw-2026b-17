@@ -9,6 +9,7 @@ import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 import javax.persistence.TemporalType;
 import java.util.Date;
+import java.util.Collections;
 import java.util.List;
 
 @Repository
@@ -25,13 +26,23 @@ public class InboxMessageJpaDao implements InboxMessageDao {
 
     @Override
     public List<InboxMessage> findByRecipientUserId(final long userId, final int page, final int pageSize) {
-        return em.createQuery(
-                        "FROM InboxMessage m WHERE m.user.id = :userId ORDER BY m.createdAt DESC, m.id DESC",
-                        InboxMessage.class)
+        // Dos pasos (1+1): primero solo los ids de la pagina (cada fila es un numero, asi el
+        // LIMIT/OFFSET sale siempre de la base), despues las entidades de esos ids.
+        final List<Long> ids = em.createQuery(
+                        "SELECT m.id FROM InboxMessage m WHERE m.user.id = :userId "
+                                + "ORDER BY m.createdAt DESC, m.id DESC", Long.class)
                 .setParameter("userId", userId)
                 .setFirstResult((page - 1) * pageSize)
                 .setMaxResults(pageSize)
                 .getResultList();
+        if (ids.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return PagedIds.inOrder(ids,
+                em.createQuery("FROM InboxMessage m WHERE m.id IN :ids", InboxMessage.class)
+                        .setParameter("ids", ids)
+                        .getResultList(),
+                InboxMessage::getId);
     }
 
     @Override

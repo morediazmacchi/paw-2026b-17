@@ -2,6 +2,7 @@ package ar.edu.itba.paw.webapp.controller;
 
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.services.EventApprovalResult;
 import ar.edu.itba.paw.services.EventQuestionService;
 import ar.edu.itba.paw.services.EventService;
@@ -257,11 +258,16 @@ public class AdminController {
     // /perfil/eventos/{id}/inscriptos (del organizador, con boton de revocar), este panel es para
     // mirar y moderar, no para administrar inscripciones ajenas.
     @RequestMapping(value = "/eventos/{id}/inscriptos", method = RequestMethod.GET)
-    public ModelAndView inscriptos(@PathVariable final long id) {
+    public ModelAndView inscriptos(@PathVariable final long id,
+                                   @RequestParam(value = "page", required = false) final String page) {
         final Event event = eventService.findByIdOrThrow(id);
+        final PageResult<Registration> result = registrationService.findPageByEventId(id, Paging.parsePage(page));
         final ModelAndView mav = new ModelAndView("admin/eventoInscriptos");
         mav.addObject("event", event);
-        mav.addObject("registrations", registrationService.findByEventId(id));
+        mav.addObject("registrations", result.getContent());
+        mav.addObject("totalRegistrations", result.getTotalElements());
+        mav.addObject("currentPage", result.getPage());
+        mav.addObject("totalPages", result.getTotalPages());
         return mav;
     }
 

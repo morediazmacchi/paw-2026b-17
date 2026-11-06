@@ -14,7 +14,8 @@
 
 <main class="chat-page">
     <header class="chat-header">
-        <a class="chat-back" href="<c:url value='/eventos/${event.id}'/>" data-history-back aria-label="<spring:message code='chat.back'/>">
+        <spring:message code="chat.back" var="chatBackLabel" htmlEscape="true"/>
+        <a class="chat-back" href="<c:url value='/eventos/${event.id}'/>" data-history-back aria-label="${chatBackLabel}">
             <paw:icon name="chevron-left"/>
         </a>
         <div class="chat-header-title">

@@ -162,23 +162,26 @@
              fuera de hoy..+2anios vienen deshabilitados desde el propio JS,
              asi que no hace falta validar despues "fecha fuera de rango":
              no se puede clickear una fecha invalida. --%>
+        <spring:message code="event.detail.closeButton" var="calendarCloseLabel" htmlEscape="true"/>
+        <spring:message code="event.publish.prevMonth" var="calendarPrevLabel" htmlEscape="true"/>
+        <spring:message code="event.publish.nextMonth" var="calendarNextLabel" htmlEscape="true"/>
         <div class="modal-overlay calendar-modal" id="eventDateCalendarModal" hidden>
             <div class="modal-box calendar-box">
                 <div class="modal-header">
                     <h2><c:out value="${dateLabel}"/></h2>
                     <button type="button" class="modal-close" data-close-modal
-                            aria-label="<spring:message code='event.detail.closeButton'/>">
+                            aria-label="${calendarCloseLabel}">
                         <paw:icon name="close"/>
                     </button>
                 </div>
                 <div class="calendar-header">
                     <button type="button" class="calendar-nav" data-calendar-prev
-                            aria-label="<spring:message code='event.publish.prevMonth'/>">
+                            aria-label="${calendarPrevLabel}">
                         <paw:icon name="chevron-left"/>
                     </button>
                     <span class="calendar-month-label" data-calendar-month-label></span>
                     <button type="button" class="calendar-nav" data-calendar-next
-                            aria-label="<spring:message code='event.publish.nextMonth'/>">
+                            aria-label="${calendarNextLabel}">
                         <paw:icon name="chevron-right"/>
                     </button>
                 </div>

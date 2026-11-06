@@ -24,6 +24,7 @@ import ar.edu.itba.paw.services.SaveSearchResult;
 import ar.edu.itba.paw.services.SavedSearchService;
 import ar.edu.itba.paw.model.exception.InvalidEventException;
 import ar.edu.itba.paw.model.exception.InvalidImageException;
+import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.webapp.form.EventForm;
 import ar.edu.itba.paw.webapp.form.EventSearchForm;
 import ar.edu.itba.paw.webapp.util.FormErrors;
@@ -352,11 +353,17 @@ public class EventController {
 
     @PreAuthorize("@eventSecurity.isOwner(#id, authentication)")
     @RequestMapping(value = "/eventos/{id}/inscriptos", method = RequestMethod.GET)
-    public ModelAndView inscriptos(@PathVariable final long id, @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
+    public ModelAndView inscriptos(@PathVariable final long id,
+                                   @RequestParam(value = "page", required = false) final String page,
+                                   @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final Event event = eventService.findByIdOrThrow(id);
+        final PageResult<Registration> result = registrationService.findPageByEventId(id, Paging.parsePage(page));
         final ModelAndView mav = new ModelAndView("events/inscriptos");
         mav.addObject("event", event);
-        mav.addObject("registrations", registrationService.findByEventId(id));
+        mav.addObject("registrations", result.getContent());
+        mav.addObject("totalRegistrations", result.getTotalElements());
+        mav.addObject("currentPage", result.getPage());
+        mav.addObject("totalPages", result.getTotalPages());
         return mav;
     }
 

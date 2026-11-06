@@ -51,6 +51,13 @@ public interface RegistrationDao {
     // aca lo que importa es quien se anoto primero, no lo mas reciente.
     List<Registration> findByEventId(long eventId);
 
+    // Lo mismo de a una pagina, para las pantallas "Ver inscriptos" (un evento sin tope de cupos puede tener
+    // muchisimas): paginas desde 1, mismo orden (el id desempata) y countByEventId() da el total para el paginador.
+    // findByEventId() de arriba queda para quien necesita recorrer a todos (avisos, recordatorios).
+    List<Registration> findByEventId(long eventId, int page, int pageSize);
+
+    long countByEventId(long eventId);
+
     boolean delete(long id);
 
     // Los eventos a los que esta persona "asistio": inscripcion CONFIRMED, fecha anterior a "now"

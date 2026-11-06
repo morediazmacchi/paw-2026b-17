@@ -509,6 +509,75 @@ public class RegistrationJpaDaoTest {
         assertTrue(found.isEmpty());
     }
 
+    // ---- findByEventId() paginado + countByEventId() ----
+
+    @Test
+    public void testFindByEventIdPagesTheRegistrationsOldestFirstWithoutRepeating() {
+        // Arrange: 3 inscripciones con fechas distintas, de a 2 por pagina
+        final long now = System.currentTimeMillis();
+        final long u1 = insertUser("uno@mail.com", "Uno");
+        final long u2 = insertUser("dos@mail.com", "Dos");
+        final long u3 = insertUser("tres@mail.com", "Tres");
+        insertRegistrationAt(eventId, "tres@mail.com", u3, "Tres", RegistrationStatus.CONFIRMED, new Timestamp(now - 1000));
+        insertRegistrationAt(eventId, "uno@mail.com", u1, "Uno", RegistrationStatus.CONFIRMED, new Timestamp(now - 3000));
+        insertRegistrationAt(eventId, "dos@mail.com", u2, "Dos", RegistrationStatus.CONFIRMED, new Timestamp(now - 2000));
+
+        // Act
+        final List<Registration> pageOne = registrationDao.findByEventId(eventId, 1, 2);
+        final List<Registration> pageTwo = registrationDao.findByEventId(eventId, 2, 2);
+
+        // Assert: la mas antigua primero y la ultima pagina trae solo la que sobra
+        assertEquals(2, pageOne.size());
+        assertEquals("uno@mail.com", pageOne.get(0).getEmail());
+        assertEquals("dos@mail.com", pageOne.get(1).getEmail());
+        assertEquals(1, pageTwo.size());
+        assertEquals("tres@mail.com", pageTwo.get(0).getEmail());
+    }
+
+    @Test
+    public void testFindByEventIdPagedDoesNotReturnRegistrationsOfOtherEvents() {
+        // Arrange
+        final long otherEventId = insertEvent();
+        insertRegistration(eventId, EMAIL, userId, NAME, RegistrationStatus.CONFIRMED);
+        final long otherUserId = insertUser("otro@mail.com", "Otro");
+        insertRegistration(otherEventId, "otro@mail.com", otherUserId, "Otro", RegistrationStatus.CONFIRMED);
+
+        // Act
+        final List<Registration> found = registrationDao.findByEventId(eventId, 1, 10);
+
+        // Assert
+        assertEquals(1, found.size());
+        assertEquals(EMAIL, found.get(0).getEmail());
+    }
+
+    @Test
+    public void testCountByEventIdCountsOnlyThatEventsRegistrations() {
+        // Arrange
+        final long otherEventId = insertEvent();
+        insertRegistration(eventId, EMAIL, userId, NAME, RegistrationStatus.CONFIRMED);
+        final long otherUserId = insertUser("otro@mail.com", "Otro");
+        insertRegistration(eventId, "otro@mail.com", otherUserId, "Otro", RegistrationStatus.CONFIRMED);
+        final long thirdUserId = insertUser("tercero@mail.com", "Tercero");
+        insertRegistration(otherEventId, "tercero@mail.com", thirdUserId, "Tercero", RegistrationStatus.CONFIRMED);
+
+        // Act
+        final long count = registrationDao.countByEventId(eventId);
+
+        // Assert
+        assertEquals(2L, count);
+    }
+
+    @Test
+    public void testCountByEventIdReturnsZeroWhenNobodyIsRegistered() {
+        // Arrange: no se inserta ninguna inscripcion.
+
+        // Act
+        final long count = registrationDao.countByEventId(eventId);
+
+        // Assert
+        assertEquals(0L, count);
+    }
+
     // ---- delete() ----
 
     @Test

@@ -103,8 +103,11 @@ public class EventInvitationServiceImpl implements EventInvitationService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<EventInvitation> findByEvent(final long eventId) {
-        return invitationDao.findByEvent(eventId);
+    public PageResult<EventInvitation> findPageByEvent(final long eventId, final int page) {
+        final long total = invitationDao.countByEvent(eventId);
+        final int effectivePage = PageResult.clampPage(page, total, PAGE_SIZE);
+        return new PageResult<>(invitationDao.findByEvent(eventId, effectivePage, PAGE_SIZE),
+                total, effectivePage, PAGE_SIZE);
     }
 
     @Override

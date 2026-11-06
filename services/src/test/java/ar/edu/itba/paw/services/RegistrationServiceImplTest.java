@@ -1061,6 +1061,42 @@ public class RegistrationServiceImplTest {
         assertEquals(registrations, result);
     }
 
+    // ---- findPageByEventId() ----
+
+    @Test
+    public void testFindPageByEventIdReturnsTheRequestedPageWithItsTotals() {
+        // Arrange: 25 en total, de a RegistrationServiceImpl.PAGE_SIZE por pagina -> 3 paginas
+        final List<Registration> pageTwo = Collections.singletonList(
+                new Registration(ModelFixtures.event(EVENT_ID), null, NORMALIZED_EMAIL, NAME, RegistrationStatus.CONFIRMED));
+        when(mockRegistrationDao.countByEventId(EVENT_ID)).thenReturn(25L);
+        when(mockRegistrationDao.findByEventId(EVENT_ID, 2, RegistrationServiceImpl.PAGE_SIZE)).thenReturn(pageTwo);
+
+        // Act
+        final PageResult<Registration> result = registrationService.findPageByEventId(EVENT_ID, 2);
+
+        // Assert
+        assertEquals(pageTwo, result.getContent());
+        assertEquals(2, result.getPage());
+        assertEquals(3, result.getTotalPages());
+        assertEquals(25L, result.getTotalElements());
+    }
+
+    @Test
+    public void testFindPageByEventIdClampsAPageBeyondTheLastToTheLastOne() {
+        // Arrange: 25 en total -> la ultima pagina es la 3
+        final List<Registration> lastPage = Collections.singletonList(
+                new Registration(ModelFixtures.event(EVENT_ID), null, NORMALIZED_EMAIL, NAME, RegistrationStatus.CONFIRMED));
+        when(mockRegistrationDao.countByEventId(EVENT_ID)).thenReturn(25L);
+        when(mockRegistrationDao.findByEventId(EVENT_ID, 3, RegistrationServiceImpl.PAGE_SIZE)).thenReturn(lastPage);
+
+        // Act
+        final PageResult<Registration> result = registrationService.findPageByEventId(EVENT_ID, 99);
+
+        // Assert
+        assertEquals(3, result.getPage());
+        assertEquals(lastPage, result.getContent());
+    }
+
     // ---- findPendingByEvent() ----
 
     @Test

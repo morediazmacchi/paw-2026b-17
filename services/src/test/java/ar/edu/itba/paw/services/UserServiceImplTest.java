@@ -987,21 +987,6 @@ public class UserServiceImplTest {
         assertEquals(SuspendResult.NOT_FOUND, result);
     }
 
-    // ---- findAll() ----
-
-    @Test
-    public void testFindAllReturnsEveryUser() {
-        // Arrange
-        final List<User> users = Collections.singletonList(someUser());
-        when(userDao.findAll()).thenReturn(users);
-
-        // Act
-        final List<User> all = userService.findAll();
-
-        // Assert
-        assertEquals(users, all);
-    }
-
     // ---- findPage() ----
 
     private static List<User> usersWithIds(final long... ids) {

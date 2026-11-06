@@ -373,9 +373,11 @@ public class ProfileController {
     public ModelAndView inviteForm(@PathVariable final long id,
                                     @RequestParam(value = "sent", required = false) final String sentParam,
                                     @RequestParam(value = "alreadyInvited", required = false) final String alreadyInvitedParam,
+                                    @RequestParam(value = "page", required = false) final String page,
                                     @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final Event event = eventService.findByIdOrThrow(id);
-        return inviteFormView(event, currentUser, new InviteForm(), null, sentParam != null, alreadyInvitedParam != null);
+        return inviteFormView(event, currentUser, new InviteForm(), null, sentParam != null,
+                alreadyInvitedParam != null, Paging.parsePage(page));
     }
 
     @PreAuthorize("@eventSecurity.isOwner(#id, authentication)")
@@ -384,7 +386,7 @@ public class ProfileController {
                                 @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final Event event = eventService.findByIdOrThrow(id);
         if (errors.hasErrors()) {
-            return inviteFormView(event, currentUser, form, errors, false, false);
+            return inviteFormView(event, currentUser, form, errors, false, false, 1);
         }
         // Que el evento sea privado, no este cancelado ni haya pasado lo valida el service.
         final EventInvitationResult result = eventInvitationService.invite(id, form.getEmail());
@@ -393,7 +395,7 @@ public class ProfileController {
         }
         if (result == EventInvitationResult.INVALID_EMAIL) {
             errors.rejectValue("email", "Size.inviteForm.email");
-            return inviteFormView(event, currentUser, form, errors, false, false);
+            return inviteFormView(event, currentUser, form, errors, false, false, 1);
         }
         return new ModelAndView("redirect:/perfil/eventos/" + id + "/invitar?" + inviteParam(result));
     }
@@ -413,8 +415,9 @@ public class ProfileController {
     }
 
     private ModelAndView inviteFormView(final Event event, final User currentUser, final InviteForm form,
-                                         final BindingResult errors, final boolean sent, final boolean alreadyInvited) {
-        final List<EventInvitation> invitations = eventInvitationService.findByEvent(event.getId());
+                                         final BindingResult errors, final boolean sent, final boolean alreadyInvited,
+                                         final int page) {
+        final PageResult<EventInvitation> invitations = eventInvitationService.findPageByEvent(event.getId(), page);
         final ModelAndView mav = new ModelAndView("auth/invitar");
         mav.addObject("user", currentUser);
         mav.addObject("event", event);
@@ -422,7 +425,9 @@ public class ProfileController {
         if (errors != null) {
             mav.addObject("fieldErrors", fieldErrorsOf(errors));
         }
-        mav.addObject("invitations", invitations);
+        mav.addObject("invitations", invitations.getContent());
+        mav.addObject("currentPage", invitations.getPage());
+        mav.addObject("totalPages", invitations.getTotalPages());
         mav.addObject("sent", sent);
         mav.addObject("alreadyInvited", alreadyInvited);
         return mav;

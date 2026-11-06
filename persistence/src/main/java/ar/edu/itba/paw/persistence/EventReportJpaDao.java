@@ -12,6 +12,7 @@ import javax.persistence.PersistenceContext;
 import javax.persistence.TemporalType;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -55,13 +56,15 @@ public class EventReportJpaDao implements EventReportDao {
     public List<EventReport> findPending(final int page, final int pageSize) {
         // id como desempate: sin el, dos reportes con la misma fecha podrian
         // cambiar de lugar entre una pagina y la siguiente.
-        return em.createQuery(
-                        "FROM EventReport r WHERE r.status = :status ORDER BY r.createdAt ASC, r.id ASC",
-                        EventReport.class)
+        // Dos pasos (1+1): ids de la pagina, despues las entidades de esos ids.
+        final List<Long> ids = em.createQuery(
+                        "SELECT r.id FROM EventReport r WHERE r.status = :status "
+                                + "ORDER BY r.createdAt ASC, r.id ASC", Long.class)
                 .setParameter("status", ReportStatus.PENDING)
                 .setFirstResult((page - 1) * pageSize)
                 .setMaxResults(pageSize)
                 .getResultList();
+        return loadInOrder(ids);
     }
 
     @Override
@@ -71,13 +74,26 @@ public class EventReportJpaDao implements EventReportDao {
 
     @Override
     public List<EventReport> findChangesRequested(final int page, final int pageSize) {
-        return em.createQuery(
-                        "FROM EventReport r WHERE r.status = :status ORDER BY r.changesRequestedAt ASC, r.id ASC",
-                        EventReport.class)
+        final List<Long> ids = em.createQuery(
+                        "SELECT r.id FROM EventReport r WHERE r.status = :status "
+                                + "ORDER BY r.changesRequestedAt ASC, r.id ASC", Long.class)
                 .setParameter("status", ReportStatus.CHANGES_REQUESTED)
                 .setFirstResult((page - 1) * pageSize)
                 .setMaxResults(pageSize)
                 .getResultList();
+        return loadInOrder(ids);
+    }
+
+    // Paso 2 del 1+1: carga los reportes de "ids" y los devuelve en el mismo orden que los ids.
+    private List<EventReport> loadInOrder(final List<Long> ids) {
+        if (ids.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return PagedIds.inOrder(ids,
+                em.createQuery("FROM EventReport r WHERE r.id IN :ids", EventReport.class)
+                        .setParameter("ids", ids)
+                        .getResultList(),
+                EventReport::getId);
     }
 
     @Override

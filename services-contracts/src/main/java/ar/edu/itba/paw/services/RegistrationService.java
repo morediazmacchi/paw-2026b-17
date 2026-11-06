@@ -149,6 +149,14 @@ public interface RegistrationService {
     List<Registration> findByEventId(long eventId);
 
     /**
+     * Lo mismo que findByEventId pero de a una pagina, para las pantallas "Ver inscriptos" del
+     * organizador y del admin. Mismo requisito: quien llama verifica antes quien pregunta. Una pagina
+     * mayor a la ultima devuelve la ultima, una menor a 1 la primera; sin inscriptos, la pagina 1 vacia.
+     */
+    @Transactional(readOnly = true)
+    PageResult<Registration> findPageByEventId(long eventId, int page);
+
+    /**
      * Pantalla de "aceptar o rechazar inscriptos" del creador: las pendientes
      * de este evento, de la que espera hace mas tiempo a la mas reciente.
      * Que quien lo pide sea el creador NO se valida aca: lo decide @PreAuthorize en el

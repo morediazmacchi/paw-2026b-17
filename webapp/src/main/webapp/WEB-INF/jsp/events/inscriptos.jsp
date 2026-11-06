@@ -12,7 +12,7 @@
 <main class="page">
     <h1><spring:message code="event.attendees.heading" arguments="${event.title}" htmlEscape="true"/></h1>
     <p class="auth-subheading">
-        <spring:message code="event.attendees.countLabel" arguments="${fn:length(registrations)}"/>
+        <spring:message code="event.attendees.countLabel" arguments="${totalRegistrations}"/>
     </p>
 
     <c:if test="${param.revoked != null}">
@@ -66,5 +66,6 @@
             </div>
         </c:otherwise>
     </c:choose>
+    <paw:pager baseUrl="/perfil/eventos/${event.id}/inscriptos" currentPage="${currentPage}" totalPages="${totalPages}"/>
 </main>
 </paw:layout>

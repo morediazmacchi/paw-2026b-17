@@ -20,13 +20,10 @@ public interface UserDao {
     Optional<UserAccess> findAccessById(long id);
     Optional<User> findByEmail(String email);
 
-    // Para "Usuarios" del panel de admin (ver AdminController): todos, con sus
-    // roles ya cargados, ordenados por id.
-    List<User> findAll();
-
-    // Pagina sobre la tabla users (no sobre las filas del JOIN con roles: un usuario
-    // con dos roles son dos filas). Mismo orden que findAll(). countAll() es el total
-    // para calcular las paginas.
+    // Para "Usuarios" del panel de admin (ver AdminController): una pagina de usuarios
+    // ordenados por id, con sus roles ya cargados. Pagina sobre la tabla users (no sobre
+    // las filas del JOIN con roles: un usuario con dos roles son dos filas). countAll()
+    // es el total para calcular las paginas.
     List<User> findPage(int limit, int offset);
 
     long countAll();

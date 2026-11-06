@@ -319,17 +319,18 @@ public class EventJpaDao implements EventDao {
         // pasados (el mas reciente primero). Cada CASE ordena un solo grupo: en las
         // filas del otro grupo da NULL, y como el primer criterio ya las separo en
         // dos bloques, ese NULL no cambia el orden dentro de cada bloque.
-        return em.createQuery(
-                        "FROM Event e WHERE e.creator.id = :creatorId ORDER BY "
+        final List<Long> ids = em.createQuery(
+                        "SELECT e.id FROM Event e WHERE e.creator.id = :creatorId ORDER BY "
                                 + "CASE WHEN e.eventDate >= :now THEN 0 ELSE 1 END ASC, "
                                 + "CASE WHEN e.eventDate >= :now THEN e.eventDate END ASC, "
                                 + "CASE WHEN e.eventDate < :now THEN e.eventDate END DESC, "
-                                + "e.id ASC", Event.class)
+                                + "e.id ASC", Long.class)
                 .setParameter("creatorId", creatorId)
                 .setParameter("now", new Date(), TemporalType.TIMESTAMP)
                 .setFirstResult((page - 1) * pageSize)
                 .setMaxResults(pageSize)
                 .getResultList();
+        return findOrderedByIds(ids);
     }
 
     @Override
@@ -343,10 +344,12 @@ public class EventJpaDao implements EventDao {
     public List<Event> findAll(final int page, final int pageSize) {
         // Sin WHERE a proposito (ver el comentario del contrato): el panel de admin tiene que poder
         // ver pendientes, rechazados y dados de baja, no solo lo que search() deja pasar.
-        return em.createQuery("FROM Event e ORDER BY e.createdAt DESC, e.id DESC", Event.class)
+        final List<Long> ids = em.createQuery(
+                        "SELECT e.id FROM Event e ORDER BY e.createdAt DESC, e.id DESC", Long.class)
                 .setFirstResult((page - 1) * pageSize)
                 .setMaxResults(pageSize)
                 .getResultList();
+        return findOrderedByIds(ids);
     }
 
     @Override
@@ -356,13 +359,14 @@ public class EventJpaDao implements EventDao {
 
     @Override
     public List<Event> findPendingApproval(final int page, final int pageSize) {
-        return em.createQuery(
-                        "FROM Event e WHERE e.approvalStatus = :status ORDER BY e.createdAt ASC, e.id ASC",
-                        Event.class)
+        final List<Long> ids = em.createQuery(
+                        "SELECT e.id FROM Event e WHERE e.approvalStatus = :status "
+                                + "ORDER BY e.createdAt ASC, e.id ASC", Long.class)
                 .setParameter("status", EventApprovalStatus.PENDING)
                 .setFirstResult((page - 1) * pageSize)
                 .setMaxResults(pageSize)
                 .getResultList();
+        return findOrderedByIds(ids);
     }
 
     @Override
