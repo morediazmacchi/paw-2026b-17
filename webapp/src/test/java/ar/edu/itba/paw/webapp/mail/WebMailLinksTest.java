@@ -56,6 +56,11 @@ public class WebMailLinksTest {
     }
 
     @Test
+    public void testUnsubscribeSavedSearchLinkPointsToTheConfirmationOfThatList() {
+        assertEquals(BASE + "/perfil/listas/7/desuscribirse", links.unsubscribeSavedSearch(7));
+    }
+
+    @Test
     public void testResetPasswordLinkCarriesTheToken() {
         assertEquals(BASE + "/login/restablecer?token=xyz", links.resetPassword("xyz"));
     }

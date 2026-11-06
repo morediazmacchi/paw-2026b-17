@@ -10,6 +10,7 @@ import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 import java.math.BigDecimal;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -48,6 +49,39 @@ public class SavedSearchJpaDao implements SavedSearchDao {
         return em.createQuery("SELECT COUNT(s) FROM SavedSearch s WHERE s.user.id = :userId", Long.class)
                 .setParameter("userId", userId)
                 .getSingleResult();
+    }
+
+    @Override
+    public List<SavedSearch> findByUserId(final long userId, final int page, final int pageSize) {
+        // Dos pasos (1+1): primero los ids de la pagina (el id desempata), despues las busquedas con sus filtros.
+        final List<Long> ids = em.createQuery(
+                        "SELECT s.id FROM SavedSearch s WHERE s.user.id = :userId ORDER BY s.createdAt DESC, s.id DESC",
+                        Long.class)
+                .setParameter("userId", userId)
+                .setFirstResult((page - 1) * pageSize)
+                .setMaxResults(pageSize)
+                .getResultList();
+        if (ids.isEmpty()) {
+            return Collections.emptyList();
+        }
+        // DISTINCT: el JOIN con las dos colecciones repite la fila de cada busqueda.
+        final List<SavedSearch> loaded = em.createQuery(
+                        "SELECT DISTINCT s FROM SavedSearch s LEFT JOIN FETCH s.categoryIds "
+                                + "LEFT JOIN FETCH s.barrios WHERE s.id IN :ids", SavedSearch.class)
+                .setParameter("ids", ids)
+                .getResultList();
+        return PagedIds.inOrder(ids, loaded, SavedSearch::getId);
+    }
+
+    @Override
+    public boolean deleteByIdAndUserId(final long id, final long userId) {
+        final Optional<SavedSearch> found = em.createQuery(
+                        "FROM SavedSearch s WHERE s.id = :id AND s.user.id = :userId", SavedSearch.class)
+                .setParameter("id", id)
+                .setParameter("userId", userId)
+                .getResultList().stream().findFirst();
+        found.ifPresent(em::remove);
+        return found.isPresent();
     }
 
     @Override

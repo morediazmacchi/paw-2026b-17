@@ -552,12 +552,14 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Async
     @Override
-    public void notifySavedSearchMatches(final User user, final Event example, final long newEventsCount) {
+    public void notifySavedSearchMatches(final User user, final long savedSearchId, final Event example,
+                                         final long newEventsCount) {
         try {
             final Locale locale = localeForUserId(user.getId());
             final Map<String, Object> variables = eventVariables(example, locale);
             variables.put("personName", displayName(user.getName(), user.getEmail()));
             variables.put("newEventsCount", newEventsCount);
+            variables.put("unsubscribeUrl", links.unsubscribeSavedSearch(savedSearchId));
 
             mailService.send(user.getEmail(),
                     "saved-search-matches",

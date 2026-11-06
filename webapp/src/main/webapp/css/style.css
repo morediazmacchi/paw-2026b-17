@@ -3968,3 +3968,70 @@ button.btn-accent {
 .save-search-saved:hover {
     border-color: var(--border);
 }
+
+/* ==========================================================================
+   Mis listas (auth/listas.jsp) y confirmar la baja (auth/desuscribirLista.jsp):
+   una tarjeta por busqueda guardada, con sus filtros a la izquierda y los
+   botones (Ver eventos / Eliminar lista) a la derecha.
+   ========================================================================== */
+
+.saved-search-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.saved-search-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+}
+
+.saved-search-info {
+    min-width: 0;
+    flex: 1;
+}
+
+.saved-search-filters {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    overflow-wrap: anywhere;
+}
+
+.saved-search-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.saved-search-actions form {
+    margin: 0;
+}
+
+.saved-search-confirm {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    max-width: 640px;
+}
+
+.saved-search-confirm-question {
+    font-weight: 600;
+}
+
+@media (max-width: 640px) {
+    .saved-search-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}

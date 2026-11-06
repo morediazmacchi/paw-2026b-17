@@ -177,7 +177,6 @@ public class EventController {
                 mav.addObject("searchSaved", savedSearchService.isSaved(currentUser.getId(), criteria));
             }
             mav.addObject("saveSearchResult", parseSaveSearchResult(saveSearchResult));
-            mav.addObject("maxSavedSearches", SavedSearchService.MAX_PER_USER);
         }
         return mav;
     }

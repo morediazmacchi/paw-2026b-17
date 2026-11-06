@@ -23,6 +23,9 @@ public class SavedSearchServiceImpl implements SavedSearchService {
     // Un minuto de margen al final de la ventana de "eventos nuevos" (ver notifyNewEvents()).
     static final long COMMIT_MARGIN_MILLIS = 60 * 1000L;
 
+    // Busquedas guardadas por pagina en "Mis listas".
+    static final int PAGE_SIZE = 10;
+
     private final SavedSearchDao savedSearchDao;
     private final EventDao eventDao;
     private final InboxService inboxService;
@@ -43,9 +46,6 @@ public class SavedSearchServiceImpl implements SavedSearchService {
         if (savedSearchDao.existsByKey(userId, keyOf(criteria))) {
             return SaveSearchResult.ALREADY_SAVED;
         }
-        if (savedSearchDao.countByUserId(userId) >= MAX_PER_USER) {
-            return SaveSearchResult.LIMIT_REACHED;
-        }
         savedSearchDao.create(userId, criteria.getCategoryIds(), criteria.getBarrios(),
                 criteria.getMinPrice(), criteria.getMaxPrice(), criteria.getFromDate(), criteria.getToDate());
         return SaveSearchResult.SAVED;
@@ -55,6 +55,28 @@ public class SavedSearchServiceImpl implements SavedSearchService {
     @Transactional(readOnly = true)
     public boolean isSaved(final long userId, final EventSearchCriteria criteria) {
         return savedSearchDao.existsByKey(userId, keyOf(criteria));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResult<SavedSearch> findPageByUser(final long userId, final int page) {
+        final long total = savedSearchDao.countByUserId(userId);
+        final int effectivePage = PageResult.clampPage(page, total, PAGE_SIZE);
+        return new PageResult<>(savedSearchDao.findByUserId(userId, effectivePage, PAGE_SIZE),
+                total, effectivePage, PAGE_SIZE);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<SavedSearch> findByIdForUser(final long userId, final long savedSearchId) {
+        return savedSearchDao.findByIdWithFilters(savedSearchId)
+                .filter(search -> Long.valueOf(userId).equals(search.getUserId()));
+    }
+
+    @Override
+    @Transactional
+    public boolean delete(final long userId, final long savedSearchId) {
+        return savedSearchDao.deleteByIdAndUserId(savedSearchId, userId);
     }
 
     private static String keyOf(final EventSearchCriteria criteria) {
@@ -110,7 +132,7 @@ public class SavedSearchServiceImpl implements SavedSearchService {
         final User owner = search.getUser();
         // Bandeja: adentro de esta transaccion. Mail: @Async, sale recien despues del commit (AfterCommitTaskExecutor).
         inboxService.add(owner.getEmail(), InboxMessageType.SAVED_SEARCH_MATCHES, example.get(0).getId(), null, null);
-        notificationService.notifySavedSearchMatches(owner, example.get(0), newEvents);
+        notificationService.notifySavedSearchMatches(owner, savedSearchId, example.get(0), newEvents);
         return true;
     }
 }

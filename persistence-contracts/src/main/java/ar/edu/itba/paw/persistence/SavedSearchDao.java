@@ -19,8 +19,16 @@ public interface SavedSearchDao {
     // Si esa persona ya guardo una busqueda con esos filtros (ver SavedSearch.keyOf()).
     boolean existsByKey(long userId, String filtersKey);
 
-    // Cuantas busquedas guardadas tiene (un COUNT, sin traer las filas).
+    // Cuantas busquedas guardadas tiene (un COUNT, sin traer las filas): para armar las paginas de "Mis listas".
     long countByUserId(long userId);
+
+    // Una pagina (page desde 1) de las busquedas guardadas de esa persona, las mas nuevas primero, con sus filtros
+    // cargados. Dos consultas: la primera trae solo los ids de la pagina y la segunda carga esas busquedas.
+    List<SavedSearch> findByUserId(long userId, int page, int pageSize);
+
+    // Borra la busqueda solo si es de esa persona (junto con sus filtros). true si la borro; false si no existe o
+    // es de otra persona.
+    boolean deleteByIdAndUserId(long id, long userId);
 
     // Los ids mayores a afterId, de menor a mayor, a lo sumo limit: para recorrer todas las busquedas guardadas de a
     // tandas sin traerlas juntas a memoria.

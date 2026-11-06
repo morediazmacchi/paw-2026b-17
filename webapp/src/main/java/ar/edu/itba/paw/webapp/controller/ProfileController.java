@@ -3,10 +3,13 @@ package ar.edu.itba.paw.webapp.controller;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventInvitation;
 import ar.edu.itba.paw.model.InboxMessage;
+import ar.edu.itba.paw.model.Category;
+import ar.edu.itba.paw.model.SavedSearch;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.AccountCounts;
 import ar.edu.itba.paw.services.AccountSummaryService;
 import ar.edu.itba.paw.services.ApprovalResult;
+import ar.edu.itba.paw.services.CategoryService;
 import ar.edu.itba.paw.services.ChangePasswordResult;
 import ar.edu.itba.paw.services.CreatorReputation;
 import ar.edu.itba.paw.services.EventInvitationResult;
@@ -23,6 +26,7 @@ import ar.edu.itba.paw.services.PendingRegistrations;
 import ar.edu.itba.paw.services.RegistrationService;
 import ar.edu.itba.paw.services.ReviewResult;
 import ar.edu.itba.paw.services.ReviewService;
+import ar.edu.itba.paw.services.SavedSearchService;
 import ar.edu.itba.paw.services.UnregisterResult;
 import ar.edu.itba.paw.services.UpdateProfileResult;
 import ar.edu.itba.paw.services.UserService;
@@ -32,6 +36,7 @@ import ar.edu.itba.paw.webapp.form.ProfileForm;
 import ar.edu.itba.paw.webapp.form.ReviewForm;
 import ar.edu.itba.paw.webapp.util.FormErrors;
 import ar.edu.itba.paw.webapp.util.Paging;
+import ar.edu.itba.paw.webapp.util.SavedSearchView;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -48,6 +53,8 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import javax.validation.Valid;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Controller
 public class ProfileController {
@@ -62,6 +69,8 @@ public class ProfileController {
     private final InboxService inboxService;
     private final EventChatService eventChatService;
     private final AccountSummaryService accountSummaryService;
+    private final SavedSearchService savedSearchService;
+    private final CategoryService categoryService;
 
     @Autowired
     public ProfileController(final UserService userService,
@@ -70,7 +79,9 @@ public class ProfileController {
                               final EventInvitationService eventInvitationService,
                               final MessageSource messageSource, final InboxService inboxService,
                               final EventChatService eventChatService,
-                              final AccountSummaryService accountSummaryService) {
+                              final AccountSummaryService accountSummaryService,
+                              final SavedSearchService savedSearchService,
+                              final CategoryService categoryService) {
         this.userService = userService;
         this.registrationService = registrationService;
         this.eventService = eventService;
@@ -81,6 +92,8 @@ public class ProfileController {
         this.inboxService = inboxService;
         this.eventChatService = eventChatService;
         this.accountSummaryService = accountSummaryService;
+        this.savedSearchService = savedSearchService;
+        this.categoryService = categoryService;
     }
 
     private Map<String, String> fieldErrorsOf(final BindingResult errors) {
@@ -237,6 +250,65 @@ public class ProfileController {
         mav.addObject("currentPage", result.getPage());
         mav.addObject("totalPages", result.getTotalPages());
         return mav;
+    }
+
+    // "Mis listas": las busquedas guardadas de /eventos, una debajo de la otra, cada una con "Ver eventos" y
+    // "Eliminar lista". Paginadas: no hay maximo de listas por persona.
+    @RequestMapping(value = "/perfil/listas", method = RequestMethod.GET)
+    public ModelAndView misListas(@RequestParam(value = "page", required = false) final String page,
+                                  @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
+        final PageResult<SavedSearch> result = savedSearchService.findPageByUser(currentUser.getId(), Paging.parsePage(page));
+        final Map<Long, String> categoryNames = categoryNames();
+
+        final ModelAndView mav = new ModelAndView("auth/listas");
+        mav.addObject("user", currentUser);
+        mav.addObject("savedSearches", result.getContent().stream()
+                .map(search -> SavedSearchView.of(search, categoryNames))
+                .collect(Collectors.toList()));
+        mav.addObject("currentPage", result.getPage());
+        mav.addObject("totalPages", result.getTotalPages());
+        return mav;
+    }
+
+    // Vuelve a la misma pagina de "Mis listas" (el service la ajusta si ya no existe, por ejemplo al borrar la
+    // unica lista de la ultima pagina). El resultado viaja como flash: true = se borro, false = ya no existia.
+    @RequestMapping(value = "/perfil/listas/{id}/eliminar", method = RequestMethod.POST)
+    public ModelAndView eliminarLista(@PathVariable final long id,
+                                      @RequestParam(value = "page", required = false) final String page,
+                                      @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
+                                      final RedirectAttributes redirectAttributes) {
+        redirectAttributes.addFlashAttribute("listDeleted", savedSearchService.delete(currentUser.getId(), id));
+        return new ModelAndView("redirect:/perfil/listas?page=" + Paging.parsePage(page));
+    }
+
+    // A donde lleva el boton "Desuscribirme de esta lista" del mail. Pide sesion como todo /perfil (despues de
+    // loguearse vuelve aca) y muestra los filtros de la lista para confirmar; no borra nada hasta el POST de abajo.
+    // Una lista que no existe o es de otra persona se trata igual: vuelve a "Mis listas" avisando que no esta.
+    @RequestMapping(value = "/perfil/listas/{id}/desuscribirse", method = RequestMethod.GET)
+    public ModelAndView confirmarDesuscripcion(@PathVariable final long id,
+                                               @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
+                                               final RedirectAttributes redirectAttributes) {
+        final Optional<SavedSearch> search = savedSearchService.findByIdForUser(currentUser.getId(), id);
+        if (!search.isPresent()) {
+            redirectAttributes.addFlashAttribute("listDeleted", false);
+            return new ModelAndView("redirect:/perfil/listas");
+        }
+        final ModelAndView mav = new ModelAndView("auth/desuscribirLista");
+        mav.addObject("user", currentUser);
+        mav.addObject("savedSearch", SavedSearchView.of(search.get(), categoryNames()));
+        return mav;
+    }
+
+    @RequestMapping(value = "/perfil/listas/{id}/desuscribirse", method = RequestMethod.POST)
+    public ModelAndView desuscribirse(@PathVariable final long id,
+                                      @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
+                                      final RedirectAttributes redirectAttributes) {
+        redirectAttributes.addFlashAttribute("listDeleted", savedSearchService.delete(currentUser.getId(), id));
+        return new ModelAndView("redirect:/perfil/listas");
+    }
+
+    private Map<Long, String> categoryNames() {
+        return categoryService.findAll().stream().collect(Collectors.toMap(Category::getId, Category::getName));
     }
 
     @RequestMapping(value = "/perfil/invitaciones", method = RequestMethod.GET)
