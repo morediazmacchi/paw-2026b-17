@@ -219,6 +219,8 @@ public class AdminController {
         return new ModelAndView("redirect:/admin/usuarios");
     }
 
+    // Dar el rol admin lo puede hacer cualquier admin (lo cubre el "/admin/**" de WebAuthConfig); sacarlo, solo un
+    // superadmin (ver revocar() abajo).
     @RequestMapping(value = "/usuarios/{id}/promover", method = RequestMethod.POST)
     public ModelAndView promover(@PathVariable final long id) {
         userService.grantAdmin(id);

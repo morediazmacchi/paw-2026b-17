@@ -143,8 +143,8 @@ public interface UserService {
     boolean reactivate(long userId);
 
     /**
-     * Le da el rol ADMIN a un usuario. Quien puede invocar esto (solo un
-     * superadmin) lo controla la seguridad HTTP (ver WebAuthConfig), no este
+     * Le da el rol ADMIN a un usuario. Quien puede invocar esto (cualquier
+     * admin) lo controla la seguridad HTTP (ver WebAuthConfig), no este
      * metodo: es una simple asignacion de rol, ya autorizada al llegar aca.
      */
     boolean grantAdmin(long userId);

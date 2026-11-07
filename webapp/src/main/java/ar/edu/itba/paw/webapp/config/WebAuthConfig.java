@@ -158,10 +158,12 @@ public class WebAuthConfig {
                         .antMatchers(HttpMethod.GET, "/", "/eventos").permitAll()
                         .antMatchers(HttpMethod.GET, "/eventos/{id:[0-9]+}").permitAll()
                         // Mas especifico primero: Spring Security usa el PRIMER
-                        // antMatcher que matchea, asi que gestion de roles (solo
+                        // antMatcher que matchea, asi que sacar el rol admin (solo
                         // superadmin) tiene que ir antes del "/admin/**" general
                         // (cualquier admin), si no el general lo captura primero.
-                        .antMatchers("/admin/usuarios/*/promover", "/admin/usuarios/*/revocar")
+                        // Dar el rol admin ("/promover") NO esta aca: lo puede hacer
+                        // cualquier admin, asi que cae en el "/admin/**" de abajo.
+                        .antMatchers("/admin/usuarios/*/revocar")
                             .hasRole(Role.SUPERADMIN.name())
                         .antMatchers("/admin/**").hasRole(Role.ADMIN.name())
                         // Todo lo demas exige sesion. QUIEN puede hacer que sobre un evento (ser el
