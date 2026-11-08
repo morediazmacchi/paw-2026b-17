@@ -23,6 +23,11 @@ public interface EventService {
     // Largo maximo del motivo con el que un admin rechaza un evento (reject() devuelve INVALID si lo supera o esta vacio).
     int MAX_REJECT_REASON_LENGTH = 500;
 
+    // Largo maximo del mensaje con el que un admin pide cambios (requestChanges() devuelve INVALID si lo
+    // supera o esta vacio). Mismo limite que ModerationService.MAX_CHANGES_MESSAGE_LENGTH (pedir cambios
+    // sobre un reporte), por consistencia entre las dos pantallas de "pedir cambios" de la app.
+    int MAX_CHANGES_MESSAGE_LENGTH = 1000;
+
     /**
      * Crea un evento nuevo de ese creador a partir de un DTO ya validado (ver EventForm.toDTO()):
      * el service arma el Event final (con el mail del creador, que busca por su id) y lo persiste, sin
@@ -112,7 +117,9 @@ public interface EventService {
      * transaccion) y reemplazan toda la galeria vieja.
      *
      * Que quien lo edita sea el creador NO se valida aca: lo decide @PreAuthorize en el
-     * controller (ver EventSecurity.isOwner).
+     * controller (ver EventSecurity.isOwner). Si el evento estaba en CHANGES_REQUESTED (ver
+     * requestChanges()), un guardado exitoso lo manda de nuevo a PENDING: es la forma de
+     * "reenviar a revision" (EventUpdateOutcome.isResubmittedForReview() lo confirma).
      *
      * @throws EventNotFoundException si el evento no existe.
      * @throws EventCancelledException si el evento ya esta cancelado.
@@ -159,6 +166,18 @@ public interface EventService {
      */
     @Transactional(rollbackFor = Exception.class)
     EventApprovalResult reject(long eventId, String reason);
+
+    /**
+     * Un admin no aprueba ni rechaza un evento pendiente: le pide cambios (ver
+     * EventApprovalStatus.CHANGES_REQUESTED). A diferencia de reject(), esto NO es definitivo: el
+     * evento sigue existiendo y editable, y vuelve solo a la cola de pendientes cuando el creador
+     * lo edita (ver update()). Avisa al creador con el mensaje (mismo mecanismo que
+     * ModerationService.requestChanges() para reportes: mail + bandeja, InboxMessageType.EVENT_CHANGES_REQUESTED).
+     * Que un admin no pueda hacer esto sobre su propio evento NO se valida aca: lo decide
+     * @PreAuthorize en AdminController (ver AdminSecurity.canModerateEvent).
+     */
+    @Transactional(rollbackFor = Exception.class)
+    EventApprovalResult requestChanges(long eventId, String message);
 
     /**
      * Cola de aprobacion del admin: los eventos PENDING, mas viejo primero

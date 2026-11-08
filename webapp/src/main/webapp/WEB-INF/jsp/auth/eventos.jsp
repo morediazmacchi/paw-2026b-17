@@ -62,7 +62,7 @@
                                       ubicacion="${event.neighborhood.displayName}" precio="${event.price}" gratis="${event.free}"
                                       imagenId="${event.imageId}" privado="${event.inviteOnly}"
                                       cancelado="${event.cancelled}" pendiente="${event.pendingApproval}"
-                                      rechazado="${event.rejected}">
+                                      rechazado="${event.rejected}" cambiosPedidos="${event.changesRequested}">
                             <a class="btn btn-medium" href="<c:url value='/eventos/${event.id}/inscriptos'/>">
                                 <c:out value="${attendeesButtonLabel}"/>
                             </a>

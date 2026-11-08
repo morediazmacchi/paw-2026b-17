@@ -105,6 +105,9 @@ public class EventDetailServiceImpl implements EventDetailService {
                 if (event.isPendingApproval()) {
                     return EventAction.OWNER_PENDING;
                 }
+                if (event.isChangesRequested()) {
+                    return EventAction.OWNER_CHANGES_REQUESTED;
+                }
                 return event.isRejected() ? EventAction.OWNER_REJECTED : EventAction.OWNER;
             }
             if (!participation.canRegister()) {

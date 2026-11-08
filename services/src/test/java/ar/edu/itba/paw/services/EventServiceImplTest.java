@@ -700,6 +700,35 @@ public class EventServiceImplTest {
         assertEquals(EVENT_ID, result.getEvent().getId().longValue());
     }
 
+    @Test
+    public void testUpdateOfAnEventWithChangesRequestedResubmitsItForReview() {
+        // Arrange: el guardado ES el "reenviar a revision" (no hay boton aparte).
+        final Event changesRequested = someEvent();
+        changesRequested.setApprovalStatus(EventApprovalStatus.CHANGES_REQUESTED);
+        existingForUpdate(changesRequested);
+        when(eventDao.resubmitForReview(EVENT_ID)).thenReturn(true);
+
+        // Act
+        final EventUpdateOutcome result = eventService.update(EVENT_ID, someDto());
+
+        // Assert
+        assertTrue(result.isResubmittedForReview());
+    }
+
+    @Test
+    public void testUpdateOfAPendingEventDoesNotResubmitIt() {
+        // Arrange: ya estaba PENDING, no hace falta "reenviarlo" a ningun lado.
+        final Event pending = someEvent();
+        pending.setApprovalStatus(EventApprovalStatus.PENDING);
+        existingForUpdate(pending);
+
+        // Act
+        final EventUpdateOutcome result = eventService.update(EVENT_ID, someDto());
+
+        // Assert
+        assertFalse(result.isResubmittedForReview());
+    }
+
     @Test(expected = EventCancelledException.class)
     public void testUpdateWhenTheEventIsCancelledThrowsEventCancelledException() {
         // Arrange
@@ -942,6 +971,68 @@ public class EventServiceImplTest {
 
         // Act
         final EventApprovalResult result = eventService.reject(EVENT_ID, "motivo");
+
+        // Assert
+        assertEquals(EventApprovalResult.ALREADY_DECIDED, result);
+    }
+
+    // ---- requestChanges() (pedir cambios, no es definitivo como reject()) ----
+
+    @Test
+    public void testRequestChangesSucceedsOnAPendingEvent() {
+        // Arrange
+        existingForUpdate(someEvent());
+        when(eventDao.requestChanges(EVENT_ID, "Falta la direccion exacta")).thenReturn(true);
+
+        // Act
+        final EventApprovalResult result = eventService.requestChanges(EVENT_ID, "Falta la direccion exacta");
+
+        // Assert
+        assertEquals(EventApprovalResult.OK, result);
+    }
+
+    @Test
+    public void testRequestChangesWithABlankMessageReturnsInvalid() {
+        // Act
+        final EventApprovalResult result = eventService.requestChanges(EVENT_ID, "   ");
+
+        // Assert
+        assertEquals(EventApprovalResult.INVALID, result);
+    }
+
+    @Test
+    public void testRequestChangesWithAMessageLongerThanTheMaximumReturnsInvalid() {
+        // Arrange
+        final String tooLong = String.join("", Collections.nCopies(EventService.MAX_CHANGES_MESSAGE_LENGTH + 1, "a"));
+
+        // Act
+        final EventApprovalResult result = eventService.requestChanges(EVENT_ID, tooLong);
+
+        // Assert
+        assertEquals(EventApprovalResult.INVALID, result);
+    }
+
+    @Test
+    public void testRequestChangesWhenTheEventDoesNotExistReturnsNotFound() {
+        // Arrange
+        when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.empty());
+
+        // Act
+        final EventApprovalResult result = eventService.requestChanges(EVENT_ID, "mensaje");
+
+        // Assert
+        assertEquals(EventApprovalResult.NOT_FOUND, result);
+    }
+
+    @Test
+    public void testRequestChangesWhenAlreadyDecidedReturnsAlreadyDecided() {
+        // Arrange
+        final Event event = someEvent();
+        event.setApprovalStatus(EventApprovalStatus.APPROVED);
+        existingForUpdate(event);
+
+        // Act
+        final EventApprovalResult result = eventService.requestChanges(EVENT_ID, "mensaje");
 
         // Assert
         assertEquals(EventApprovalResult.ALREADY_DECIDED, result);

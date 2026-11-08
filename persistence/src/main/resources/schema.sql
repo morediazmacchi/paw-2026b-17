@@ -341,6 +341,11 @@ ALTER TABLE event ADD COLUMN IF NOT EXISTS removed_reason VARCHAR(500);
 ALTER TABLE event ADD COLUMN IF NOT EXISTS approval_status VARCHAR(20) NOT NULL DEFAULT 'APPROVED';
 ALTER TABLE event ADD COLUMN IF NOT EXISTS rejected_reason VARCHAR(500);
 
+-- Pedir cambios en vez de rechazar (ver EventApprovalStatus.CHANGES_REQUESTED): mensaje del
+-- admin, que no se borra al volver a PENDING (sirve de contexto si lo revisa otro admin despues).
+ALTER TABLE event ADD COLUMN IF NOT EXISTS changes_requested_message VARCHAR(1000);
+ALTER TABLE event ADD COLUMN IF NOT EXISTS changes_requested_at TIMESTAMP WITH TIME ZONE;
+
 -- (El banner de /eventos ya no se cura a mano: lo arma EventDao.findMostRegistered() por cantidad de
 -- inscriptos. Las columnas event.featured / event.featured_at de ese esquema viejo siguen en las bases que ya
 -- las tenian, sin uso y con DEFAULT, y no se borran para no perder datos; una base nueva no las crea.)

@@ -533,7 +533,7 @@
                          a vos -- nunca te vas a poder anotar a tu propio evento
                          (ver RegistrationServiceImpl.register()), asi que no tiene
                          sentido ofrecerte ningun boton relacionado. --%>
-                    <c:when test="${action == 'OWNER' or action == 'OWNER_PENDING' or action == 'OWNER_REJECTED'}">
+                    <c:when test="${action == 'OWNER' or action == 'OWNER_PENDING' or action == 'OWNER_REJECTED' or action == 'OWNER_CHANGES_REQUESTED'}">
                         <%-- Revision previa a publicarse (ver EventApprovalStatus): no es
                              lo mismo que event.cancelled/removedByAdmin, por eso va
                              primero aca y no en esas ramas de abajo (esas son para
@@ -549,6 +549,17 @@
                                     <c:if test="${not empty event.rejectedReason}">
                                         <br/>
                                         <spring:message code="event.detail.eventRejectedByAdminReason" arguments="${event.rejectedReason}" htmlEscape="true"/>
+                                    </c:if>
+                                </p>
+                            </c:when>
+                            <%-- No es definitivo como el rechazo: el cartel invita a editar, el
+                                 rechazo invita a leer el motivo nada mas (no hay boton de editar ahi). --%>
+                            <c:when test="${action == 'OWNER_CHANGES_REQUESTED'}">
+                                <p class="alert">
+                                    <spring:message code="event.detail.eventChangesRequested"/>
+                                    <c:if test="${not empty event.changesRequestedMessage}">
+                                        <br/>
+                                        <spring:message code="event.detail.eventChangesRequestedMessage" arguments="${event.changesRequestedMessage}" htmlEscape="true"/>
                                     </c:if>
                                 </p>
                             </c:when>

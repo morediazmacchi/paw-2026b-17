@@ -48,9 +48,14 @@
             <c:otherwise>
                 <spring:message code="admin.pendingEvents.viewEventButton" var="viewEventButtonLabel"/>
                 <spring:message code="admin.pendingEvents.approveButton" var="approveButtonLabel"/>
+                <spring:message code="admin.pendingEvents.requestChangesButton" var="requestChangesButtonLabel"/>
                 <spring:message code="admin.pendingEvents.rejectButton" var="rejectButtonLabel"/>
                 <spring:message code="admin.pendingEvents.rejectConfirmBackButton" var="rejectConfirmBackButtonLabel"/>
                 <spring:message code="admin.pendingEvents.rejectConfirmSubmitButton" var="rejectConfirmSubmitButtonLabel"/>
+                <spring:message code="admin.pendingEvents.requestChangesTitle" var="requestChangesTitleLabel"/>
+                <spring:message code="admin.pendingEvents.requestChangesBody" var="requestChangesBodyLabel"/>
+                <spring:message code="admin.pendingEvents.requestChangesLabel" var="requestChangesLabel"/>
+                <spring:message code="admin.pendingEvents.requestChangesSubmitButton" var="requestChangesSubmitButtonLabel"/>
                 <spring:message code="event.detail.closeButton" var="closeButtonLabel"/>
                 <div class="attendees-table-wrap">
                     <table class="attendees-table">
@@ -68,6 +73,13 @@
                                 <td>
                                     <a href="<c:url value='/eventos/${pendingEvent.id}'/>"><c:out value="${pendingEvent.title}"/></a>
                                     <c:if test="${pendingEvent.isCreatedBy(myId)}"><paw:ownEventBadge/></c:if>
+                                    <%-- Ya se le habian pedido cambios antes y el creador lo reenvio: contexto
+                                         util para quien lo revisa ahora, sea el mismo admin u otro. --%>
+                                    <c:if test="${not empty pendingEvent.changesRequestedMessage}">
+                                        <p class="admin-changes-history">
+                                            <spring:message code="admin.pendingEvents.previousChangesRequested" arguments="${pendingEvent.changesRequestedMessage}" htmlEscape="true"/>
+                                        </p>
+                                    </c:if>
                                 </td>
                                 <td><c:out value="${pendingEvent.creatorEmail}"/></td>
                                 <td><paw:date value="${pendingEvent.createdAt}" format="dateTimeTable"/></td>
@@ -82,6 +94,9 @@
                                             <form action="<c:url value='/admin/eventos-pendientes/${pendingEvent.id}/aprobar'/>" method="post">
                                                 <paw:button text="${approveButtonLabel}"/>
                                             </form>
+                                            <button type="button" class="btn btn-medium" data-open-modal="changesModal-${pendingEvent.id}">
+                                                <c:out value="${requestChangesButtonLabel}"/>
+                                            </button>
                                             <button type="button" class="btn btn-medium btn-danger" data-open-modal="rejectModal-${pendingEvent.id}">
                                                 <c:out value="${rejectButtonLabel}"/>
                                             </button>
@@ -96,6 +111,32 @@
                 <paw:pager baseUrl="/admin/eventos-pendientes" currentPage="${currentPage}" totalPages="${totalPages}"/>
 
                 <c:forEach var="pendingEvent" items="${pendingEvents}">
+                    <div class="modal-overlay" id="changesModal-${pendingEvent.id}" hidden>
+                        <div class="modal-box">
+                            <div class="modal-header">
+                                <h2><c:out value="${requestChangesTitleLabel}"/></h2>
+                                <button type="button" class="modal-close" data-close-modal aria-label="${closeButtonLabel}">
+                                    <paw:icon name="close"/>
+                                </button>
+                            </div>
+                            <div class="modal-body">
+                                <p><c:out value="${pendingEvent.title}"/></p>
+                                <p><c:out value="${requestChangesBodyLabel}"/></p>
+                                <form action="<c:url value='/admin/eventos-pendientes/${pendingEvent.id}/pedir-cambios'/>" method="post" novalidate="novalidate">
+                                    <div class="form-group">
+                                        <label for="changes-mensaje-${pendingEvent.id}"><c:out value="${requestChangesLabel}"/></label>
+                                        <textarea id="changes-mensaje-${pendingEvent.id}" name="mensaje" maxlength="1000" required="required"></textarea>
+                                    </div>
+                                    <div class="modal-confirm-actions">
+                                        <button type="button" class="btn btn-medium" data-close-modal>
+                                            <c:out value="${rejectConfirmBackButtonLabel}"/>
+                                        </button>
+                                        <paw:button text="${requestChangesSubmitButtonLabel}"/>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
                     <div class="modal-overlay" id="rejectModal-${pendingEvent.id}" hidden>
                         <div class="modal-box">
                             <div class="modal-header">

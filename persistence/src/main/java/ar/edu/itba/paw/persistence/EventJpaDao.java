@@ -216,6 +216,28 @@ public class EventJpaDao implements EventDao {
     }
 
     @Override
+    public boolean requestChanges(final long id, final String message) {
+        final Event event = em.find(Event.class, id);
+        if (event == null) {
+            return false;
+        }
+        event.setApprovalStatus(EventApprovalStatus.CHANGES_REQUESTED);
+        event.setChangesRequestedMessage(message);
+        event.setChangesRequestedAt(new Date());
+        return true;
+    }
+
+    @Override
+    public boolean resubmitForReview(final long id) {
+        final Event event = em.find(Event.class, id);
+        if (event == null) {
+            return false;
+        }
+        event.setApprovalStatus(EventApprovalStatus.PENDING);
+        return true;
+    }
+
+    @Override
     public List<Event> findMostRegistered(final int limit) {
         // Mismas cuatro reglas que buildSearchFilter() para search(): publico, no cancelado, no pasado, y
         // aprobado. El JOIN con las inscripciones confirmadas deja afuera solo a los eventos sin ninguna.

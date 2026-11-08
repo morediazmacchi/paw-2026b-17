@@ -2722,6 +2722,15 @@ button.btn-accent {
     margin: 0;
 }
 
+/* Nota chica bajo el titulo de un evento pendiente que ya tuvo un pedido de cambios
+   antes (ver eventosPendientes.jsp): contexto para quien lo revisa ahora. */
+.admin-changes-history {
+    margin: 2px 0 0;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
 /* Varias acciones (forms) en una misma celda de "Reportes"/"Usuarios" del
    panel de admin: en fila, no una debajo de la otra como el nowrap del td haria. */
 .admin-report-actions {

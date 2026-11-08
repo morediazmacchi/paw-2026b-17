@@ -839,6 +839,72 @@ public class EventJpaDaoTest {
     }
 
     @Test
+    public void testRequestChangesSetsApprovalStatusToChangesRequestedAndTheMessage() {
+        // Arrange
+        final long id = insertEvent(cols("approval_status", EventApprovalStatus.PENDING.name()));
+
+        // Act
+        final boolean result = eventDao.requestChanges(id, "Falta la direccion exacta");
+        em.flush();
+
+        // Assert
+        assertTrue(result);
+        final Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT approval_status, changes_requested_message FROM event WHERE id = ?", id);
+        assertEquals(EventApprovalStatus.CHANGES_REQUESTED.name(), row.get("approval_status"));
+        assertEquals("Falta la direccion exacta", row.get("changes_requested_message"));
+    }
+
+    @Test
+    public void testRequestChangesOfAnEventThatDoesNotExistChangesNothingAndReturnsFalse() {
+        // Arrange: otro evento pendiente, que no es el del Act. Tiene que seguir pendiente y sin mensaje.
+        final long other = insertEvent(cols("approval_status", EventApprovalStatus.PENDING.name()));
+
+        // Act
+        final boolean result = eventDao.requestChanges(999_999L, "mensaje");
+        em.flush();
+
+        // Assert
+        assertFalse(result);
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "event",
+                "id = " + other + " AND approval_status = '" + EventApprovalStatus.PENDING.name()
+                        + "' AND changes_requested_message IS NULL"));
+    }
+
+    @Test
+    public void testResubmitForReviewSetsApprovalStatusBackToPendingAndKeepsTheMessage() {
+        // Arrange: el mensaje se conserva (contexto para el proximo admin que lo revise).
+        final long id = insertEvent(cols("approval_status", EventApprovalStatus.CHANGES_REQUESTED.name(),
+                "changes_requested_message", "Falta la direccion exacta"));
+
+        // Act
+        final boolean result = eventDao.resubmitForReview(id);
+        em.flush();
+
+        // Assert
+        assertTrue(result);
+        final Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT approval_status, changes_requested_message FROM event WHERE id = ?", id);
+        assertEquals(EventApprovalStatus.PENDING.name(), row.get("approval_status"));
+        assertEquals("Falta la direccion exacta", row.get("changes_requested_message"));
+    }
+
+    @Test
+    public void testResubmitForReviewOfAnEventThatDoesNotExistChangesNothingAndReturnsFalse() {
+        // Arrange
+        final long other = insertEvent(cols("approval_status", EventApprovalStatus.CHANGES_REQUESTED.name()));
+
+        // Act
+        final boolean result = eventDao.resubmitForReview(999_999L);
+        em.flush();
+
+        // Assert
+        assertFalse(result);
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "event",
+                "id = " + other + " AND approval_status = '" + EventApprovalStatus.CHANGES_REQUESTED.name() + "'"));
+    }
+
+    @Test
     public void testFindPendingApprovalReturnsOnlyPendingEventsOldestFirst() {
         // Arrange
         final Timestamp antes = new Timestamp(System.currentTimeMillis() - 2000);
@@ -849,6 +915,8 @@ public class EventJpaDaoTest {
                 "approval_status", EventApprovalStatus.PENDING.name()));
         insertEvent(cols("address", "Ya aprobado", "approval_status", EventApprovalStatus.APPROVED.name()));
         insertEvent(cols("address", "Ya rechazado", "approval_status", EventApprovalStatus.REJECTED.name()));
+        // Con cambios pedidos: tampoco es PENDING, no vuelve a la cola hasta que el creador lo edite.
+        insertEvent(cols("address", "Con cambios pedidos", "approval_status", EventApprovalStatus.CHANGES_REQUESTED.name()));
 
         // Act
         final List<Event> result = eventDao.findPendingApproval(1, 10);

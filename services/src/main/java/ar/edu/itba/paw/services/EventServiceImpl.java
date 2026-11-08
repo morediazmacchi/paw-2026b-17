@@ -263,6 +263,12 @@ public class EventServiceImpl implements EventService {
         changes.setId(eventId);
         addCategories(changes, dto.getCategories());
         eventDao.update(changes);
+        // Si estaba en CHANGES_REQUESTED, este guardado ES el "reenviar a revision": vuelve solo a
+        // PENDING, sin un boton aparte. No toca changes_requested_message (ver EventDao.resubmitForReview()).
+        final boolean resubmitted = existing.get().isChangesRequested();
+        if (resubmitted) {
+            eventDao.resubmitForReview(eventId);
+        }
         // Solo a los confirmados, mismo criterio que cancel(): a alguien
         // pendiente/rechazado/en lista de espera todavia no tiene un lugar
         // asegurado en base al cual le importe que cambio el evento.
@@ -276,7 +282,7 @@ public class EventServiceImpl implements EventService {
         // Despues del aviso de cambios: a los que entran ahora les llega ya el mail
         // de que estan confirmados, no hace falta ademas contarles que el evento cambio.
         final int promoted = registrationService.promoteFromWaitlist(eventId);
-        return new EventUpdateOutcome(changes, promoted);
+        return new EventUpdateOutcome(changes, promoted, resubmitted);
     }
 
     @Override
@@ -354,6 +360,29 @@ public class EventServiceImpl implements EventService {
         eventDao.reject(eventId, reason);
         notificationService.notifyEventRejected(event, reason);
         inboxService.add(event.getCreatorEmail(), InboxMessageType.EVENT_REJECTED, eventId, null, reason);
+        return EventApprovalResult.OK;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public EventApprovalResult requestChanges(final long eventId, final String message) {
+        if (message == null || message.trim().isEmpty() || message.length() > MAX_CHANGES_MESSAGE_LENGTH) {
+            return EventApprovalResult.INVALID;
+        }
+        final Optional<Event> existing = eventDao.findByIdForUpdate(eventId);
+        if (!existing.isPresent()) {
+            return EventApprovalResult.NOT_FOUND;
+        }
+        final Event event = existing.get();
+        if (!event.isPendingApproval()) {
+            return EventApprovalResult.ALREADY_DECIDED;
+        }
+        eventDao.requestChanges(eventId, message);
+        // Mismo mecanismo que ModerationService.requestChanges() para reportes: mail con link directo
+        // a editar, mas el mensaje en la bandeja (reusa el mismo InboxMessageType -- "un admin te pidio
+        // cambios" significa lo mismo aca que en el flujo de reportes).
+        notificationService.notifyEventChangesRequested(event, message);
+        inboxService.add(event.getCreatorEmail(), InboxMessageType.EVENT_CHANGES_REQUESTED, eventId, null, message);
         return EventApprovalResult.OK;
     }
 

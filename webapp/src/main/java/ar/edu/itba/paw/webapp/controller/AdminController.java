@@ -182,6 +182,23 @@ public class AdminController {
         return new ModelAndView("redirect:/admin/eventos-pendientes");
     }
 
+    // No es definitivo como rechazar: el evento sigue vivo, el creador lo puede editar y vuelve
+    // solo a esta cola cuando lo hace (ver EventService.update()/EventServiceImpl.requestChanges()).
+    @PreAuthorize("@adminSecurity.canModerateEvent(#id, authentication)")
+    @RequestMapping(value = "/eventos-pendientes/{id}/pedir-cambios", method = RequestMethod.POST)
+    public ModelAndView pedirCambiosEvento(@PathVariable final long id, @Valid final RequestChangesForm form,
+                                            final BindingResult errors, final RedirectAttributes redirectAttributes) {
+        if (errors.hasErrors()) {
+            redirectAttributes.addFlashAttribute("adminApprovalError", "INVALID");
+            return new ModelAndView("redirect:/admin/eventos-pendientes");
+        }
+        final EventApprovalResult result = eventService.requestChanges(id, form.getMensaje());
+        if (result != EventApprovalResult.OK) {
+            redirectAttributes.addFlashAttribute("adminApprovalError", result.name());
+        }
+        return new ModelAndView("redirect:/admin/eventos-pendientes");
+    }
+
     // Tamaño de pagina para "Usuarios"
 
     @RequestMapping(value = "/usuarios", method = RequestMethod.GET)

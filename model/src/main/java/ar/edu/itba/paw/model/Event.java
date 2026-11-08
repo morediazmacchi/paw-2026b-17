@@ -172,6 +172,14 @@ public class Event implements EventAccessData {
     // todavia esta pendiente o ya fue aprobado.
     @Column(name = "rejected_reason", length = 500)
     private String rejectedReason;
+    // Mensaje del admin al pedir cambios (ver EventService.requestChanges()): distinto de
+    // rejectedReason, que es definitivo. No se borra al volver a PENDING (ver update()): el
+    // proximo admin que lo revise ve que ya se le pidio algo antes.
+    @Column(name = "changes_requested_message", length = 1000)
+    private String changesRequestedMessage;
+    @Column(name = "changes_requested_at")
+    @Temporal(TemporalType.TIMESTAMP)
+    private Date changesRequestedAt;
     // Cuando un admin lo aprobo (lo pone EventJpaDao.approve()): desde ahi es visible para todos. Lo usan las
     // busquedas guardadas (SavedSearch) para saber que eventos son NUEVOS desde el ultimo aviso. Null en los
     // aprobados antes de que existiera esta columna: para ninguna busqueda guardada son nuevos.
@@ -278,6 +286,10 @@ public class Event implements EventAccessData {
     public void setApprovalStatus(final EventApprovalStatus approvalStatus) { this.approvalStatus = approvalStatus; }
     public String getRejectedReason() { return rejectedReason; }
     public void setRejectedReason(final String rejectedReason) { this.rejectedReason = rejectedReason; }
+    public String getChangesRequestedMessage() { return changesRequestedMessage; }
+    public void setChangesRequestedMessage(final String changesRequestedMessage) { this.changesRequestedMessage = changesRequestedMessage; }
+    public Date getChangesRequestedAt() { return changesRequestedAt; }
+    public void setChangesRequestedAt(final Date changesRequestedAt) { this.changesRequestedAt = changesRequestedAt; }
     public Date getApprovedAt() { return approvedAt; }
     public void setApprovedAt(final Date approvedAt) { this.approvedAt = approvedAt; }
     public Date getReminderSentAt() { return reminderSentAt; }
@@ -298,6 +310,7 @@ public class Event implements EventAccessData {
     public boolean isApproved() { return approvalStatus == EventApprovalStatus.APPROVED; }
     public boolean isPendingApproval() { return approvalStatus == EventApprovalStatus.PENDING; }
     public boolean isRejected() { return approvalStatus == EventApprovalStatus.REJECTED; }
+    public boolean isChangesRequested() { return approvalStatus == EventApprovalStatus.CHANGES_REQUESTED; }
 
     // Ya paso: la fecha del evento quedo en el pasado. No mira cancelledAt a
     // proposito -- un evento cancelado antes de su fecha no esta "finalizado"

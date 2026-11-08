@@ -9,6 +9,8 @@ public enum EventAction {
     OWNER_PENDING,
     // Es el organizador y un admin rechazo el evento.
     OWNER_REJECTED,
+    // Es el organizador y un admin le pidio cambios (no es definitivo, ver EventApprovalStatus.CHANGES_REQUESTED).
+    OWNER_CHANGES_REQUESTED,
     // Un admin ve un evento todavia no aprobado (o rechazado) para revisarlo: no puede anotarse.
     ADMIN_REVIEW_ONLY,
     // Un admin ve un evento privado al que nadie lo invito: puede verlo para moderar, no anotarse.

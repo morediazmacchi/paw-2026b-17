@@ -36,7 +36,8 @@
                                   ubicacion="${event.neighborhood.displayName}" precio="${event.price}" gratis="${event.free}"
                                   imagenId="${event.imageId}" privado="${event.inviteOnly}"
                                   cancelado="${event.cancelled and not event.removedByAdmin}"
-                                  pendiente="${event.pendingApproval}" rechazado="${event.rejected}">
+                                  pendiente="${event.pendingApproval}" rechazado="${event.rejected}"
+                                  cambiosPedidos="${event.changesRequested}">
                         <%-- Dado de baja por un admin es distinto de un self-cancel: el eventRow no
                              distingue los dos (ambos son "cancelado" para el publico), asi que esto
                              agrega la etiqueta puntual que le interesa a quien modera. --%>
