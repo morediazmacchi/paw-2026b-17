@@ -26,6 +26,7 @@ public class EventDetailServiceImpl implements EventDetailService {
     private final EventQuestionService eventQuestionService;
     private final EventAccessService eventAccessService;
     private final EventInvitationService eventInvitationService;
+    private final FollowService followService;
 
     @Autowired
     public EventDetailServiceImpl(final EventService eventService, final RegistrationService registrationService,
@@ -34,7 +35,8 @@ public class EventDetailServiceImpl implements EventDetailService {
                                   final EventSimilarityService eventSimilarityService,
                                   final EventQuestionService eventQuestionService,
                                   final EventAccessService eventAccessService,
-                                  final EventInvitationService eventInvitationService) {
+                                  final EventInvitationService eventInvitationService,
+                                  final FollowService followService) {
         this.eventService = eventService;
         this.registrationService = registrationService;
         this.favoriteService = favoriteService;
@@ -44,6 +46,7 @@ public class EventDetailServiceImpl implements EventDetailService {
         this.eventQuestionService = eventQuestionService;
         this.eventAccessService = eventAccessService;
         this.eventInvitationService = eventInvitationService;
+        this.followService = followService;
     }
 
     @Override
@@ -78,12 +81,18 @@ public class EventDetailServiceImpl implements EventDetailService {
         final boolean invited = viewerId != null && event.isRequiresApproval()
                 && eventInvitationService.isInvited(eventId, viewerId);
         final boolean owner = event.isCreatedBy(viewerId);
+        // Se ofrece seguir al organizador si el evento tiene uno cargado (fila vieja puede no tenerlo) y
+        // no es uno mismo; sin sesion tambien se ofrece (misma logica que canAsk), la pantalla manda a
+        // iniciar sesion. Ya lo sigue solo tiene sentido chequearlo con sesion.
+        final boolean canFollowCreator = event.getCreatorId() != null && !owner;
+        final boolean followingCreator = canFollowCreator && viewerId != null
+                && followService.isFollowing(viewerId, event.getCreatorId());
         return new EventDetail(event, full, registrationService.availableSpots(eventId), participation,
                 actionOf(event, participation, full, invited), chatAccessOf(event, participation, chatMember),
                 participation != null && participation.isRegistered() && event.isActive(),
                 event.isOpenForQuestions() && !owner, owner, !owner, favorite, chatMember,
                 reputationOf(event, reviewsPage), related, relatedStatuses, relatedFavoriteIds,
-                eventQuestionService.findPage(eventId, questionsPage));
+                eventQuestionService.findPage(eventId, questionsPage), canFollowCreator, followingCreator);
     }
 
     // La relacion de esta persona con el evento. Si puede anotarse lo dice EventAccessService.canRegister(): la

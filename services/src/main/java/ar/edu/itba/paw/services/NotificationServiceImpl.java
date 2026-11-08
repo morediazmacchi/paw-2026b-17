@@ -598,6 +598,26 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Async
     @Override
+    public void notifyFollowedUserNewEvent(final User follower, final Event event, final String organizerName) {
+        try {
+            final Locale locale = localeForUserId(follower.getId());
+            final Map<String, Object> variables = eventVariables(event, locale);
+            variables.put("personName", displayName(follower.getName(), follower.getEmail()));
+            variables.put("organizerName", organizerName);
+
+            mailService.send(follower.getEmail(),
+                    "followed-user-new-event",
+                    "mail.followedUserNewEvent.subject",
+                    new Object[]{ organizerName },
+                    variables,
+                    locale);
+        } catch (final RuntimeException e) {
+            LOGGER.error("Fallo el aviso de evento nuevo de un organizador seguido, usuario {}", follower.getId(), e);
+        }
+    }
+
+    @Async
+    @Override
     public void notifyEventChangesRequested(final Event event, final String message) {
         try {
             final Locale locale = localeForUserId(event.getCreatorId());

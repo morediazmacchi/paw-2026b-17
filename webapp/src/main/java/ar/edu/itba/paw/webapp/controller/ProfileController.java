@@ -18,6 +18,7 @@ import ar.edu.itba.paw.services.EventChatService;
 import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.EventWithRegistrationStats;
 import ar.edu.itba.paw.services.FavoriteService;
+import ar.edu.itba.paw.services.FollowService;
 import ar.edu.itba.paw.services.InboxPage;
 import ar.edu.itba.paw.services.InboxService;
 import ar.edu.itba.paw.services.MyRegistrationsView;
@@ -71,6 +72,7 @@ public class ProfileController {
     private final AccountSummaryService accountSummaryService;
     private final SavedSearchService savedSearchService;
     private final CategoryService categoryService;
+    private final FollowService followService;
 
     @Autowired
     public ProfileController(final UserService userService,
@@ -81,7 +83,8 @@ public class ProfileController {
                               final EventChatService eventChatService,
                               final AccountSummaryService accountSummaryService,
                               final SavedSearchService savedSearchService,
-                              final CategoryService categoryService) {
+                              final CategoryService categoryService,
+                              final FollowService followService) {
         this.userService = userService;
         this.registrationService = registrationService;
         this.eventService = eventService;
@@ -93,6 +96,7 @@ public class ProfileController {
         this.eventChatService = eventChatService;
         this.accountSummaryService = accountSummaryService;
         this.savedSearchService = savedSearchService;
+        this.followService = followService;
         this.categoryService = categoryService;
     }
 
@@ -119,6 +123,7 @@ public class ProfileController {
 
         final ModelAndView mav = new ModelAndView("auth/perfil");
         mav.addObject("user", currentUser);
+        mav.addObject("followersCount", followService.countFollowers(currentUser.getId()));
         mav.addObject("profileForm", profileForm);
         mav.addObject("changePasswordForm", new ChangePasswordForm());
         mav.addObject("profileUpdated", updated != null);
@@ -144,6 +149,7 @@ public class ProfileController {
     private ModelAndView profileWithErrors(final ProfileForm form, final BindingResult errors, final User currentUser) {
         final ModelAndView mav = new ModelAndView("auth/perfil");
         mav.addObject("user", currentUser);
+        mav.addObject("followersCount", followService.countFollowers(currentUser.getId()));
         mav.addObject("profileForm", form);
         mav.addObject("profileFieldErrors", fieldErrorsOf(errors));
         mav.addObject("changePasswordForm", new ChangePasswordForm());
@@ -169,6 +175,7 @@ public class ProfileController {
 
             final ModelAndView mav = new ModelAndView("auth/perfil");
             mav.addObject("user", currentUser);
+            mav.addObject("followersCount", followService.countFollowers(currentUser.getId()));
             mav.addObject("profileForm", profileForm);
             mav.addObject("changePasswordForm", form);
             mav.addObject("passwordFieldErrors", fieldErrorsOf(errors));

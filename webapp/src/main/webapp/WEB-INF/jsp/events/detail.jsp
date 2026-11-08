@@ -320,6 +320,9 @@
             </c:if>
 
             <h2 class="detail-section-heading"><spring:message code="event.detail.organizerHeading"/></h2>
+            <c:if test="${not empty event.creator}">
+                <p class="creator-name"><c:out value="${event.creator.name}"/></p>
+            </c:if>
             <c:choose>
                 <c:when test="${creatorReviewCount > 0}">
                     <div class="creator-rating">
@@ -337,6 +340,34 @@
                     <p class="creator-rating-empty"><spring:message code="event.detail.noCreatorReviews"/></p>
                 </c:otherwise>
             </c:choose>
+
+            <%-- Seguir al organizador (ver FollowService): un anonimo tambien lo ve, la pantalla lo manda a
+                 iniciar sesion (mismo criterio que preguntar). No se ofrece en el propio evento ni en uno sin
+                 organizador cargado (fila vieja): lo decide canFollowCreator, ya resuelto por el service. --%>
+            <c:if test="${canFollowCreator}">
+                <sec:authorize access="isAuthenticated()">
+                    <c:choose>
+                        <c:when test="${followingCreator}">
+                            <spring:message code="event.detail.unfollowOrganizerButton" var="unfollowOrganizerLabel"/>
+                            <form action="<c:url value='/eventos/${event.id}/dejar-de-seguir-organizador'/>" method="post">
+                                <paw:button text="${unfollowOrganizerLabel}"/>
+                            </form>
+                        </c:when>
+                        <c:otherwise>
+                            <spring:message code="event.detail.followOrganizerButton" var="followOrganizerLabel"/>
+                            <form action="<c:url value='/eventos/${event.id}/seguir-organizador'/>" method="post">
+                                <paw:button text="${followOrganizerLabel}" cssClass="btn-accent"/>
+                            </form>
+                        </c:otherwise>
+                    </c:choose>
+                </sec:authorize>
+                <sec:authorize access="isAnonymous()">
+                    <c:url value="/login" var="loginToFollowUrl">
+                        <c:param name="redirect" value="/eventos/${event.id}"/>
+                    </c:url>
+                    <p><a class="btn-link" href="${loginToFollowUrl}"><spring:message code="event.detail.loginToFollowOrganizer"/></a></p>
+                </sec:authorize>
+            </c:if>
 
             <section class="qa-card" id="preguntas">
                 <div class="qa-header">

@@ -79,13 +79,15 @@ public class EventServiceImplTest {
     private ImageService imageService;
     @Mock
     private EventSimilarityService eventSimilarityService;
+    @Mock
+    private FollowService followService;
 
     private EventServiceImpl eventService;
 
     @Before
     public void setUp() {
         eventService = new EventServiceImpl(eventDao, userService, categoryDao, notificationService,
-                registrationService, inboxService, imageService, eventSimilarityService);
+                registrationService, inboxService, imageService, eventSimilarityService, followService);
         // El servicio busca las categorias elegidas entre las que existen: por defecto existe CATEGORY_ID.
         final List<Category> existingCategories = Collections.singletonList(ModelFixtures.category(CATEGORY_ID));
         lenient().when(categoryDao.findAll()).thenReturn(existingCategories);
@@ -935,6 +937,22 @@ public class EventServiceImplTest {
 
         // Assert
         assertEquals(EventApprovalResult.ALREADY_DECIDED, result);
+    }
+
+    @Test
+    public void testApproveOnAnEventWithoutACreatorDoesNotNotifyFollowersAndStillSucceeds() {
+        // Arrange: fila vieja sin creador (antes del backfill de postgres-migrations.sql). Sin el guard
+        // de organizerId == null esto tiraria NullPointerException al pedir el nombre del organizador.
+        final Event event = someEvent();
+        event.setCreator(null);
+        existingForUpdate(event);
+        when(eventDao.approve(EVENT_ID)).thenReturn(true);
+
+        // Act
+        final EventApprovalResult result = eventService.approve(EVENT_ID);
+
+        // Assert
+        assertEquals(EventApprovalResult.OK, result);
     }
 
     @Test

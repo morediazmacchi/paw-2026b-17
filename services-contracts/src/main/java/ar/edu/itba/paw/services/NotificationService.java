@@ -133,6 +133,9 @@ public interface NotificationService {
     /** Un admin le pidio al creador que corrija algo del evento -> le avisa con el mensaje. */
     void notifyEventChangesRequested(Event event, String message);
 
+    /** Un organizador que sigue (ver FollowService) publico un evento nuevo y quedo aprobado -> le avisa a quien lo sigue. */
+    void notifyFollowedUserNewEvent(User follower, Event event, String organizerName);
+
     /** Un admin suspendio la cuenta -> le avisa a esa persona. */
     void notifyUserSuspended(User user);
 

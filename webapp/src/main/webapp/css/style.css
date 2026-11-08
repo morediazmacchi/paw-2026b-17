@@ -2114,6 +2114,12 @@ button.btn-accent {
     font-size: 0.9rem;
 }
 
+.account-identity-followers {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin-top: 2px;
+}
+
 .profile-avatar-large {
     width: 64px;
     height: 64px;
@@ -2557,6 +2563,12 @@ button.btn-accent {
    margin-bottom, y el <form> no tenia ningun margen propio). */
 .question-answer-form {
     margin-top: 14px;
+}
+
+/* Nombre del organizador, arriba de su puntaje (detalle de evento). */
+.creator-name {
+    margin: 0 0 6px;
+    font-weight: 700;
 }
 
 /* Puntaje del organizador: detalle de evento y "Mis eventos" */

@@ -18,6 +18,7 @@ import ar.edu.itba.paw.services.EventParticipation;
 import ar.edu.itba.paw.services.EventSearchResult;
 import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.FavoriteService;
+import ar.edu.itba.paw.services.FollowService;
 import ar.edu.itba.paw.services.PageResult;
 import ar.edu.itba.paw.services.RegistrationService;
 import ar.edu.itba.paw.services.SaveSearchResult;
@@ -65,13 +66,14 @@ public class EventController {
     private final EventAccessService accessChecker;
     private final SavedSearchService savedSearchService;
     private final MessageSource messageSource;
+    private final FollowService followService;
 
     @Autowired
     public EventController(final EventService eventService, final CategoryService categoryService,
                             final RegistrationService registrationService,
                             final FavoriteService favoriteService, final EventDetailService eventDetailService,
                             final EventAccessService accessChecker, final SavedSearchService savedSearchService,
-                            final MessageSource messageSource) {
+                            final MessageSource messageSource, final FollowService followService) {
         this.eventService = eventService;
         this.categoryService = categoryService;
         this.registrationService = registrationService;
@@ -80,6 +82,7 @@ public class EventController {
         this.accessChecker = accessChecker;
         this.savedSearchService = savedSearchService;
         this.messageSource = messageSource;
+        this.followService = followService;
     }
 
     // Todos los mensajes que se muestran en pantalla (errores de validacion,
@@ -211,6 +214,8 @@ public class EventController {
             mav.addObject("pendingApproval", participation.isPendingApproval());
         }
         addCreatorReputation(mav, detail.getCreatorReputation());
+        mav.addObject("canFollowCreator", detail.isCanFollowCreator());
+        mav.addObject("followingCreator", detail.isFollowingCreator());
         // "Eventos que te pueden interesar": vacio si el evento es privado o no esta aprobado.
         mav.addObject("relatedEvents", detail.getRelatedEvents());
         mav.addObject("relatedStatuses", detail.getRelatedStatuses());
@@ -239,6 +244,30 @@ public class EventController {
             mav.addObject("creatorReviewsPage", reputation.getPage());
             mav.addObject("creatorReviewsTotalPages", reputation.getTotalPages());
         }
+    }
+
+    // Seguir/dejar de seguir al organizador de ESTE evento: el id del organizador se resuelve del
+    // lado del server (no se confia en uno que mandara el cliente). El "no te podes seguir a vos
+    // mismo" lo decide el service (FollowResult.OWN_PROFILE); el boton ya no se ofrece en ese caso,
+    // esto solo se llegaria con un POST armado a mano.
+    @RequestMapping(value = "/eventos/{id}/seguir-organizador", method = RequestMethod.POST)
+    public ModelAndView followOrganizer(@PathVariable final long id,
+                                        @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
+        final Event event = eventService.findByIdOrThrow(id);
+        if (event.getCreatorId() != null) {
+            followService.follow(currentUser.getId(), event.getCreatorId());
+        }
+        return new ModelAndView("redirect:/eventos/" + id);
+    }
+
+    @RequestMapping(value = "/eventos/{id}/dejar-de-seguir-organizador", method = RequestMethod.POST)
+    public ModelAndView unfollowOrganizer(@PathVariable final long id,
+                                          @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
+        final Event event = eventService.findByIdOrThrow(id);
+        if (event.getCreatorId() != null) {
+            followService.unfollow(currentUser.getId(), event.getCreatorId());
+        }
+        return new ModelAndView("redirect:/eventos/" + id);
     }
 
     @RequestMapping(value = "/eventos/publicar", method = RequestMethod.GET)

@@ -49,6 +49,7 @@ public class EventServiceImpl implements EventService {
     private final InboxService inboxService;
     private final ImageService imageService;
     private final EventSimilarityService eventSimilarityService;
+    private final FollowService followService;
 
     @Autowired
     public EventServiceImpl(final EventDao eventDao, final UserService userService,
@@ -56,7 +57,8 @@ public class EventServiceImpl implements EventService {
                             final NotificationService notificationService,
                             final RegistrationService registrationService,
                             final InboxService inboxService, final ImageService imageService,
-                            final EventSimilarityService eventSimilarityService) {
+                            final EventSimilarityService eventSimilarityService,
+                            final FollowService followService) {
         this.eventDao = eventDao;
         this.userService = userService;
         this.categoryDao = categoryDao;
@@ -65,6 +67,7 @@ public class EventServiceImpl implements EventService {
         this.inboxService = inboxService;
         this.imageService = imageService;
         this.eventSimilarityService = eventSimilarityService;
+        this.followService = followService;
     }
 
     // Sube cada imagen y devuelve sus ids, en el mismo orden en que se cargaron
@@ -340,7 +343,23 @@ public class EventServiceImpl implements EventService {
         eventDao.approve(eventId);
         notificationService.notifyEventApproved(event);
         inboxService.add(event.getCreatorEmail(), InboxMessageType.EVENT_APPROVED, eventId, null, null);
+        notifyFollowersOfNewEvent(event);
         return EventApprovalResult.OK;
+    }
+
+    // A quien sigue a este organizador (ver FollowService), un aviso de que tiene un evento nuevo. Va aca
+    // (no en create()) porque "nuevo" para el publico es recien cuando un admin lo aprueba, no cuando se
+    // crea: antes de eso nadie fuera del creador y un admin puede verlo.
+    private void notifyFollowersOfNewEvent(final Event event) {
+        final Long organizerId = event.getCreatorId();
+        if (organizerId == null) {
+            return;
+        }
+        final String organizerName = event.getCreator().getName();
+        for (final User follower : followService.findFollowers(organizerId)) {
+            inboxService.add(follower.getEmail(), InboxMessageType.FOLLOWED_USER_NEW_EVENT, event.getId(), organizerName, null);
+            notificationService.notifyFollowedUserNewEvent(follower, event, organizerName);
+        }
     }
 
     @Override

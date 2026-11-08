@@ -448,3 +448,13 @@ CREATE TABLE IF NOT EXISTS saved_search_barrio (
     barrio          VARCHAR(80) NOT NULL,
     PRIMARY KEY (saved_search_id, barrio)
 );
+
+-- Seguir a un organizador (ver FollowService): quien sigue (follower) recibe un aviso cuando quien
+-- sigue (followed) publica un evento nuevo que queda aprobado (ver EventServiceImpl.approve()).
+-- Misma forma que favorite: la pareja ES la clave primaria, sin id propio.
+CREATE TABLE IF NOT EXISTS follow (
+    follower_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    followed_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+    PRIMARY KEY (follower_id, followed_id)
+);
