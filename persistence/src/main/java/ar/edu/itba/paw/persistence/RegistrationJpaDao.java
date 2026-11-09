@@ -84,14 +84,16 @@ public class RegistrationJpaDao implements RegistrationDao {
     @Override
     public List<Registration> findUpcomingByUserId(final long userId, final Date now, final int page,
                                                    final int pageSize) {
-        return em.createQuery(
-                        "SELECT r FROM Registration r JOIN r.event e WHERE r.user.id = :userId "
-                                + "AND e.eventDate >= :now ORDER BY e.eventDate ASC, r.id ASC", Registration.class)
+        // Dos pasos (1+1): ids de la pagina, despues las inscripciones de esos ids.
+        final List<Long> ids = em.createQuery(
+                        "SELECT r.id FROM Registration r JOIN r.event e WHERE r.user.id = :userId "
+                                + "AND e.eventDate >= :now ORDER BY e.eventDate ASC, r.id ASC", Long.class)
                 .setParameter("userId", userId)
                 .setParameter("now", now, TemporalType.TIMESTAMP)
                 .setFirstResult((page - 1) * pageSize)
                 .setMaxResults(pageSize)
                 .getResultList();
+        return loadInOrder(ids);
     }
 
     @Override
@@ -107,14 +109,27 @@ public class RegistrationJpaDao implements RegistrationDao {
     @Override
     public List<Registration> findPastByUserId(final long userId, final Date now, final int page,
                                                final int pageSize) {
-        return em.createQuery(
-                        "SELECT r FROM Registration r JOIN r.event e WHERE r.user.id = :userId "
-                                + "AND e.eventDate < :now ORDER BY e.eventDate DESC, r.id ASC", Registration.class)
+        final List<Long> ids = em.createQuery(
+                        "SELECT r.id FROM Registration r JOIN r.event e WHERE r.user.id = :userId "
+                                + "AND e.eventDate < :now ORDER BY e.eventDate DESC, r.id ASC", Long.class)
                 .setParameter("userId", userId)
                 .setParameter("now", now, TemporalType.TIMESTAMP)
                 .setFirstResult((page - 1) * pageSize)
                 .setMaxResults(pageSize)
                 .getResultList();
+        return loadInOrder(ids);
+    }
+
+    // Paso 2 del 1+1: carga las inscripciones de "ids" y las devuelve en el mismo orden que los ids.
+    private List<Registration> loadInOrder(final List<Long> ids) {
+        if (ids.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return PagedIds.inOrder(ids,
+                em.createQuery("FROM Registration r WHERE r.id IN :ids", Registration.class)
+                        .setParameter("ids", ids)
+                        .getResultList(),
+                Registration::getId);
     }
 
     @Override
@@ -140,6 +155,26 @@ public class RegistrationJpaDao implements RegistrationDao {
                         "FROM Registration r WHERE r.event.id = :eventId ORDER BY r.registeredAt ASC", Registration.class)
                 .setParameter("eventId", eventId)
                 .getResultList();
+    }
+
+    @Override
+    public List<Registration> findByEventId(final long eventId, final int page, final int pageSize) {
+        // Dos pasos (1+1): ids de la pagina, despues las inscripciones de esos ids.
+        final List<Long> ids = em.createQuery(
+                        "SELECT r.id FROM Registration r WHERE r.event.id = :eventId "
+                                + "ORDER BY r.registeredAt ASC, r.id ASC", Long.class)
+                .setParameter("eventId", eventId)
+                .setFirstResult((page - 1) * pageSize)
+                .setMaxResults(pageSize)
+                .getResultList();
+        return loadInOrder(ids);
+    }
+
+    @Override
+    public long countByEventId(final long eventId) {
+        return em.createQuery("SELECT COUNT(r) FROM Registration r WHERE r.event.id = :eventId", Long.class)
+                .setParameter("eventId", eventId)
+                .getSingleResult();
     }
 
     @Override

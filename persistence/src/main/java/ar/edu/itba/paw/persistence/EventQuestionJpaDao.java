@@ -9,6 +9,7 @@ import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 import javax.persistence.TemporalType;
 import java.util.Date;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -40,16 +41,26 @@ public class EventQuestionJpaDao implements EventQuestionDao {
 
     @Override
     public List<EventQuestion> findByEvent(final long eventId, final int page, final int pageSize) {
-        // id como desempate, igual que en la bandeja.
-        // JOIN FETCH q.user: cada pregunta viene con quien la hizo en la misma consulta (sin una
-        // consulta extra por pregunta).
-        return em.createQuery(
-                        "SELECT q FROM EventQuestion q JOIN FETCH q.user WHERE q.event.id = :eventId "
-                                + "ORDER BY q.createdAt DESC, q.id DESC", EventQuestion.class)
+        // Dos pasos (1+1): primero los ids de la pagina (id como desempate, igual que en la
+        // bandeja), despues las preguntas de esos ids.
+        final List<Long> ids = em.createQuery(
+                        "SELECT q.id FROM EventQuestion q WHERE q.event.id = :eventId "
+                                + "ORDER BY q.createdAt DESC, q.id DESC", Long.class)
                 .setParameter("eventId", eventId)
                 .setFirstResult((page - 1) * pageSize)
                 .setMaxResults(pageSize)
                 .getResultList();
+        if (ids.isEmpty()) {
+            return Collections.emptyList();
+        }
+        // JOIN FETCH q.user: cada pregunta viene con quien la hizo en la misma consulta (sin una
+        // consulta extra por pregunta).
+        return PagedIds.inOrder(ids,
+                em.createQuery("SELECT q FROM EventQuestion q JOIN FETCH q.user WHERE q.id IN :ids",
+                                EventQuestion.class)
+                        .setParameter("ids", ids)
+                        .getResultList(),
+                EventQuestion::getId);
     }
 
     @Override

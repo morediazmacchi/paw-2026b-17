@@ -83,12 +83,6 @@ public class UserJpaDao implements UserDao {
     }
 
     @Override
-    public List<User> findAll() {
-        return em.createQuery("SELECT DISTINCT u FROM User u LEFT JOIN FETCH u.roles ORDER BY u.id", User.class)
-                .getResultList();
-    }
-
-    @Override
     public List<User> findByIds(final List<Long> ids) {
         if (ids.isEmpty()) {
             return Collections.emptyList();

@@ -51,6 +51,11 @@ public class WebMailLinks implements MailLinks {
     }
 
     @Override
+    public String unsubscribeSavedSearch(final long savedSearchId) {
+        return baseUrl + "/perfil/listas/" + savedSearchId + "/desuscribirse";
+    }
+
+    @Override
     public String login() {
         return baseUrl + "/login";
     }

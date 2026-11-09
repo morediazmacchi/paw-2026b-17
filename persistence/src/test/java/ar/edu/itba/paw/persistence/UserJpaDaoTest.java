@@ -528,39 +528,6 @@ public class UserJpaDaoTest {
         assertEquals(second, page.get(1).getId().longValue());
     }
 
-    // ---- findAll() ----
-
-    @Test
-    public void testFindAllReturnsEveryUserWithTheirOwnRoles() {
-        // Arrange
-        final long first = insertUser(EMAIL, NAME);
-        insertRole(first, "USER");
-        final long second = insertUser("otro@mail.com", "Beto");
-        insertRole(second, "USER");
-        insertRole(second, "ADMIN");
-
-        // Act
-        final List<User> all = userDao.findAll();
-
-        // Assert
-        assertEquals(2, all.size());
-        final User foundFirst = all.stream().filter(u -> u.getId() == first).findFirst().orElseThrow(AssertionError::new);
-        final User foundSecond = all.stream().filter(u -> u.getId() == second).findFirst().orElseThrow(AssertionError::new);
-        assertEquals(1, foundFirst.getRoles().size());
-        assertEquals(2, foundSecond.getRoles().size());
-    }
-
-    @Test
-    public void testFindAllReturnsEmptyListWhenThereAreNoUsers() {
-        // Arrange: no se inserta ningun usuario.
-
-        // Act
-        final List<User> all = userDao.findAll();
-
-        // Assert
-        assertTrue(all.isEmpty());
-    }
-
     // ---- findByIds() ----
 
     @Test

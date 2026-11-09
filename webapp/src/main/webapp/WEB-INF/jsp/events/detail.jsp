@@ -348,6 +348,34 @@
                 </c:otherwise>
             </c:choose>
 
+            <%-- Seguir al organizador (ver FollowService): un anonimo tambien lo ve, la pantalla lo manda a
+                 iniciar sesion (mismo criterio que preguntar). No se ofrece en el propio evento ni en uno sin
+                 organizador cargado (fila vieja): lo decide canFollowCreator, ya resuelto por el service. --%>
+            <c:if test="${canFollowCreator}">
+                <sec:authorize access="isAuthenticated()">
+                    <c:choose>
+                        <c:when test="${followingCreator}">
+                            <spring:message code="event.detail.unfollowOrganizerButton" var="unfollowOrganizerLabel"/>
+                            <form action="<c:url value='/eventos/${event.id}/dejar-de-seguir-organizador'/>" method="post">
+                                <paw:button text="${unfollowOrganizerLabel}"/>
+                            </form>
+                        </c:when>
+                        <c:otherwise>
+                            <spring:message code="event.detail.followOrganizerButton" var="followOrganizerLabel"/>
+                            <form action="<c:url value='/eventos/${event.id}/seguir-organizador'/>" method="post">
+                                <paw:button text="${followOrganizerLabel}" cssClass="btn-accent"/>
+                            </form>
+                        </c:otherwise>
+                    </c:choose>
+                </sec:authorize>
+                <sec:authorize access="isAnonymous()">
+                    <c:url value="/login" var="loginToFollowUrl">
+                        <c:param name="redirect" value="/eventos/${event.id}"/>
+                    </c:url>
+                    <p><a class="btn-link" href="${loginToFollowUrl}"><spring:message code="event.detail.loginToFollowOrganizer"/></a></p>
+                </sec:authorize>
+            </c:if>
+
             <section class="qa-card" id="preguntas">
                 <div class="qa-header">
                     <span class="qa-header-icon"><paw:icon name="message-circle"/></span>
@@ -543,7 +571,7 @@
                          a vos -- nunca te vas a poder anotar a tu propio evento
                          (ver RegistrationServiceImpl.register()), asi que no tiene
                          sentido ofrecerte ningun boton relacionado. --%>
-                    <c:when test="${action == 'OWNER' or action == 'OWNER_PENDING' or action == 'OWNER_REJECTED'}">
+                    <c:when test="${action == 'OWNER' or action == 'OWNER_PENDING' or action == 'OWNER_REJECTED' or action == 'OWNER_CHANGES_REQUESTED'}">
                         <%-- Revision previa a publicarse (ver EventApprovalStatus): no es
                              lo mismo que event.cancelled/removedByAdmin, por eso va
                              primero aca y no en esas ramas de abajo (esas son para
@@ -559,6 +587,17 @@
                                     <c:if test="${not empty event.rejectedReason}">
                                         <br/>
                                         <spring:message code="event.detail.eventRejectedByAdminReason" arguments="${event.rejectedReason}" htmlEscape="true"/>
+                                    </c:if>
+                                </p>
+                            </c:when>
+                            <%-- No es definitivo como el rechazo: el cartel invita a editar, el
+                                 rechazo invita a leer el motivo nada mas (no hay boton de editar ahi). --%>
+                            <c:when test="${action == 'OWNER_CHANGES_REQUESTED'}">
+                                <p class="alert">
+                                    <spring:message code="event.detail.eventChangesRequested"/>
+                                    <c:if test="${not empty event.changesRequestedMessage}">
+                                        <br/>
+                                        <spring:message code="event.detail.eventChangesRequestedMessage" arguments="${event.changesRequestedMessage}" htmlEscape="true"/>
                                     </c:if>
                                 </p>
                             </c:when>

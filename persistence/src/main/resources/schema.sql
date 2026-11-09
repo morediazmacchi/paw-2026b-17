@@ -349,6 +349,11 @@ ALTER TABLE event ADD COLUMN IF NOT EXISTS removed_reason VARCHAR(500);
 ALTER TABLE event ADD COLUMN IF NOT EXISTS approval_status VARCHAR(20) NOT NULL DEFAULT 'APPROVED';
 ALTER TABLE event ADD COLUMN IF NOT EXISTS rejected_reason VARCHAR(500);
 
+-- Pedir cambios en vez de rechazar (ver EventApprovalStatus.CHANGES_REQUESTED): mensaje del
+-- admin, que no se borra al volver a PENDING (sirve de contexto si lo revisa otro admin despues).
+ALTER TABLE event ADD COLUMN IF NOT EXISTS changes_requested_message VARCHAR(1000);
+ALTER TABLE event ADD COLUMN IF NOT EXISTS changes_requested_at TIMESTAMP WITH TIME ZONE;
+
 -- (El banner de /eventos ya no se cura a mano: lo arma EventDao.findMostRegistered() por cantidad de
 -- inscriptos. Las columnas event.featured / event.featured_at de ese esquema viejo siguen en las bases que ya
 -- las tenian, sin uso y con DEFAULT, y no se borran para no perder datos; una base nueva no las crea.)
@@ -450,4 +455,14 @@ CREATE TABLE IF NOT EXISTS saved_search_barrio (
     saved_search_id INTEGER NOT NULL REFERENCES saved_search(id) ON DELETE CASCADE,
     barrio          VARCHAR(80) NOT NULL,
     PRIMARY KEY (saved_search_id, barrio)
+);
+
+-- Seguir a un organizador (ver FollowService): quien sigue (follower) recibe un aviso cuando quien
+-- sigue (followed) publica un evento nuevo que queda aprobado (ver EventServiceImpl.approve()).
+-- Misma forma que favorite: la pareja ES la clave primaria, sin id propio.
+CREATE TABLE IF NOT EXISTS follow (
+    follower_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    followed_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+    PRIMARY KEY (follower_id, followed_id)
 );

@@ -366,9 +366,6 @@
     <sec:authorize access="isAuthenticated()">
     <c:if test="${hasActiveFilters}">
         <c:choose>
-            <c:when test="${saveSearchResult == 'LIMIT_REACHED'}">
-                <p class="alert"><spring:message code="event.list.saveSearch.result.LIMIT_REACHED" arguments="${maxSavedSearches}"/></p>
-            </c:when>
             <c:when test="${not empty saveSearchResult}">
                 <p class="alert alert-success"><spring:message code="event.list.saveSearch.result.${saveSearchResult}"/></p>
             </c:when>

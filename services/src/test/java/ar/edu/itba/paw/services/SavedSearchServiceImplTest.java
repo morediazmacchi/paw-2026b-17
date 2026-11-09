@@ -16,6 +16,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
@@ -30,6 +31,7 @@ import static org.mockito.Mockito.when;
 public class SavedSearchServiceImplTest {
 
     private static final long USER_ID = 1;
+    private static final long OTHER_USER_ID = 2;
     private static final long SEARCH_ID = 7;
 
     @Mock
@@ -72,7 +74,6 @@ public class SavedSearchServiceImplTest {
     public void testSaveStoresANewSearch() {
         // Arrange
         when(savedSearchDao.existsByKey(USER_ID, palermoKey())).thenReturn(false);
-        when(savedSearchDao.countByUserId(USER_ID)).thenReturn(0L);
 
         // Act
         final SaveSearchResult result = savedSearchService.save(USER_ID, palermoCriteria());
@@ -93,17 +94,104 @@ public class SavedSearchServiceImplTest {
         assertEquals(SaveSearchResult.ALREADY_SAVED, result);
     }
 
+    // ---- findPageByUser() ----
+
     @Test
-    public void testSaveWithTheMaximumAlreadySavedIsLimitReached() {
-        // Arrange
-        when(savedSearchDao.existsByKey(USER_ID, palermoKey())).thenReturn(false);
-        when(savedSearchDao.countByUserId(USER_ID)).thenReturn((long) SavedSearchService.MAX_PER_USER);
+    public void testFindPageByUserReturnsTheRequestedPageWithItsTotals() {
+        // Arrange: 25 en total, de a SavedSearchServiceImpl.PAGE_SIZE por pagina -> 3 paginas
+        final List<SavedSearch> pageTwo = Collections.singletonList(savedSearchOf(USER_ID));
+        when(savedSearchDao.countByUserId(USER_ID)).thenReturn(25L);
+        when(savedSearchDao.findByUserId(USER_ID, 2, SavedSearchServiceImpl.PAGE_SIZE)).thenReturn(pageTwo);
 
         // Act
-        final SaveSearchResult result = savedSearchService.save(USER_ID, palermoCriteria());
+        final PageResult<SavedSearch> result = savedSearchService.findPageByUser(USER_ID, 2);
 
         // Assert
-        assertEquals(SaveSearchResult.LIMIT_REACHED, result);
+        assertEquals(pageTwo, result.getContent());
+        assertEquals(2, result.getPage());
+        assertEquals(3, result.getTotalPages());
+        assertEquals(25L, result.getTotalElements());
+    }
+
+    @Test
+    public void testFindPageByUserClampsAPageBeyondTheLastToTheLastOne() {
+        // Arrange: 25 en total -> la ultima pagina es la 3
+        final List<SavedSearch> lastPage = Collections.singletonList(savedSearchOf(USER_ID));
+        when(savedSearchDao.countByUserId(USER_ID)).thenReturn(25L);
+        when(savedSearchDao.findByUserId(USER_ID, 3, SavedSearchServiceImpl.PAGE_SIZE)).thenReturn(lastPage);
+
+        // Act
+        final PageResult<SavedSearch> result = savedSearchService.findPageByUser(USER_ID, 99);
+
+        // Assert
+        assertEquals(3, result.getPage());
+        assertEquals(lastPage, result.getContent());
+    }
+
+    // ---- findByIdForUser() ----
+
+    @Test
+    public void testFindByIdForUserReturnsTheSearchWhenItBelongsToThatPerson() {
+        // Arrange
+        final SavedSearch search = savedSearchOf(USER_ID);
+        when(savedSearchDao.findByIdWithFilters(SEARCH_ID)).thenReturn(Optional.of(search));
+
+        // Act
+        final Optional<SavedSearch> result = savedSearchService.findByIdForUser(USER_ID, SEARCH_ID);
+
+        // Assert
+        assertTrue(result.isPresent());
+        assertEquals(search, result.get());
+    }
+
+    @Test
+    public void testFindByIdForUserIsEmptyWhenTheSearchBelongsToSomeoneElse() {
+        // Arrange
+        when(savedSearchDao.findByIdWithFilters(SEARCH_ID)).thenReturn(Optional.of(savedSearchOf(OTHER_USER_ID)));
+
+        // Act
+        final Optional<SavedSearch> result = savedSearchService.findByIdForUser(USER_ID, SEARCH_ID);
+
+        // Assert
+        assertFalse(result.isPresent());
+    }
+
+    @Test
+    public void testFindByIdForUserIsEmptyWhenTheSearchDoesNotExist() {
+        // Arrange
+        when(savedSearchDao.findByIdWithFilters(SEARCH_ID)).thenReturn(Optional.empty());
+
+        // Act
+        final Optional<SavedSearch> result = savedSearchService.findByIdForUser(USER_ID, SEARCH_ID);
+
+        // Assert
+        assertFalse(result.isPresent());
+    }
+
+    // ---- delete() ----
+
+    @Test
+    public void testDeleteReturnsTrueWhenTheSearchWasTheirs() {
+        // Arrange
+        when(savedSearchDao.deleteByIdAndUserId(SEARCH_ID, USER_ID)).thenReturn(true);
+
+        // Act
+        final boolean result = savedSearchService.delete(USER_ID, SEARCH_ID);
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    public void testDeleteReturnsFalseWhenTheSearchDoesNotExistOrIsSomeoneElses() {
+        // Arrange
+        when(savedSearchDao.deleteByIdAndUserId(SEARCH_ID, USER_ID)).thenReturn(false);
+
+        // Act
+        final boolean result = savedSearchService.delete(USER_ID, SEARCH_ID);
+
+        // Assert
+        assertFalse(result);
     }
 
     // ---- isSaved() ----

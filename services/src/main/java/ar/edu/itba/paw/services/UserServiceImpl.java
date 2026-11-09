@@ -87,12 +87,6 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<User> findAll() {
-        return userDao.findAll();
-    }
-
-    @Override
-    @Transactional(readOnly = true)
     public PageResult<User> findPage(final int page) {
         final long totalElements = userDao.countAll();
         final int totalPages = (int) Math.ceil((double) totalElements / PAGE_SIZE);

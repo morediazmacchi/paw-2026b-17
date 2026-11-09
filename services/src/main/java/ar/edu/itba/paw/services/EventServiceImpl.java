@@ -50,6 +50,7 @@ public class EventServiceImpl implements EventService {
     private final InboxService inboxService;
     private final ImageService imageService;
     private final EventSimilarityService eventSimilarityService;
+    private final FollowService followService;
 
     @Autowired
     public EventServiceImpl(final EventDao eventDao, final UserService userService,
@@ -57,7 +58,8 @@ public class EventServiceImpl implements EventService {
                             final NotificationService notificationService,
                             final RegistrationService registrationService,
                             final InboxService inboxService, final ImageService imageService,
-                            final EventSimilarityService eventSimilarityService) {
+                            final EventSimilarityService eventSimilarityService,
+                            final FollowService followService) {
         this.eventDao = eventDao;
         this.userService = userService;
         this.categoryDao = categoryDao;
@@ -66,6 +68,7 @@ public class EventServiceImpl implements EventService {
         this.inboxService = inboxService;
         this.imageService = imageService;
         this.eventSimilarityService = eventSimilarityService;
+        this.followService = followService;
     }
 
     // Sube cada imagen y devuelve sus ids, en el mismo orden en que se cargaron
@@ -268,6 +271,12 @@ public class EventServiceImpl implements EventService {
         changes.setId(eventId);
         addCategories(changes, dto.getCategories());
         eventDao.update(changes);
+        // Si estaba en CHANGES_REQUESTED, este guardado ES el "reenviar a revision": vuelve solo a
+        // PENDING, sin un boton aparte. No toca changes_requested_message (ver EventDao.resubmitForReview()).
+        final boolean resubmitted = existing.get().isChangesRequested();
+        if (resubmitted) {
+            eventDao.resubmitForReview(eventId);
+        }
         // Solo a los confirmados, mismo criterio que cancel(): a alguien
         // pendiente/rechazado/en lista de espera todavia no tiene un lugar
         // asegurado en base al cual le importe que cambio el evento.
@@ -281,7 +290,7 @@ public class EventServiceImpl implements EventService {
         // Despues del aviso de cambios: a los que entran ahora les llega ya el mail
         // de que estan confirmados, no hace falta ademas contarles que el evento cambio.
         final int promoted = registrationService.promoteFromWaitlist(eventId);
-        return new EventUpdateOutcome(changes, promoted);
+        return new EventUpdateOutcome(changes, promoted, resubmitted);
     }
 
     @Override
@@ -339,7 +348,23 @@ public class EventServiceImpl implements EventService {
         eventDao.approve(eventId);
         notificationService.notifyEventApproved(event);
         inboxService.add(event.getCreatorEmail(), InboxMessageType.EVENT_APPROVED, eventId, null, null);
+        notifyFollowersOfNewEvent(event);
         return EventApprovalResult.OK;
+    }
+
+    // A quien sigue a este organizador (ver FollowService), un aviso de que tiene un evento nuevo. Va aca
+    // (no en create()) porque "nuevo" para el publico es recien cuando un admin lo aprueba, no cuando se
+    // crea: antes de eso nadie fuera del creador y un admin puede verlo.
+    private void notifyFollowersOfNewEvent(final Event event) {
+        final Long organizerId = event.getCreatorId();
+        if (organizerId == null) {
+            return;
+        }
+        final String organizerName = event.getCreator().getName();
+        for (final User follower : followService.findFollowers(organizerId)) {
+            inboxService.add(follower.getEmail(), InboxMessageType.FOLLOWED_USER_NEW_EVENT, event.getId(), organizerName, null);
+            notificationService.notifyFollowedUserNewEvent(follower, event, organizerName);
+        }
     }
 
     @Override
@@ -359,6 +384,29 @@ public class EventServiceImpl implements EventService {
         eventDao.reject(eventId, reason);
         notificationService.notifyEventRejected(event, reason);
         inboxService.add(event.getCreatorEmail(), InboxMessageType.EVENT_REJECTED, eventId, null, reason);
+        return EventApprovalResult.OK;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public EventApprovalResult requestChanges(final long eventId, final String message) {
+        if (message == null || message.trim().isEmpty() || message.length() > MAX_CHANGES_MESSAGE_LENGTH) {
+            return EventApprovalResult.INVALID;
+        }
+        final Optional<Event> existing = eventDao.findByIdForUpdate(eventId);
+        if (!existing.isPresent()) {
+            return EventApprovalResult.NOT_FOUND;
+        }
+        final Event event = existing.get();
+        if (!event.isPendingApproval()) {
+            return EventApprovalResult.ALREADY_DECIDED;
+        }
+        eventDao.requestChanges(eventId, message);
+        // Mismo mecanismo que ModerationService.requestChanges() para reportes: mail con link directo
+        // a editar, mas el mensaje en la bandeja (reusa el mismo InboxMessageType -- "un admin te pidio
+        // cambios" significa lo mismo aca que en el flujo de reportes).
+        notificationService.notifyEventChangesRequested(event, message);
+        inboxService.add(event.getCreatorEmail(), InboxMessageType.EVENT_CHANGES_REQUESTED, eventId, null, message);
         return EventApprovalResult.OK;
     }
 

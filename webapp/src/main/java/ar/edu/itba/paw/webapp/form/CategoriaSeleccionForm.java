@@ -12,7 +12,7 @@ public class CategoriaSeleccionForm {
 
     private boolean seleccionada;
 
-    @Size(max = 500, message = "La informacion adicional no puede superar los 500 caracteres")
+    @Size(max = 500)
     private String extraInfo;
 
     public CategoriaSeleccionForm() {

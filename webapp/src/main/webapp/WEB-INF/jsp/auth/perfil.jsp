@@ -21,6 +21,7 @@
             <div>
                 <p class="account-identity-name"><c:out value="${user.name}"/></p>
                 <p class="account-identity-email"><c:out value="${user.email}"/></p>
+                <p class="account-identity-followers"><spring:message code="auth.profile.followersCount" arguments="${followersCount}"/></p>
             </div>
         </div>
 

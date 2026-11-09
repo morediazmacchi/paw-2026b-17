@@ -36,6 +36,15 @@ public interface EventDao {
     boolean approve(long id);
     boolean reject(long id, String reason);
 
+    // Pedir cambios (ver EventService.requestChanges()): NO es terminal como reject() -- deja el
+    // evento en CHANGES_REQUESTED, editable, hasta que resubmitForReview() lo vuelva a PENDING.
+    boolean requestChanges(long id, String message);
+
+    // El creador edito un evento que estaba en CHANGES_REQUESTED: lo vuelve a PENDING para que un
+    // admin lo revise de nuevo (ver EventService.update()). No toca changes_requested_message
+    // (el admin que lo revise ve que ya se le pidio algo antes).
+    boolean resubmitForReview(long id);
+
     // No excluye cancelados a proposito: el detalle de un evento cancelado
     // sigue siendo accesible para quien ya estaba anotado (ver EventController).
     Optional<Event> findById(long id);

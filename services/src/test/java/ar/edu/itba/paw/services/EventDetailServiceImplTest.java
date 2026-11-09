@@ -62,6 +62,8 @@ public class EventDetailServiceImplTest {
     private EventAccessService eventAccessService;
     @Mock
     private EventInvitationService eventInvitationService;
+    @Mock
+    private FollowService followService;
 
     private EventDetailServiceImpl detailService;
     private Event event;
@@ -70,7 +72,7 @@ public class EventDetailServiceImplTest {
     public void setUp() {
         detailService = new EventDetailServiceImpl(eventService, registrationService, favoriteService,
                 eventChatService, reviewService, eventSimilarityService, eventQuestionService, eventAccessService,
-                eventInvitationService);
+                eventInvitationService, followService);
         event = ModelFixtures.event(EVENT_ID);
         event.setCreator(ModelFixtures.user(CREATOR_ID));
         // Un evento que todavia no paso (el estado "finalizado" se prueba aparte).

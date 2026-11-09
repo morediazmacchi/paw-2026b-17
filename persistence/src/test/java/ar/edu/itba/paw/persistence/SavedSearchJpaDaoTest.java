@@ -156,6 +156,101 @@ public class SavedSearchJpaDaoTest {
         assertEquals(2, result);
     }
 
+    // ---- findByUserId() ----
+
+    @Test
+    public void testFindByUserIdPagesTheNewestFirstWithoutRepeatingAndWithItsFilters() {
+        // Arrange: 3 listas de la persona con fechas distintas (de a 2 por pagina) y una de otra persona
+        final long now = System.currentTimeMillis();
+        final long oldest = insertSearch(userId, "vieja", new Timestamp(now - 3000));
+        final long middle = insertSearch(userId, "media", new Timestamp(now - 2000));
+        final long newest = insertSearch(userId, "nueva", new Timestamp(now - 1000));
+        insertSearch(otherUserId, "ajena", new Timestamp(now));
+        jdbcTemplate.update("INSERT INTO saved_search_category (saved_search_id, category_id) VALUES (?, ?)",
+                newest, categoryId);
+        jdbcTemplate.update("INSERT INTO saved_search_barrio (saved_search_id, barrio) VALUES (?, ?)",
+                newest, Barrio.PALERMO.name());
+        jdbcTemplate.update("INSERT INTO saved_search_barrio (saved_search_id, barrio) VALUES (?, ?)",
+                newest, Barrio.RECOLETA.name());
+
+        // Act
+        final List<SavedSearch> pageOne = savedSearchDao.findByUserId(userId, 1, 2);
+        final List<SavedSearch> pageTwo = savedSearchDao.findByUserId(userId, 2, 2);
+
+        // Assert: la mas nueva primero, la ultima pagina trae solo la que sobra y los filtros vienen cargados
+        assertEquals(2, pageOne.size());
+        assertEquals(newest, (long) pageOne.get(0).getId());
+        assertEquals(middle, (long) pageOne.get(1).getId());
+        assertEquals(Collections.singleton(categoryId), pageOne.get(0).getCategoryIds());
+        assertEquals(new HashSet<>(Arrays.asList(Barrio.PALERMO, Barrio.RECOLETA)), pageOne.get(0).getBarrios());
+        assertEquals(1, pageTwo.size());
+        assertEquals(oldest, (long) pageTwo.get(0).getId());
+    }
+
+    @Test
+    public void testFindByUserIdOfAPersonWithoutListsIsEmpty() {
+        // Arrange: solo la otra persona tiene una lista
+        insertSearch(otherUserId, "ajena");
+
+        // Act
+        final List<SavedSearch> result = savedSearchDao.findByUserId(userId, 1, 10);
+
+        // Assert
+        assertTrue(result.isEmpty());
+    }
+
+    // ---- deleteByIdAndUserId() ----
+
+    @Test
+    public void testDeleteByIdAndUserIdRemovesTheSearchTogetherWithItsFilters() {
+        // Arrange
+        final long id = insertSearch(userId, KEY);
+        jdbcTemplate.update("INSERT INTO saved_search_category (saved_search_id, category_id) VALUES (?, ?)",
+                id, categoryId);
+        jdbcTemplate.update("INSERT INTO saved_search_barrio (saved_search_id, barrio) VALUES (?, ?)",
+                id, Barrio.PALERMO.name());
+        final long untouched = insertSearch(userId, "otra");
+
+        // Act
+        final boolean result = savedSearchDao.deleteByIdAndUserId(id, userId);
+        em.flush();
+
+        // Assert
+        assertTrue(result);
+        assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "saved_search", "id = " + id));
+        assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "saved_search_category",
+                "saved_search_id = " + id));
+        assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "saved_search_barrio",
+                "saved_search_id = " + id));
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "saved_search", "id = " + untouched));
+    }
+
+    @Test
+    public void testDeleteByIdAndUserIdDoesNotRemoveASearchOfSomeoneElse() {
+        // Arrange
+        final long id = insertSearch(otherUserId, KEY);
+
+        // Act
+        final boolean result = savedSearchDao.deleteByIdAndUserId(id, userId);
+        em.flush();
+
+        // Assert
+        assertFalse(result);
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "saved_search", "id = " + id));
+    }
+
+    @Test
+    public void testDeleteByIdAndUserIdOfASearchThatDoesNotExistReturnsFalse() {
+        // Arrange
+        final long id = insertSearch(userId, KEY);
+
+        // Act
+        final boolean result = savedSearchDao.deleteByIdAndUserId(id + 1000, userId);
+
+        // Assert
+        assertFalse(result);
+    }
+
     // ---- findIdsAfter() ----
 
     @Test

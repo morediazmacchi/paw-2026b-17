@@ -229,20 +229,56 @@ public class EventInvitationServiceImplTest {
         assertFalse(result);
     }
 
-    // ---- findByEvent() ----
+    // ---- findPageByEvent() ----
 
     @Test
-    public void testFindByEventDelegatesToTheDao() {
-        // Arrange
-        final List<EventInvitation> invitations = Collections.singletonList(
+    public void testFindPageByEventReturnsTheRequestedPageWithItsTotals() {
+        // Arrange: 25 en total, de a EventInvitationServiceImpl.PAGE_SIZE por pagina -> 3 paginas
+        final List<EventInvitation> pageTwo = Collections.singletonList(
                 new EventInvitation(ModelFixtures.event(EVENT_ID), NORMALIZED_INVITEE_EMAIL, CREATOR_EMAIL));
-        when(mockInvitationDao.findByEvent(EVENT_ID)).thenReturn(invitations);
+        when(mockInvitationDao.countByEvent(EVENT_ID)).thenReturn(25L);
+        when(mockInvitationDao.findByEvent(EVENT_ID, 2, EventInvitationServiceImpl.PAGE_SIZE)).thenReturn(pageTwo);
 
         // Act
-        final List<EventInvitation> result = invitationService.findByEvent(EVENT_ID);
+        final PageResult<EventInvitation> result = invitationService.findPageByEvent(EVENT_ID, 2);
 
         // Assert
-        assertEquals(invitations, result);
+        assertEquals(pageTwo, result.getContent());
+        assertEquals(2, result.getPage());
+        assertEquals(3, result.getTotalPages());
+        assertEquals(25L, result.getTotalElements());
+    }
+
+    @Test
+    public void testFindPageByEventClampsAPageBeyondTheLastToTheLastOne() {
+        // Arrange: 25 en total -> la ultima pagina es la 3
+        final List<EventInvitation> lastPage = Collections.singletonList(
+                new EventInvitation(ModelFixtures.event(EVENT_ID), NORMALIZED_INVITEE_EMAIL, CREATOR_EMAIL));
+        when(mockInvitationDao.countByEvent(EVENT_ID)).thenReturn(25L);
+        when(mockInvitationDao.findByEvent(EVENT_ID, 3, EventInvitationServiceImpl.PAGE_SIZE)).thenReturn(lastPage);
+
+        // Act
+        final PageResult<EventInvitation> result = invitationService.findPageByEvent(EVENT_ID, 99);
+
+        // Assert
+        assertEquals(3, result.getPage());
+        assertEquals(lastPage, result.getContent());
+    }
+
+    @Test
+    public void testFindPageByEventTreatsAPageBelowOneAsTheFirst() {
+        // Arrange
+        final List<EventInvitation> firstPage = Collections.singletonList(
+                new EventInvitation(ModelFixtures.event(EVENT_ID), NORMALIZED_INVITEE_EMAIL, CREATOR_EMAIL));
+        when(mockInvitationDao.countByEvent(EVENT_ID)).thenReturn(25L);
+        when(mockInvitationDao.findByEvent(EVENT_ID, 1, EventInvitationServiceImpl.PAGE_SIZE)).thenReturn(firstPage);
+
+        // Act
+        final PageResult<EventInvitation> result = invitationService.findPageByEvent(EVENT_ID, -3);
+
+        // Assert
+        assertEquals(1, result.getPage());
+        assertEquals(firstPage, result.getContent());
     }
 
     // ---- cupo: cada invitacion reserva un lugar ----

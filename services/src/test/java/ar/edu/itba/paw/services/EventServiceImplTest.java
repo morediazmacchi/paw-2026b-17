@@ -80,13 +80,15 @@ public class EventServiceImplTest {
     private ImageService imageService;
     @Mock
     private EventSimilarityService eventSimilarityService;
+    @Mock
+    private FollowService followService;
 
     private EventServiceImpl eventService;
 
     @Before
     public void setUp() {
         eventService = new EventServiceImpl(eventDao, userService, categoryDao, notificationService,
-                registrationService, inboxService, imageService, eventSimilarityService);
+                registrationService, inboxService, imageService, eventSimilarityService, followService);
         // El servicio busca las categorias elegidas entre las que existen: por defecto existe CATEGORY_ID.
         final List<Category> existingCategories = Collections.singletonList(ModelFixtures.category(CATEGORY_ID));
         lenient().when(categoryDao.findAll()).thenReturn(existingCategories);
@@ -701,6 +703,35 @@ public class EventServiceImplTest {
         assertEquals(EVENT_ID, result.getEvent().getId().longValue());
     }
 
+    @Test
+    public void testUpdateOfAnEventWithChangesRequestedResubmitsItForReview() {
+        // Arrange: el guardado ES el "reenviar a revision" (no hay boton aparte).
+        final Event changesRequested = someEvent();
+        changesRequested.setApprovalStatus(EventApprovalStatus.CHANGES_REQUESTED);
+        existingForUpdate(changesRequested);
+        when(eventDao.resubmitForReview(EVENT_ID)).thenReturn(true);
+
+        // Act
+        final EventUpdateOutcome result = eventService.update(EVENT_ID, someDto());
+
+        // Assert
+        assertTrue(result.isResubmittedForReview());
+    }
+
+    @Test
+    public void testUpdateOfAPendingEventDoesNotResubmitIt() {
+        // Arrange: ya estaba PENDING, no hace falta "reenviarlo" a ningun lado.
+        final Event pending = someEvent();
+        pending.setApprovalStatus(EventApprovalStatus.PENDING);
+        existingForUpdate(pending);
+
+        // Act
+        final EventUpdateOutcome result = eventService.update(EVENT_ID, someDto());
+
+        // Assert
+        assertFalse(result.isResubmittedForReview());
+    }
+
     @Test(expected = EventCancelledException.class)
     public void testUpdateWhenTheEventIsCancelledThrowsEventCancelledException() {
         // Arrange
@@ -910,6 +941,22 @@ public class EventServiceImplTest {
     }
 
     @Test
+    public void testApproveOnAnEventWithoutACreatorDoesNotNotifyFollowersAndStillSucceeds() {
+        // Arrange: fila vieja sin creador (antes del backfill de postgres-migrations.sql). Sin el guard
+        // de organizerId == null esto tiraria NullPointerException al pedir el nombre del organizador.
+        final Event event = someEvent();
+        event.setCreator(null);
+        existingForUpdate(event);
+        when(eventDao.approve(EVENT_ID)).thenReturn(true);
+
+        // Act
+        final EventApprovalResult result = eventService.approve(EVENT_ID);
+
+        // Assert
+        assertEquals(EventApprovalResult.OK, result);
+    }
+
+    @Test
     public void testRejectSucceedsOnAPendingEvent() {
         // Arrange
         existingForUpdate(someEvent());
@@ -943,6 +990,68 @@ public class EventServiceImplTest {
 
         // Act
         final EventApprovalResult result = eventService.reject(EVENT_ID, "motivo");
+
+        // Assert
+        assertEquals(EventApprovalResult.ALREADY_DECIDED, result);
+    }
+
+    // ---- requestChanges() (pedir cambios, no es definitivo como reject()) ----
+
+    @Test
+    public void testRequestChangesSucceedsOnAPendingEvent() {
+        // Arrange
+        existingForUpdate(someEvent());
+        when(eventDao.requestChanges(EVENT_ID, "Falta la direccion exacta")).thenReturn(true);
+
+        // Act
+        final EventApprovalResult result = eventService.requestChanges(EVENT_ID, "Falta la direccion exacta");
+
+        // Assert
+        assertEquals(EventApprovalResult.OK, result);
+    }
+
+    @Test
+    public void testRequestChangesWithABlankMessageReturnsInvalid() {
+        // Act
+        final EventApprovalResult result = eventService.requestChanges(EVENT_ID, "   ");
+
+        // Assert
+        assertEquals(EventApprovalResult.INVALID, result);
+    }
+
+    @Test
+    public void testRequestChangesWithAMessageLongerThanTheMaximumReturnsInvalid() {
+        // Arrange
+        final String tooLong = String.join("", Collections.nCopies(EventService.MAX_CHANGES_MESSAGE_LENGTH + 1, "a"));
+
+        // Act
+        final EventApprovalResult result = eventService.requestChanges(EVENT_ID, tooLong);
+
+        // Assert
+        assertEquals(EventApprovalResult.INVALID, result);
+    }
+
+    @Test
+    public void testRequestChangesWhenTheEventDoesNotExistReturnsNotFound() {
+        // Arrange
+        when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.empty());
+
+        // Act
+        final EventApprovalResult result = eventService.requestChanges(EVENT_ID, "mensaje");
+
+        // Assert
+        assertEquals(EventApprovalResult.NOT_FOUND, result);
+    }
+
+    @Test
+    public void testRequestChangesWhenAlreadyDecidedReturnsAlreadyDecided() {
+        // Arrange
+        final Event event = someEvent();
+        event.setApprovalStatus(EventApprovalStatus.APPROVED);
+        existingForUpdate(event);
+
+        // Act
+        final EventApprovalResult result = eventService.requestChanges(EVENT_ID, "mensaje");
 
         // Assert
         assertEquals(EventApprovalResult.ALREADY_DECIDED, result);

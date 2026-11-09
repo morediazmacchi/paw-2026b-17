@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -66,23 +67,50 @@ public class EventInvitationJpaDao implements EventInvitationDao {
     }
 
     @Override
-    public List<EventInvitation> findByEvent(final long eventId) {
-        return em.createQuery(
-                        "FROM EventInvitation i WHERE i.event.id = :eventId ORDER BY i.createdAt DESC",
-                        EventInvitation.class)
+    public List<EventInvitation> findByEvent(final long eventId, final int page, final int pageSize) {
+        // Dos pasos (1+1): primero los ids de la pagina (el id desempata), despues las invitaciones.
+        final List<Long> ids = em.createQuery(
+                        "SELECT i.id FROM EventInvitation i WHERE i.event.id = :eventId "
+                                + "ORDER BY i.createdAt DESC, i.id DESC", Long.class)
                 .setParameter("eventId", eventId)
+                .setFirstResult((page - 1) * pageSize)
+                .setMaxResults(pageSize)
                 .getResultList();
+        if (ids.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return PagedIds.inOrder(ids,
+                em.createQuery("FROM EventInvitation i WHERE i.id IN :ids", EventInvitation.class)
+                        .setParameter("ids", ids)
+                        .getResultList(),
+                EventInvitation::getId);
+    }
+
+    @Override
+    public long countByEvent(final long eventId) {
+        return em.createQuery("SELECT COUNT(i) FROM EventInvitation i WHERE i.event.id = :eventId", Long.class)
+                .setParameter("eventId", eventId)
+                .getSingleResult();
     }
 
     @Override
     public List<Event> findInvitedEventsByUserId(final long userId, final int page, final int pageSize) {
-        return em.createQuery(
-                        "SELECT e FROM EventInvitation i JOIN i.event e WHERE i.user.id = :userId "
-                                + "ORDER BY i.createdAt DESC, i.id DESC", Event.class)
+        // Dos pasos (1+1): primero los ids de los eventos de la pagina, despues los eventos.
+        final List<Long> ids = em.createQuery(
+                        "SELECT e.id FROM EventInvitation i JOIN i.event e WHERE i.user.id = :userId "
+                                + "ORDER BY i.createdAt DESC, i.id DESC", Long.class)
                 .setParameter("userId", userId)
                 .setFirstResult((page - 1) * pageSize)
                 .setMaxResults(pageSize)
                 .getResultList();
+        if (ids.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return PagedIds.inOrder(ids,
+                em.createQuery("FROM Event e WHERE e.id IN :ids", Event.class)
+                        .setParameter("ids", ids)
+                        .getResultList(),
+                Event::getId);
     }
 
     @Override

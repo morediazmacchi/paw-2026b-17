@@ -552,12 +552,14 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Async
     @Override
-    public void notifySavedSearchMatches(final User user, final Event example, final long newEventsCount) {
+    public void notifySavedSearchMatches(final User user, final long savedSearchId, final Event example,
+                                         final long newEventsCount) {
         try {
             final Locale locale = localeForUserId(user.getId());
             final Map<String, Object> variables = eventVariables(example, locale);
             variables.put("personName", displayName(user.getName(), user.getEmail()));
             variables.put("newEventsCount", newEventsCount);
+            variables.put("unsubscribeUrl", links.unsubscribeSavedSearch(savedSearchId));
 
             mailService.send(user.getEmail(),
                     "saved-search-matches",
@@ -591,6 +593,26 @@ public class NotificationServiceImpl implements NotificationService {
                     locale);
         } catch (final RuntimeException e) {
             LOGGER.error("Fallo el aviso de evento rechazado, evento {}", event.getId(), e);
+        }
+    }
+
+    @Async
+    @Override
+    public void notifyFollowedUserNewEvent(final User follower, final Event event, final String organizerName) {
+        try {
+            final Locale locale = localeForUserId(follower.getId());
+            final Map<String, Object> variables = eventVariables(event, locale);
+            variables.put("personName", displayName(follower.getName(), follower.getEmail()));
+            variables.put("organizerName", organizerName);
+
+            mailService.send(follower.getEmail(),
+                    "followed-user-new-event",
+                    "mail.followedUserNewEvent.subject",
+                    new Object[]{ organizerName },
+                    variables,
+                    locale);
+        } catch (final RuntimeException e) {
+            LOGGER.error("Fallo el aviso de evento nuevo de un organizador seguido, usuario {}", follower.getId(), e);
         }
     }
 

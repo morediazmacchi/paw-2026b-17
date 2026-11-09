@@ -18,6 +18,8 @@
      nadie mas que al creador/admin). --%>
 <%@ attribute name="pendiente" required="false" type="java.lang.Boolean" %>
 <%@ attribute name="rechazado" required="false" type="java.lang.Boolean" %>
+<%-- Idem pendiente: un admin le pidio cambios, no es definitivo (ver EventApprovalStatus.CHANGES_REQUESTED). --%>
+<%@ attribute name="cambiosPedidos" required="false" type="java.lang.Boolean" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <%@ taglib prefix="paw" tagdir="/WEB-INF/tags" %>
 <%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
@@ -48,6 +50,9 @@
                 </c:if>
                 <c:if test="${rechazado}">
                     <span class="event-row-cancelled-tag">(<spring:message code="auth.events.rejectedTag"/>)</span>
+                </c:if>
+                <c:if test="${cambiosPedidos}">
+                    <span class="event-row-pending-tag">(<spring:message code="auth.events.changesRequestedTag"/>)</span>
                 </c:if>
             </h3>
             <p class="event-row-meta">

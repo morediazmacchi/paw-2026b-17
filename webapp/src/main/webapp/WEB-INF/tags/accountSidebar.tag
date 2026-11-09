@@ -57,6 +57,11 @@
                 <span class="account-sidebar-badge"><c:out value="${invitationsCount}"/></span>
             </c:if>
         </a>
+        <spring:message code="profile.tabs.lists" var="listsLabel"/>
+        <a class="account-sidebar-link ${active == 'lists' ? 'account-sidebar-link-active' : ''}"
+           href="<c:url value='/perfil/listas'/>">
+            <paw:icon name="search"/> <c:out value="${listsLabel}"/>
+        </a>
         <spring:message code="profile.tabs.inbox" var="inboxLabel"/>
         <a class="account-sidebar-link ${active == 'inbox' ? 'account-sidebar-link-active' : ''}"
            href="<c:url value='/perfil/bandeja'/>">

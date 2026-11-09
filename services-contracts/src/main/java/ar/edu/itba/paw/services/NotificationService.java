@@ -125,13 +125,16 @@ public interface NotificationService {
     void notifyEventRejected(Event event, String reason);
 
     /**
-     * Se aprobaron newEventsCount eventos nuevos que cumplen una busqueda guardada de user -> le avisa, mostrando
-     * example (uno de ellos).
+     * Se aprobaron newEventsCount eventos nuevos que cumplen la busqueda guardada savedSearchId de user -> le avisa,
+     * mostrando example (uno de ellos) y con el link para desuscribirse de esa busqueda.
      */
-    void notifySavedSearchMatches(User user, Event example, long newEventsCount);
+    void notifySavedSearchMatches(User user, long savedSearchId, Event example, long newEventsCount);
 
     /** Un admin le pidio al creador que corrija algo del evento -> le avisa con el mensaje. */
     void notifyEventChangesRequested(Event event, String message);
+
+    /** Un organizador que sigue (ver FollowService) publico un evento nuevo y quedo aprobado -> le avisa a quien lo sigue. */
+    void notifyFollowedUserNewEvent(User follower, Event event, String organizerName);
 
     /** Un admin suspendio la cuenta -> le avisa a esa persona. */
     void notifyUserSuspended(User user);

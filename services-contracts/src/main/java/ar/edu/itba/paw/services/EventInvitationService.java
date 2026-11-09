@@ -32,15 +32,17 @@ public interface EventInvitationService {
     boolean isInvited(long eventId, long userId);
 
     /**
-     * Pantalla "a quien invite" del creador. Que quien la pide sea el creador NO se
-     * valida aca: lo decide @PreAuthorize en el controller (ver EventSecurity.isOwner).
+     * Pantalla "a quien invite" del creador, de a una pagina (mas recientes primero). Que quien la
+     * pide sea el creador NO se valida aca: lo decide @PreAuthorize en el controller (ver
+     * EventSecurity.isOwner). Una pagina mayor a la ultima devuelve la ultima, una menor a 1 la
+     * primera; sin invitaciones, la pagina 1 vacia.
      */
-    List<EventInvitation> findByEvent(long eventId);
+    PageResult<EventInvitation> findPageByEvent(long eventId, int page);
 
     /**
      * "Mis invitaciones": los eventos (con un JOIN, una sola consulta) a los que invitaron a este
      * usuario, mas recientes primero, de a una pagina. No hace falta ningun
-     * chequeo de dueño (a diferencia de findByEvent de arriba): es siempre tu
+     * chequeo de dueño (a diferencia de findPageByEvent de arriba): es siempre tu
      * propio userId, el de la sesion logueada. Una pagina mayor a la ultima
      * devuelve la ultima, una menor a 1 la primera; sin invitaciones, la
      * pagina 1 vacia.

@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <!--/*
   Se aprobaron eventos nuevos que cumplen una busqueda guardada -> le llega a quien la guardo.
-  Variables: personName, newEventsCount, eventTitle, eventDate, eventPlace, eventUrl (uno de los eventos nuevos)
+  Variables: personName, newEventsCount, eventTitle, eventDate, eventPlace, eventUrl (uno de los eventos nuevos),
+  unsubscribeUrl (confirmar la baja de esta busqueda guardada)
 */-->
 <html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: page(~{::content})}">
 <body>
@@ -41,6 +42,13 @@
          th:text="#{mail.savedSearchMatches.cta}">Ver el evento</a>
     </td></tr>
   </table>
+
+  <p style="margin:20px 0 0;">
+    <a th:href="${unsubscribeUrl}" href="#"
+       style="display:inline-block; padding:5px 11px; border:1px solid #d1d5db; border-radius:6px;
+              color:#6b7280; text-decoration:none; font-size:12px;"
+       th:text="#{mail.savedSearchMatches.unsubscribe}">Desuscribirme de esta lista</a>
+  </p>
 
 </th:block>
 </body>

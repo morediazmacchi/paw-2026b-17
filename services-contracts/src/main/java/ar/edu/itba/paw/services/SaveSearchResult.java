@@ -6,8 +6,5 @@ public enum SaveSearchResult {
     SAVED,
 
     /** Ya tenia guardada una busqueda con exactamente esos filtros. */
-    ALREADY_SAVED,
-
-    /** Ya tiene SavedSearchService.MAX_PER_USER busquedas guardadas. */
-    LIMIT_REACHED
+    ALREADY_SAVED
 }

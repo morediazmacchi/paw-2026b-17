@@ -11,5 +11,8 @@ public enum EventApprovalStatus {
     // Definitivo (mismo criterio que un evento dado de baja por moderación):
     // no hay reenvío a revisión, si el creador quiere publicarlo tiene que
     // crear un evento nuevo.
-    REJECTED
+    REJECTED,
+    // El admin no lo rechazó: le pidió cambios (ver Event.changesRequestedMessage). El evento
+    // sigue vivo y editable; al guardar una edición vuelve solo a PENDING (ver EventServiceImpl.update()).
+    CHANGES_REQUESTED
 }

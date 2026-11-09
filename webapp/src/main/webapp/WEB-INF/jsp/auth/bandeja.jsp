@@ -35,7 +35,8 @@
                                             </c:otherwise>
                                         </c:choose>
                                         <c:if test="${group.unread}">
-                                            <span class="chat-group-badge" title="<spring:message code='inbox.groupUnread'/>"><c:out value="${group.unreadCount > 99 ? '99+' : group.unreadCount}"/></span>
+                                            <spring:message code="inbox.groupUnread" var="groupUnreadLabel" htmlEscape="true"/>
+                                            <span class="chat-group-badge" title="${groupUnreadLabel}"><c:out value="${group.unreadCount > 99 ? '99+' : group.unreadCount}"/></span>
                                         </c:if>
                                     </span>
                                     <span class="chat-group-name"><c:out value="${group.eventTitle}"/></span>

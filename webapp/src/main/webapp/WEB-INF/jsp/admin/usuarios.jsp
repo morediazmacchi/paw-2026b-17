@@ -95,17 +95,21 @@
                                             </form>
                                         </c:when>
                                     </c:choose>
-                                    <%-- Otorgar/revocar admin: solo si quien mira esta pantalla es superadmin (es el
-                                         mismo criterio del antMatcher de WebAuthConfig: el rol da el acceso; esto solo
-                                         evita ofrecer un boton que el POST va a rechazar). A un superadmin no se le
-                                         ofrece ninguno: ya es admin y no se le saca el rol (el service lo rechaza con
-                                         RevokeAdminResult.TARGET_SUPERADMIN, la misma propiedad que se mira aca). --%>
-                                    <c:if test="${callerIsSuperadmin and not targetUser.superadmin}">
+                                    <%-- Otorgar/revocar admin. "Hacer admin" lo ve cualquier admin (esta pantalla ya es
+                                         solo de admins) en las cuentas que todavia no lo son. "Quitar admin" solo si
+                                         quien mira es superadmin (mismo criterio que el antMatcher de WebAuthConfig: el
+                                         rol da el acceso; esto solo evita ofrecer un boton que el POST va a rechazar).
+                                         A un superadmin no se le ofrece ninguno: ya es admin y no se le saca el rol
+                                         (el service lo rechaza con RevokeAdminResult.TARGET_SUPERADMIN, la misma
+                                         propiedad que se mira aca). --%>
+                                    <c:if test="${not targetUser.superadmin}">
                                         <c:choose>
                                             <c:when test="${targetUser.admin}">
-                                                <form action="<c:url value='/admin/usuarios/${targetUser.id}/revocar'/>" method="post">
-                                                    <paw:button text="${revokeButtonLabel}"/>
-                                                </form>
+                                                <c:if test="${callerIsSuperadmin}">
+                                                    <form action="<c:url value='/admin/usuarios/${targetUser.id}/revocar'/>" method="post">
+                                                        <paw:button text="${revokeButtonLabel}"/>
+                                                    </form>
+                                                </c:if>
                                             </c:when>
                                             <c:otherwise>
                                                 <form action="<c:url value='/admin/usuarios/${targetUser.id}/promover'/>" method="post">

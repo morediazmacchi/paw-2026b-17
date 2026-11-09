@@ -21,6 +21,8 @@ public enum InboxMessageType {
     EVENT_REMINDER,
     // Se publicaron eventos nuevos que coinciden con una de sus busquedas guardadas (ver SavedSearch).
     SAVED_SEARCH_MATCHES,
+    // Un organizador que sigue (ver Follow) publico un evento nuevo que quedo aprobado.
+    FOLLOWED_USER_NEW_EVENT,
 
     // ---- Para quien organiza ----
     NEW_REGISTRATION,

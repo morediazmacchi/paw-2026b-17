@@ -218,6 +218,28 @@ public class EventJpaDao implements EventDao {
     }
 
     @Override
+    public boolean requestChanges(final long id, final String message) {
+        final Event event = em.find(Event.class, id);
+        if (event == null) {
+            return false;
+        }
+        event.setApprovalStatus(EventApprovalStatus.CHANGES_REQUESTED);
+        event.setChangesRequestedMessage(message);
+        event.setChangesRequestedAt(new Date());
+        return true;
+    }
+
+    @Override
+    public boolean resubmitForReview(final long id) {
+        final Event event = em.find(Event.class, id);
+        if (event == null) {
+            return false;
+        }
+        event.setApprovalStatus(EventApprovalStatus.PENDING);
+        return true;
+    }
+
+    @Override
     public List<Event> findMostRegistered(final int limit) {
         // Mismas cuatro reglas que buildSearchFilter() para search(): publico, no cancelado, no pasado, y
         // aprobado. El JOIN con las inscripciones confirmadas deja afuera solo a los eventos sin ninguna.
@@ -321,17 +343,18 @@ public class EventJpaDao implements EventDao {
         // pasados (el mas reciente primero). Cada CASE ordena un solo grupo: en las
         // filas del otro grupo da NULL, y como el primer criterio ya las separo en
         // dos bloques, ese NULL no cambia el orden dentro de cada bloque.
-        return em.createQuery(
-                        "FROM Event e WHERE e.creator.id = :creatorId ORDER BY "
+        final List<Long> ids = em.createQuery(
+                        "SELECT e.id FROM Event e WHERE e.creator.id = :creatorId ORDER BY "
                                 + "CASE WHEN e.eventDate >= :now THEN 0 ELSE 1 END ASC, "
                                 + "CASE WHEN e.eventDate >= :now THEN e.eventDate END ASC, "
                                 + "CASE WHEN e.eventDate < :now THEN e.eventDate END DESC, "
-                                + "e.id ASC", Event.class)
+                                + "e.id ASC", Long.class)
                 .setParameter("creatorId", creatorId)
                 .setParameter("now", new Date(), TemporalType.TIMESTAMP)
                 .setFirstResult((page - 1) * pageSize)
                 .setMaxResults(pageSize)
                 .getResultList();
+        return findOrderedByIds(ids);
     }
 
     @Override
@@ -426,17 +449,20 @@ public class EventJpaDao implements EventDao {
                                final int pageSize) {
         // Sin filtro de estado a proposito (ver el comentario del contrato): el panel de admin tiene que poder
         // ver pendientes, rechazados y dados de baja, no solo lo que search() deja pasar.
+        // Dos pasos (ver findOrderedByIds): primero solo los ids de la pagina, ya filtrados, ordenados y con
+        // OFFSET/LIMIT; despues los eventos con sus categorias.
         final AdminEventSort effectiveSort = sort == null ? AdminEventSort.CREATED_DESC : sort;
         final boolean filtered = titleQuery != null && !titleQuery.isEmpty();
-        final TypedQuery<Event> query = em.createQuery("FROM Event e" + (filtered ? ADMIN_TITLE_FILTER : "")
-                + " ORDER BY " + ADMIN_ORDER_BY.get(effectiveSort), Event.class);
+        final TypedQuery<Long> query = em.createQuery("SELECT e.id FROM Event e" + (filtered ? ADMIN_TITLE_FILTER : "")
+                + " ORDER BY " + ADMIN_ORDER_BY.get(effectiveSort), Long.class);
         if (filtered) {
             query.setParameter("titlePattern", likeContains(titleQuery));
         }
         if (effectiveSort == AdminEventSort.PENDING_FIRST) {
             query.setParameter("pending", EventApprovalStatus.PENDING);
         }
-        return query.setFirstResult((page - 1) * pageSize).setMaxResults(pageSize).getResultList();
+        final List<Long> ids = query.setFirstResult((page - 1) * pageSize).setMaxResults(pageSize).getResultList();
+        return findOrderedByIds(ids);
     }
 
     @Override

@@ -3,19 +3,33 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.EventSearchCriteria;
+import ar.edu.itba.paw.model.SavedSearch;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface SavedSearchService {
 
-    // Cuantas busquedas puede tener guardadas una persona.
-    int MAX_PER_USER = 10;
-
     /**
      * Guarda los filtros de la busqueda (categorias, barrios, precio y fechas; el resto de criteria se ignora). No la
-     * guarda dos veces ni pasa de MAX_PER_USER: el resultado dice cual de los casos fue.
+     * guarda dos veces; no hay maximo de busquedas por persona. El resultado dice cual de los casos fue.
      */
     SaveSearchResult save(long userId, EventSearchCriteria criteria);
+
+    /**
+     * Una pagina de las busquedas guardadas de la persona ("Mis listas"), las mas nuevas primero y con sus filtros ya
+     * cargados. La pagina pedida se ajusta a la ultima que tenga busquedas.
+     */
+    PageResult<SavedSearch> findPageByUser(long userId, int page);
+
+    /**
+     * La busqueda guardada con sus filtros, solo si es de esa persona: vacio si no existe o es de otra (para la
+     * pantalla de confirmar la baja que llega desde el mail).
+     */
+    Optional<SavedSearch> findByIdForUser(long userId, long savedSearchId);
+
+    /** Borra la busqueda guardada si es de esa persona (ya no se le avisa). false si no existe o es de otra. */
+    boolean delete(long userId, long savedSearchId);
 
     /** Si la persona ya tiene guardada una busqueda con esos mismos filtros (para el boton de /eventos). */
     boolean isSaved(long userId, EventSearchCriteria criteria);

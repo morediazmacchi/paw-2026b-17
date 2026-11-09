@@ -222,7 +222,7 @@ public class EventInvitationJpaDaoTest {
         insertInvitation(otherEventId, "otro@mail.com", null);
 
         // Act
-        final List<EventInvitation> found = invitationDao.findByEvent(eventId);
+        final List<EventInvitation> found = invitationDao.findByEvent(eventId, 1, 10);
 
         // Assert
         assertEquals(1, found.size());
@@ -234,10 +234,61 @@ public class EventInvitationJpaDaoTest {
         // Arrange: no se inserta ninguna invitacion.
 
         // Act
-        final List<EventInvitation> found = invitationDao.findByEvent(eventId);
+        final List<EventInvitation> found = invitationDao.findByEvent(eventId, 1, 10);
 
         // Assert
         assertTrue(found.isEmpty());
+    }
+
+    @Test
+    public void testFindByEventPagesTheInvitationsNewestFirstWithoutRepeating() {
+        // Arrange: 3 invitaciones con fechas distintas, de a 2 por pagina
+        final long u1 = insertUser("uno@mail.com");
+        final long u2 = insertUser("dos@mail.com");
+        final long u3 = insertUser("tres@mail.com");
+        final long now = System.currentTimeMillis();
+        insertInvitationAt(eventId, "uno@mail.com", u1, new Timestamp(now - 3000));
+        insertInvitationAt(eventId, "dos@mail.com", u2, new Timestamp(now - 2000));
+        insertInvitationAt(eventId, "tres@mail.com", u3, new Timestamp(now - 1000));
+
+        // Act
+        final List<EventInvitation> pageOne = invitationDao.findByEvent(eventId, 1, 2);
+        final List<EventInvitation> pageTwo = invitationDao.findByEvent(eventId, 2, 2);
+
+        // Assert: la mas nueva primero y la ultima pagina trae solo la que sobra
+        assertEquals(2, pageOne.size());
+        assertEquals("tres@mail.com", pageOne.get(0).getEmail());
+        assertEquals("dos@mail.com", pageOne.get(1).getEmail());
+        assertEquals(1, pageTwo.size());
+        assertEquals("uno@mail.com", pageTwo.get(0).getEmail());
+    }
+
+    // ---- countByEvent() ----
+
+    @Test
+    public void testCountByEventCountsOnlyThatEventsInvitations() {
+        // Arrange
+        insertInvitation(eventId, INVITEE_EMAIL, null);
+        insertInvitation(eventId, "otro@mail.com", null);
+        final long otherEventId = insertEvent();
+        insertInvitation(otherEventId, "tercero@mail.com", null);
+
+        // Act
+        final long count = invitationDao.countByEvent(eventId);
+
+        // Assert
+        assertEquals(2L, count);
+    }
+
+    @Test
+    public void testCountByEventReturnsZeroWhenNobodyWasInvited() {
+        // Arrange: no se inserta ninguna invitacion.
+
+        // Act
+        final long count = invitationDao.countByEvent(eventId);
+
+        // Assert
+        assertEquals(0L, count);
     }
 
     // ---- linkUserId() ----

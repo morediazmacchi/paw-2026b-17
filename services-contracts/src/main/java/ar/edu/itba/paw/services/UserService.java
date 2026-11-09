@@ -32,12 +32,10 @@ public interface UserService {
     // findById() por cada uno (ver AdminController.seguimiento()/reportQueueView()).
     List<User> findByIds(List<Long> ids);
 
-    /** Para "Usuarios" del panel de admin (ver AdminController): todos, ordenados por id. */
-    List<User> findAll();
-
     /**
-     * Como {@link #findAll()}, pero ya paginado en SQL: la pagina pedida se
-     * ajusta a la ultima con usuarios (igual que la busqueda de eventos).
+     * Para "Usuarios" del panel de admin (ver AdminController): una pagina de
+     * usuarios ordenados por id, paginada en SQL. La pagina pedida se ajusta a
+     * la ultima con usuarios (igual que la busqueda de eventos).
      */
     PageResult<User> findPage(int page);
 
@@ -166,8 +164,8 @@ public interface UserService {
     boolean reactivate(long userId);
 
     /**
-     * Le da el rol ADMIN a un usuario. Quien puede invocar esto (solo un
-     * superadmin) lo controla la seguridad HTTP (ver WebAuthConfig), no este
+     * Le da el rol ADMIN a un usuario. Quien puede invocar esto (cualquier
+     * admin) lo controla la seguridad HTTP (ver WebAuthConfig), no este
      * metodo: es una simple asignacion de rol, ya autorizada al llegar aca.
      */
     boolean grantAdmin(long userId);

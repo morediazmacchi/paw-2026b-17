@@ -93,6 +93,7 @@
                     </div>
                 </c:otherwise>
             </c:choose>
+            <paw:pager baseUrl="/perfil/eventos/${event.id}/invitar" currentPage="${currentPage}" totalPages="${totalPages}"/>
         </c:if>
 
         <p class="auth-subheading">

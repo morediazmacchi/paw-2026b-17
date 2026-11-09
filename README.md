@@ -9,7 +9,7 @@ Aplicación web de gestión de eventos varios en CABA: Spring MVC + JSP/JSTL en 
 | Superadmin (incluye también admin y usuario común) | `admin@plancito.com` | `admin1234` |
 | Usuario común | Cualquier cuenta nueva creada en `/registro` | la que elijas al registrarte |
 
-Todo usuario que se registra arranca con permisos de usuario común (`ROLE_USER`). `admin@plancito.com` es la única cuenta superadmin que existe (se crea sola al levantar la base, ver `data.sql`); desde ahí, en `/admin/usuarios`, se le puede dar o sacar el rol admin a cualquier otra cuenta.
+Todo usuario que se registra arranca con permisos de usuario común (`ROLE_USER`). `admin@plancito.com` es la única cuenta superadmin que existe (se crea sola al levantar la base, ver `data.sql`); desde `/admin/usuarios`, cualquier admin puede darle el rol admin a otra cuenta, pero solo el superadmin puede sacárselo.
 
 ## Correr la aplicación en desarrollo
 

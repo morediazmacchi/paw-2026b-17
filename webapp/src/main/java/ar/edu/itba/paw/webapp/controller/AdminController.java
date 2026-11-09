@@ -3,6 +3,7 @@ package ar.edu.itba.paw.webapp.controller;
 import ar.edu.itba.paw.model.AdminEventSort;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.services.EventApprovalResult;
 import ar.edu.itba.paw.services.EventQuestionService;
 import ar.edu.itba.paw.services.EventService;
@@ -144,7 +145,8 @@ public class AdminController {
     }
 
     // Revision previa a publicarse (ver EventApprovalStatus): distinto del sistema de reportes de arriba, son eventos
-    // que todavia no llegaron a estar publicos. Se aprueban y rechazan desde la lista de todos los eventos.
+    // que todavia no llegaron a estar publicos. Se aprueban, rechazan o se les piden cambios desde la lista de todos
+    // los eventos.
     // Aprobar/rechazar: un admin no puede si el evento es suyo (conflicto de intereses). Lo decide
     // @PreAuthorize antes de entrar (ver AdminSecurity.canModerateEvent); la pantalla ya esconde los botones.
     @PreAuthorize("@adminSecurity.canModerateEvent(#id, authentication)")
@@ -167,6 +169,23 @@ public class AdminController {
             return new ModelAndView("redirect:/admin/eventos");
         }
         final EventApprovalResult result = eventService.reject(id, form.getMotivo());
+        if (result != EventApprovalResult.OK) {
+            redirectAttributes.addFlashAttribute("adminApprovalError", result.name());
+        }
+        return new ModelAndView("redirect:/admin/eventos");
+    }
+
+    // No es definitivo como rechazar: el evento sigue vivo, el creador lo puede editar y vuelve
+    // solo a PENDING (a revision) cuando lo hace (ver EventService.update()/EventServiceImpl.requestChanges()).
+    @PreAuthorize("@adminSecurity.canModerateEvent(#id, authentication)")
+    @RequestMapping(value = "/eventos/{id}/pedir-cambios", method = RequestMethod.POST)
+    public ModelAndView pedirCambiosEvento(@PathVariable final long id, @Valid final RequestChangesForm form,
+                                            final BindingResult errors, final RedirectAttributes redirectAttributes) {
+        if (errors.hasErrors()) {
+            redirectAttributes.addFlashAttribute("adminApprovalError", "INVALID");
+            return new ModelAndView("redirect:/admin/eventos");
+        }
+        final EventApprovalResult result = eventService.requestChanges(id, form.getMensaje());
         if (result != EventApprovalResult.OK) {
             redirectAttributes.addFlashAttribute("adminApprovalError", result.name());
         }
@@ -210,6 +229,8 @@ public class AdminController {
         return new ModelAndView("redirect:/admin/usuarios");
     }
 
+    // Dar el rol admin lo puede hacer cualquier admin (lo cubre el "/admin/**" de WebAuthConfig); sacarlo, solo un
+    // superadmin (ver revocar() abajo).
     @RequestMapping(value = "/usuarios/{id}/promover", method = RequestMethod.POST)
     public ModelAndView promover(@PathVariable final long id) {
         userService.grantAdmin(id);
@@ -272,11 +293,16 @@ public class AdminController {
     // /perfil/eventos/{id}/inscriptos (del organizador, con boton de revocar), este panel es para
     // mirar y moderar, no para administrar inscripciones ajenas.
     @RequestMapping(value = "/eventos/{id}/inscriptos", method = RequestMethod.GET)
-    public ModelAndView inscriptos(@PathVariable final long id) {
+    public ModelAndView inscriptos(@PathVariable final long id,
+                                   @RequestParam(value = "page", required = false) final String page) {
         final Event event = eventService.findByIdOrThrow(id);
+        final PageResult<Registration> result = registrationService.findPageByEventId(id, Paging.parsePage(page));
         final ModelAndView mav = new ModelAndView("admin/eventoInscriptos");
         mav.addObject("event", event);
-        mav.addObject("registrations", registrationService.findByEventId(id));
+        mav.addObject("registrations", result.getContent());
+        mav.addObject("totalRegistrations", result.getTotalElements());
+        mav.addObject("currentPage", result.getPage());
+        mav.addObject("totalPages", result.getTotalPages());
         return mav;
     }
 

@@ -31,6 +31,8 @@ public class EventDetail {
     private final Map<Long, RegistrationStatus> relatedStatuses;
     private final Set<Long> relatedFavoriteIds;
     private final PageResult<EventQuestion> questions;
+    private final boolean canFollowCreator;
+    private final boolean followingCreator;
 
     public EventDetail(final Event event, final boolean full, final Integer availableSpots,
                        final EventParticipation participation, final EventAction action,
@@ -40,7 +42,8 @@ public class EventDetail {
                        final CreatorReputation creatorReputation, final String organizerName,
                        final List<Event> relatedEvents,
                        final Map<Long, RegistrationStatus> relatedStatuses, final Set<Long> relatedFavoriteIds,
-                       final PageResult<EventQuestion> questions) {
+                       final PageResult<EventQuestion> questions, final boolean canFollowCreator,
+                       final boolean followingCreator) {
         this.event = event;
         this.full = full;
         this.availableSpots = availableSpots;
@@ -59,6 +62,8 @@ public class EventDetail {
         this.relatedStatuses = relatedStatuses;
         this.relatedFavoriteIds = relatedFavoriteIds;
         this.questions = questions;
+        this.canFollowCreator = canFollowCreator;
+        this.followingCreator = followingCreator;
     }
 
     public Event getEvent() { return event; }
@@ -111,4 +116,12 @@ public class EventDetail {
     public Set<Long> getRelatedFavoriteIds() { return relatedFavoriteIds; }
 
     public PageResult<EventQuestion> getQuestions() { return questions; }
+
+    // Se le ofrece el boton de seguir al organizador: hay sesion, no es su propio evento, y el evento
+    // tiene organizador cargado (ver Event.getCreatorId()). Un visitante sin sesion tambien lo ve, la
+    // pantalla lo manda a iniciar sesion (mismo criterio que canAsk).
+    public boolean isCanFollowCreator() { return canFollowCreator; }
+
+    // Ya sigue al organizador (irrelevante si !canFollowCreator).
+    public boolean isFollowingCreator() { return followingCreator; }
 }

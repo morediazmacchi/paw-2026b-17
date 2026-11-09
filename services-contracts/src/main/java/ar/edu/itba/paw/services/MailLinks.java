@@ -23,6 +23,9 @@ public interface MailLinks {
     // "Inscriptos" de un evento (la pantalla del organizador).
     String attendees(long eventId);
 
+    // Confirmar que se quiere dejar de recibir avisos de esa busqueda guardada (pide iniciar sesion).
+    String unsubscribeSavedSearch(long savedSearchId);
+
     // Iniciar sesion.
     String login();
 

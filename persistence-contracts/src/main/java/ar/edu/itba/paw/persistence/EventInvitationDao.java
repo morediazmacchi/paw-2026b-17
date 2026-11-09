@@ -34,8 +34,11 @@ public interface EventInvitationDao {
      */
     long countOutstanding(long eventId);
 
-    // Pantalla "a quien invite" del creador, mas recientes primero.
-    List<EventInvitation> findByEvent(long eventId);
+    // Pantalla "a quien invite" del creador, mas recientes primero, de a una pagina (paginas desde 1);
+    // countByEvent() da el total para el paginador.
+    List<EventInvitation> findByEvent(long eventId, int page, int pageSize);
+
+    long countByEvent(long eventId);
 
     // "Mis invitaciones" de quien las RECIBE (no del creador): los EVENTOS a los que lo invitaron,
     // con un JOIN (una sola consulta), del que invitaron mas recientemente al mas viejo, de a una

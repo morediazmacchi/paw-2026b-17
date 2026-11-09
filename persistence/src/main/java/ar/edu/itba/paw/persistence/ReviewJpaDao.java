@@ -50,14 +50,22 @@ public class ReviewJpaDao implements ReviewDao {
     public List<Review> findByCreatorId(final long creatorId, final int page, final int pageSize) {
         // Las reseñas de todos los eventos del creador: se navega Review -> Event -> creador.
         // r.id desempata dos reseñas del mismo instante: asi una pagina y la siguiente no se pisan.
-        // setFirstResult/setMaxResults no recortan en Java: Hibernate los manda como OFFSET/LIMIT.
-        return em.createQuery(
-                        "FROM Review r WHERE r.event.creator.id = :creatorId ORDER BY r.createdAt DESC, r.id DESC",
-                        Review.class)
+        // Dos pasos (1+1): primero los ids de la pagina, despues las reseñas de esos ids.
+        final List<Long> ids = em.createQuery(
+                        "SELECT r.id FROM Review r WHERE r.event.creator.id = :creatorId "
+                                + "ORDER BY r.createdAt DESC, r.id DESC", Long.class)
                 .setParameter("creatorId", creatorId)
                 .setFirstResult((page - 1) * pageSize)
                 .setMaxResults(pageSize)
                 .getResultList();
+        if (ids.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return PagedIds.inOrder(ids,
+                em.createQuery("FROM Review r WHERE r.id IN :ids", Review.class)
+                        .setParameter("ids", ids)
+                        .getResultList(),
+                Review::getId);
     }
 
     @Override
