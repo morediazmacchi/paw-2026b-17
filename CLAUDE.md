@@ -168,6 +168,18 @@ original no está a mano (no es citable textual) · `[acordado]` = lo decidió l
   los endpoints `/admin/eventos/{id}/destacar[/quitar]` (ahora 404), el botón del detalle y sus textos. **Las columnas
   `event.featured`/`featured_at` NO se borraron de las bases que ya las tienen** (Pampero y la local; sin DROP para no perder datos):
   quedan sin uso y con DEFAULT; `schema.sql` ya no las crea. El cartel de cada slide sigue siendo "Destacado" (`event.list.featuredBadge`).
+- **Perfil público (5/11):** `/usuarios/{id}` (GET público, incluso sin sesión: `permitAll` en `WebAuthConfig`) → `UserProfileService.findProfile(id,
+  viewerId, proximosPage, realizadosPage)` → `Optional<UserProfile>` (vacío = cuenta inexistente o NO activa: suspendida/sin confirmar → `UserNotFoundException` →
+  404 por `ErrorAdvice`). Muestra nombre, biografía (`users.bio`, 500 caracteres, `UserService.updateBio` → `UpdateBioResult`; texto vacío = NULL), promedio de
+  estrellas (`ReviewDao.countByCreatorId` + `findAverageRatingByCreatorId`, un AVG en la base) y los eventos ORGANIZADOS en dos secciones, cada una con su paginado
+  en SQL (`EventDao.find/countUpcomingPublicByCreatorId` y `find/countPastPublicByCreatorId`: solo públicos, aprobados y no cancelados, mismo `now` para los dos,
+  mismo WHERE en el find y en el count). El cartel "Supereventista" lo decide el service: `UserProfileService.SUPER_ORGANIZER_MIN_EVENTS` (10) eventos REALIZADOS.
+  Nunca se muestra el mail. La biografía se edita desde el propio perfil (modal → `POST /perfil/biografia`, el id sale de la sesión, no de la URL). En el detalle del
+  evento el organizador sale con su nombre y un link a su perfil (`EventDetail.getOrganizerId/Name`, sin consulta nueva: viene de `event.getCreator()`). La columna
+  se agrega en `schema.sql` con `ADD COLUMN IF NOT EXISTS` (idempotente, no pierde datos: corre sola al arrancar en una base que ya existe).
+  **Portada y pestañas (5/11):** `users.cover_image_id` (FK a `image`, `ON DELETE SET NULL`; en `User` es un `Long`, no una relación, para no traer bytes). `UserService.updateCover/removeCover` → `UpdateCoverResult`
+  (`InvalidImageException` si el archivo no sirve: se valida con `ImageService.create` ANTES de tocar nada; la imagen anterior se borra). Se sirve en `GET /usuarios/{id}/portada` (público, en `ImageController`; 404 = portada por defecto);
+  `POST /perfil/portada` y `/perfil/portada/quitar` toman el id de la sesión. Los eventos se ven en pestañas (`?tab=proximos|realizados`, sin elegir abre la que tenga eventos): se dibuja solo el grupo elegido.
 - Resúmenes de motivos de diseño para la defensa: ver §5.
 
 ## 3. Deuda conocida — dónde el código actual NO cumple las reglas de arriba

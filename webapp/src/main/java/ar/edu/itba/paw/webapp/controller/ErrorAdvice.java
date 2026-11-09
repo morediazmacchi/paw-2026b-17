@@ -6,6 +6,7 @@ import ar.edu.itba.paw.webapp.auth.PlancitoUserDetails;
 import ar.edu.itba.paw.model.exception.EventCancelledException;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import ar.edu.itba.paw.model.exception.EventRejectedException;
+import ar.edu.itba.paw.model.exception.UserNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -56,6 +57,13 @@ public class ErrorAdvice {
     @ExceptionHandler(EventNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ModelAndView eventNotFound(final EventNotFoundException e) {
+        return new ModelAndView("errors/404");
+    }
+
+    // Perfil de una cuenta que no existe o que no se puede mostrar: el mismo 404 que un evento inexistente.
+    @ExceptionHandler(UserNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ModelAndView userNotFound(final UserNotFoundException e) {
         return new ModelAndView("errors/404");
     }
 

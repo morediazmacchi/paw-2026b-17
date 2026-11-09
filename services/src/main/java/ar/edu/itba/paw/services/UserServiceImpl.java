@@ -7,6 +7,7 @@ import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.model.SupportedLocale;
 import ar.edu.itba.paw.model.TokenPurpose;
+import ar.edu.itba.paw.model.Image;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.UserAccess;
 import ar.edu.itba.paw.model.VerificationToken;
@@ -48,12 +49,14 @@ public class UserServiceImpl implements UserService {
     private final InboxMessageDao inboxMessageDao;
     // Para anunciar que a alguien se le quito acceso (ver UserAccessRevokedEvent).
     private final ApplicationEventPublisher eventPublisher;
+    // Para guardar (y validar) la foto de portada del perfil.
+    private final ImageService imageService;
 
     @Autowired
     public UserServiceImpl(final UserDao userDao, final VerificationTokenDao tokenDao,
                            final PasswordEncoder passwordEncoder, final NotificationService notificationService,
                            final EventInvitationDao invitationDao, final InboxMessageDao inboxMessageDao,
-                           final ApplicationEventPublisher eventPublisher) {
+                           final ApplicationEventPublisher eventPublisher, final ImageService imageService) {
         this.userDao = userDao;
         this.tokenDao = tokenDao;
         this.passwordEncoder = passwordEncoder;
@@ -61,6 +64,7 @@ public class UserServiceImpl implements UserService {
         this.invitationDao = invitationDao;
         this.inboxMessageDao = inboxMessageDao;
         this.eventPublisher = eventPublisher;
+        this.imageService = imageService;
     }
 
     @Override
@@ -260,6 +264,52 @@ public class UserServiceImpl implements UserService {
             return UpdateProfileResult.INVALID_NAME;
         }
         return userDao.updateProfile(userId, name) ? UpdateProfileResult.OK : UpdateProfileResult.NOT_FOUND;
+    }
+
+    @Override
+    @Transactional
+    public UpdateBioResult updateBio(final long userId, final String bio) {
+        final String trimmed = bio == null ? "" : bio.trim();
+        if (trimmed.length() > MAX_BIO_LENGTH) {
+            return UpdateBioResult.INVALID;
+        }
+        // Una biografia vacia la borra: en la base queda NULL, no un string vacio.
+        return userDao.updateBio(userId, trimmed.isEmpty() ? null : trimmed)
+                ? UpdateBioResult.OK : UpdateBioResult.NOT_FOUND;
+    }
+
+    @Override
+    @Transactional
+    public UpdateCoverResult updateCover(final long userId, final byte[] data, final String contentType,
+                                         final String fileName) {
+        final Optional<User> user = userDao.findById(userId);
+        if (!user.isPresent()) {
+            return UpdateCoverResult.NOT_FOUND;
+        }
+        // Primero se valida y se guarda la nueva (lanza InvalidImageException sin tocar nada); recien despues se
+        // cambia el puntero y se borra la anterior.
+        final Image cover = imageService.create(data, contentType, fileName);
+        final Long previous = user.get().getCoverImageId();
+        userDao.updateCoverImage(userId, cover.getId());
+        if (previous != null) {
+            imageService.delete(previous);
+        }
+        return UpdateCoverResult.OK;
+    }
+
+    @Override
+    @Transactional
+    public UpdateCoverResult removeCover(final long userId) {
+        final Optional<User> user = userDao.findById(userId);
+        if (!user.isPresent()) {
+            return UpdateCoverResult.NOT_FOUND;
+        }
+        final Long previous = user.get().getCoverImageId();
+        userDao.updateCoverImage(userId, null);
+        if (previous != null) {
+            imageService.delete(previous);
+        }
+        return UpdateCoverResult.OK;
     }
 
     @Override

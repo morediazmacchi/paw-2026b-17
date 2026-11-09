@@ -4,6 +4,7 @@ package ar.edu.itba.paw.services;
 import ar.edu.itba.paw.dto.EventDTO;
 import ar.edu.itba.paw.dto.NewImageData;
 import ar.edu.itba.paw.model.Category;
+import ar.edu.itba.paw.model.AdminEventSort;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventAccessSummary;
 import ar.edu.itba.paw.model.EventCategory;
@@ -143,10 +144,14 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional(readOnly = true)
-    public PageResult<EventWithRegistrationStats> findAllEventsPage(final int page) {
-        final long total = eventDao.countAll();
+    public PageResult<EventWithRegistrationStats> findAllEventsPage(final String titleQuery,
+                                                                    final AdminEventSort sort, final int page) {
+        // Un texto en blanco es "sin filtro": el DAO solo distingue null.
+        final String trimmed = titleQuery == null ? "" : titleQuery.trim();
+        final String filter = trimmed.isEmpty() ? null : trimmed;
+        final long total = eventDao.countAll(filter);
         final int effectivePage = PageResult.clampPage(page, total, PAGE_SIZE);
-        final List<Event> content = eventDao.findAll(effectivePage, PAGE_SIZE);
+        final List<Event> content = eventDao.findAll(filter, sort, effectivePage, PAGE_SIZE);
         return withRegistrationStats(new PageResult<>(content, total, effectivePage, PAGE_SIZE));
     }
 
@@ -355,14 +360,6 @@ public class EventServiceImpl implements EventService {
         notificationService.notifyEventRejected(event, reason);
         inboxService.add(event.getCreatorEmail(), InboxMessageType.EVENT_REJECTED, eventId, null, reason);
         return EventApprovalResult.OK;
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public PageResult<Event> findPendingApprovalPage(final int page) {
-        final long total = eventDao.countPendingApproval();
-        final int effectivePage = PageResult.clampPage(page, total, PAGE_SIZE);
-        return new PageResult<>(eventDao.findPendingApproval(effectivePage, PAGE_SIZE), total, effectivePage, PAGE_SIZE);
     }
 
     @Override

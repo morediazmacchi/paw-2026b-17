@@ -208,6 +208,42 @@ a {
     font-weight: 600;
 }
 
+/* Buscador + orden del panel de admin "Eventos": en una fila; el orden va a la derecha. */
+.admin-toolbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.admin-toolbar input[type="search"] {
+    flex: 1;
+    min-width: 200px;
+    max-width: 360px;
+}
+
+/* "Buscar" y "Limpiar" a la misma altura: button.btn-accent trae un margin-top de 6px (pensado para el submit al pie de
+   un formulario) que lo bajaba respecto del link "Limpiar". */
+.admin-toolbar button.btn-accent {
+    margin-top: 0;
+}
+
+/* Sin la crucecita azul de "limpiar" que Chrome/Safari le agregan a los campos de busqueda. */
+.admin-toolbar input[type="search"]::-webkit-search-cancel-button,
+.admin-toolbar input[type="search"]::-webkit-search-decoration {
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+/* Seleccionada: el hover no la cambia. Sin esto, .pill:hover (mas especifico que .pill-active) le pone el texto
+   blanco sobre el fondo verde claro. */
+.pill-active:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-text);
+}
+
 /* Layout */
 
 .page {
@@ -3967,4 +4003,268 @@ button.btn-accent {
 
 .save-search-saved:hover {
     border-color: var(--border);
+}
+
+/* ==========================================================================
+   Perfil publico (users/profile.jsp): portada, avatar con iniciales, nombre, biografia, numeros y las dos
+   secciones de eventos organizados. Y el link al perfil del organizador en el detalle de un evento.
+   ========================================================================== */
+.public-profile-hero {
+    position: relative;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    margin-bottom: 36px;
+}
+
+.public-profile-cover {
+    height: 140px;
+    background: radial-gradient(ellipse at 30% 0%, rgba(120, 130, 220, 0.55), rgba(30, 30, 45, 0.9) 70%), var(--bg);
+}
+
+/* Portada elegida por la persona: la imagen cubre el recuadro, recortada al centro. */
+.public-profile-cover-image {
+    background-size: cover;
+    background-position: center;
+}
+
+/* Boton "Cambiar portada" (solo en el perfil propio), arriba a la derecha de la portada. */
+.public-profile-cover-edit {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 999px;
+    background: rgba(15, 15, 25, 0.6);
+    color: #fff;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    backdrop-filter: blur(6px);
+}
+
+.public-profile-cover-edit:hover {
+    background: rgba(15, 15, 25, 0.85);
+}
+
+.public-profile-cover-hint {
+    margin-top: 6px;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+
+.public-profile-cover-remove {
+    margin-top: 12px;
+}
+
+.public-profile-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    padding: 0 28px;
+    margin-top: -46px;
+}
+
+.public-profile-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 92px;
+    height: 92px;
+    border-radius: 50%;
+    background: linear-gradient(145deg, #8f98f0, #4a4f86);
+    color: #14162b;
+    font-size: 1.9rem;
+    font-weight: 800;
+    border: 5px solid var(--bg-elevated);
+}
+
+.public-profile-body {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 16px 28px 28px;
+}
+
+.public-profile-identity {
+    flex: 1 1 320px;
+    min-width: 0;
+}
+
+.public-profile-name {
+    font-size: 1.8rem;
+    margin: 0 0 6px;
+}
+
+.public-profile-bio {
+    color: var(--text);
+    margin: 10px 0 0;
+    line-height: 1.5;
+    /* Respeta los saltos de linea que escribio la persona (el texto sale escapado con c:out). */
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+}
+
+.public-profile-bio-empty {
+    color: var(--text-muted);
+}
+
+.super-organizer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0 0;
+}
+
+.super-organizer-tag {
+    background: var(--accent);
+    color: var(--accent-text);
+    border-radius: 999px;
+    padding: 3px 12px;
+    font-size: 0.8rem;
+    font-weight: 800;
+}
+
+.super-organizer-text {
+    color: var(--accent);
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.public-profile-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 28px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px 22px;
+    background: var(--bg);
+}
+
+.public-profile-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.public-profile-stat-value {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 1.35rem;
+    font-weight: 800;
+}
+
+.public-profile-stat-label {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+
+/* Pestañas "Proximos / Realizados" (como las de Instagram): una al lado de la otra, la activa subrayada. */
+.profile-tabs {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 24px;
+    border-top: 1px solid var(--border);
+}
+
+.profile-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: -1px;
+    padding: 14px 22px;
+    border-top: 2px solid transparent;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.profile-tab:hover {
+    color: var(--text);
+}
+
+.profile-tab-active {
+    color: var(--text);
+    border-top-color: var(--text);
+}
+
+.profile-tab-count {
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: var(--bg-elevated);
+    font-size: 0.75rem;
+}
+
+.public-profile-section {
+    margin-bottom: 40px;
+}
+
+.public-profile-section-title {
+    font-size: 1.25rem;
+    margin-bottom: 16px;
+}
+
+/* En el detalle del evento: nombre del organizador con link a su perfil. */
+.organizer-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    margin: 4px 0 14px;
+    padding: 8px 14px 8px 8px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--bg-elevated);
+}
+
+.organizer-link:hover {
+    border-color: var(--accent);
+}
+
+.organizer-link-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: linear-gradient(145deg, #8f98f0, #4a4f86);
+    color: #14162b;
+    font-weight: 800;
+}
+
+.organizer-link-name {
+    font-weight: 700;
+}
+
+.organizer-link-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+@media (max-width: 620px) {
+    .public-profile-head,
+    .public-profile-body {
+        padding-left: 18px;
+        padding-right: 18px;
+    }
+
+    .public-profile-stats {
+        width: 100%;
+        gap: 20px;
+    }
 }

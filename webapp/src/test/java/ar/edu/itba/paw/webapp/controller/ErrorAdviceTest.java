@@ -2,6 +2,7 @@ package ar.edu.itba.paw.webapp.controller;
 
 import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.model.exception.UserNotFoundException;
 import ar.edu.itba.paw.webapp.auth.PlancitoUserDetails;
 import org.junit.Before;
 import org.junit.Test;
@@ -35,6 +36,15 @@ public class ErrorAdviceTest {
 
         // Act
         final ModelAndView result = errorAdvice.accessDenied(new AccessDeniedException("no"), principal);
+
+        // Assert
+        assertEquals("errors/404", result.getViewName());
+    }
+
+    @Test
+    public void testAUserThatDoesNotExistShowsTheNotFoundPage() {
+        // Act
+        final ModelAndView result = errorAdvice.userNotFound(new UserNotFoundException(5));
 
         // Assert
         assertEquals("errors/404", result.getViewName());

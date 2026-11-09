@@ -318,6 +318,14 @@ ALTER TABLE inbox_message ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES us
 -- default: ninguna cuenta vieja queda suspendida por accidente al agregar la columna.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS suspended BOOLEAN NOT NULL DEFAULT false;
 
+-- Biografia del perfil publico (ver UserService.updateBio()). Sin default: null = todavia no escribio nada.
+-- ADD COLUMN IF NOT EXISTS: idempotente, no pierde datos y solo agrega la columna una vez (como las de arriba).
+ALTER TABLE users ADD COLUMN IF NOT EXISTS bio VARCHAR(500);
+
+-- Foto de portada del perfil publico (ver UserService.updateCover()): apunta a una fila de image. Null = la portada
+-- por defecto. ON DELETE SET NULL: si la imagen se borra, la cuenta no se rompe, vuelve a la portada por defecto.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS cover_image_id INTEGER REFERENCES image(id) ON DELETE SET NULL;
+
 -- Baja de un evento por moderacion (ver ModerationService.removeEvent()). Reusa
 -- cancelled_at (arriba) como el unico flag de "este evento ya no esta activo":
 -- asi todo lo que ya lo respeta (busquedas, "editar", inscribirse, preguntas)

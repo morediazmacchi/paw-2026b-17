@@ -62,6 +62,12 @@ public class ImageServiceImpl implements ImageService {
     }
 
     @Override
+    @Transactional
+    public void delete(final long id) {
+        imageDao.delete(id);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public Optional<EventAccessSummary> findOwnerEventAccess(final long imageId) {
         return imageDao.findOwnerEventAccess(imageId);

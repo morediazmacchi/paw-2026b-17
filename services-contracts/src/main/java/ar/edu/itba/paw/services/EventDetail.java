@@ -26,6 +26,7 @@ public class EventDetail {
     private final boolean favorite;
     private final boolean chatMember;
     private final CreatorReputation creatorReputation;
+    private final String organizerName;
     private final List<Event> relatedEvents;
     private final Map<Long, RegistrationStatus> relatedStatuses;
     private final Set<Long> relatedFavoriteIds;
@@ -36,7 +37,8 @@ public class EventDetail {
                        final ChatAccess chatAccess, final boolean canUnregister, final boolean canAsk,
                        final boolean canAnswer, final boolean canReport,
                        final boolean favorite, final boolean chatMember,
-                       final CreatorReputation creatorReputation, final List<Event> relatedEvents,
+                       final CreatorReputation creatorReputation, final String organizerName,
+                       final List<Event> relatedEvents,
                        final Map<Long, RegistrationStatus> relatedStatuses, final Set<Long> relatedFavoriteIds,
                        final PageResult<EventQuestion> questions) {
         this.event = event;
@@ -52,6 +54,7 @@ public class EventDetail {
         this.favorite = favorite;
         this.chatMember = chatMember;
         this.creatorReputation = creatorReputation;
+        this.organizerName = organizerName;
         this.relatedEvents = relatedEvents;
         this.relatedStatuses = relatedStatuses;
         this.relatedFavoriteIds = relatedFavoriteIds;
@@ -92,6 +95,11 @@ public class EventDetail {
 
     // null si el evento no tiene organizador cargado.
     public CreatorReputation getCreatorReputation() { return creatorReputation; }
+
+    // Quien organiza el evento, para mostrar su nombre con un link a su perfil publico. El id es null (y el nombre
+    // tambien) si el evento no tiene organizador cargado (eventos viejos); el nombre es null si la persona no tiene.
+    public Long getOrganizerId() { return event.getCreatorId(); }
+    public String getOrganizerName() { return organizerName; }
 
     // Vacia si el evento es privado o no esta aprobado.
     public List<Event> getRelatedEvents() { return relatedEvents; }

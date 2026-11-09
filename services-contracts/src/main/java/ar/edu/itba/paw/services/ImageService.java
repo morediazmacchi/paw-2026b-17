@@ -22,6 +22,9 @@ public interface ImageService {
 
     Optional<Image> findById(long id);
 
+    /** Borra la imagen (por ejemplo la portada que se reemplaza). No hace nada si no existe. */
+    void delete(long id);
+
     /**
      * Los datos del evento al que pertenece la imagen que alcanzan para decidir si quien la pide
      * puede verla: una imagen hereda la visibilidad de su evento. Vacio si no cuelga de ninguno.

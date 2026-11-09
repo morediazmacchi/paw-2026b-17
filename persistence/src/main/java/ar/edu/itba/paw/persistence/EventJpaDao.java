@@ -10,12 +10,14 @@ import ar.edu.itba.paw.model.EventSort;
 import ar.edu.itba.paw.model.EventVisibility;
 import ar.edu.itba.paw.model.RegistrationStatus;
 import org.springframework.stereotype.Repository;
+import ar.edu.itba.paw.model.AdminEventSort;
 
 import javax.persistence.EntityManager;
 import javax.persistence.LockModeType;
 import javax.persistence.PersistenceContext;
 import javax.persistence.Query;
 import javax.persistence.TemporalType;
+import javax.persistence.TypedQuery;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -339,37 +341,113 @@ public class EventJpaDao implements EventDao {
                 .getSingleResult();
     }
 
+    // Perfil publico: los eventos del creador que cualquiera puede ver (publicos, aprobados, no cancelados: las
+    // mismas reglas que buildSearchFilter() para search()), partidos por fecha en proximos / realizados. Los cuatro
+    // metodos comparten el WHERE para que el total y la pagina coincidan.
+    private static final String PUBLIC_BY_CREATOR_WHERE = "WHERE e.creator.id = :creatorId "
+            + "AND e.visibility = :visibility AND e.approvalStatus = :approvalStatus AND e.cancelledAt IS NULL ";
+
     @Override
-    public List<Event> findAll(final int page, final int pageSize) {
-        // Sin WHERE a proposito (ver el comentario del contrato): el panel de admin tiene que poder
-        // ver pendientes, rechazados y dados de baja, no solo lo que search() deja pasar.
-        return em.createQuery("FROM Event e ORDER BY e.createdAt DESC, e.id DESC", Event.class)
+    public List<Event> findUpcomingPublicByCreatorId(final long creatorId, final Date now, final int page,
+                                                     final int pageSize) {
+        return findPublicByCreatorId(creatorId, "AND e.eventDate >= :now ORDER BY e.eventDate ASC, e.id ASC", now,
+                page, pageSize);
+    }
+
+    @Override
+    public long countUpcomingPublicByCreatorId(final long creatorId, final Date now) {
+        return countPublicByCreatorId(creatorId, "AND e.eventDate >= :now", now);
+    }
+
+    @Override
+    public List<Event> findPastPublicByCreatorId(final long creatorId, final Date now, final int page,
+                                                 final int pageSize) {
+        return findPublicByCreatorId(creatorId, "AND e.eventDate < :now ORDER BY e.eventDate DESC, e.id DESC", now,
+                page, pageSize);
+    }
+
+    @Override
+    public long countPastPublicByCreatorId(final long creatorId, final Date now) {
+        return countPublicByCreatorId(creatorId, "AND e.eventDate < :now", now);
+    }
+
+    // Dos pasos (ver findOrderedByIds): primero solo los ids de la pagina, ya ordenados y con OFFSET/LIMIT;
+    // despues los eventos con sus categorias, que la tarjeta muestra.
+    private List<Event> findPublicByCreatorId(final long creatorId, final String dateAndOrder, final Date now,
+                                              final int page, final int pageSize) {
+        final List<Long> ids = publicByCreatorParams(
+                        em.createQuery("SELECT e.id FROM Event e " + PUBLIC_BY_CREATOR_WHERE + dateAndOrder, Long.class),
+                        creatorId, now)
                 .setFirstResult((page - 1) * pageSize)
                 .setMaxResults(pageSize)
                 .getResultList();
+        return findOrderedByIds(ids);
     }
 
-    @Override
-    public long countAll() {
-        return em.createQuery("SELECT COUNT(e) FROM Event e", Long.class).getSingleResult();
-    }
-
-    @Override
-    public List<Event> findPendingApproval(final int page, final int pageSize) {
-        return em.createQuery(
-                        "FROM Event e WHERE e.approvalStatus = :status ORDER BY e.createdAt ASC, e.id ASC",
-                        Event.class)
-                .setParameter("status", EventApprovalStatus.PENDING)
-                .setFirstResult((page - 1) * pageSize)
-                .setMaxResults(pageSize)
-                .getResultList();
-    }
-
-    @Override
-    public long countPendingApproval() {
-        return em.createQuery("SELECT COUNT(e) FROM Event e WHERE e.approvalStatus = :status", Long.class)
-                .setParameter("status", EventApprovalStatus.PENDING)
+    private long countPublicByCreatorId(final long creatorId, final String date, final Date now) {
+        return publicByCreatorParams(
+                        em.createQuery("SELECT COUNT(e) FROM Event e " + PUBLIC_BY_CREATOR_WHERE + date, Long.class),
+                        creatorId, now)
                 .getSingleResult();
+    }
+
+    private static <T> TypedQuery<T> publicByCreatorParams(
+            final TypedQuery<T> query, final long creatorId, final Date now) {
+        return query.setParameter("creatorId", creatorId)
+                .setParameter("visibility", EventVisibility.PUBLIC)
+                .setParameter("approvalStatus", EventApprovalStatus.APPROVED)
+                .setParameter("now", now, TemporalType.TIMESTAMP);
+    }
+
+    // El ORDER BY de cada orden del panel de admin. Es una lista blanca: lo que escribe la persona nunca se
+    // concatena al JPQL, solo se elige una de estas cadenas. e.id desempata para que las paginas no se pisen.
+    private static final Map<AdminEventSort, String> ADMIN_ORDER_BY = new EnumMap<>(AdminEventSort.class);
+
+    static {
+        ADMIN_ORDER_BY.put(AdminEventSort.CREATED_DESC, "e.createdAt DESC, e.id DESC");
+        ADMIN_ORDER_BY.put(AdminEventSort.CREATED_ASC, "e.createdAt ASC, e.id ASC");
+        ADMIN_ORDER_BY.put(AdminEventSort.PENDING_FIRST,
+                "CASE WHEN e.approvalStatus = :pending THEN 0 ELSE 1 END, e.createdAt DESC, e.id DESC");
+        ADMIN_ORDER_BY.put(AdminEventSort.EVENT_DATE_DESC, "e.eventDate DESC, e.id DESC");
+        ADMIN_ORDER_BY.put(AdminEventSort.EVENT_DATE_ASC, "e.eventDate ASC, e.id ASC");
+        ADMIN_ORDER_BY.put(AdminEventSort.TITLE_ASC, "LOWER(e.title) ASC, e.id ASC");
+    }
+
+    // '!' como caracter de escape del LIKE: asi un % o un _ (o un !) que escribe la persona busca ese caracter, no es
+    // un comodin.
+    private static final String ADMIN_TITLE_FILTER = " WHERE LOWER(e.title) LIKE :titlePattern ESCAPE '!'";
+
+    private static String likeContains(final String text) {
+        return "%" + text.toLowerCase().replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
+    }
+
+    @Override
+    public List<Event> findAll(final String titleQuery, final AdminEventSort sort, final int page,
+                               final int pageSize) {
+        // Sin filtro de estado a proposito (ver el comentario del contrato): el panel de admin tiene que poder
+        // ver pendientes, rechazados y dados de baja, no solo lo que search() deja pasar.
+        final AdminEventSort effectiveSort = sort == null ? AdminEventSort.CREATED_DESC : sort;
+        final boolean filtered = titleQuery != null && !titleQuery.isEmpty();
+        final TypedQuery<Event> query = em.createQuery("FROM Event e" + (filtered ? ADMIN_TITLE_FILTER : "")
+                + " ORDER BY " + ADMIN_ORDER_BY.get(effectiveSort), Event.class);
+        if (filtered) {
+            query.setParameter("titlePattern", likeContains(titleQuery));
+        }
+        if (effectiveSort == AdminEventSort.PENDING_FIRST) {
+            query.setParameter("pending", EventApprovalStatus.PENDING);
+        }
+        return query.setFirstResult((page - 1) * pageSize).setMaxResults(pageSize).getResultList();
+    }
+
+    @Override
+    public long countAll(final String titleQuery) {
+        final boolean filtered = titleQuery != null && !titleQuery.isEmpty();
+        final TypedQuery<Long> query = em.createQuery(
+                "SELECT COUNT(e) FROM Event e" + (filtered ? ADMIN_TITLE_FILTER : ""), Long.class);
+        if (filtered) {
+            query.setParameter("titlePattern", likeContains(titleQuery));
+        }
+        return query.getSingleResult();
     }
 
     @Override

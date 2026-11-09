@@ -1,5 +1,6 @@
 package ar.edu.itba.paw.webapp.controller;
 
+import ar.edu.itba.paw.model.AdminEventSort;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.EventApprovalResult;
@@ -30,6 +31,8 @@ import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import javax.validation.Valid;
+import java.util.Map;
+import java.util.LinkedHashMap;
 
 // Panel de administracion
 @Controller
@@ -140,45 +143,34 @@ public class AdminController {
         return new ModelAndView("redirect:/admin/reportes");
     }
 
-    // Revision previa a publicarse (ver EventApprovalStatus): distinto del
-    // sistema de reportes de arriba, son eventos que todavia no llegaron a
-    // estar publicos.
-    @RequestMapping(value = "/eventos-pendientes", method = RequestMethod.GET)
-    public ModelAndView eventosPendientes(@RequestParam(value = "page", required = false) final String page) {
-        final PageResult<Event> result = eventService.findPendingApprovalPage(Paging.parsePage(page));
-        final ModelAndView mav = new ModelAndView("admin/eventosPendientes");
-        mav.addObject("pendingEvents", result.getContent());
-        mav.addObject("currentPage", result.getPage());
-        mav.addObject("totalPages", result.getTotalPages());
-        return mav;
-    }
-
+    // Revision previa a publicarse (ver EventApprovalStatus): distinto del sistema de reportes de arriba, son eventos
+    // que todavia no llegaron a estar publicos. Se aprueban y rechazan desde la lista de todos los eventos.
     // Aprobar/rechazar: un admin no puede si el evento es suyo (conflicto de intereses). Lo decide
     // @PreAuthorize antes de entrar (ver AdminSecurity.canModerateEvent); la pantalla ya esconde los botones.
     @PreAuthorize("@adminSecurity.canModerateEvent(#id, authentication)")
-    @RequestMapping(value = "/eventos-pendientes/{id}/aprobar", method = RequestMethod.POST)
+    @RequestMapping(value = "/eventos/{id}/aprobar", method = RequestMethod.POST)
     public ModelAndView aprobarEvento(@PathVariable final long id, final RedirectAttributes redirectAttributes) {
         final EventApprovalResult result = eventService.approve(id);
         // ALREADY_DECIDED: otro admin ya lo aprobo o rechazo mientras este lo tenia abierto.
         if (result != EventApprovalResult.OK) {
             redirectAttributes.addFlashAttribute("adminApprovalError", result.name());
         }
-        return new ModelAndView("redirect:/admin/eventos-pendientes");
+        return new ModelAndView("redirect:/admin/eventos");
     }
 
     @PreAuthorize("@adminSecurity.canModerateEvent(#id, authentication)")
-    @RequestMapping(value = "/eventos-pendientes/{id}/rechazar", method = RequestMethod.POST)
+    @RequestMapping(value = "/eventos/{id}/rechazar", method = RequestMethod.POST)
     public ModelAndView rechazarEvento(@PathVariable final long id, @Valid final RejectEventForm form,
                                         final BindingResult errors, final RedirectAttributes redirectAttributes) {
         if (errors.hasErrors()) {
             redirectAttributes.addFlashAttribute("adminApprovalError", "INVALID");
-            return new ModelAndView("redirect:/admin/eventos-pendientes");
+            return new ModelAndView("redirect:/admin/eventos");
         }
         final EventApprovalResult result = eventService.reject(id, form.getMotivo());
         if (result != EventApprovalResult.OK) {
             redirectAttributes.addFlashAttribute("adminApprovalError", result.name());
         }
-        return new ModelAndView("redirect:/admin/eventos-pendientes");
+        return new ModelAndView("redirect:/admin/eventos");
     }
 
     // Tamaño de pagina para "Usuarios"
@@ -239,18 +231,41 @@ public class AdminController {
     }
 
 
-    // Moderacion: ver TODOS los eventos (cualquier estado) y, de cada uno, sus inscriptos. A
-    // diferencia de "eventos-pendientes" (solo PENDING) esto es el panel completo para auditar la
-    // plataforma. Nadie mas lo necesita: isOwner (ver EventController.inscriptos) sigue siendo la
+    // Moderacion: ver TODOS los eventos (cualquier estado) y, de cada uno, sus inscriptos; los pendientes de aprobacion
+    // se aprueban o rechazan ahi mismo. Es el panel completo para auditar la plataforma. Nadie mas lo necesita: isOwner (ver EventController.inscriptos) sigue siendo la
     // regla para el organizador, esta ruta es exclusiva de /admin/** (role ADMIN en WebAuthConfig).
     @RequestMapping(value = "/eventos", method = RequestMethod.GET)
-    public ModelAndView eventos(@RequestParam(value = "page", required = false) final String page) {
-        final PageResult<EventWithRegistrationStats> result = eventService.findAllEventsPage(Paging.parsePage(page));
+    public ModelAndView eventos(@RequestParam(value = "page", required = false) final String page,
+                                @RequestParam(value = "q", required = false) final String query,
+                                @RequestParam(value = "sort", required = false) final String sort) {
+        final AdminEventSort effectiveSort = parseEventSort(sort);
+        final String trimmedQuery = query == null ? "" : query.trim();
+        final PageResult<EventWithRegistrationStats> result =
+                eventService.findAllEventsPage(trimmedQuery, effectiveSort, Paging.parsePage(page));
         final ModelAndView mav = new ModelAndView("admin/eventos");
         mav.addObject("events", result.getContent());
         mav.addObject("currentPage", result.getPage());
         mav.addObject("totalPages", result.getTotalPages());
+        mav.addObject("q", trimmedQuery);
+        mav.addObject("sort", effectiveSort.name());
+        mav.addObject("sortOptions", AdminEventSort.values());
+        // Lo que el paginador repite en sus links para que cambiar de pagina conserve la busqueda y el orden.
+        final Map<String, String> pagerParams = new LinkedHashMap<>();
+        if (!trimmedQuery.isEmpty()) {
+            pagerParams.put("q", trimmedQuery);
+        }
+        pagerParams.put("sort", effectiveSort.name());
+        mav.addObject("pagerParams", pagerParams);
         return mav;
+    }
+
+    // Un orden que no existe (o ninguno) cae al de por defecto, en vez de dar error.
+    private static AdminEventSort parseEventSort(final String value) {
+        try {
+            return value == null ? AdminEventSort.CREATED_DESC : AdminEventSort.valueOf(value);
+        } catch (final IllegalArgumentException e) {
+            return AdminEventSort.CREATED_DESC;
+        }
     }
 
     // Inscriptos de un evento cualquiera, de solo lectura: a diferencia de

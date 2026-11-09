@@ -3,6 +3,8 @@ package ar.edu.itba.paw.services;
 import ar.edu.itba.paw.dto.UserRegistrationDTO;
 import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.model.TokenPurpose;
+import ar.edu.itba.paw.model.Image;
+import ar.edu.itba.paw.model.exception.InvalidImageException;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.UserAccess;
 import ar.edu.itba.paw.model.VerificationToken;
@@ -62,6 +64,8 @@ public class UserServiceImplTest {
     private PasswordEncoder passwordEncoder;
     @Mock
     private NotificationService notificationService;
+    @Mock
+    private ImageService imageService;
 
     private UserServiceImpl userService;
 
@@ -69,7 +73,7 @@ public class UserServiceImplTest {
     public void setUp() {
         userService = new UserServiceImpl(
                 userDao, tokenDao, passwordEncoder, notificationService, invitationDao, inboxMessageDao,
-                event -> { });
+                event -> { }, imageService);
     }
 
     private static User someUser() {
@@ -397,6 +401,70 @@ public class UserServiceImplTest {
 
         // Assert
         assertEquals(UpdateProfileResult.INVALID_NAME, result);
+    }
+
+    // ---- updateBio() ----
+
+    @Test
+    public void testUpdateBioSavesTheTrimmedBiography() {
+        // Arrange: el DAO solo dice que si con el texto ya recortado
+        when(userDao.updateBio(USER_ID, "Organizo ferias")).thenReturn(true);
+
+        // Act
+        final UpdateBioResult result = userService.updateBio(USER_ID, "  Organizo ferias  ");
+
+        // Assert
+        assertEquals(UpdateBioResult.OK, result);
+    }
+
+    @Test
+    public void testUpdateBioWithABlankTextClearsTheBiography() {
+        // Arrange: solo con null (y no con un string vacio) el DAO dice que si
+        when(userDao.updateBio(USER_ID, null)).thenReturn(true);
+
+        // Act
+        final UpdateBioResult result = userService.updateBio(USER_ID, "   ");
+
+        // Assert
+        assertEquals(UpdateBioResult.OK, result);
+    }
+
+    @Test
+    public void testUpdateBioReturnsNotFoundWhenThereIsNoSuchUser() {
+        // Arrange
+        when(userDao.updateBio(USER_ID, "Hola")).thenReturn(false);
+
+        // Act
+        final UpdateBioResult result = userService.updateBio(USER_ID, "Hola");
+
+        // Assert
+        assertEquals(UpdateBioResult.NOT_FOUND, result);
+    }
+
+    @Test
+    public void testUpdateBioRejectsATextLongerThanTheMaximum() {
+        // Arrange: el dao diria que si; si el service guardara el texto igual, el resultado seria OK
+        final String tooLong = new String(new char[UserService.MAX_BIO_LENGTH + 1]).replace('\0', 'a');
+        lenient().when(userDao.updateBio(USER_ID, tooLong)).thenReturn(true);
+
+        // Act
+        final UpdateBioResult result = userService.updateBio(USER_ID, tooLong);
+
+        // Assert
+        assertEquals(UpdateBioResult.INVALID, result);
+    }
+
+    @Test
+    public void testUpdateBioAcceptsATextOfExactlyTheMaximumLength() {
+        // Arrange
+        final String maxLength = new String(new char[UserService.MAX_BIO_LENGTH]).replace('\0', 'a');
+        when(userDao.updateBio(USER_ID, maxLength)).thenReturn(true);
+
+        // Act
+        final UpdateBioResult result = userService.updateBio(USER_ID, maxLength);
+
+        // Assert
+        assertEquals(UpdateBioResult.OK, result);
     }
 
     // ---- changePassword() ----
@@ -1057,5 +1125,84 @@ public class UserServiceImplTest {
 
         // Assert
         assertEquals(users, result);
+    }
+
+    // ---- updateCover() / removeCover() ----
+
+    private static final byte[] COVER_BYTES = {1, 2, 3};
+
+    private static Image savedImage(final long id) {
+        final Image image = new Image(COVER_BYTES, "image/png", "portada.png", COVER_BYTES.length);
+        image.setId(id);
+        return image;
+    }
+
+    @Test
+    public void testUpdateCoverPointsTheProfileToTheNewImage() {
+        // Arrange: el DAO solo dice que si con el id de la imagen NUEVA (la vieja es la 5)
+        final User user = someUser();
+        user.setCoverImageId(5L);
+        when(userDao.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(imageService.create(COVER_BYTES, "image/png", "portada.png")).thenReturn(savedImage(9));
+        when(userDao.updateCoverImage(USER_ID, 9L)).thenReturn(true);
+
+        // Act
+        final UpdateCoverResult result = userService.updateCover(USER_ID, COVER_BYTES, "image/png", "portada.png");
+
+        // Assert
+        assertEquals(UpdateCoverResult.OK, result);
+    }
+
+    @Test
+    public void testUpdateCoverOfAUserThatDoesNotExistIsNotFound() {
+        // Arrange: la imagen se guardaria bien; si el service la guardara igual, el resultado no seria NOT_FOUND
+        when(userDao.findById(USER_ID)).thenReturn(Optional.empty());
+        lenient().when(imageService.create(COVER_BYTES, "image/png", "portada.png")).thenReturn(savedImage(9));
+
+        // Act
+        final UpdateCoverResult result = userService.updateCover(USER_ID, COVER_BYTES, "image/png", "portada.png");
+
+        // Assert
+        assertEquals(UpdateCoverResult.NOT_FOUND, result);
+    }
+
+    @Test(expected = InvalidImageException.class)
+    public void testUpdateCoverWithAnInvalidImagePropagatesTheErrorAndChangesNothing() {
+        // Arrange
+        when(userDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
+        when(imageService.create(COVER_BYTES, "text/plain", "x.txt"))
+                .thenThrow(new InvalidImageException(InvalidImageException.Reason.NOT_AN_IMAGE));
+
+        // Act
+        userService.updateCover(USER_ID, COVER_BYTES, "text/plain", "x.txt");
+
+        // Assert: la excepcion esperada en @Test(expected=...) ES el assert (el controller la convierte en un aviso).
+    }
+
+    @Test
+    public void testRemoveCoverClearsTheCoverOfTheUser() {
+        // Arrange: el DAO solo dice que si cuando se le pide dejar la portada en null
+        final User user = someUser();
+        user.setCoverImageId(5L);
+        when(userDao.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(userDao.updateCoverImage(USER_ID, null)).thenReturn(true);
+
+        // Act
+        final UpdateCoverResult result = userService.removeCover(USER_ID);
+
+        // Assert
+        assertEquals(UpdateCoverResult.OK, result);
+    }
+
+    @Test
+    public void testRemoveCoverOfAUserThatDoesNotExistIsNotFound() {
+        // Arrange
+        when(userDao.findById(USER_ID)).thenReturn(Optional.empty());
+
+        // Act
+        final UpdateCoverResult result = userService.removeCover(USER_ID);
+
+        // Assert
+        assertEquals(UpdateCoverResult.NOT_FOUND, result);
     }
 }

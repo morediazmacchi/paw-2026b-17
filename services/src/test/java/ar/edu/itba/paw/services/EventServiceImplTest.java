@@ -3,6 +3,7 @@ package ar.edu.itba.paw.services;
 import ar.edu.itba.paw.dto.EventDTO;
 import ar.edu.itba.paw.dto.NewImageData;
 import ar.edu.itba.paw.model.Category;
+import ar.edu.itba.paw.model.AdminEventSort;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventAccessSummary;
 import ar.edu.itba.paw.model.EventApprovalStatus;
@@ -1221,15 +1222,15 @@ public class EventServiceImplTest {
         // Arrange: un evento de un creador cualquiera que pide aprobacion, sin cancelar.
         final Event withApproval = eventWith(APPROVAL_EVENT_ID, CATEGORY_ID, CREATOR_ID);
         withApproval.setRequiresApproval(true);
-        when(eventDao.countAll()).thenReturn(1L);
-        when(eventDao.findAll(1, EventServiceImpl.PAGE_SIZE)).thenReturn(Collections.singletonList(withApproval));
+        when(eventDao.countAll(null)).thenReturn(1L);
+        when(eventDao.findAll(null, null, 1, EventServiceImpl.PAGE_SIZE)).thenReturn(Collections.singletonList(withApproval));
         when(registrationService.countPendingByEvents(Collections.singletonList(APPROVAL_EVENT_ID)))
                 .thenReturn(Collections.singletonMap(APPROVAL_EVENT_ID, 3L));
         when(registrationService.countConfirmedByEvents(Collections.singletonList(APPROVAL_EVENT_ID)))
                 .thenReturn(Collections.singletonMap(APPROVAL_EVENT_ID, 5L));
 
         // Act
-        final PageResult<EventWithRegistrationStats> result = eventService.findAllEventsPage(1);
+        final PageResult<EventWithRegistrationStats> result = eventService.findAllEventsPage(null, null, 1);
 
         // Assert: trajo el evento y sus conteos (si hubiera llamado a findByCreatorId, estos mocks
         // no habrian matcheado y el resultado habria quedado vacio).
@@ -1242,13 +1243,45 @@ public class EventServiceImplTest {
     @Test
     public void testFindAllEventsPageWithoutEventsIsEmpty() {
         // Arrange
-        when(eventDao.countAll()).thenReturn(0L);
+        when(eventDao.countAll(null)).thenReturn(0L);
 
         // Act
-        final PageResult<EventWithRegistrationStats> result = eventService.findAllEventsPage(3);
+        final PageResult<EventWithRegistrationStats> result = eventService.findAllEventsPage(null, null, 3);
 
         // Assert
         assertTrue(result.getContent().isEmpty());
         assertEquals(1, result.getPage());
+    }
+
+    @Test
+    public void testFindAllEventsPagePassesTheTrimmedTitleAndTheSortToTheDao() {
+        // Arrange: solo con el texto ya recortado y ese orden el dao devuelve el evento
+        final Event found = eventWith(APPROVAL_EVENT_ID, CATEGORY_ID, CREATOR_ID);
+        when(eventDao.countAll("feria")).thenReturn(1L);
+        when(eventDao.findAll("feria", AdminEventSort.TITLE_ASC, 1, EventServiceImpl.PAGE_SIZE))
+                .thenReturn(Collections.singletonList(found));
+
+        // Act
+        final PageResult<EventWithRegistrationStats> result =
+                eventService.findAllEventsPage("  feria  ", AdminEventSort.TITLE_ASC, 1);
+
+        // Assert
+        assertEquals(1, result.getContent().size());
+        assertEquals(APPROVAL_EVENT_ID, result.getContent().get(0).getEvent().getId().longValue());
+    }
+
+    @Test
+    public void testFindAllEventsPageWithABlankTitleDoesNotFilter() {
+        // Arrange: sin filtro el dao devuelve 1 evento; con "   " mal pasado como filtro devolveria vacio
+        final Event found = eventWith(APPROVAL_EVENT_ID, CATEGORY_ID, CREATOR_ID);
+        when(eventDao.countAll(null)).thenReturn(1L);
+        when(eventDao.findAll(null, null, 1, EventServiceImpl.PAGE_SIZE)).thenReturn(Collections.singletonList(found));
+        lenient().when(eventDao.countAll("   ")).thenReturn(0L);
+
+        // Act
+        final PageResult<EventWithRegistrationStats> result = eventService.findAllEventsPage("   ", null, 1);
+
+        // Assert
+        assertEquals(1, result.getContent().size());
     }
 }

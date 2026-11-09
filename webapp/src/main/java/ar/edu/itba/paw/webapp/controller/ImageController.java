@@ -2,6 +2,7 @@ package ar.edu.itba.paw.webapp.controller;
 
 import ar.edu.itba.paw.model.Image;
 import ar.edu.itba.paw.services.ImageService;
+import ar.edu.itba.paw.services.UserProfileService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -29,10 +30,12 @@ public class ImageController {
             MediaType.IMAGE_JPEG, MediaType.IMAGE_PNG, MediaType.IMAGE_GIF, MediaType.parseMediaType("image/webp"));
 
     private final ImageService imageService;
+    private final UserProfileService userProfileService;
 
     @Autowired
-    public ImageController(final ImageService imageService) {
+    public ImageController(final ImageService imageService, final UserProfileService userProfileService) {
         this.imageService = imageService;
+        this.userProfileService = userProfileService;
     }
 
     // Una imagen hereda la visibilidad de su evento: la regla vive en EventSecurity.canViewImage.
@@ -45,7 +48,19 @@ public class ImageController {
             return ResponseEntity.notFound().build();
         }
 
-        final Image image = maybeImage.get();
+        return imageResponse(maybeImage.get());
+    }
+
+    // La portada del perfil publico la ve cualquiera (como el perfil). Sin portada elegida, o con una cuenta que no se
+    // puede mostrar, 404: la pantalla usa la portada por defecto y ni pide este link.
+    @RequestMapping(value = "/usuarios/{id:[0-9]+}/portada", method = RequestMethod.GET)
+    public ResponseEntity<byte[]> getCover(@PathVariable final long id) {
+        return userProfileService.findCoverImage(id)
+                .map(this::imageResponse)
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    private ResponseEntity<byte[]> imageResponse(final Image image) {
         final MediaType type = servableType(image.getContentType());
         final ResponseEntity.BodyBuilder response = ResponseEntity.ok()
                 .contentType(type)

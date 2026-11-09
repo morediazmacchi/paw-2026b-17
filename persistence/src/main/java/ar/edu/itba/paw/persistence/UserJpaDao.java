@@ -138,6 +138,26 @@ public class UserJpaDao implements UserDao {
     }
 
     @Override
+    public boolean updateBio(final long userId, final String bio) {
+        final User user = em.find(User.class, userId);
+        if (user == null) {
+            return false;
+        }
+        user.setBio(bio);
+        return true;
+    }
+
+    @Override
+    public boolean updateCoverImage(final long userId, final Long imageId) {
+        final User user = em.find(User.class, userId);
+        if (user == null) {
+            return false;
+        }
+        user.setCoverImageId(imageId);
+        return true;
+    }
+
+    @Override
     public boolean setVerified(final long userId, final boolean verified) {
         final User user = em.find(User.class, userId);
         if (user == null) {

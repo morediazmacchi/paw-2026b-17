@@ -1,6 +1,7 @@
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.Barrio;
+import ar.edu.itba.paw.model.AdminEventSort;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventApprovalStatus;
 import ar.edu.itba.paw.model.EventAccessSummary;
@@ -722,7 +723,7 @@ public class EventJpaDaoTest {
     }
 
     // ==================================================================
-    // approve() / reject() / findPendingApproval() / countPendingApproval()
+    // approve() / reject()
     // (revision previa a publicarse, ver EventApprovalStatus)
     // ==================================================================
 
@@ -838,42 +839,6 @@ public class EventJpaDaoTest {
                         + "' AND rejected_reason IS NULL"));
     }
 
-    @Test
-    public void testFindPendingApprovalReturnsOnlyPendingEventsOldestFirst() {
-        // Arrange
-        final Timestamp antes = new Timestamp(System.currentTimeMillis() - 2000);
-        final Timestamp despues = new Timestamp(System.currentTimeMillis() - 1000);
-        final long secondPendingId = insertEvent(cols("address", "Segundo", "created_at", despues,
-                "approval_status", EventApprovalStatus.PENDING.name()));
-        final long firstPendingId = insertEvent(cols("address", "Primero", "created_at", antes,
-                "approval_status", EventApprovalStatus.PENDING.name()));
-        insertEvent(cols("address", "Ya aprobado", "approval_status", EventApprovalStatus.APPROVED.name()));
-        insertEvent(cols("address", "Ya rechazado", "approval_status", EventApprovalStatus.REJECTED.name()));
-
-        // Act
-        final List<Event> result = eventDao.findPendingApproval(1, 10);
-
-        // Assert
-        assertEquals(2, result.size());
-        assertEquals(firstPendingId, result.get(0).getId().longValue());
-        assertEquals(secondPendingId, result.get(1).getId().longValue());
-    }
-
-    @Test
-    public void testCountPendingApprovalCountsOnlyPendingEvents() {
-        // Arrange
-        insertEvent(cols("approval_status", EventApprovalStatus.PENDING.name()));
-        insertEvent(cols("approval_status", EventApprovalStatus.PENDING.name()));
-        insertEvent(cols("approval_status", EventApprovalStatus.APPROVED.name()));
-        insertEvent(cols("approval_status", EventApprovalStatus.REJECTED.name()));
-
-        // Act
-        final long count = eventDao.countPendingApproval();
-
-        // Assert
-        assertEquals(2, count);
-    }
-
     // ==================================================================
     // panel de admin: findAll/countAll (cualquier estado)
     // ==================================================================
@@ -892,7 +857,7 @@ public class EventJpaDaoTest {
                 "approval_status", EventApprovalStatus.REJECTED.name()));
 
         // Act
-        final List<Event> result = eventDao.findAll(1, 10);
+        final List<Event> result = eventDao.findAll(null, null, 1, 10);
 
         // Assert
         assertEquals(3, result.size());
@@ -910,7 +875,7 @@ public class EventJpaDaoTest {
         insertEvent(cols("address", "Mas nueva", "created_at", despues));
 
         // Act
-        final List<Event> secondPage = eventDao.findAll(2, 1);
+        final List<Event> secondPage = eventDao.findAll(null, null, 2, 1);
 
         // Assert
         assertEquals(1, secondPage.size());
@@ -926,10 +891,113 @@ public class EventJpaDaoTest {
         insertEvent();
 
         // Act
-        final long count = eventDao.countAll();
+        final long count = eventDao.countAll(null);
 
         // Assert
         assertEquals(4, count);
+    }
+
+    private List<String> adminTitles(final String titleQuery, final AdminEventSort sort) {
+        return eventDao.findAll(titleQuery, sort, 1, 50).stream().map(Event::getTitle).collect(Collectors.toList());
+    }
+
+    @Test
+    public void testFindAllWithATitleQueryKeepsOnlyTitlesContainingItIgnoringCase() {
+        // Arrange
+        insertEvent(cols("title", "Feria de Diseño"));
+        insertEvent(cols("title", "Fiesta en la terraza"));
+        insertEvent(cols("title", "Mini FERIA gastronomica"));
+
+        // Act
+        final List<String> titles = adminTitles("feria", AdminEventSort.TITLE_ASC);
+
+        // Assert
+        assertEquals(Arrays.asList("Feria de Diseño", "Mini FERIA gastronomica"), titles);
+    }
+
+    @Test
+    public void testFindAllTreatsPercentAndUnderscoreInTheQueryAsLiteralCharacters() {
+        // Arrange: si el % fuera un comodin, "100%" tambien encontraria "1000 personas"
+        insertEvent(cols("title", "Descuento 100% hoy"));
+        insertEvent(cols("title", "1000 personas"));
+        insertEvent(cols("title", "snake_case party"));
+        insertEvent(cols("title", "snakeXcase party"));
+
+        // Act
+        final List<String> percent = adminTitles("100%", AdminEventSort.TITLE_ASC);
+        final List<String> underscore = adminTitles("snake_case", AdminEventSort.TITLE_ASC);
+
+        // Assert
+        assertEquals(Collections.singletonList("Descuento 100% hoy"), percent);
+        assertEquals(Collections.singletonList("snake_case party"), underscore);
+    }
+
+    @Test
+    public void testCountAllWithATitleQueryCountsOnlyTheMatchingEvents() {
+        // Arrange: tambien cuenta un pendiente y uno cancelado (el panel ve todo)
+        insertEvent(cols("title", "Feria uno", "approval_status", EventApprovalStatus.PENDING.name()));
+        insertEvent(cols("title", "Feria dos", "cancelled_at", fromNow(-HORA)));
+        insertEvent(cols("title", "Otra cosa"));
+
+        // Act
+        final long count = eventDao.countAll("feria");
+
+        // Assert
+        assertEquals(2, count);
+    }
+
+    @Test
+    public void testFindAllPendingFirstPutsPendingApprovalEventsOnTopNewestFirstInsideEachGroup() {
+        // Arrange
+        final Timestamp t1 = new Timestamp(System.currentTimeMillis() - 4000);
+        final Timestamp t2 = new Timestamp(System.currentTimeMillis() - 3000);
+        final Timestamp t3 = new Timestamp(System.currentTimeMillis() - 2000);
+        final Timestamp t4 = new Timestamp(System.currentTimeMillis() - 1000);
+        insertEvent(cols("title", "Aprobado viejo", "created_at", t1));
+        insertEvent(cols("title", "Pendiente viejo", "created_at", t2,
+                "approval_status", EventApprovalStatus.PENDING.name()));
+        insertEvent(cols("title", "Aprobado nuevo", "created_at", t4));
+        insertEvent(cols("title", "Pendiente nuevo", "created_at", t3,
+                "approval_status", EventApprovalStatus.PENDING.name()));
+
+        // Act
+        final List<String> titles = adminTitles(null, AdminEventSort.PENDING_FIRST);
+
+        // Assert
+        assertEquals(Arrays.asList("Pendiente nuevo", "Pendiente viejo", "Aprobado nuevo", "Aprobado viejo"), titles);
+    }
+
+    @Test
+    public void testFindAllOrdersByTitleAndByEventDate() {
+        // Arrange
+        insertEvent(cols("title", "Banana", "event_date", fromNow(2 * HORA)));
+        insertEvent(cols("title", "apple", "event_date", fromNow(3 * HORA)));
+        insertEvent(cols("title", "Cereza", "event_date", fromNow(HORA)));
+
+        // Act
+        final List<String> byTitle = adminTitles(null, AdminEventSort.TITLE_ASC);
+        final List<String> nearestFirst = adminTitles(null, AdminEventSort.EVENT_DATE_ASC);
+        final List<String> furthestFirst = adminTitles(null, AdminEventSort.EVENT_DATE_DESC);
+
+        // Assert
+        assertEquals(Arrays.asList("apple", "Banana", "Cereza"), byTitle);
+        assertEquals(Arrays.asList("Cereza", "Banana", "apple"), nearestFirst);
+        assertEquals(Arrays.asList("apple", "Banana", "Cereza"), furthestFirst);
+    }
+
+    @Test
+    public void testFindAllOrdersByCreationDateAscending() {
+        // Arrange
+        final Timestamp antes = new Timestamp(System.currentTimeMillis() - 2000);
+        final Timestamp despues = new Timestamp(System.currentTimeMillis() - 1000);
+        insertEvent(cols("title", "Nuevo", "created_at", despues));
+        insertEvent(cols("title", "Viejo", "created_at", antes));
+
+        // Act
+        final List<String> titles = adminTitles(null, AdminEventSort.CREATED_ASC);
+
+        // Assert
+        assertEquals(Arrays.asList("Viejo", "Nuevo"), titles);
     }
 
     // ==================================================================
@@ -2638,5 +2706,137 @@ public class EventJpaDaoTest {
 
         // Assert
         assertFalse(result.isPresent());
+    }
+
+    // ==================================================================
+    // Perfil publico: eventos organizados (proximos / realizados)
+    // ==================================================================
+
+    // Evento del creador que cae a "daysFromNow" dias de ahora (negativo = ya paso), con las columnas extra que
+    // pise el test (visibility, approval_status, cancelled_at...).
+    private long organizedEvent(final long creatorId, final long daysFromNow, final Object... overrides) {
+        final Map<String, Object> row = cols("creator_id", creatorId, "event_date", fromNow(daysFromNow * DAY));
+        row.putAll(cols(overrides));
+        return insertEvent(row);
+    }
+
+    private static Date now() {
+        return new Date();
+    }
+
+    @Test
+    public void testFindUpcomingPublicByCreatorIdReturnsOnlyThePersonsFutureEventsNearestFirst() {
+        // Arrange: el decoy es de otra persona, el pasado no va, y los futuros se insertan fuera de orden
+        final long creator = insertUser("organizer@mail.com");
+        final long other = insertUser("other@mail.com");
+        final long later = organizedEvent(creator, 9);
+        final long sooner = organizedEvent(creator, 2);
+        organizedEvent(creator, -3);
+        organizedEvent(other, 1);
+
+        // Act
+        final List<Long> ids = idsOf(eventDao.findUpcomingPublicByCreatorId(creator, now(), 1, 10));
+
+        // Assert
+        assertEquals(Arrays.asList(sooner, later), ids);
+    }
+
+    @Test
+    public void testFindPastPublicByCreatorIdReturnsOnlyThePersonsPastEventsMostRecentFirst() {
+        // Arrange
+        final long creator = insertUser("organizer@mail.com");
+        final long other = insertUser("other@mail.com");
+        final long older = organizedEvent(creator, -9);
+        final long recent = organizedEvent(creator, -2);
+        organizedEvent(creator, 3);
+        organizedEvent(other, -1);
+
+        // Act
+        final List<Long> ids = idsOf(eventDao.findPastPublicByCreatorId(creator, now(), 1, 10));
+
+        // Assert
+        assertEquals(Arrays.asList(recent, older), ids);
+    }
+
+    @Test
+    public void testPublicByCreatorIdLeavesOutPrivateCancelledAndNotApprovedEvents() {
+        // Arrange: de los cuatro eventos futuros solo el primero lo puede ver cualquiera
+        final long creator = insertUser("organizer@mail.com");
+        final long visible = organizedEvent(creator, 5);
+        organizedEvent(creator, 5, "visibility", EventVisibility.PRIVATE.name());
+        organizedEvent(creator, 5, "cancelled_at", fromNow(-DAY));
+        organizedEvent(creator, 5, "approval_status", "PENDING");
+        organizedEvent(creator, 5, "approval_status", "REJECTED");
+
+        // Act
+        final List<Long> ids = idsOf(eventDao.findUpcomingPublicByCreatorId(creator, now(), 1, 10));
+
+        // Assert
+        assertEquals(Collections.singletonList(visible), ids);
+    }
+
+    @Test
+    public void testFindUpcomingPublicByCreatorIdReturnsTheRequestedPage() {
+        // Arrange: tres proximos, paginas de uno
+        final long creator = insertUser("organizer@mail.com");
+        organizedEvent(creator, 1);
+        final long second = organizedEvent(creator, 2);
+        organizedEvent(creator, 3);
+
+        // Act
+        final List<Long> ids = idsOf(eventDao.findUpcomingPublicByCreatorId(creator, now(), 2, 1));
+
+        // Assert
+        assertEquals(Collections.singletonList(second), ids);
+    }
+
+    @Test
+    public void testCountUpcomingPublicByCreatorIdCountsOnlyWhatTheListReturns() {
+        // Arrange: 2 visibles, y de decoy un pasado, uno privado, uno cancelado y uno de otra persona
+        final long creator = insertUser("organizer@mail.com");
+        final long other = insertUser("other@mail.com");
+        organizedEvent(creator, 1);
+        organizedEvent(creator, 2);
+        organizedEvent(creator, -1);
+        organizedEvent(creator, 4, "visibility", EventVisibility.PRIVATE.name());
+        organizedEvent(creator, 4, "cancelled_at", fromNow(-DAY));
+        organizedEvent(other, 4);
+
+        // Act
+        final long count = eventDao.countUpcomingPublicByCreatorId(creator, now());
+
+        // Assert
+        assertEquals(2, count);
+    }
+
+    @Test
+    public void testCountPastPublicByCreatorIdCountsOnlyWhatTheListReturns() {
+        // Arrange: 3 visibles, y de decoy un futuro, uno sin aprobar y uno de otra persona
+        final long creator = insertUser("organizer@mail.com");
+        final long other = insertUser("other@mail.com");
+        organizedEvent(creator, -1);
+        organizedEvent(creator, -2);
+        organizedEvent(creator, -3);
+        organizedEvent(creator, 2);
+        organizedEvent(creator, -4, "approval_status", "PENDING");
+        organizedEvent(other, -4);
+
+        // Act
+        final long count = eventDao.countPastPublicByCreatorId(creator, now());
+
+        // Assert
+        assertEquals(3, count);
+    }
+
+    @Test
+    public void testPublicByCreatorIdOfAPersonWithoutEventsIsEmpty() {
+        // Arrange
+        final long creator = insertUser("organizer@mail.com");
+
+        // Act
+        final long upcoming = eventDao.countUpcomingPublicByCreatorId(creator, now());
+
+        // Assert
+        assertEquals(0, upcoming);
     }
 }

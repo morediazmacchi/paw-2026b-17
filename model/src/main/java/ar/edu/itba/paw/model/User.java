@@ -58,6 +58,11 @@ public class User implements RoleHolder {
     @Column(name = "suspended", nullable = false)
     private boolean suspended;
 
+    // Presentacion libre que la persona escribe en su perfil publico (ver UserService.updateBio()). Null si todavia
+    // no escribio nada.
+    @Column(name = "bio", length = 500)
+    private String bio;
+
     public User() {
         // Solo para Hibernate (y para los que arman un User a mano, ver tests de services)
     }
@@ -73,6 +78,16 @@ public class User implements RoleHolder {
     public void setEmail(final String email) { this.email = email; }
     public String getName() { return name; }
     public void setName(final String name) { this.name = name; }
+    // Id de la foto de portada del perfil publico (tabla image). Solo el id, no la relacion: asi cargar un User nunca
+    // trae los bytes de la imagen. Null = portada por defecto.
+    @Column(name = "cover_image_id")
+    private Long coverImageId;
+
+    public Long getCoverImageId() { return coverImageId; }
+    public void setCoverImageId(final Long coverImageId) { this.coverImageId = coverImageId; }
+
+    public String getBio() { return bio; }
+    public void setBio(final String bio) { this.bio = bio; }
     public String getPassword() { return password; }
     public void setPassword(final String password) { this.password = password; }
     public Set<Role> getRoles() { return roles; }

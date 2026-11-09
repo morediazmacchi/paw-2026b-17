@@ -17,6 +17,9 @@ public interface UserService {
     // Largo maximo del nombre (updateProfile() devuelve INVALID_NAME si esta vacio o lo supera).
     int MAX_NAME_LENGTH = 150;
 
+    // Largo maximo de la biografia del perfil publico (updateBio() devuelve INVALID si lo supera).
+    int MAX_BIO_LENGTH = 500;
+
     Optional<User> findById(long id);
 
     /**
@@ -105,6 +108,24 @@ public interface UserService {
      * duplicados.
      */
     UpdateProfileResult updateProfile(long userId, String name);
+
+    /**
+     * Guarda la biografia del perfil publico de la persona. Se recorta; una biografia vacia la borra (queda sin
+     * biografia). INVALID si supera {@link #MAX_BIO_LENGTH}: el form ya lo valida para dar feedback.
+     */
+    UpdateBioResult updateBio(long userId, String bio);
+
+    /**
+     * Cambia la foto de portada del perfil publico y borra la anterior. Recibe los bytes crudos (no un MultipartFile,
+     * que es de la capa web); la valida {@link ImageService#create}.
+     *
+     * @throws ar.edu.itba.paw.model.exception.InvalidImageException si el archivo esta vacio, pesa demasiado o no es una
+     *         imagen JPEG, PNG, GIF o WebP: en ese caso no se escribe nada
+     */
+    UpdateCoverResult updateCover(long userId, byte[] data, String contentType, String fileName);
+
+    /** Quita la foto de portada (el perfil vuelve a la portada por defecto) y borra la imagen. */
+    UpdateCoverResult removeCover(long userId);
 
     /**
      * Cambia la contraseña de un usuario ya logueado. Devuelve WRONG_CURRENT_PASSWORD (y no

@@ -345,6 +345,53 @@ public class UserJpaDaoTest {
                 jdbcTemplate, "users", "id = " + id + " AND name = 'Nuevo Nombre' AND email = '" + EMAIL + "'"));
     }
 
+    // ---- updateBio() ----
+
+    @Test
+    public void testUpdateBioWritesTheBiographyAndReturnsTrue() {
+        // Arrange
+        final long id = insertUser(EMAIL, NAME);
+
+        // Act
+        final boolean result = userDao.updateBio(id, "Organizo ferias de barrio");
+        // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
+        em.flush();
+
+        // Assert
+        assertTrue(result);
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
+                jdbcTemplate, "users", "id = " + id + " AND bio = 'Organizo ferias de barrio'"));
+    }
+
+    @Test
+    public void testUpdateBioWithNullClearsTheBiography() {
+        // Arrange
+        final long id = insertUser(EMAIL, NAME);
+        jdbcTemplate.update("UPDATE users SET bio = 'algo' WHERE id = ?", id);
+
+        // Act
+        final boolean result = userDao.updateBio(id, null);
+        em.flush();
+
+        // Assert
+        assertTrue(result);
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "users", "id = " + id + " AND bio IS NULL"));
+    }
+
+    @Test
+    public void testUpdateBioOfAUserThatDoesNotExistWritesNothingAndReturnsFalse() {
+        // Arrange: otro usuario, que no es el del Act. Tiene que quedar sin biografia.
+        insertUser(EMAIL, NAME);
+
+        // Act
+        final boolean result = userDao.updateBio(999_999L, "Hola");
+        em.flush();
+
+        // Assert
+        assertFalse(result);
+        assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "users", "bio = 'Hola'"));
+    }
+
     // ---- setVerified() ----
 
     @Test
@@ -691,5 +738,59 @@ public class UserJpaDaoTest {
 
         // Assert
         assertFalse(result.isPresent());
+    }
+
+    // ---- updateCoverImage() ----
+
+    private long insertImage() {
+        jdbcTemplate.update("INSERT INTO image (data, content_type, file_name, file_size) VALUES (?, 'image/png', 'a.png', 3)",
+                new byte[] {1, 2, 3});
+        return jdbcTemplate.queryForObject("SELECT MAX(id) FROM image", Long.class);
+    }
+
+    @Test
+    public void testUpdateCoverImageWritesTheImageIdAndReturnsTrue() {
+        // Arrange
+        final long id = insertUser(EMAIL, NAME);
+        final long imageId = insertImage();
+
+        // Act
+        final boolean result = userDao.updateCoverImage(id, imageId);
+        em.flush();
+
+        // Assert
+        assertTrue(result);
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
+                jdbcTemplate, "users", "id = " + id + " AND cover_image_id = " + imageId));
+    }
+
+    @Test
+    public void testUpdateCoverImageWithNullClearsTheCover() {
+        // Arrange
+        final long id = insertUser(EMAIL, NAME);
+        jdbcTemplate.update("UPDATE users SET cover_image_id = ? WHERE id = ?", insertImage(), id);
+
+        // Act
+        final boolean result = userDao.updateCoverImage(id, null);
+        em.flush();
+
+        // Assert
+        assertTrue(result);
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
+                jdbcTemplate, "users", "id = " + id + " AND cover_image_id IS NULL"));
+    }
+
+    @Test
+    public void testUpdateCoverImageOfAUserThatDoesNotExistReturnsFalse() {
+        // Arrange: otro usuario, que tiene que quedar sin portada
+        insertUser(EMAIL, NAME);
+
+        // Act
+        final boolean result = userDao.updateCoverImage(999_999L, insertImage());
+        em.flush();
+
+        // Assert
+        assertFalse(result);
+        assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "users", "cover_image_id IS NOT NULL"));
     }
 }

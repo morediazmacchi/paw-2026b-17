@@ -29,6 +29,10 @@
            href="<c:url value='/perfil'/>">
             <paw:icon name="user"/> <c:out value="${dataLabel}"/>
         </a>
+        <spring:message code="profile.public.viewMine" var="publicProfileLabel"/>
+        <a class="account-sidebar-link" href="<c:url value='/usuarios/${user.id}'/>">
+            <paw:icon name="people"/> <c:out value="${publicProfileLabel}"/>
+        </a>
         <spring:message code="profile.tabs.registrations" var="registrationsLabel"/>
         <a class="account-sidebar-link ${active == 'registrations' ? 'account-sidebar-link-active' : ''}"
            href="<c:url value='/perfil/inscripciones'/>">

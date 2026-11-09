@@ -1,11 +1,13 @@
 // Contrato de persistencia para Event. Implementacion: EventJpaDao (modulo persistence).
 package ar.edu.itba.paw.persistence;
 
+import ar.edu.itba.paw.model.AdminEventSort;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventAccessSummary;
 import ar.edu.itba.paw.model.EventSearchCriteria;
 
 import java.math.BigDecimal;
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
@@ -34,12 +36,6 @@ public interface EventDao {
     boolean approve(long id);
     boolean reject(long id, String reason);
 
-    /** Cola de aprobacion del admin (ver EventService.findPendingApprovalPage()): FIFO, el mas viejo primero. */
-    List<Event> findPendingApproval(int page, int pageSize);
-
-    /** Para el badge de la cola de aprobacion, sin traer las filas. */
-    long countPendingApproval();
-
     // No excluye cancelados a proposito: el detalle de un evento cancelado
     // sigue siendo accesible para quien ya estaba anotado (ver EventController).
     Optional<Event> findById(long id);
@@ -66,14 +62,28 @@ public interface EventDao {
     /** Para el badge de "Mis eventos" (ver ProfileController): sin traer las filas. */
     long countByCreatorId(long creatorId);
 
+    // Perfil publico de una persona (ver UserProfileService): solo lo que cualquiera puede ver de sus eventos
+    // organizados, o sea publicos, aprobados y no cancelados (las mismas reglas que search()). "Proximos" = con
+    // fecha >= now, el mas cercano primero; "realizados" = con fecha < now, el mas reciente primero. Cada par
+    // find/count comparte el WHERE, asi el total y la pagina coinciden. page empieza en 1.
+    List<Event> findUpcomingPublicByCreatorId(long creatorId, Date now, int page, int pageSize);
+
+    long countUpcomingPublicByCreatorId(long creatorId, Date now);
+
+    List<Event> findPastPublicByCreatorId(long creatorId, Date now, int page, int pageSize);
+
+    long countPastPublicByCreatorId(long creatorId, Date now);
+
     // Panel de admin "Eventos" (ver EventService.findAllEventsPage()): TODOS los eventos, cualquier
     // estado de aprobacion, visibilidad o cancelacion, de cualquier creador. A diferencia de
-    // search()/findByCreatorId(), no filtra nada: es la unica forma de moderar algo que todavia no
-    // esta publico (pendiente/rechazado) o que ya se dio de baja. Mas recientes primero.
-    List<Event> findAll(int page, int pageSize);
+    // search()/findByCreatorId(), no filtra por estado: es la unica forma de moderar algo que todavia no
+    // esta publico (pendiente/rechazado) o que ya se dio de baja. titleQuery (null = sin filtrar) es un texto
+    // que el titulo tiene que contener, sin distinguir mayusculas; los comodines LIKE (% y _) se toman
+    // literalmente. El orden sale de la lista blanca AdminEventSort (null = CREATED_DESC).
+    List<Event> findAll(String titleQuery, AdminEventSort sort, int page, int pageSize);
 
-    /** Para el paginado del panel de admin "Eventos": sin traer las filas. */
-    long countAll();
+    /** Para el paginado del panel de admin "Eventos" (mismo filtro de titulo que findAll): sin traer las filas. */
+    long countAll(String titleQuery);
 
     // Combina todos los filtros con AND (un campo en null en criteria significa "sin filtrar por
     // esto"); solo eventos futuros y no cancelados; ordenado y paginado segun criteria.

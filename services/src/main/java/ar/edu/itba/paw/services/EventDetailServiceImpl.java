@@ -82,8 +82,14 @@ public class EventDetailServiceImpl implements EventDetailService {
                 actionOf(event, participation, full, invited), chatAccessOf(event, participation, chatMember),
                 participation != null && participation.isRegistered() && event.isActive(),
                 event.isOpenForQuestions() && !owner, owner, !owner, favorite, chatMember,
-                reputationOf(event, reviewsPage), related, relatedStatuses, relatedFavoriteIds,
+                reputationOf(event, reviewsPage), organizerNameOf(event), related, relatedStatuses, relatedFavoriteIds,
                 eventQuestionService.findPage(eventId, questionsPage));
+    }
+
+    // El nombre de quien organiza, para mostrarlo con un link a su perfil. null si el evento no tiene organizador
+    // cargado (eventos viejos) o si la persona no tiene nombre.
+    private static String organizerNameOf(final Event event) {
+        return event.getCreator() == null ? null : event.getCreator().getName();
     }
 
     // La relacion de esta persona con el evento. Si puede anotarse lo dice EventAccessService.canRegister(): la

@@ -1,0 +1,21 @@
+<%@ page contentType="text/html;charset=UTF-8" pageEncoding="UTF-8" %>
+<%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
+<%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
+<%@ taglib prefix="paw" tagdir="/WEB-INF/tags" %>
+<%-- Grilla de tarjetas de eventos del perfil publico: las mismas <paw:card> que el listado de /eventos. Muestra
+     la lista que le deja el perfil en el request (eventsToShow). Sin corazon (no se pasa returnTo): el perfil es
+     de lectura. --%>
+<div class="card-grid">
+    <c:forEach var="event" items="${eventsToShow}">
+        <c:set var="cardPrecio" value="${event.free ? null : event.price}" />
+        <c:set var="cardUbicacion" value="${empty event.neighborhood ? event.address : event.neighborhood.displayName}" />
+        <c:set var="cardCategoria" value=""/>
+        <c:forEach var="ecat" items="${event.categories}" varStatus="ecatStatus">
+            <spring:message code="category.${ecat.categoryName}" text="${ecat.categoryName}" var="ecatName"/>
+            <c:set var="cardCategoria" value="${cardCategoria}${ecatStatus.first ? '' : ', '}${ecatName}"/>
+        </c:forEach>
+        <paw:card id="${event.id}" nombre="${event.title}" precio="${cardPrecio}" gratis="${event.free}"
+                  fecha="${event.eventDate}" categoria="${cardCategoria}"
+                  ubicacion="${cardUbicacion}" imagenId="${event.imageId}" />
+    </c:forEach>
+</div>

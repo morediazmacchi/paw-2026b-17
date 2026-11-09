@@ -10,8 +10,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.Rollback;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.springframework.test.jdbc.JdbcTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.persistence.EntityManager;
+import javax.persistence.PersistenceContext;
 import javax.sql.DataSource;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -39,6 +42,9 @@ public class ImageJpaDaoTest {
 
     @Autowired
     private ImageDao imageDao;
+
+    @PersistenceContext
+    private EntityManager em;
 
     private JdbcTemplate jdbcTemplate;
 
@@ -185,5 +191,35 @@ public class ImageJpaDaoTest {
 
         // Assert
         assertFalse(access.isPresent());
+    }
+
+    // ---- delete() ----
+
+    @Test
+    public void testDeleteRemovesTheImageRowAndReturnsTrue() {
+        // Arrange
+        final long id = insertImage();
+
+        // Act
+        final boolean result = imageDao.delete(id);
+        em.flush();
+
+        // Assert
+        assertTrue(result);
+        assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "image", "id = " + id));
+    }
+
+    @Test
+    public void testDeleteOfAnImageThatDoesNotExistReturnsFalseAndKeepsTheOthers() {
+        // Arrange
+        final long other = insertImage();
+
+        // Act
+        final boolean result = imageDao.delete(999_999L);
+        em.flush();
+
+        // Assert
+        assertFalse(result);
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "image", "id = " + other));
     }
 }

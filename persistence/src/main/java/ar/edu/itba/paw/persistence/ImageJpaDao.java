@@ -31,6 +31,16 @@ public class ImageJpaDao implements ImageDao {
     }
 
     @Override
+    public boolean delete(final long id) {
+        final Image image = em.find(Image.class, id);
+        if (image == null) {
+            return false;
+        }
+        em.remove(image);
+        return true;
+    }
+
+    @Override
     public Optional<EventAccessSummary> findOwnerEventAccess(final long imageId) {
         // Proyeccion: solo las cuatro columnas que necesita la regla de visibilidad, no el Event
         // (sin su fila entera, ni la subconsulta de la portada, ni las colecciones). Se une por la

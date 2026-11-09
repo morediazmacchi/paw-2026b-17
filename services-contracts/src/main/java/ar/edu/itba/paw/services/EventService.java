@@ -2,6 +2,7 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.dto.EventDTO;
+import ar.edu.itba.paw.model.AdminEventSort;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventAccessSummary;
 import ar.edu.itba.paw.model.EventSearchCriteria;
@@ -101,9 +102,12 @@ public interface EventService {
      * inscripciones (mismo criterio que findMyEventsPage: pendientes solo si pide aprobacion,
      * confirmados solo si no esta cancelado). Es la unica forma de moderar algo que todavia no es
      * publico o que ya se dio de baja: search() nunca los muestra.
+     *
+     * {@code titleQuery} filtra por titulo (contiene, sin distinguir mayusculas); null o en blanco = sin filtro.
+     * {@code sort} null = el mas recientemente creado primero.
      */
     @Transactional(readOnly = true)
-    PageResult<EventWithRegistrationStats> findAllEventsPage(int page);
+    PageResult<EventWithRegistrationStats> findAllEventsPage(String titleQuery, AdminEventSort sort, int page);
 
     /**
      * Edita un evento existente. No cambia quien lo creo ni cuando se creo.
@@ -159,14 +163,6 @@ public interface EventService {
      */
     @Transactional(rollbackFor = Exception.class)
     EventApprovalResult reject(long eventId, String reason);
-
-    /**
-     * Cola de aprobacion del admin: los eventos PENDING, mas viejo primero
-     * (FIFO), de a una pagina. Mismo criterio de pagina fuera de rango que
-     * findPageByCreatorId() (una mayor a la ultima da la ultima, etc.).
-     */
-    @Transactional(readOnly = true)
-    PageResult<Event> findPendingApprovalPage(int page);
 
     /**
      * Banner de /eventos (ver EventController.eventos()): los eventos con mas inscripciones

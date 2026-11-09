@@ -320,6 +320,16 @@
             </c:if>
 
             <h2 class="detail-section-heading"><spring:message code="event.detail.organizerHeading"/></h2>
+            <%-- Quien organiza: su nombre, con link a su perfil publico (eventos viejos sin organizador no lo tienen). --%>
+            <c:if test="${not empty organizerId}">
+                <spring:message code="event.detail.organizerAnonymous" var="organizerFallback"/>
+                <c:set var="organizerDisplayName" value="${empty organizerName ? organizerFallback : organizerName}"/>
+                <a class="organizer-link" href="<c:url value='/usuarios/${organizerId}'/>">
+                    <span class="organizer-link-avatar"><c:out value="${fn:toUpperCase(fn:substring(organizerDisplayName, 0, 1))}"/></span>
+                    <span class="organizer-link-name"><c:out value="${organizerDisplayName}"/></span>
+                    <span class="organizer-link-cta"><spring:message code="event.detail.viewOrganizerProfile"/> <paw:icon name="chevron-right"/></span>
+                </a>
+            </c:if>
             <c:choose>
                 <c:when test="${creatorReviewCount > 0}">
                     <div class="creator-rating">

@@ -210,6 +210,9 @@ public class EventController {
             mav.addObject("waitlisted", participation.isWaitlisted());
             mav.addObject("pendingApproval", participation.isPendingApproval());
         }
+        // Quien organiza, para mostrar su nombre con un link a su perfil publico (null en eventos sin organizador).
+        mav.addObject("organizerId", detail.getOrganizerId());
+        mav.addObject("organizerName", detail.getOrganizerName());
         addCreatorReputation(mav, detail.getCreatorReputation());
         // "Eventos que te pueden interesar": vacio si el evento es privado o no esta aprobado.
         mav.addObject("relatedEvents", detail.getRelatedEvents());

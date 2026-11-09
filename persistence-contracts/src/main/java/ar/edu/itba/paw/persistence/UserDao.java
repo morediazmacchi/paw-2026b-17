@@ -37,6 +37,12 @@ public interface UserDao {
     // silencio; el orden del resultado no esta garantizado.
     List<User> findByIds(List<Long> ids);
 
+    // Biografia del perfil publico (null = sin biografia). false si no existe la cuenta.
+    boolean updateBio(long userId, String bio);
+
+    // Foto de portada del perfil publico (null = portada por defecto). false si no existe la cuenta.
+    boolean updateCoverImage(long userId, Long imageId);
+
     boolean addRole(long userId, Role role);
 
     // Complemento de addRole(): usado para revocar ADMIN (ver
