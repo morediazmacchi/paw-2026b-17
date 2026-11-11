@@ -650,6 +650,24 @@ public class EventRecommendationJpaDaoTest {
     }
 
     @Test
+    public void testPricePercentileIsNotRoundedWithManyDistinctPrices() {
+        // Arrange: poblacion de 7 precios distintos (1000..7000, el target incluido) -> percentiles (2i + 1) / 14.
+        // Contra 3000 (0,357): 2000 y 4000 quedan a la misma distancia (S = 0,857), asi que desempata la fecha (4000
+        // primero); lo mismo 1000 y 5000 (S = 0,714, 5000 primero). Si el percentil se redondeara a un decimal
+        // (0,3 contra 0,2 y 0,5), 2000 pasaria a estar mas cerca que 4000 y el orden cambiaria.
+        final long target = insertEvent(cols("price", new BigDecimal("3000")));
+        final long p1000 = insertEvent(cols("event_date", future(4), "price", new BigDecimal("1000")));
+        final long p2000 = insertEvent(cols("event_date", future(2), "price", new BigDecimal("2000")));
+        final long p4000 = insertEvent(cols("event_date", future(1), "price", new BigDecimal("4000")));
+        final long p5000 = insertEvent(cols("event_date", future(3), "price", new BigDecimal("5000")));
+        final long p6000 = insertEvent(cols("event_date", future(5), "price", new BigDecimal("6000")));
+        insertEvent(cols("event_date", future(6), "price", new BigDecimal("7000")));
+
+        // Act + Assert: 7000 queda afuera (S = 0,429 < 0,5)
+        assertEquals(list(p4000, p2000, p5000, p1000, p6000), similarTo(target, noWeights().weightPrice(1).build()));
+    }
+
+    @Test
     public void testFreeAgainstPaidIsCappedByTheFreeVsPaidFactor() {
         // Arrange: poblacion 1000..4000. Gratis contra 1000: 0,5 * (1 - 0,125) = 0,4375; contra 4000: 0,5 * 0,125 = 0,0625
         insertEvent(cols("event_date", future(11), "price", new BigDecimal("2000")));

@@ -85,7 +85,7 @@ final class RecommendationSql {
         sql.append("need AS (SELECT price FROM cand WHERE price > 0 UNION SELECT price FROM att WHERE price > 0), ");
         sql.append("pct AS (SELECT need.price AS price, CAST(CASE WHEN tot.total = 0 THEN 0.5 ELSE"
                 + " ((SELECT COALESCE(SUM(q.n), 0) FROM pop q WHERE q.price < need.price)"
-                + " + (SELECT COALESCE(SUM(q.n), 0) FROM pop q WHERE q.price <= need.price)) / 2.0 / tot.total END"
+                + " + (SELECT COALESCE(SUM(q.n), 0) FROM pop q WHERE q.price <= need.price)) / 2.0E0 / tot.total END"
                 + " AS DOUBLE PRECISION) AS p FROM need CROSS JOIN tot), ");
 
         // ---- categorias en comun, solo de los pares que comparten alguna ----
