@@ -34,6 +34,7 @@ public interface EventChatService {
     // Lanza EventNotFoundException si el evento no existe.
     ChatRoom openRoom(long eventId, long userId);
 
-    // Para los circulos de la bandeja.
-    List<ChatGroup> findGroups(long userId);
+    // Para los circulos de la bandeja, de a una pagina. Una pagina mayor a la ultima devuelve la ultima, una menor
+    // a 1 la primera; sin grupos, la pagina 1 vacia.
+    PageResult<ChatGroup> findGroupsPage(long userId, int page);
 }

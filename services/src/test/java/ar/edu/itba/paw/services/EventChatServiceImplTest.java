@@ -1,5 +1,6 @@
 package ar.edu.itba.paw.services;
 
+import ar.edu.itba.paw.model.ChatGroup;
 import ar.edu.itba.paw.model.ChatMessage;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.Registration;
@@ -14,6 +15,7 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -375,5 +377,71 @@ public class EventChatServiceImplTest {
 
         // Act
         chatService.send(EVENT_ID, user(), "hola");
+    }
+
+    // ---- findGroupsPage() ----
+
+    private static ChatGroup group() {
+        return new ChatGroup(EVENT_ID, "Recital", null, 0, null);
+    }
+
+    @Test
+    public void testFindGroupsPageReturnsTheRequestedPageWithItsTotals() {
+        // Arrange: 25 grupos, de a EventChatServiceImpl.PAGE_SIZE por pagina -> 3 paginas
+        final List<ChatGroup> pageTwo = Collections.singletonList(group());
+        when(chatDao.countGroupsByUser(USER_ID)).thenReturn(25L);
+        when(chatDao.findGroupsByUser(USER_ID, 2, EventChatServiceImpl.PAGE_SIZE)).thenReturn(pageTwo);
+
+        // Act
+        final PageResult<ChatGroup> result = chatService.findGroupsPage(USER_ID, 2);
+
+        // Assert
+        assertEquals(pageTwo, result.getContent());
+        assertEquals(2, result.getPage());
+        assertEquals(3, result.getTotalPages());
+        assertEquals(25L, result.getTotalElements());
+    }
+
+    @Test
+    public void testFindGroupsPageClampsAPageBeyondTheLastToTheLastOne() {
+        // Arrange: 25 grupos -> la ultima pagina es la 3
+        final List<ChatGroup> lastPage = Collections.singletonList(group());
+        when(chatDao.countGroupsByUser(USER_ID)).thenReturn(25L);
+        when(chatDao.findGroupsByUser(USER_ID, 3, EventChatServiceImpl.PAGE_SIZE)).thenReturn(lastPage);
+
+        // Act
+        final PageResult<ChatGroup> result = chatService.findGroupsPage(USER_ID, 99);
+
+        // Assert
+        assertEquals(3, result.getPage());
+        assertEquals(lastPage, result.getContent());
+    }
+
+    @Test
+    public void testFindGroupsPageClampsAPageBelowOneToTheFirstOne() {
+        // Arrange
+        final List<ChatGroup> firstPage = Collections.singletonList(group());
+        when(chatDao.countGroupsByUser(USER_ID)).thenReturn(25L);
+        when(chatDao.findGroupsByUser(USER_ID, 1, EventChatServiceImpl.PAGE_SIZE)).thenReturn(firstPage);
+
+        // Act
+        final PageResult<ChatGroup> result = chatService.findGroupsPage(USER_ID, -3);
+
+        // Assert
+        assertEquals(1, result.getPage());
+        assertEquals(firstPage, result.getContent());
+    }
+
+    @Test
+    public void testFindGroupsPageWithNoGroupsIsAnEmptyFirstPage() {
+        // Arrange: el mock devuelve 0 grupos y una lista vacia
+
+        // Act
+        final PageResult<ChatGroup> result = chatService.findGroupsPage(USER_ID, 5);
+
+        // Assert
+        assertEquals(1, result.getPage());
+        assertEquals(0, result.getTotalPages());
+        assertTrue(result.getContent().isEmpty());
     }
 }

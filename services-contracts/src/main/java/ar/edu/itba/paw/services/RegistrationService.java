@@ -166,11 +166,13 @@ public interface RegistrationService {
     List<Registration> findPendingByEvent(long eventId);
 
     /**
-     * La pantalla de aceptar o rechazar inscriptos: las pendientes (como findPendingByEvent()), los
-     * lugares libres y si el evento ya esta lleno, en una sola llamada. Mismo OJO que findPendingByEvent().
+     * La pantalla de aceptar o rechazar inscriptos: UNA pagina de las pendientes (en el orden de
+     * findPendingByEvent()), el total de pendientes, los lugares libres y si el evento ya esta lleno, en una
+     * sola llamada. Una pagina mayor a la ultima devuelve la ultima, una menor a 1 la primera; sin pendientes,
+     * la pagina 1 vacia. Mismo OJO que findPendingByEvent(): quien llama verifica antes quien pregunta.
      */
     @Transactional(readOnly = true)
-    PendingRegistrations findPendingSummary(long eventId);
+    PendingRegistrations findPendingSummary(long eventId, int page);
 
     /**
      * Cuantos pedidos pendientes tiene cada uno de esos eventos, en una sola consulta (un GROUP BY). Un

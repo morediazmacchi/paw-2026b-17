@@ -29,6 +29,10 @@ public interface EventChatDao {
     // Marca como leido todo lo que hay hasta ahora en ese grupo para esa persona.
     void markRead(long eventId, long userId);
 
-    // Los grupos activos de una persona: primero los de actividad mas reciente.
-    List<ChatGroup> findGroupsByUser(long userId);
+    // Los grupos activos de una persona, de a una pagina (paginas desde 1): primero los de actividad mas
+    // reciente (el id del evento desempata). countGroupsByUser() da el total para el paginador.
+    List<ChatGroup> findGroupsByUser(long userId, int page, int pageSize);
+
+    // Cuantos grupos activos tiene esa persona (los mismos que lista findGroupsByUser()).
+    long countGroupsByUser(long userId);
 }

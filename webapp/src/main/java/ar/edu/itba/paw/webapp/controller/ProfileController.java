@@ -1,5 +1,6 @@
 package ar.edu.itba.paw.webapp.controller;
 
+import ar.edu.itba.paw.model.ChatGroup;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventInvitation;
 import ar.edu.itba.paw.model.InboxMessage;
@@ -334,6 +335,7 @@ public class ProfileController {
     // Bandeja de mensajes. Al abrirla se marcan todos como leidos
     @RequestMapping(value = "/perfil/bandeja", method = RequestMethod.GET)
     public ModelAndView bandeja(@RequestParam(value = "page", required = false) final String page,
+                                @RequestParam(value = "gruposPage", required = false) final String groupsPage,
                                 @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final InboxPage inbox = inboxService.findPageWithEvents(currentUser.getId(), Paging.parsePage(page));
         final PageResult<InboxMessage> result = inbox.getMessages();
@@ -342,7 +344,13 @@ public class ProfileController {
         mav.addObject("user", currentUser);
         mav.addObject("messages", result.getContent());
         mav.addObject("hasUnread", inbox.isHasUnread());
-        mav.addObject("chatGroups", eventChatService.findGroups(currentUser.getId()));
+        // Los circulos de los grupos y los mensajes son dos listas paginadas independientes, cada una con su
+        // parametro (page / gruposPage); el JSP repite el de la otra en los links de cada paginador.
+        final PageResult<ChatGroup> groups = eventChatService.findGroupsPage(currentUser.getId(),
+                Paging.parsePage(groupsPage));
+        mav.addObject("chatGroups", groups.getContent());
+        mav.addObject("groupsPage", groups.getPage());
+        mav.addObject("groupsTotalPages", groups.getTotalPages());
         mav.addObject("eventsById", inbox.getEventsById());
         mav.addObject("currentPage", result.getPage());
         mav.addObject("totalPages", result.getTotalPages());
@@ -354,9 +362,11 @@ public class ProfileController {
     @RequestMapping(value = "/perfil/bandeja/marcar-leidas", method = RequestMethod.POST)
     public ModelAndView markInboxRead(@RequestParam(value = "ids", required = false) final List<Long> ids,
                                       @RequestParam(value = "page", required = false) final String page,
+                                      @RequestParam(value = "gruposPage", required = false) final String groupsPage,
                                       @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         inboxService.markRead(currentUser.getId(), ids);
-        return new ModelAndView("redirect:/perfil/bandeja?page=" + Paging.parsePage(page));
+        return new ModelAndView("redirect:/perfil/bandeja?page=" + Paging.parsePage(page)
+                + "&gruposPage=" + Paging.parsePage(groupsPage));
     }
 
     @RequestMapping(value = "/perfil/eventos", method = RequestMethod.GET)
@@ -390,6 +400,7 @@ public class ProfileController {
     @PreAuthorize("@eventSecurity.isOwner(#id, authentication)")
     @RequestMapping(value = "/perfil/eventos/{id}/inscriptos", method = RequestMethod.GET)
     public ModelAndView pendingRegistrations(@PathVariable final long id,
+                                              @RequestParam(value = "page", required = false) final String page,
                                               @RequestParam(value = "approved", required = false) final String approvedParam,
                                               @RequestParam(value = "rejected", required = false) final String rejectedParam,
                                               @RequestParam(value = "full", required = false) final String fullParam,
@@ -399,8 +410,10 @@ public class ProfileController {
         final ModelAndView mav = new ModelAndView("auth/inscriptos");
         mav.addObject("user", currentUser);
         mav.addObject("event", event);
-        final PendingRegistrations pending = registrationService.findPendingSummary(id);
+        final PendingRegistrations pending = registrationService.findPendingSummary(id, Paging.parsePage(page));
         mav.addObject("pendingRegistrations", pending.getRegistrations());
+        mav.addObject("currentPage", pending.getPage());
+        mav.addObject("totalPages", pending.getTotalPages());
         mav.addObject("approved", approvedParam != null);
         mav.addObject("rejected", rejectedParam != null);
         mav.addObject("fullNotice", fullParam != null);

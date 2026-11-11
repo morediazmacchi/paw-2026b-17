@@ -250,6 +250,20 @@ public class RegistrationJpaDao implements RegistrationDao {
     }
 
     @Override
+    public List<Registration> findPendingByEvent(final long eventId, final int page, final int pageSize) {
+        // Dos pasos (1+1), como findByEventId() paginado: ids de la pagina, despues las inscripciones de esos ids.
+        final List<Long> ids = em.createQuery(
+                        "SELECT r.id FROM Registration r WHERE r.event.id = :eventId AND r.status = :status "
+                                + "ORDER BY r.registeredAt ASC, r.id ASC", Long.class)
+                .setParameter("eventId", eventId)
+                .setParameter("status", RegistrationStatus.PENDING)
+                .setFirstResult((page - 1) * pageSize)
+                .setMaxResults(pageSize)
+                .getResultList();
+        return loadInOrder(ids);
+    }
+
+    @Override
     public long countPending(final long eventId) {
         return countByEventAndStatus(eventId, RegistrationStatus.PENDING);
     }

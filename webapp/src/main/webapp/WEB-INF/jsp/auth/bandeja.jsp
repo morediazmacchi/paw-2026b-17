@@ -44,6 +44,9 @@
                             </li>
                         </c:forEach>
                     </ul>
+                    <paw:pager baseUrl="/perfil/bandeja" pageParam="gruposPage"
+                               currentPage="${groupsPage}" totalPages="${groupsTotalPages}"
+                               otherParam="page" otherPage="${currentPage}"/>
                 </c:otherwise>
             </c:choose>
         </section>
@@ -65,6 +68,7 @@
                             </c:if>
                         </c:forEach>
                         <input type="hidden" name="page" value="${currentPage}"/>
+                        <input type="hidden" name="gruposPage" value="${groupsPage}"/>
                         <paw:button text="${markReadLabel}"/>
                     </form>
                 </c:if>
@@ -109,7 +113,8 @@
                     </c:forEach>
                 </ul>
 
-                <paw:pager baseUrl="/perfil/bandeja" currentPage="${currentPage}" totalPages="${totalPages}"/>
+                <paw:pager baseUrl="/perfil/bandeja" currentPage="${currentPage}" totalPages="${totalPages}"
+                           otherParam="gruposPage" otherPage="${groupsPage}"/>
             </c:otherwise>
         </c:choose>
     </main>

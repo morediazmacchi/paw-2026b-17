@@ -285,7 +285,7 @@ public class EventChatJpaDaoTest {
         say(beto, "dos");
 
         // Act
-        final List<ChatGroup> groups = chatDao.findGroupsByUser(ana);
+        final List<ChatGroup> groups = chatDao.findGroupsByUser(ana, 1, 10);
 
         // Assert
         assertEquals(1, groups.size());
@@ -302,7 +302,7 @@ public class EventChatJpaDaoTest {
         say(ana, "mio");
 
         // Act
-        final ChatGroup group = chatDao.findGroupsByUser(ana).get(0);
+        final ChatGroup group = chatDao.findGroupsByUser(ana, 1, 10).get(0);
 
         // Assert
         assertEquals(0, group.getUnreadCount());
@@ -331,7 +331,7 @@ public class EventChatJpaDaoTest {
         say(beto, "dos");
 
         // Act
-        final ChatGroup group = chatDao.findGroupsByUser(ana).get(0);
+        final ChatGroup group = chatDao.findGroupsByUser(ana, 1, 10).get(0);
 
         // Assert
         assertEquals(1, group.getUnreadCount());
@@ -344,7 +344,7 @@ public class EventChatJpaDaoTest {
         jdbcTemplate.update("UPDATE registration SET status = 'REJECTED' WHERE id = ?", anaRegistrationId);
 
         // Act
-        final List<ChatGroup> groups = chatDao.findGroupsByUser(ana);
+        final List<ChatGroup> groups = chatDao.findGroupsByUser(ana, 1, 10);
 
         // Assert
         assertTrue(groups.isEmpty());
@@ -363,10 +363,71 @@ public class EventChatJpaDaoTest {
                 second, beto, "nuevo", new Timestamp(System.currentTimeMillis()));
 
         // Act
-        final List<ChatGroup> groups = chatDao.findGroupsByUser(ana);
+        final List<ChatGroup> groups = chatDao.findGroupsByUser(ana, 1, 10);
 
         // Assert
         assertEquals("Feria", groups.get(0).getEventTitle());
         assertEquals("Recital", groups.get(1).getEventTitle());
+    }
+
+    @Test
+    public void testFindGroupsPagesTheGroupsWithoutRepeating() {
+        // Arrange: 3 grupos con actividad en momentos distintos, de a 2 por pagina
+        final long second = insertEvent("Feria");
+        final long third = insertEvent("Taller");
+        final long secondRegistration = insertRegistration(second, ana, "ana@mail.com", "CONFIRMED");
+        final long thirdRegistration = insertRegistration(third, ana, "ana@mail.com", "CONFIRMED");
+        insertMember(anaRegistrationId, eventId, ana);
+        insertMember(secondRegistration, second, ana);
+        insertMember(thirdRegistration, third, ana);
+        final long now = System.currentTimeMillis();
+        jdbcTemplate.update("INSERT INTO event_chat_message (event_id, user_id, body, created_at) VALUES (?, ?, ?, ?)",
+                eventId, beto, "viejo", new Timestamp(now - 3000));
+        jdbcTemplate.update("INSERT INTO event_chat_message (event_id, user_id, body, created_at) VALUES (?, ?, ?, ?)",
+                second, beto, "medio", new Timestamp(now - 2000));
+        jdbcTemplate.update("INSERT INTO event_chat_message (event_id, user_id, body, created_at) VALUES (?, ?, ?, ?)",
+                third, beto, "nuevo", new Timestamp(now - 1000));
+
+        // Act
+        final List<ChatGroup> pageOne = chatDao.findGroupsByUser(ana, 1, 2);
+        final List<ChatGroup> pageTwo = chatDao.findGroupsByUser(ana, 2, 2);
+        final List<ChatGroup> pageThree = chatDao.findGroupsByUser(ana, 3, 2);
+
+        // Assert: el de actividad mas reciente primero, sin repetir, y la ultima pagina trae solo el que sobra
+        assertEquals(2, pageOne.size());
+        assertEquals("Taller", pageOne.get(0).getEventTitle());
+        assertEquals("Feria", pageOne.get(1).getEventTitle());
+        assertEquals(1, pageTwo.size());
+        assertEquals("Recital", pageTwo.get(0).getEventTitle());
+        assertTrue(pageThree.isEmpty());
+    }
+
+    // ---- countGroupsByUser() ----
+
+    @Test
+    public void testCountGroupsByUserCountsOnlyTheGroupsWithAConfirmedRegistration() {
+        // Arrange: dos grupos, pero en uno la inscripcion ya no esta CONFIRMED
+        final long second = insertEvent("Feria");
+        final long secondRegistration = insertRegistration(second, ana, "ana@mail.com", "CONFIRMED");
+        insertMember(anaRegistrationId, eventId, ana);
+        insertMember(secondRegistration, second, ana);
+        jdbcTemplate.update("UPDATE registration SET status = 'REJECTED' WHERE id = ?", secondRegistration);
+
+        // Act
+        final long count = chatDao.countGroupsByUser(ana);
+
+        // Assert
+        assertEquals(1, count);
+    }
+
+    @Test
+    public void testCountGroupsByUserIsZeroWhenThePersonIsInNoGroup() {
+        // Arrange: ana no se unio a ningun grupo
+
+        // Act
+        final long count = chatDao.countGroupsByUser(ana);
+
+        // Assert
+        assertEquals(0, count);
     }
 }

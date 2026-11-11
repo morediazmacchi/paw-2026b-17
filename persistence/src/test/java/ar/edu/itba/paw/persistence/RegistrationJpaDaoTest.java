@@ -714,6 +714,34 @@ public class RegistrationJpaDaoTest {
         assertEquals("segundo@mail.com", pending.get(1).getEmail());
     }
 
+    @Test
+    public void testFindPendingByEventPagesOnlyThePendingOldestFirstWithoutRepeating() {
+        // Arrange: 3 pendientes con fechas distintas y 1 confirmado, de a 2 por pagina
+        final long now = System.currentTimeMillis();
+        final long u1 = insertUser("uno@mail.com", "Uno");
+        final long u2 = insertUser("dos@mail.com", "Dos");
+        final long u3 = insertUser("tres@mail.com", "Tres");
+        final long confirmedUserId = insertUser("confirmado@mail.com", NAME);
+        insertRegistrationAt(eventId, "tres@mail.com", u3, "Tres", RegistrationStatus.PENDING, new Timestamp(now - 1000));
+        insertRegistrationAt(eventId, "uno@mail.com", u1, "Uno", RegistrationStatus.PENDING, new Timestamp(now - 3000));
+        insertRegistrationAt(eventId, "dos@mail.com", u2, "Dos", RegistrationStatus.PENDING, new Timestamp(now - 2000));
+        insertRegistrationAt(eventId, "confirmado@mail.com", confirmedUserId, NAME, RegistrationStatus.CONFIRMED,
+                new Timestamp(now - 4000));
+
+        // Act
+        final List<Registration> pageOne = registrationDao.findPendingByEvent(eventId, 1, 2);
+        final List<Registration> pageTwo = registrationDao.findPendingByEvent(eventId, 2, 2);
+        final List<Registration> pageThree = registrationDao.findPendingByEvent(eventId, 3, 2);
+
+        // Assert: la mas antigua primero, el confirmado no aparece y la ultima pagina trae solo la que sobra
+        assertEquals(2, pageOne.size());
+        assertEquals("uno@mail.com", pageOne.get(0).getEmail());
+        assertEquals("dos@mail.com", pageOne.get(1).getEmail());
+        assertEquals(1, pageTwo.size());
+        assertEquals("tres@mail.com", pageTwo.get(0).getEmail());
+        assertTrue(pageThree.isEmpty());
+    }
+
     // ---- updateStatus() ----
 
     @Test

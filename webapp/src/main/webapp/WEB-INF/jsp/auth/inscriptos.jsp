@@ -70,6 +70,7 @@
                 </div>
             </c:otherwise>
         </c:choose>
+        <paw:pager baseUrl="/perfil/eventos/${event.id}/inscriptos" currentPage="${currentPage}" totalPages="${totalPages}"/>
 
         <p class="auth-subheading">
             <a class="btn-link" href="<c:url value='/perfil/eventos'/>" data-history-back>

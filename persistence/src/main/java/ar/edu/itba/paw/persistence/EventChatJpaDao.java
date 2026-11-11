@@ -114,7 +114,7 @@ public class EventChatJpaDao implements EventChatDao {
 
     @Override
     @SuppressWarnings("unchecked")
-    public List<ChatGroup> findGroupsByUser(final long userId) {
+    public List<ChatGroup> findGroupsByUser(final long userId, final int page, final int pageSize) {
         // SQL nativo: junta portada, "sin leer" y ultimo mensaje en subconsultas, y devuelve
         // columnas sueltas (no una entidad), asi que JPQL no aporta nada aca. El CAST a TIMESTAMP
         // es porque Hibernate no sabe leer TIMESTAMP WITH TIME ZONE en una consulta nativa.
@@ -130,8 +130,10 @@ public class EventChatJpaDao implements EventChatDao {
                                 + "JOIN registration r ON r.id = m.registration_id AND r.status = 'CONFIRMED' "
                                 + "JOIN event e ON e.id = m.event_id "
                                 + "WHERE m.user_id = :userId "
-                                + "ORDER BY last_message_at DESC NULLS LAST, m.joined_at DESC")
+                                + "ORDER BY last_message_at DESC NULLS LAST, m.joined_at DESC, m.event_id DESC")
                 .setParameter("userId", userId)
+                .setFirstResult((page - 1) * pageSize)
+                .setMaxResults(pageSize)
                 .getResultList();
         final List<ChatGroup> groups = new ArrayList<>();
         for (final Object[] row : rows) {
@@ -140,5 +142,17 @@ public class EventChatJpaDao implements EventChatDao {
                     ((Number) row[3]).longValue(), (Date) row[4]));
         }
         return groups;
+    }
+
+    @Override
+    public long countGroupsByUser(final long userId) {
+        // Mismas uniones y filtros que findGroupsByUser(): el total tiene que contar justo lo que se lista.
+        return ((Number) em.createNativeQuery(
+                        "SELECT COUNT(*) FROM event_chat_member m "
+                                + "JOIN registration r ON r.id = m.registration_id AND r.status = 'CONFIRMED' "
+                                + "JOIN event e ON e.id = m.event_id "
+                                + "WHERE m.user_id = :userId")
+                .setParameter("userId", userId)
+                .getSingleResult()).longValue();
     }
 }
