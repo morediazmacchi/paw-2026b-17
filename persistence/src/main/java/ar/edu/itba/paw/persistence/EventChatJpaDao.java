@@ -118,6 +118,8 @@ public class EventChatJpaDao implements EventChatDao {
         // SQL nativo: junta portada, "sin leer" y ultimo mensaje en subconsultas, y devuelve
         // columnas sueltas (no una entidad), asi que JPQL no aporta nada aca. El CAST a TIMESTAMP
         // es porque Hibernate no sabe leer TIMESTAMP WITH TIME ZONE en una consulta nativa.
+        // setFirstResult/setMaxResults paginan en SQL (igual que EventJpaDao.search()): alguien
+        // que va a muchos eventos no trae todos sus chats de una, solo la pagina que se muestra.
         final List<Object[]> rows = em.createNativeQuery(
                         "SELECT e.id AS event_id, e.title AS title, "
                                 + "(SELECT ei.image_id FROM event_image ei WHERE ei.event_id = e.id "

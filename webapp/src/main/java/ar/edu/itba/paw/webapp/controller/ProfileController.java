@@ -332,7 +332,9 @@ public class ProfileController {
         return mav;
     }
 
-    // Bandeja de mensajes. Al abrirla se marcan todos como leidos
+    // Bandeja de mensajes. Al abrirla se marcan todos como leidos. Los circulos de chat y los
+    // mensajes son dos paginados independientes (page / gruposPage), cada uno con su indice: ver
+    // pager.tag (pageParam/otherParam/otherPage), mismo patron que "Mis inscripciones".
     @RequestMapping(value = "/perfil/bandeja", method = RequestMethod.GET)
     public ModelAndView bandeja(@RequestParam(value = "page", required = false) final String page,
                                 @RequestParam(value = "gruposPage", required = false) final String groupsPage,
@@ -358,7 +360,8 @@ public class ProfileController {
     }
 
     // "Marcar como leidas": solo los mensajes de la pagina que se estaba viendo (sus ids
-    // vienen en el formulario). El GET de la bandeja no marca nada: solo lee.
+    // vienen en el formulario). El GET de la bandeja no marca nada: solo lee. gruposPage viaja de
+    // vuelta en el redirect para no resetear el paginador de grupos al marcar mensajes leidos.
     @RequestMapping(value = "/perfil/bandeja/marcar-leidas", method = RequestMethod.POST)
     public ModelAndView markInboxRead(@RequestParam(value = "ids", required = false) final List<Long> ids,
                                       @RequestParam(value = "page", required = false) final String page,
