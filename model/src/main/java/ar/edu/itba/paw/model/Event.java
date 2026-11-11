@@ -55,7 +55,12 @@ public class Event implements EventAccessData {
     // otra tabla (event_image); el orden es por image_id, que crece con cada foto subida.
     // getImageId() (mas abajo) deriva la portada de esta lista para no tener que tocar los varios
     // JSP que ya la usan (cards, "Mis eventos", favoritos, inscripciones).
-    @ElementCollection
+    // fetch = LAZY a proposito (@ElementCollection es EAGER por default si no se especifica):
+    // findByIds() ya NO trae esta galeria (ver su comentario, "las fotos no se traen"), pero sin
+    // este fetch explicito Hibernate la cargaba igual, con un SELECT aparte por cada evento de la
+    // pagina. Con LAZY, el unico lugar que de verdad necesita la galeria completa (detail.jsp,
+    // dentro del mismo request: ver OpenEntityManagerInViewFilter en web.xml) la carga bajo demanda.
+    @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(name = "event_image", joinColumns = @JoinColumn(name = "event_id"))
     @Column(name = "image_id", nullable = false)
     @OrderBy

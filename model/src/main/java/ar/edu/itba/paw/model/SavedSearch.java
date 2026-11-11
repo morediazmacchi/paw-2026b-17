@@ -39,12 +39,17 @@ public class SavedSearch {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @ElementCollection
+    // fetch = LAZY a proposito (@ElementCollection es EAGER por default si no se especifica): los
+    // dos unicos lugares que de verdad necesitan estos filtros (SavedSearchJpaDao.findByUserId y
+    // findByIdWithFilters) ya los traen con LEFT JOIN FETCH explicito; sin este fetch, cualquier
+    // otra consulta que solo necesita el id/la fecha de una SavedSearch (ej. findIdsAfter) los
+    // cargaba igual, con un SELECT aparte por fila.
+    @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(name = "saved_search_category", joinColumns = @JoinColumn(name = "saved_search_id"))
     @Column(name = "category_id", nullable = false)
     private Set<Long> categoryIds = new HashSet<>();
 
-    @ElementCollection
+    @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(name = "saved_search_barrio", joinColumns = @JoinColumn(name = "saved_search_id"))
     @Column(name = "barrio", length = 80, nullable = false)
     @Enumerated(EnumType.STRING)
