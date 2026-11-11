@@ -20,6 +20,9 @@ public class EventChatServiceImpl implements EventChatService {
     static final int INITIAL_MESSAGES = 100;
     static final int MAX_NEW_MESSAGES = 200;
 
+    // Circulos de la bandeja por pagina.
+    static final int GROUPS_PAGE_SIZE = 10;
+
     private final EventChatDao chatDao;
     private final EventService eventService;
     private final RegistrationService registrationService;
@@ -114,7 +117,10 @@ public class EventChatServiceImpl implements EventChatService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<ChatGroup> findGroups(final long userId) {
-        return chatDao.findGroupsByUser(userId);
+    public PageResult<ChatGroup> findGroups(final long userId, final int page) {
+        final long total = chatDao.countGroupsByUser(userId);
+        final int effectivePage = PageResult.clampPage(page, total, GROUPS_PAGE_SIZE);
+        return new PageResult<>(chatDao.findGroupsByUser(userId, effectivePage, GROUPS_PAGE_SIZE),
+                total, effectivePage, GROUPS_PAGE_SIZE);
     }
 }

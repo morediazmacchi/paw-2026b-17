@@ -1,5 +1,6 @@
 package ar.edu.itba.paw.webapp.controller;
 
+import ar.edu.itba.paw.model.ChatGroup;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventInvitation;
 import ar.edu.itba.paw.model.InboxMessage;
@@ -331,18 +332,24 @@ public class ProfileController {
         return mav;
     }
 
-    // Bandeja de mensajes. Al abrirla se marcan todos como leidos
+    // Bandeja de mensajes. Al abrirla se marcan todos como leidos. Los circulos de chat y los
+    // mensajes son dos paginados independientes (page / chatsPage), cada uno con su indice: ver
+    // pager.tag (pageParam/otherParam/otherPage), mismo patron que "Mis inscripciones".
     @RequestMapping(value = "/perfil/bandeja", method = RequestMethod.GET)
     public ModelAndView bandeja(@RequestParam(value = "page", required = false) final String page,
+                                @RequestParam(value = "chatsPage", required = false) final String chatsPage,
                                 @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final InboxPage inbox = inboxService.findPageWithEvents(currentUser.getId(), Paging.parsePage(page));
         final PageResult<InboxMessage> result = inbox.getMessages();
+        final PageResult<ChatGroup> chatGroups = eventChatService.findGroups(currentUser.getId(), Paging.parsePage(chatsPage));
 
         final ModelAndView mav = new ModelAndView("auth/bandeja");
         mav.addObject("user", currentUser);
         mav.addObject("messages", result.getContent());
         mav.addObject("hasUnread", inbox.isHasUnread());
-        mav.addObject("chatGroups", eventChatService.findGroups(currentUser.getId()));
+        mav.addObject("chatGroups", chatGroups.getContent());
+        mav.addObject("chatGroupsCurrentPage", chatGroups.getPage());
+        mav.addObject("chatGroupsTotalPages", chatGroups.getTotalPages());
         mav.addObject("eventsById", inbox.getEventsById());
         mav.addObject("currentPage", result.getPage());
         mav.addObject("totalPages", result.getTotalPages());
@@ -350,13 +357,16 @@ public class ProfileController {
     }
 
     // "Marcar como leidas": solo los mensajes de la pagina que se estaba viendo (sus ids
-    // vienen en el formulario). El GET de la bandeja no marca nada: solo lee.
+    // vienen en el formulario). El GET de la bandeja no marca nada: solo lee. chatsPage viaja de
+    // vuelta en el redirect para no resetear el paginador de chats al marcar mensajes leidos.
     @RequestMapping(value = "/perfil/bandeja/marcar-leidas", method = RequestMethod.POST)
     public ModelAndView markInboxRead(@RequestParam(value = "ids", required = false) final List<Long> ids,
                                       @RequestParam(value = "page", required = false) final String page,
+                                      @RequestParam(value = "chatsPage", required = false) final String chatsPage,
                                       @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         inboxService.markRead(currentUser.getId(), ids);
-        return new ModelAndView("redirect:/perfil/bandeja?page=" + Paging.parsePage(page));
+        return new ModelAndView("redirect:/perfil/bandeja?page=" + Paging.parsePage(page)
+                + "&chatsPage=" + Paging.parsePage(chatsPage));
     }
 
     @RequestMapping(value = "/perfil/eventos", method = RequestMethod.GET)

@@ -112,12 +112,26 @@ public class EventChatJpaDao implements EventChatDao {
                 .executeUpdate();
     }
 
+    // Mismo FROM/WHERE que findGroupsByUser, sin las subconsultas de portada/no-leidos/ultimo
+    // mensaje (no hacen falta para contar). Lo usa el service para paginar (ver findGroupsByUser).
+    @Override
+    public long countGroupsByUser(final long userId) {
+        return ((Number) em.createNativeQuery(
+                        "SELECT COUNT(*) FROM event_chat_member m "
+                                + "JOIN registration r ON r.id = m.registration_id AND r.status = 'CONFIRMED' "
+                                + "WHERE m.user_id = :userId")
+                .setParameter("userId", userId)
+                .getSingleResult()).longValue();
+    }
+
     @Override
     @SuppressWarnings("unchecked")
-    public List<ChatGroup> findGroupsByUser(final long userId) {
+    public List<ChatGroup> findGroupsByUser(final long userId, final int page, final int pageSize) {
         // SQL nativo: junta portada, "sin leer" y ultimo mensaje en subconsultas, y devuelve
         // columnas sueltas (no una entidad), asi que JPQL no aporta nada aca. El CAST a TIMESTAMP
         // es porque Hibernate no sabe leer TIMESTAMP WITH TIME ZONE en una consulta nativa.
+        // setFirstResult/setMaxResults paginan en SQL (igual que EventJpaDao.search()): alguien
+        // que va a muchos eventos no trae todos sus chats de una, solo la pagina que se muestra.
         final List<Object[]> rows = em.createNativeQuery(
                         "SELECT e.id AS event_id, e.title AS title, "
                                 + "(SELECT ei.image_id FROM event_image ei WHERE ei.event_id = e.id "
@@ -132,6 +146,8 @@ public class EventChatJpaDao implements EventChatDao {
                                 + "WHERE m.user_id = :userId "
                                 + "ORDER BY last_message_at DESC NULLS LAST, m.joined_at DESC")
                 .setParameter("userId", userId)
+                .setFirstResult((page - 1) * pageSize)
+                .setMaxResults(pageSize)
                 .getResultList();
         final List<ChatGroup> groups = new ArrayList<>();
         for (final Object[] row : rows) {

@@ -1,5 +1,6 @@
 package ar.edu.itba.paw.services;
 
+import ar.edu.itba.paw.model.ChatGroup;
 import ar.edu.itba.paw.model.ChatMessage;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.Registration;
@@ -14,6 +15,7 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -375,5 +377,43 @@ public class EventChatServiceImplTest {
 
         // Act
         chatService.send(EVENT_ID, user(), "hola");
+    }
+
+    // ---- findGroups() ----
+
+    private static ChatGroup chatGroup(final long eventId) {
+        return new ChatGroup(eventId, "Recital", null, 0, null);
+    }
+
+    @Test
+    public void testFindGroupsReturnsTheRequestedPageWithItsTotals() {
+        // Arrange: 25 en total, de a EventChatServiceImpl.GROUPS_PAGE_SIZE por pagina -> 3 paginas
+        final List<ChatGroup> pageTwo = Collections.singletonList(chatGroup(EVENT_ID));
+        when(chatDao.countGroupsByUser(USER_ID)).thenReturn(25L);
+        when(chatDao.findGroupsByUser(USER_ID, 2, EventChatServiceImpl.GROUPS_PAGE_SIZE)).thenReturn(pageTwo);
+
+        // Act
+        final PageResult<ChatGroup> result = chatService.findGroups(USER_ID, 2);
+
+        // Assert
+        assertEquals(pageTwo, result.getContent());
+        assertEquals(2, result.getPage());
+        assertEquals(3, result.getTotalPages());
+        assertEquals(25L, result.getTotalElements());
+    }
+
+    @Test
+    public void testFindGroupsClampsAPageBeyondTheLastToTheLastOne() {
+        // Arrange: 25 en total -> la ultima pagina es la 3
+        final List<ChatGroup> lastPage = Collections.singletonList(chatGroup(EVENT_ID));
+        when(chatDao.countGroupsByUser(USER_ID)).thenReturn(25L);
+        when(chatDao.findGroupsByUser(USER_ID, 3, EventChatServiceImpl.GROUPS_PAGE_SIZE)).thenReturn(lastPage);
+
+        // Act
+        final PageResult<ChatGroup> result = chatService.findGroups(USER_ID, 99);
+
+        // Assert
+        assertEquals(3, result.getPage());
+        assertEquals(lastPage, result.getContent());
     }
 }
