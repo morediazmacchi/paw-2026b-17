@@ -87,11 +87,14 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(readOnly = true)
-    public PageResult<User> findPage(final int page) {
-        final long totalElements = userDao.countAll();
+    public PageResult<User> findPage(final String emailText, final int page) {
+        // El DAO se ocupa de que el texto sea literal (mayusculas, comodines); aca solo se lo acota.
+        final String text = emailText == null ? "" : emailText.trim();
+        final String bounded = text.length() > MAX_EMAIL_SEARCH_LENGTH ? text.substring(0, MAX_EMAIL_SEARCH_LENGTH) : text;
+        final long totalElements = userDao.count(bounded);
         final int totalPages = (int) Math.ceil((double) totalElements / PAGE_SIZE);
         final int effectivePage = totalPages == 0 ? 1 : Math.min(Math.max(page, 1), totalPages);
-        final List<User> content = userDao.findPage(PAGE_SIZE, (effectivePage - 1) * PAGE_SIZE);
+        final List<User> content = userDao.findPage(bounded, PAGE_SIZE, (effectivePage - 1) * PAGE_SIZE);
         return new PageResult<>(content, totalElements, effectivePage, PAGE_SIZE);
     }
 

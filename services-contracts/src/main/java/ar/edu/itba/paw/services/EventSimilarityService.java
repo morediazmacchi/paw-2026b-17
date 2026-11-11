@@ -7,9 +7,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
-// Una sola nocion de "que tan parecidos son dos eventos" (S(a, b), ver EventSimilarity) que sirve
-// para dos cosas: ordenar el listado segun lo que la persona ya asistio (searchRecommended) y
-// sugerir eventos parecidos a uno que se esta mirando (findSimilar).
+// Una sola nocion de "que tan parecidos son dos eventos" (S(a, b)) que sirve para dos cosas: ordenar el
+// listado segun lo que la persona ya asistio (searchRecommended) y sugerir eventos parecidos a uno que se
+// esta mirando (findSimilar). La cuenta entera la hace la base de datos (ver EventDao.findRecommendedPage()
+// y findSimilarTo()): nunca se traen los eventos a memoria para compararlos.
 public interface EventSimilarityService {
 
     /**
@@ -18,8 +19,8 @@ public interface EventSimilarityService {
      * de mas puntos, desempate por fecha del evento (el mas proximo primero) y por id.
      *
      * criteria.getViewerId() es obligatorio. Si esa persona todavia no asistio a nada, nadie suma
-     * puntos y el orden queda por fecha (el mismo que FECHA_ASC), paginado en la base con LIMIT/OFFSET. Con
-     * historial el puntaje se calcula en memoria sobre los eventos que matchean los filtros. Ignora criteria.getSort().
+     * puntos y el orden queda por fecha (el mismo que FECHA_ASC). El puntaje, el orden y el corte de la
+     * pagina son una sola consulta SQL. Ignora criteria.getSort().
      */
     @Transactional(readOnly = true)
     PageResult<Event> searchRecommended(EventSearchCriteria criteria);

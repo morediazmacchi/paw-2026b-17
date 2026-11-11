@@ -14,6 +14,9 @@ public interface UserService {
     // contraseña (register, resetPassword, changePassword) lo vuelven a chequear: la regla es del service.
     int MIN_PASSWORD_LENGTH = 8;
 
+    // Largo maximo del texto de la busqueda por mail (el de la columna email): mas largo no puede ser un mail.
+    int MAX_EMAIL_SEARCH_LENGTH = 150;
+
     // Largo maximo del nombre (updateProfile() devuelve INVALID_NAME si esta vacio o lo supera).
     int MAX_NAME_LENGTH = 150;
 
@@ -33,11 +36,14 @@ public interface UserService {
     List<User> findByIds(List<Long> ids);
 
     /**
-     * Para "Usuarios" del panel de admin (ver AdminController): una pagina de
-     * usuarios ordenados por id, paginada en SQL. La pagina pedida se ajusta a
-     * la ultima con usuarios (igual que la busqueda de eventos).
+     * Para "Usuarios" del panel de admin (ver AdminController): una pagina de usuarios, paginada en SQL y con
+     * busqueda por mail. La pagina pedida se ajusta a la ultima con usuarios (igual que la busqueda de eventos).
+     * emailText null o en blanco = sin buscar (todos, por id). Con texto quedan los usuarios cuyo mail lo contiene
+     * (sin importar mayusculas; el texto es literal, ni % ni _ son comodines): primero el mail igual al texto,
+     * despues los que empiezan con el, despues el resto. El texto se corta a {@link #MAX_EMAIL_SEARCH_LENGTH}
+     * caracteres.
      */
-    PageResult<User> findPage(int page);
+    PageResult<User> findPage(String emailText, int page);
 
     /**
      * Para autenticacion: el User que devuelve ya trae password y roles

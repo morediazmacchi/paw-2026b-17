@@ -180,6 +180,38 @@ original no está a mano (no es citable textual) · `[acordado]` = lo decidió l
   **Portada y pestañas (5/11):** `users.cover_image_id` (FK a `image`, `ON DELETE SET NULL`; en `User` es un `Long`, no una relación, para no traer bytes). `UserService.updateCover/removeCover` → `UpdateCoverResult`
   (`InvalidImageException` si el archivo no sirve: se valida con `ImageService.create` ANTES de tocar nada; la imagen anterior se borra). Se sirve en `GET /usuarios/{id}/portada` (público, en `ImageController`; 404 = portada por defecto);
   `POST /perfil/portada` y `/perfil/portada/quitar` toman el id de la sesión. Los eventos se ven en pestañas (`?tab=proximos|realizados`, sin elegir abre la que tenga eventos): se dibuja solo el grupo elegido.
+- **Barra de búsqueda de `/eventos` (11/11):** `?q=` busca en título y descripción (`EventSearchCriteria.text`). Todo en SQL: filtra,
+  cuenta, ordena y pagina en la consulta de ids (nada en memoria). **Qué es una palabra lo define UNA vez `SearchTerms` (model)**: minúsculas, sin
+  tildes (ñ → n), sin puntuación, como mucho `MAX_TERMS`=6 palabras de `MAX_TERM_LENGTH`=30 y texto de `MAX_TEXT_LENGTH`=100; solo quedan
+  letras y números, así que nunca hay `%`/`_`/`\` que escapar (regla de LIKE cumplida por construcción). `TextSearchSql` (persistence) arma un
+  `JOIN` (`m.id`, `m.score`) que usan `search`, `countSearch` y `findRecommendedPage` (`SearchFilter.from`; `RecommendationSql.build` recibe
+  `candidatesFrom`). Hay que cumplir TODAS las palabras (AND). Escalones por palabra, que se SUMAN: 5 una palabra del título empieza con ella ·
+  4 el título la contiene · 3 el título tiene una palabra a UN error (solo palabras de ≥ `TYPO_TOLERANCE_MIN_LENGTH`=4 letras: una letra distinta,
+  de más, de menos, o dos seguidas intercambiadas; las más cortas, exactas) · 2 la descripción la contiene (la descripción NO tolera errores).
+  Desempate: fecha, id. **Sin extensiones** (ni `unaccent` ni `pg_trgm`): `TRANSLATE` + `LOWER` (TRANSLATE antes, para que ande con locale `C`) y
+  `LIKE` con `_`; corre igual en Postgres y HSQLDB. El error de 1 letra no usa una distancia: Java genera ~4n patrones por palabra
+  (`TextSearchSql.typoPatterns`). ⚠️ **El `OFFSET 0` de la subconsulta que normaliza es una valla a propósito: no sacarlo.** Sin ella Postgres
+  recalcula el `TRANSLATE` por cada `LIKE` y 3.000 eventos pasan de ~0,3 s a 4-7 s. Costo medido: ~0,3 s con 3.000 eventos en Postgres (lineal;
+  si crece, guardar el texto ya normalizado en una columna). **Plural:** a la palabra buscada de ≥ `PLURAL_MIN_LENGTH`=4 letras se le saca UNA "s" final (`SearchTerms`; "bandas" busca "banda", sirve en
+  español e inglés). Nunca pierde resultados: lo que queda es un prefijo de la palabra original. El plural en "-es" ("recitales" → "recitale") llega
+  a "Recital" solo por la tolerancia de 1 error, o sea solo contra el título (la descripción es exacta). **Limitación conocida:** `_` también
+  matchea un espacio (dos palabras muy cortas seguidas pueden pasar por una con error). **Orden:** `EventSort.RELEVANCIA` es el default cuando hay texto (también con historial) y solo
+  se ofrece con texto; pedido sin texto cae al default (`EventServiceImpl.effectiveSort`). Con `sort=RECOMENDADOS` explícito, el texto filtra
+  los candidatos. **La búsqueda guardada NO guarda el texto (decidido por la usuaria):** "Guardar búsqueda" se ofrece también con texto escrito (si hay filtros), sin
+  aclaración (ella pidió no ponerla: filtros y barra se entienden como cosas distintas); el form de guardar reenvía `q` solo para volver al listado tal como estaba, y
+  `SavedSearchService.save/isSaved` lo ignoran. `EventSearchForm.hasActiveFilters()` no cuenta `q`: solo texto, sin filtros, no deja nada para guardar. `char-counter.js` excluye `type=search`. **Ubicación (convención pedida por la usuaria):** la barra es corta (240 px), a la derecha, con forma de píldora y la lupa adentro como botón de enviar (sin botón "Buscar" aparte; Enter o la lupa). En `/eventos` va DENTRO de la fila de filtros (`.filter-bar-v2 .search-bar`, a la derecha, junto a Filtrar); en `/admin/usuarios`, en una fila aparte arriba a la derecha (`.search-bar-row`). La página no declara `<meta name="viewport">`: en un celular se ve el diseño de escritorio achicado, así que el layout angosto solo se puede mirar con anchos de escritorio (≥ 768). Tests: `SearchTermsTest` (model, primer test del módulo: se le sumó JUnit),
+  `EventTextSearchJpaDaoTest` (33), service y form.
+- **Búsqueda por mail en `/admin/usuarios` (11/11):** `?q=` en `AdminController.usuarios` → `UserService.findPage(emailText, page)` →
+  `UserDao.findPage(emailText, limit, offset)` + `count(emailText)` (reemplazan a `findPage(limit, offset)`/`countAll()`). **Es JPQL, no nativo:** ids primero
+  (`SELECT u.id ... ORDER BY CASE ...` con `setFirstResult/setMaxResults`) y después `findByIds`, que se reordena con `inOrderOf` porque `findByIds`
+  devuelve por id. Solo el mail (no el nombre), "contiene" sin importar mayúsculas (`LOWER(email)`); orden: mail igual al texto, después los que
+  empiezan con él, después el resto, y en cada grupo por mail e id. Sin texto: todos por id. **El texto es literal:** `%`, `_` y el propio `!` se escapan
+  (`ESCAPE '!'`, no `\`: una barra invertida en un literal JPQL se presta a confusión) porque el `_` es de lo más común en un mail. El service
+  recorta y acota (`UserService.MAX_EMAIL_SEARCH_LENGTH`=150); el DAO pasa a minúscula y escapa. `pager.tag` repite `q` en los links con `extraParams` (un `Map`, lo agregó el equipo para `admin/eventos`; el
+  controller se lo pasa a la pantalla como `pagerParams`; `c:param` lo codifica). Las acciones de cada fila (suspender, reactivar, promover, sacar admin) son POST + redirect y **vuelven a la misma
+  búsqueda y página**: la pantalla manda `returnTo` (`UserListLink.of(q, page)`, sin context path) y el controller lo valida con
+  `UserListLink.safeReturnTo` (solo un link a `/admin/usuarios[?...]`, sin llaves; si no, la lista limpia). Mismo patrón que el `returnTo` de
+  favoritos (`SafeRedirect`).
 - Resúmenes de motivos de diseño para la defensa: ver §5.
 
 ## 3. Deuda conocida — dónde el código actual NO cumple las reglas de arriba
@@ -235,9 +267,13 @@ Registro honesto; no tapar ni "arreglar de pasada" sin avisar. Orden = prioridad
      **Favoritos (3/11, resuelto):** `findViewablePage` pagina en SQL: `COUNT` + página de ids (`FavoriteDao.findViewableEventIdsByUser` /
      `findEventIdsByUser(userId, page, size)` para admin, `ORDER BY created_at DESC, event_id DESC LIMIT/OFFSET`) con el MISMO `WHERE`
      (constante `VIEWABLE_WHERE` en `FavoriteJpaDao`), y después `findByIds` de esos ≤10 ids. `FavoriteServiceImpl` ya no usa `EventAccessService`.
-     `PageResult.of()` queda solo para la rama CON historial de `EventSimilarityServiceImpl.searchRecommended` (el puntaje se calcula en Java sobre
-     `findAllMatching`: no se puede paginar en SQL sin rediseñar; deuda conocida, igual que `findSimilar`). La rama SIN historial ya pagina en
-     SQL (`searchByDate`: `countSearch` + `search`), aunque `EventService.search` casi no llega a ella (sin historial ya cae a `FECHA_ASC`).
+     **Recomendados (10/11, resuelto):** todo el algoritmo (S, percentil de precio, suma por candidato, orden y `LIMIT/OFFSET`) es UNA consulta
+     SQL en `RecommendationSql` (persistence), usada por `EventDao.findRecommendedPage` (bolsa = últimos N asistidos) y `findSimilarTo`
+     ("Te puede interesar": bolsa = el evento). El service (`EventSimilarityServiceImpl`) solo hace `countSearch` + clamp + pasa los coeficientes
+     (`SimilarityParameters`, ahora en `model`). Se borraron `EventSimilarity`, `PriceDistribution(Cache)`, `findAllMatching`, `findPublicPaidPrices` y
+     `PageResult.of`. Corre igual en Postgres y HSQLDB (sin funciones propias de un motor; día de la semana por aritmética de año/mes/día). Los puntos se
+     suman en double y se redondean a 9 decimales DESPUÉS de sumar (como el Java viejo). Costo: O(candidatos × bolsa), medido en Postgres: ~300 ms con
+     3.500 candidatos y bolsa de 30 (sin JIT; con JIT activo suma ~0,9 s de compilación: conviene `jit=off` en el rol de la app).
      **Corazones del listado (3/11):** `FavoriteService.findFavoriteEventIds(userId, idsDeLaPagina)` (un `IN`) reemplaza a
      `findEventIdsByUser(userId)`, que traía todos los favoritos en cada carga de `/eventos` (se borró).
 3i. **Segunda auditoría "lógica fuera de su capa"** (2/11): la vista muestra, el service decide, y el service no maneja presentación.
@@ -333,7 +369,7 @@ Registro honesto; no tapar ni "arreglar de pasada" sin avisar. Orden = prioridad
 8. **Auditoría JPA** (PDF `auditoria-jpa-hibernate`, no se aplicó nada, la usuaria pidió solo opinión): faltan índices
    (`event_image(event_id)`, `inbox_message(user_id,created_at)`, `registration(user_id)`, `event(creator_id)`,
    `event_invitation(user_id)`, `event_question(event_id,created_at)`, `event(event_date)`; van en `schema.sql`, no en
-   migrations); `EventSimilarityServiceImpl.findSimilar` usa `findAllMatching` sin criterio en cada detalle;
+   migrations); (los índices de recomendaciones ya están en `schema.sql`: `event_category(category_id,event_id)`, `registration(user_id,status)`, `event(event_date)`, `event(price)`);
    `findByEmail` repetido ~4 veces por request (`ErrorAdvice`, 2 interceptores, `EventSecurity`) → usuario de sesión con id.
 
 ## 4. Entorno local (lo que ya costó tiempo)
@@ -347,7 +383,7 @@ Registro honesto; no tapar ni "arreglar de pasada" sin avisar. Orden = prioridad
   o correr/probar desde una **copia fuera de `~/Documents`** (rsync excluyendo `target` y `.git`). No son código.
 - JDK 24 local, el proyecto compila a 21. Mockito/ByteBuddy: `webapp` necesita `-Dnet.bytebuddy.experimental=true` en
   surefire (ya configurado) porque Hibernate trae un ByteBuddy viejo.
-- Tests: `./mvnw -o test` (≈ 432 persistence / 518 services / 135 webapp). zsh: no usar `echo =====` (expande `=`).
+- Tests: `./mvnw -o test` (≈ 504 persistence / 577 services / 181 webapp / 18 model). zsh: no usar `echo =====` (expande `=`).
 - Para probar autorización a mano: login por curl (`-d email=… -d password=…`, cookie jar) y pedir `/eventos/{id}/editar`
   con dueño (200) y no dueño (404).
 
@@ -369,6 +405,12 @@ Registro honesto; no tapar ni "arreglar de pasada" sin avisar. Orden = prioridad
 - **"Mis inscripciones" con dos paginados:** dividir en SQL (no en memoria después de paginar) garantiza que el total, el orden y
   el contenido de cada página coincidan; cada grupo es su propio `PageResult`.
 - **N+1 → `GROUP BY` / `JOIN`:** una consulta por tipo para toda la página en vez de una por fila.
+- **SQL nativo para los ids (modelo "1 + 1" de Sotuyo, clase de JPA):** una query nativa de ids filtra, ordena y pagina con `LIMIT/OFFSET`; la
+  segunda carga los objetos de esos ids preservando el orden. Es "la única forma de paginar en Hibernate" sin riesgo de paginar en memoria si
+  cambia un mapeo (error muy penalizado en la materia). `search`, `countSearch`, `findRecommendedPage` y la búsqueda de texto siguen ese patrón.
+  Lo que la clase NO cubre: calcular un puntaje con CTEs dentro de la consulta (recomendados); HQL de Hibernate 5.6 no tiene `WITH`.
+- **Búsqueda de texto con 1 error sin extensiones:** en vez de una función de distancia (Levenshtein), Java genera las variantes a una edición de
+  cada palabra como patrones `LIKE` y se compara contra palabras enteras del título; mismo SQL en Postgres y HSQLDB, medido ~0,3 s con 3.000 eventos.
 - `@Transactional(readOnly = true)` en lecturas: hint para rutear a réplica de solo lectura.
 - `@Repository`/`@Service`: especializaciones de `@Component`; `@Repository` además traduce excepciones de persistencia.
 - `UserDetailsService`: patrón Strategy. Spring Security mezcla RBAC (roles) y ACL (permisos por recurso).

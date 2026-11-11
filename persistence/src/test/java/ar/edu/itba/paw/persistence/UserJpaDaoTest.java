@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.EnumSet;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -476,10 +477,10 @@ public class UserJpaDaoTest {
         assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "users", "id = " + id + " AND suspended = false"));
     }
 
-    // ---- countAll() / findPage() ----
+    // ---- count() / findPage(): sin texto ----
 
     @Test
-    public void testCountAllCountsEveryUserNotEveryRole() {
+    public void testCountWithoutTextCountsEveryUserNotEveryRole() {
         // Arrange
         final long first = insertUser(EMAIL, NAME);
         insertRole(first, "USER");
@@ -487,7 +488,20 @@ public class UserJpaDaoTest {
         insertUser("otro@mail.com", "Beto");
 
         // Act
-        final long count = userDao.countAll();
+        final long count = userDao.count(null);
+
+        // Assert
+        assertEquals(2, count);
+    }
+
+    @Test
+    public void testCountOfBlankTextCountsEveryUser() {
+        // Arrange
+        insertUser(EMAIL, NAME);
+        insertUser("otro@mail.com", "Beto");
+
+        // Act
+        final long count = userDao.count("   ");
 
         // Assert
         assertEquals(2, count);
@@ -501,7 +515,7 @@ public class UserJpaDaoTest {
         final long third = insertUser("tercero@mail.com", "Carla");
 
         // Act
-        final List<User> page = userDao.findPage(2, 1);
+        final List<User> page = userDao.findPage(null, 2, 1);
 
         // Assert
         assertEquals(2, page.size());
@@ -519,13 +533,180 @@ public class UserJpaDaoTest {
         final long second = insertUser("otro@mail.com", "Beto");
 
         // Act
-        final List<User> page = userDao.findPage(2, 0);
+        final List<User> page = userDao.findPage(null, 2, 0);
 
         // Assert
         assertEquals(2, page.size());
         assertEquals(first, page.get(0).getId().longValue());
         assertEquals(2, page.get(0).getRoles().size());
         assertEquals(second, page.get(1).getId().longValue());
+    }
+
+    // ---- count() / findPage(): buscando por mail ----
+
+    private static List<String> emailsOf(final List<User> users) {
+        return users.stream().map(User::getEmail).collect(Collectors.toList());
+    }
+
+    @Test
+    public void testFindPageByTextFindsAnEmailThatContainsItIgnoringCase() {
+        // Arrange
+        insertUser("JUANA@Mail.com", "Juana");
+        insertUser("beto@mail.com", "Beto");
+
+        // Act
+        final List<User> page = userDao.findPage("uAn", 10, 0);
+
+        // Assert
+        assertEquals(Collections.singletonList("JUANA@Mail.com"), emailsOf(page));
+    }
+
+    @Test
+    public void testFindPageByTextOnlyLooksAtTheEmailNotTheName() {
+        // Arrange
+        insertUser("x@mail.com", "Roberto");
+
+        // Act
+        final List<User> page = userDao.findPage("roberto", 10, 0);
+
+        // Assert
+        assertTrue(page.isEmpty());
+    }
+
+    @Test
+    public void testFindPageByTextIgnoresTheSpacesAroundIt() {
+        // Arrange
+        insertUser("ana@mail.com", "Ana");
+
+        // Act
+        final List<User> page = userDao.findPage("  ana  ", 10, 0);
+
+        // Assert
+        assertEquals(Collections.singletonList("ana@mail.com"), emailsOf(page));
+    }
+
+    @Test
+    public void testFindPageByTextPutsTheExactEmailFirstThenTheOnesThatStartWithItThenTheRest() {
+        // Arrange: creados en el orden contrario al que tienen que salir
+        insertUser("juana@mail.com", "Juana");
+        insertUser("ana@mail.com.ar", "Ana");
+        insertUser("ana@mail.com", "Ana");
+
+        // Act
+        final List<User> page = userDao.findPage("ana@mail.com", 10, 0);
+
+        // Assert
+        assertEquals(Arrays.asList("ana@mail.com", "ana@mail.com.ar", "juana@mail.com"), emailsOf(page));
+    }
+
+    @Test
+    public void testFindPageByTextBreaksTiesInsideAGroupByEmail() {
+        // Arrange: los dos empiezan con el texto; el de "1" se creo despues
+        insertUser("ana2@mail.com", "Ana");
+        insertUser("ana1@mail.com", "Ana");
+
+        // Act
+        final List<User> page = userDao.findPage("ana", 10, 0);
+
+        // Assert
+        assertEquals(Arrays.asList("ana1@mail.com", "ana2@mail.com"), emailsOf(page));
+    }
+
+    @Test
+    public void testFindPageByTextTreatsAnUnderscoreAsAnOrdinaryLetter() {
+        // Arrange
+        insertUser("a_b@mail.com", "Uno");
+        insertUser("axb@mail.com", "Dos");
+
+        // Act
+        final List<User> page = userDao.findPage("a_b", 10, 0);
+
+        // Assert
+        assertEquals(Collections.singletonList("a_b@mail.com"), emailsOf(page));
+    }
+
+    @Test
+    public void testFindPageByTextTreatsAPercentAsAnOrdinaryLetter() {
+        // Arrange
+        insertUser("a@mail.com", "Uno");
+        insertUser("100%@mail.com", "Dos");
+
+        // Act
+        final List<User> page = userDao.findPage("%", 10, 0);
+
+        // Assert
+        assertEquals(Collections.singletonList("100%@mail.com"), emailsOf(page));
+    }
+
+    @Test
+    public void testFindPageByTextTreatsTheEscapeCharacterAsAnOrdinaryLetter() {
+        // Arrange
+        insertUser("a!b@mail.com", "Uno");
+        insertUser("ab@mail.com", "Dos");
+
+        // Act
+        final List<User> page = userDao.findPage("a!", 10, 0);
+
+        // Assert
+        assertEquals(Collections.singletonList("a!b@mail.com"), emailsOf(page));
+    }
+
+    @Test
+    public void testFindPageByTextPaginatesTheRankedResults() {
+        // Arrange: el orden es [ana1, ana2, juana, mariana]
+        insertUser("mariana@mail.com", "Uno");
+        insertUser("ana2@mail.com", "Dos");
+        insertUser("juana@mail.com", "Tres");
+        insertUser("ana1@mail.com", "Cuatro");
+
+        // Act
+        final List<User> secondPage = userDao.findPage("ana", 2, 2);
+
+        // Assert
+        assertEquals(Arrays.asList("juana@mail.com", "mariana@mail.com"), emailsOf(secondPage));
+    }
+
+    @Test
+    public void testFindPageByTextKeepsTheRolesOfEachUser() {
+        // Arrange: dos roles = dos filas del JOIN, pero un solo resultado
+        final long ana = insertUser("ana@mail.com", "Ana");
+        insertRole(ana, "USER");
+        insertRole(ana, "ADMIN");
+
+        // Act
+        final List<User> page = userDao.findPage("ana", 10, 0);
+
+        // Assert
+        assertEquals(1, page.size());
+        assertEquals(2, page.get(0).getRoles().size());
+    }
+
+    @Test
+    public void testFindPageByTextWithoutMatchesIsEmpty() {
+        // Arrange
+        insertUser("ana@mail.com", "Ana");
+
+        // Act
+        final List<User> page = userDao.findPage("zzz", 10, 0);
+
+        // Assert
+        assertTrue(page.isEmpty());
+    }
+
+    @Test
+    public void testCountByTextCountsTheUsersThatMatchNotTheirRoles() {
+        // Arrange
+        final long ana = insertUser("ana@mail.com", "Ana");
+        insertRole(ana, "USER");
+        insertRole(ana, "ADMIN");
+        insertUser("juana@mail.com", "Juana");
+        insertUser("beto@mail.com", "Beto");
+
+        // Act
+        final long count = userDao.count("ANA");
+
+        // Assert
+        assertEquals(2, count);
     }
 
     // ---- findByIds() ----

@@ -55,7 +55,7 @@ public enum Barrio {
 
     // Las coordenadas de cada barrio son el centroide de su poligono oficial (dataset "Barrios" de
     // Buenos Aires Data). Solo sirven para medir cercania entre barrios (ver distanceKmTo() y
-    // EventSimilarity), no para ubicar nada en el mapa.
+    // RecommendationSql, que repite la misma formula en SQL), no para ubicar nada en el mapa.
     private final String displayName;
     private final double latitude;
     private final double longitude;

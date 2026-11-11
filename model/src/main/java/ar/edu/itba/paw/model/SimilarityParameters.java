@@ -1,17 +1,19 @@
-package ar.edu.itba.paw.services;
+package ar.edu.itba.paw.model;
 
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Todos los numeros que regulan la similitud entre eventos y las recomendaciones (ver
- * EventSimilarity y EventSimilarityServiceImpl). Valores inmutables: se arman una vez al
- * levantar la app a partir de similarity.properties (ver config.SimilarityConfig), asi que
- * cambiar uno es editar ese archivo y reiniciar -- no hay que tocar codigo.
+ * Todos los numeros que regulan la similitud entre eventos y las recomendaciones. La cuenta en si
+ * (S(a, b), el ranking) la hace la base de datos (ver EventDao.findRecommendedPage()/findSimilarTo()); esto
+ * son solo los coeficientes que se le pasan. Valores inmutables: se arman una vez al levantar la app a
+ * partir de similarity.properties (ver config.SimilarityConfig), asi que cambiar uno es editar ese
+ * archivo y reiniciar -- no hay que tocar codigo.
  *
  * Los pesos no hace falta que sumen 1: S se divide por la suma de los pesos de las features
- * que ambos eventos tienen.
+ * que ambos eventos tienen (si falta un dato -- barrio, organizador, categorias -- esa feature se
+ * descarta y el resto se renormaliza).
  */
 public final class SimilarityParameters {
 
@@ -28,8 +30,6 @@ public final class SimilarityParameters {
     // Categorias que no cuentan para comparar (son un "otros": que dos eventos la compartan no
     // dice nada). Por nombre, tal cual esta en la tabla category.
     private final Set<String> ignoredCategoryNames;
-    // Cada cuanto se recalcula la distribucion de precios (ver PriceDistributionCache).
-    private final long priceRefreshSeconds;
 
     // ---- "Te puede interesar" ----
     private final int relatedLimit;
@@ -48,7 +48,6 @@ public final class SimilarityParameters {
         this.weightOrganizer = b.weightOrganizer;
         this.freeVsPaidFactor = b.freeVsPaidFactor;
         this.ignoredCategoryNames = Collections.unmodifiableSet(new HashSet<>(b.ignoredCategoryNames));
-        this.priceRefreshSeconds = b.priceRefreshSeconds;
         this.relatedLimit = b.relatedLimit;
         this.relatedMinScore = b.relatedMinScore;
         this.historySize = b.historySize;
@@ -71,7 +70,6 @@ public final class SimilarityParameters {
     public double getWeightOrganizer() { return weightOrganizer; }
     public double getFreeVsPaidFactor() { return freeVsPaidFactor; }
     public Set<String> getIgnoredCategoryNames() { return ignoredCategoryNames; }
-    public long getPriceRefreshSeconds() { return priceRefreshSeconds; }
     public int getRelatedLimit() { return relatedLimit; }
     public double getRelatedMinScore() { return relatedMinScore; }
     public int getHistorySize() { return historySize; }
@@ -86,7 +84,6 @@ public final class SimilarityParameters {
         private double weightOrganizer = 0.15;
         private double freeVsPaidFactor = 0.5;
         private Set<String> ignoredCategoryNames = Collections.singleton("Otros");
-        private long priceRefreshSeconds = 24 * 60 * 60;
         private int relatedLimit = 5;
         private double relatedMinScore = 0.5;
         private int historySize = 30;
@@ -102,7 +99,6 @@ public final class SimilarityParameters {
         public Builder weightOrganizer(final double v) { this.weightOrganizer = v; return this; }
         public Builder freeVsPaidFactor(final double v) { this.freeVsPaidFactor = v; return this; }
         public Builder ignoredCategoryNames(final Set<String> v) { this.ignoredCategoryNames = v; return this; }
-        public Builder priceRefreshSeconds(final long v) { this.priceRefreshSeconds = v; return this; }
         public Builder relatedLimit(final int v) { this.relatedLimit = v; return this; }
         public Builder relatedMinScore(final double v) { this.relatedMinScore = v; return this; }
         public Builder historySize(final int v) { this.historySize = v; return this; }

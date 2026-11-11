@@ -18,6 +18,9 @@ public class EventSearchCriteria {
     public static final int FEW_SPOTS_MIN = 1;
     public static final int FEW_SPOTS_MAX = 5;
 
+    // Lo que se escribio en la barra de busqueda (null = no se busco texto). Se busca en el titulo y la descripcion;
+    // las palabras que cuentan salen de SearchTerms.parse(). Se combina con AND con el resto de los filtros.
+    private String text;
     private List<Long> categoryIds;
     private BigDecimal minPrice;
     private BigDecimal maxPrice;
@@ -44,6 +47,11 @@ public class EventSearchCriteria {
     private int page = 1;
     private int pageSize = 12;
 
+    public String getText() { return text; }
+    public void setText(final String text) { this.text = text; }
+    /** Las palabras que se buscan (vacia si el texto es nulo, en blanco o solo signos: entonces no filtra nada). */
+    public List<String> getSearchTerms() { return SearchTerms.parse(text); }
+    public boolean hasSearchTerms() { return !getSearchTerms().isEmpty(); }
     public List<Long> getCategoryIds() { return categoryIds; }
     public void setCategoryIds(final List<Long> categoryIds) { this.categoryIds = categoryIds; }
     public BigDecimal getMinPrice() { return minPrice; }

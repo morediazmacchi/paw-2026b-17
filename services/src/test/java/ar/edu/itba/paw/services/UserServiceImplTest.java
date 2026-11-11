@@ -1070,11 +1070,11 @@ public class UserServiceImplTest {
     @Test
     public void testFindPageReturnsOnlyThatPagesUsers() {
         // Arrange: 45 usuarios, de a 20 por pagina -> la pagina 2 pide 20 desde el offset 20.
-        when(userDao.countAll()).thenReturn(45L);
-        when(userDao.findPage(UserServiceImpl.PAGE_SIZE, 20)).thenReturn(usersWithIds(21, 22));
+        when(userDao.count("")).thenReturn(45L);
+        when(userDao.findPage("", UserServiceImpl.PAGE_SIZE, 20)).thenReturn(usersWithIds(21, 22));
 
         // Act
-        final PageResult<User> result = userService.findPage(2);
+        final PageResult<User> result = userService.findPage(null, 2);
 
         // Assert
         assertEquals(Arrays.asList(21L, 22L),
@@ -1085,16 +1085,60 @@ public class UserServiceImplTest {
     @Test
     public void testFindPageBeyondTheLastFallsBackToTheLastPage() {
         // Arrange: 45 usuarios, de a 20 por pagina -> la ultima pagina valida es la 3 (offset 40).
-        when(userDao.countAll()).thenReturn(45L);
-        when(userDao.findPage(UserServiceImpl.PAGE_SIZE, 40)).thenReturn(usersWithIds(41, 42, 43, 44, 45));
+        when(userDao.count("")).thenReturn(45L);
+        when(userDao.findPage("", UserServiceImpl.PAGE_SIZE, 40)).thenReturn(usersWithIds(41, 42, 43, 44, 45));
 
         // Act
-        final PageResult<User> result = userService.findPage(99);
+        final PageResult<User> result = userService.findPage("", 99);
 
         // Assert
         assertEquals(3, result.getPage());
         assertEquals(Arrays.asList(41L, 42L, 43L, 44L, 45L),
                 result.getContent().stream().map(User::getId).collect(Collectors.toList()));
+    }
+
+    @Test
+    public void testFindPageSearchesWithTheTextWithoutTheSpacesAroundIt() {
+        // Arrange: el DAO solo tiene datos para el texto ya recortado
+        when(userDao.count("ana")).thenReturn(2L);
+        when(userDao.findPage("ana", UserServiceImpl.PAGE_SIZE, 0)).thenReturn(usersWithIds(7, 9));
+
+        // Act
+        final PageResult<User> result = userService.findPage("  ana  ", 1);
+
+        // Assert
+        assertEquals(Arrays.asList(7L, 9L),
+                result.getContent().stream().map(User::getId).collect(Collectors.toList()));
+        assertEquals(2, result.getTotalElements());
+    }
+
+    @Test
+    public void testFindPageBeyondTheLastOfASearchFallsBackToTheLastPageOfThatSearch() {
+        // Arrange: 25 coincidencias, de a 20 -> la ultima pagina es la 2 (offset 20)
+        when(userDao.count("ana")).thenReturn(25L);
+        when(userDao.findPage("ana", UserServiceImpl.PAGE_SIZE, 20)).thenReturn(usersWithIds(21, 22, 23, 24, 25));
+
+        // Act
+        final PageResult<User> result = userService.findPage("ana", 50);
+
+        // Assert
+        assertEquals(2, result.getPage());
+        assertEquals(5, result.getContent().size());
+    }
+
+    @Test
+    public void testFindPageCutsATextThatIsTooLong() {
+        // Arrange: el DAO solo tiene datos para el texto cortado al maximo
+        final String longText = String.join("", Collections.nCopies(UserService.MAX_EMAIL_SEARCH_LENGTH + 40, "a"));
+        final String cut = longText.substring(0, UserService.MAX_EMAIL_SEARCH_LENGTH);
+        when(userDao.count(cut)).thenReturn(1L);
+        when(userDao.findPage(cut, UserServiceImpl.PAGE_SIZE, 0)).thenReturn(usersWithIds(3));
+
+        // Act
+        final PageResult<User> result = userService.findPage(longText, 1);
+
+        // Assert
+        assertEquals(1, result.getContent().size());
     }
 
     // ---- findByIds() ----

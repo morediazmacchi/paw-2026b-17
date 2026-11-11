@@ -1335,8 +1335,16 @@ button.btn-accent {
    comia todo el espacio, dejando count y link pegados entre si. */
 .results-info {
     display: flex;
+    flex-wrap: wrap;
     align-items: baseline;
-    gap: 16px;
+    gap: 4px 16px;
+}
+
+/* Cada pieza pasa entera a la linea de abajo si no entra: con la busqueda ("Resultados para ...") son tres. */
+.results-count,
+.results-query,
+.results-clear {
+    white-space: nowrap;
 }
 
 .results-count {
@@ -1351,6 +1359,93 @@ button.btn-accent {
 
 .results-clear:hover {
     text-decoration: underline;
+}
+
+/* Barra de busqueda: un campo corto con forma de pildora (como los dropdowns de filtro) y la lupa adentro, a la
+   derecha. Es corta a proposito: lo que se busca son una o dos palabras. En /eventos va dentro de la fila de los
+   filtros (mismo form: el texto viaja con ellos y con el orden); en /admin/usuarios, en una fila aparte arriba a la
+   derecha (.search-bar-row). */
+.search-bar {
+    position: relative;
+    flex: 0 1 240px;
+    width: 240px;
+    max-width: 100%;
+}
+
+.search-bar .search-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 38px 8px 14px;
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font: inherit;
+    font-size: 0.9rem;
+}
+
+.search-bar .search-input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+/* La lupa es el boton de enviar: adentro del campo, a la derecha. */
+.search-bar .search-submit {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    margin: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 50%;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.search-bar .search-submit:hover,
+.search-bar .search-submit:focus-visible {
+    color: var(--accent);
+}
+
+.search-bar .search-submit .icon {
+    width: 16px;
+    height: 16px;
+}
+
+/* En la barra de filtros la busqueda va a la derecha, y Filtrar / Limpiar todo quedan pegados a ella (sin el
+   margin-left:auto propio, que si no se repartirian el espacio sobrante entre los dos). */
+.filter-bar-v2 .search-bar {
+    margin-left: auto;
+}
+
+.filter-bar-v2 .search-bar ~ .btn-accent {
+    margin-left: 0;
+}
+
+/* Fila aparte, arriba a la derecha (la usa /admin/usuarios). */
+.search-bar-row {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 14px;
+    margin-bottom: 16px;
+}
+
+.results-query {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+}
+
+.results-query strong {
+    color: var(--text);
+    font-weight: 600;
 }
 
 /* "Ordenar por": separado del acordeon de filtros a proposito (ver list.jsp),

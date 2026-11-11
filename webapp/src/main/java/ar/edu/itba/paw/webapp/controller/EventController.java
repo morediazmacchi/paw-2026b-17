@@ -161,6 +161,9 @@ public class EventController {
         mav.addObject("pocosCupos", filters.getPocosCupos());
         mav.addObject("agotados", filters.getAgotados());
         mav.addObject("hasActiveFilters", filters.hasActiveFilters());
+        // La barra de busqueda: el texto para volver a mostrarlo, y si de verdad hay algo que buscar.
+        mav.addObject("q", filters.getSearchText());
+        mav.addObject("hasSearchText", filters.hasSearchText());
         mav.addObject("sort", searchResult.getEffectiveSort().name());
         mav.addObject("filterQuery", filters.toFilterQuery());
         mav.addObject("sortOptions", searchResult.getAvailableSorts());
@@ -175,7 +178,8 @@ public class EventController {
             mav.addObject("registrationStatuses",
                     registrationService.findStatusesByEventIds(currentUser.getId(), pageEventIds));
             // Boton "Guardar busqueda" (solo despues de filtrar): si estos filtros ya estan guardados, se muestra
-            // que ya lo estan en vez del boton.
+            // que ya lo estan en vez del boton. Una busqueda guardada son los filtros, no el texto de la barra (la
+            // pantalla lo aclara cuando hay texto): isSaved() lo ignora, asi que con o sin texto da lo mismo.
             if (filters.hasActiveFilters()) {
                 mav.addObject("searchSaved", savedSearchService.isSaved(currentUser.getId(), criteria));
             }
