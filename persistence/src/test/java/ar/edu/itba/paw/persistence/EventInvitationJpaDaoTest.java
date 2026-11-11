@@ -240,9 +240,8 @@ public class EventInvitationJpaDaoTest {
         assertTrue(found.isEmpty());
     }
 
-    @Test
-    public void testFindByEventPagesTheInvitationsNewestFirstWithoutRepeating() {
-        // Arrange: 3 invitaciones con fechas distintas, de a 2 por pagina
+    // 3 invitaciones con fechas distintas para paginar de a 2: tres (la mas nueva), dos y uno.
+    private void insertThreeInvitationsToPage() {
         final long u1 = insertUser("uno@mail.com");
         final long u2 = insertUser("dos@mail.com");
         final long u3 = insertUser("tres@mail.com");
@@ -250,15 +249,31 @@ public class EventInvitationJpaDaoTest {
         insertInvitationAt(eventId, "uno@mail.com", u1, new Timestamp(now - 3000));
         insertInvitationAt(eventId, "dos@mail.com", u2, new Timestamp(now - 2000));
         insertInvitationAt(eventId, "tres@mail.com", u3, new Timestamp(now - 1000));
+    }
+
+    @Test
+    public void testFindByEventFirstPageHasTheNewestInvitationsFirst() {
+        // Arrange
+        insertThreeInvitationsToPage();
 
         // Act
         final List<EventInvitation> pageOne = invitationDao.findByEvent(eventId, 1, 2);
-        final List<EventInvitation> pageTwo = invitationDao.findByEvent(eventId, 2, 2);
 
-        // Assert: la mas nueva primero y la ultima pagina trae solo la que sobra
+        // Assert
         assertEquals(2, pageOne.size());
         assertEquals("tres@mail.com", pageOne.get(0).getEmail());
         assertEquals("dos@mail.com", pageOne.get(1).getEmail());
+    }
+
+    @Test
+    public void testFindByEventLastPageHasOnlyTheInvitationThatIsLeft() {
+        // Arrange
+        insertThreeInvitationsToPage();
+
+        // Act
+        final List<EventInvitation> pageTwo = invitationDao.findByEvent(eventId, 2, 2);
+
+        // Assert
         assertEquals(1, pageTwo.size());
         assertEquals("uno@mail.com", pageTwo.get(0).getEmail());
     }

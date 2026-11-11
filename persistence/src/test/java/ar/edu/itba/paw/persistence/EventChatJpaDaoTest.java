@@ -370,9 +370,8 @@ public class EventChatJpaDaoTest {
         assertEquals("Recital", groups.get(1).getEventTitle());
     }
 
-    @Test
-    public void testFindGroupsPagesTheGroupsWithoutRepeating() {
-        // Arrange: 3 grupos con actividad en momentos distintos, de a 2 por pagina
+    // 3 grupos con actividad en momentos distintos, para paginar de a 2: Taller (el mas reciente), Feria y Recital.
+    private void insertThreeGroupsWithActivityToPage() {
         final long second = insertEvent("Feria");
         final long third = insertEvent("Taller");
         final long secondRegistration = insertRegistration(second, ana, "ana@mail.com", "CONFIRMED");
@@ -387,18 +386,44 @@ public class EventChatJpaDaoTest {
                 second, beto, "medio", new Timestamp(now - 2000));
         jdbcTemplate.update("INSERT INTO event_chat_message (event_id, user_id, body, created_at) VALUES (?, ?, ?, ?)",
                 third, beto, "nuevo", new Timestamp(now - 1000));
+    }
+
+    @Test
+    public void testFindGroupsFirstPageHasTheMostRecentActivityFirst() {
+        // Arrange
+        insertThreeGroupsWithActivityToPage();
 
         // Act
         final List<ChatGroup> pageOne = chatDao.findGroupsByUser(ana, 1, 2);
-        final List<ChatGroup> pageTwo = chatDao.findGroupsByUser(ana, 2, 2);
-        final List<ChatGroup> pageThree = chatDao.findGroupsByUser(ana, 3, 2);
 
-        // Assert: el de actividad mas reciente primero, sin repetir, y la ultima pagina trae solo el que sobra
+        // Assert
         assertEquals(2, pageOne.size());
         assertEquals("Taller", pageOne.get(0).getEventTitle());
         assertEquals("Feria", pageOne.get(1).getEventTitle());
+    }
+
+    @Test
+    public void testFindGroupsSecondPageHasOnlyTheGroupThatIsLeft() {
+        // Arrange
+        insertThreeGroupsWithActivityToPage();
+
+        // Act
+        final List<ChatGroup> pageTwo = chatDao.findGroupsByUser(ana, 2, 2);
+
+        // Assert
         assertEquals(1, pageTwo.size());
         assertEquals("Recital", pageTwo.get(0).getEventTitle());
+    }
+
+    @Test
+    public void testFindGroupsPageBeyondTheLastIsEmpty() {
+        // Arrange
+        insertThreeGroupsWithActivityToPage();
+
+        // Act
+        final List<ChatGroup> pageThree = chatDao.findGroupsByUser(ana, 3, 2);
+
+        // Assert
         assertTrue(pageThree.isEmpty());
     }
 

@@ -429,20 +429,45 @@ public class EventTextSearchJpaDaoTest {
         assertEquals(2L, eventDao.countSearch(searching("rock", EventSort.RELEVANCIA)));
     }
 
-    @Test
-    public void testSearchPaginatesTheRankedResultsAndTheCountCoversAllOfThem() {
-        // Puntajes 5, 4, 3, 2 y 5 en el orden de creacion: el ranking es [a, e, b, c, d].
+    // Puntajes 5, 4, 3, 2 y 5 en el orden de creacion: el ranking es [a, e, b, c, d]. Devuelve b y c.
+    private long[] insertFiveRockEvents() {
         insertEvent("Rock uno");
         final long b = insertEvent("Corock");
         final long c = insertEvent("Rack");
         insertEvent("Noche", "rock");
         insertEvent("Rock dos");
-        final EventSearchCriteria secondPage = searching("rock", EventSort.RELEVANCIA);
-        secondPage.setPageSize(2);
-        secondPage.setPage(2);
+        return new long[] {b, c};
+    }
 
-        assertEquals(list(b, c), ids(eventDao.search(secondPage)));
-        assertEquals(5L, eventDao.countSearch(secondPage));
+    private EventSearchCriteria secondPageOfTwoSearchingRock() {
+        final EventSearchCriteria criteria = searching("rock", EventSort.RELEVANCIA);
+        criteria.setPageSize(2);
+        criteria.setPage(2);
+        return criteria;
+    }
+
+    @Test
+    public void testSearchReturnsTheRequestedPageOfTheRankedResults() {
+        // Arrange
+        final long[] expected = insertFiveRockEvents();
+
+        // Act
+        final List<Long> result = ids(eventDao.search(secondPageOfTwoSearchingRock()));
+
+        // Assert
+        assertEquals(list(expected[0], expected[1]), result);
+    }
+
+    @Test
+    public void testCountSearchCountsEveryResultAndNotOnlyTheRequestedPage() {
+        // Arrange
+        insertFiveRockEvents();
+
+        // Act
+        final long count = eventDao.countSearch(secondPageOfTwoSearchingRock());
+
+        // Assert
+        assertEquals(5L, count);
     }
 
     // ---- recomendados ----

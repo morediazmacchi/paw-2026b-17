@@ -158,9 +158,9 @@ public class SavedSearchJpaDaoTest {
 
     // ---- findByUserId() ----
 
-    @Test
-    public void testFindByUserIdPagesTheNewestFirstWithoutRepeatingAndWithItsFilters() {
-        // Arrange: 3 listas de la persona con fechas distintas (de a 2 por pagina) y una de otra persona
+    // 3 listas de la persona con fechas distintas (para paginar de a 2) y una de otra persona. Devuelve
+    // {la mas vieja, la del medio, la mas nueva}; la mas nueva tiene una categoria y dos barrios.
+    private long[] insertThreeSearchesToPage() {
         final long now = System.currentTimeMillis();
         final long oldest = insertSearch(userId, "vieja", new Timestamp(now - 3000));
         final long middle = insertSearch(userId, "media", new Timestamp(now - 2000));
@@ -172,19 +172,47 @@ public class SavedSearchJpaDaoTest {
                 newest, Barrio.PALERMO.name());
         jdbcTemplate.update("INSERT INTO saved_search_barrio (saved_search_id, barrio) VALUES (?, ?)",
                 newest, Barrio.RECOLETA.name());
+        return new long[] {oldest, middle, newest};
+    }
+
+    @Test
+    public void testFindByUserIdFirstPageHasTheNewestFirstAndOnlyThePersonsOwn() {
+        // Arrange
+        final long[] searches = insertThreeSearchesToPage();
 
         // Act
         final List<SavedSearch> pageOne = savedSearchDao.findByUserId(userId, 1, 2);
+
+        // Assert
+        assertEquals(2, pageOne.size());
+        assertEquals(searches[2], (long) pageOne.get(0).getId());
+        assertEquals(searches[1], (long) pageOne.get(1).getId());
+    }
+
+    @Test
+    public void testFindByUserIdLastPageHasOnlyTheSearchThatIsLeft() {
+        // Arrange
+        final long[] searches = insertThreeSearchesToPage();
+
+        // Act
         final List<SavedSearch> pageTwo = savedSearchDao.findByUserId(userId, 2, 2);
 
-        // Assert: la mas nueva primero, la ultima pagina trae solo la que sobra y los filtros vienen cargados
-        assertEquals(2, pageOne.size());
-        assertEquals(newest, (long) pageOne.get(0).getId());
-        assertEquals(middle, (long) pageOne.get(1).getId());
+        // Assert
+        assertEquals(1, pageTwo.size());
+        assertEquals(searches[0], (long) pageTwo.get(0).getId());
+    }
+
+    @Test
+    public void testFindByUserIdLoadsTheCategoriesAndBarriosOfEachSearch() {
+        // Arrange
+        insertThreeSearchesToPage();
+
+        // Act
+        final List<SavedSearch> pageOne = savedSearchDao.findByUserId(userId, 1, 2);
+
+        // Assert
         assertEquals(Collections.singleton(categoryId), pageOne.get(0).getCategoryIds());
         assertEquals(new HashSet<>(Arrays.asList(Barrio.PALERMO, Barrio.RECOLETA)), pageOne.get(0).getBarrios());
-        assertEquals(1, pageTwo.size());
-        assertEquals(oldest, (long) pageTwo.get(0).getId());
     }
 
     @Test

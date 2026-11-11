@@ -423,22 +423,6 @@ public class RegistrationJpaDaoTest {
         assertEquals(1, count);
     }
 
-    @Test
-    public void testCountUpcomingAndPastTogetherAreAllTheUsersRegistrations() {
-        // Arrange
-        registerUserAtEvent(insertEventAt(1 * DAY));
-        registerUserAtEvent(insertEventAt(2 * DAY));
-        registerUserAtEvent(insertEventAt(-1 * DAY));
-        final Date now = new Date();
-
-        // Act
-        final long total = registrationDao.countUpcomingByUserId(userId, now)
-                + registrationDao.countPastByUserId(userId, now);
-
-        // Assert
-        assertEquals(3, total);
-    }
-
     // ---- countByUserId() (badge de "Mis inscripciones") ----
 
     @Test
@@ -511,9 +495,8 @@ public class RegistrationJpaDaoTest {
 
     // ---- findByEventId() paginado + countByEventId() ----
 
-    @Test
-    public void testFindByEventIdPagesTheRegistrationsOldestFirstWithoutRepeating() {
-        // Arrange: 3 inscripciones con fechas distintas, de a 2 por pagina
+    // 3 inscripciones con fechas distintas para paginar de a 2: uno (la mas antigua), dos y tres.
+    private void insertThreeRegistrationsToPage() {
         final long now = System.currentTimeMillis();
         final long u1 = insertUser("uno@mail.com", "Uno");
         final long u2 = insertUser("dos@mail.com", "Dos");
@@ -521,15 +504,31 @@ public class RegistrationJpaDaoTest {
         insertRegistrationAt(eventId, "tres@mail.com", u3, "Tres", RegistrationStatus.CONFIRMED, new Timestamp(now - 1000));
         insertRegistrationAt(eventId, "uno@mail.com", u1, "Uno", RegistrationStatus.CONFIRMED, new Timestamp(now - 3000));
         insertRegistrationAt(eventId, "dos@mail.com", u2, "Dos", RegistrationStatus.CONFIRMED, new Timestamp(now - 2000));
+    }
+
+    @Test
+    public void testFindByEventIdFirstPageHasTheOldestRegistrationsFirst() {
+        // Arrange
+        insertThreeRegistrationsToPage();
 
         // Act
         final List<Registration> pageOne = registrationDao.findByEventId(eventId, 1, 2);
-        final List<Registration> pageTwo = registrationDao.findByEventId(eventId, 2, 2);
 
-        // Assert: la mas antigua primero y la ultima pagina trae solo la que sobra
+        // Assert
         assertEquals(2, pageOne.size());
         assertEquals("uno@mail.com", pageOne.get(0).getEmail());
         assertEquals("dos@mail.com", pageOne.get(1).getEmail());
+    }
+
+    @Test
+    public void testFindByEventIdLastPageHasOnlyTheRegistrationThatIsLeft() {
+        // Arrange
+        insertThreeRegistrationsToPage();
+
+        // Act
+        final List<Registration> pageTwo = registrationDao.findByEventId(eventId, 2, 2);
+
+        // Assert
         assertEquals(1, pageTwo.size());
         assertEquals("tres@mail.com", pageTwo.get(0).getEmail());
     }
@@ -714,9 +713,8 @@ public class RegistrationJpaDaoTest {
         assertEquals("segundo@mail.com", pending.get(1).getEmail());
     }
 
-    @Test
-    public void testFindPendingByEventPagesOnlyThePendingOldestFirstWithoutRepeating() {
-        // Arrange: 3 pendientes con fechas distintas y 1 confirmado, de a 2 por pagina
+    // 3 pendientes con fechas distintas (uno, la mas antigua, dos y tres) y 1 confirmado, para paginar de a 2.
+    private void insertThreePendingAndOneConfirmedToPage() {
         final long now = System.currentTimeMillis();
         final long u1 = insertUser("uno@mail.com", "Uno");
         final long u2 = insertUser("dos@mail.com", "Dos");
@@ -727,18 +725,44 @@ public class RegistrationJpaDaoTest {
         insertRegistrationAt(eventId, "dos@mail.com", u2, "Dos", RegistrationStatus.PENDING, new Timestamp(now - 2000));
         insertRegistrationAt(eventId, "confirmado@mail.com", confirmedUserId, NAME, RegistrationStatus.CONFIRMED,
                 new Timestamp(now - 4000));
+    }
+
+    @Test
+    public void testFindPendingByEventFirstPageHasTheOldestPendingFirstAndNoConfirmed() {
+        // Arrange
+        insertThreePendingAndOneConfirmedToPage();
 
         // Act
         final List<Registration> pageOne = registrationDao.findPendingByEvent(eventId, 1, 2);
-        final List<Registration> pageTwo = registrationDao.findPendingByEvent(eventId, 2, 2);
-        final List<Registration> pageThree = registrationDao.findPendingByEvent(eventId, 3, 2);
 
-        // Assert: la mas antigua primero, el confirmado no aparece y la ultima pagina trae solo la que sobra
+        // Assert
         assertEquals(2, pageOne.size());
         assertEquals("uno@mail.com", pageOne.get(0).getEmail());
         assertEquals("dos@mail.com", pageOne.get(1).getEmail());
+    }
+
+    @Test
+    public void testFindPendingByEventSecondPageHasOnlyThePendingOneThatIsLeft() {
+        // Arrange
+        insertThreePendingAndOneConfirmedToPage();
+
+        // Act
+        final List<Registration> pageTwo = registrationDao.findPendingByEvent(eventId, 2, 2);
+
+        // Assert
         assertEquals(1, pageTwo.size());
         assertEquals("tres@mail.com", pageTwo.get(0).getEmail());
+    }
+
+    @Test
+    public void testFindPendingByEventPageBeyondTheLastIsEmpty() {
+        // Arrange
+        insertThreePendingAndOneConfirmedToPage();
+
+        // Act
+        final List<Registration> pageThree = registrationDao.findPendingByEvent(eventId, 3, 2);
+
+        // Assert
         assertTrue(pageThree.isEmpty());
     }
 

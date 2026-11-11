@@ -540,18 +540,30 @@ public class EventRecommendationJpaDaoTest {
     }
 
     @Test
-    public void testSimilarLeavesOutTheViewersOwnEventsButAnAnonymousVisitorSeesThem() {
+    public void testSimilarLeavesOutTheViewersOwnEvents() {
+        // Arrange
+        final long target = insertEvent(cols(), musica);
+        insertEvent(cols("creator_id", viewerId), musica);
+        final long theirs = insertEvent(cols(), musica);
+
+        // Act
+        final List<Long> forViewer = ids(eventDao.findSimilarTo(target, viewerId, onlyCategory()));
+
+        // Assert
+        assertEquals(list(theirs), forViewer);
+    }
+
+    @Test
+    public void testSimilarForAnAnonymousVisitorKeepsEveryonesEvents() {
         // Arrange
         final long target = insertEvent(cols(), musica);
         final long own = insertEvent(cols("creator_id", viewerId), musica);
         final long theirs = insertEvent(cols(), musica);
 
         // Act
-        final List<Long> forViewer = ids(eventDao.findSimilarTo(target, viewerId, onlyCategory()));
         final List<Long> forAnonymous = ids(eventDao.findSimilarTo(target, null, onlyCategory()));
 
         // Assert
-        assertEquals(list(theirs), forViewer);
         assertEquals(list(own, theirs).stream().sorted().collect(Collectors.toList()),
                 forAnonymous.stream().sorted().collect(Collectors.toList()));
     }
