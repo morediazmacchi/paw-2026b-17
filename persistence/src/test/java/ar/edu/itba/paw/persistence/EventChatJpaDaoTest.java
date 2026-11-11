@@ -371,40 +371,47 @@ public class EventChatJpaDaoTest {
     }
 
     @Test
-    public void testFindGroupsPagesTheResults() {
-        // Arrange: 3 grupos de ana, cada uno con actividad distinta para que el orden sea estable
+    public void testFindGroupsPagesTheGroupsWithoutRepeating() {
+        // Arrange: 3 grupos con actividad en momentos distintos, de a 2 por pagina
         final long second = insertEvent("Feria");
-        final long third = insertEvent("Maraton");
+        final long third = insertEvent("Taller");
         final long secondRegistration = insertRegistration(second, ana, "ana@mail.com", "CONFIRMED");
         final long thirdRegistration = insertRegistration(third, ana, "ana@mail.com", "CONFIRMED");
         insertMember(anaRegistrationId, eventId, ana);
         insertMember(secondRegistration, second, ana);
         insertMember(thirdRegistration, third, ana);
+        final long now = System.currentTimeMillis();
         jdbcTemplate.update("INSERT INTO event_chat_message (event_id, user_id, body, created_at) VALUES (?, ?, ?, ?)",
-                eventId, beto, "1", new Timestamp(System.currentTimeMillis() - 300000));
+                eventId, beto, "viejo", new Timestamp(now - 3000));
         jdbcTemplate.update("INSERT INTO event_chat_message (event_id, user_id, body, created_at) VALUES (?, ?, ?, ?)",
-                second, beto, "2", new Timestamp(System.currentTimeMillis() - 200000));
+                second, beto, "medio", new Timestamp(now - 2000));
         jdbcTemplate.update("INSERT INTO event_chat_message (event_id, user_id, body, created_at) VALUES (?, ?, ?, ?)",
-                third, beto, "3", new Timestamp(System.currentTimeMillis() - 100000));
+                third, beto, "nuevo", new Timestamp(now - 1000));
 
         // Act
         final List<ChatGroup> pageOne = chatDao.findGroupsByUser(ana, 1, 2);
         final List<ChatGroup> pageTwo = chatDao.findGroupsByUser(ana, 2, 2);
+        final List<ChatGroup> pageThree = chatDao.findGroupsByUser(ana, 3, 2);
 
-        // Assert: el mas reciente primero (Maraton), sin repetirse entre paginas
+        // Assert: el de actividad mas reciente primero, sin repetir, y la ultima pagina trae solo el que sobra
         assertEquals(2, pageOne.size());
-        assertEquals("Maraton", pageOne.get(0).getEventTitle());
+        assertEquals("Taller", pageOne.get(0).getEventTitle());
         assertEquals("Feria", pageOne.get(1).getEventTitle());
         assertEquals(1, pageTwo.size());
         assertEquals("Recital", pageTwo.get(0).getEventTitle());
+        assertTrue(pageThree.isEmpty());
     }
 
     // ---- countGroupsByUser() ----
 
     @Test
-    public void testCountGroupsByUserCountsTheConfirmedGroup() {
-        // Arrange
+    public void testCountGroupsByUserCountsOnlyTheGroupsWithAConfirmedRegistration() {
+        // Arrange: dos grupos, pero en uno la inscripcion ya no esta CONFIRMED
+        final long second = insertEvent("Feria");
+        final long secondRegistration = insertRegistration(second, ana, "ana@mail.com", "CONFIRMED");
         insertMember(anaRegistrationId, eventId, ana);
+        insertMember(secondRegistration, second, ana);
+        jdbcTemplate.update("UPDATE registration SET status = 'REJECTED' WHERE id = ?", secondRegistration);
 
         // Act
         final long count = chatDao.countGroupsByUser(ana);
@@ -414,19 +421,8 @@ public class EventChatJpaDaoTest {
     }
 
     @Test
-    public void testCountGroupsByUserOfSomeoneWithNoGroupsIsZero() {
-        // Act
-        final long count = chatDao.countGroupsByUser(beto);
-
-        // Assert
-        assertEquals(0, count);
-    }
-
-    @Test
-    public void testCountGroupsByUserLeavesOutGroupsWhereTheRegistrationIsNotConfirmed() {
-        // Arrange
-        insertMember(anaRegistrationId, eventId, ana);
-        jdbcTemplate.update("UPDATE registration SET status = 'REJECTED' WHERE id = ?", anaRegistrationId);
+    public void testCountGroupsByUserIsZeroWhenThePersonIsInNoGroup() {
+        // Arrange: ana no se unio a ningun grupo
 
         // Act
         final long count = chatDao.countGroupsByUser(ana);

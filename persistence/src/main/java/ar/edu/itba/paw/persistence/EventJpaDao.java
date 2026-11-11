@@ -1,6 +1,7 @@
 // Implementa el contrato EventDao (modulo persistence-contracts) con JPA/Hibernate.
 package ar.edu.itba.paw.persistence;
 
+import ar.edu.itba.paw.model.Barrio;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventAccessSummary;
 import ar.edu.itba.paw.model.EventApprovalStatus;
@@ -9,6 +10,7 @@ import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.EventSort;
 import ar.edu.itba.paw.model.EventVisibility;
 import ar.edu.itba.paw.model.RegistrationStatus;
+import ar.edu.itba.paw.model.SimilarityParameters;
 import org.springframework.stereotype.Repository;
 import ar.edu.itba.paw.model.AdminEventSort;
 
@@ -18,7 +20,6 @@ import javax.persistence.PersistenceContext;
 import javax.persistence.Query;
 import javax.persistence.TemporalType;
 import javax.persistence.TypedQuery;
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
@@ -29,6 +30,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -92,9 +94,6 @@ public class EventJpaDao implements EventDao {
 
     // Los ordenes que usan AVAILABLE_SPOTS_SQL.
     private static final Set<EventSort> SORTS_BY_SPOTS = EnumSet.of(EventSort.CUPOS_ASC, EventSort.CUPOS_DESC);
-
-    // Cuantos ids se cargan por consulta en findAllMatching().
-    private static final int FETCH_CHUNK = 500;
 
     @PersistenceContext
     private EntityManager em;
@@ -479,13 +478,17 @@ public class EventJpaDao implements EventDao {
     @Override
     public List<Event> search(final EventSearchCriteria criteria) {
         final SearchFilter filter = buildSearchFilter(criteria);
-        final EventSort sort = SORT_COLUMNS.containsKey(criteria.getSort()) ? criteria.getSort() : EventSort.FECHA_ASC;
+        // RELEVANCIA no es una columna: es el puntaje del JOIN de texto (TextSearchSql). Sin texto no hay puntaje, asi
+        // que cae al orden por fecha, como cualquier orden que esta clase no conoce.
+        final String orderBy = criteria.getSort() == EventSort.RELEVANCIA && criteria.hasSearchTerms()
+                ? TextSearchSql.ORDER_BY
+                : SORT_COLUMNS.get(SORT_COLUMNS.containsKey(criteria.getSort()) ? criteria.getSort() : EventSort.FECHA_ASC);
 
         // SQL nativo (ver arriba): solo los ids de la pagina, ya ordenados. Los ordenes por
         // cupos usan en el ORDER BY el mismo parametro que el WHERE (CONFIRMED_PARAM), que
         // buildSearchFilter() siempre carga en ese caso.
         final Query idsQuery = em.createNativeQuery(
-                SEARCH_IDS_BASE + filter.where + " ORDER BY " + SORT_COLUMNS.get(sort));
+                SEARCH_IDS_BASE + filter.from + filter.where + " ORDER BY " + orderBy);
         filter.bindTo(idsQuery);
         idsQuery.setFirstResult((criteria.getPage() - 1) * criteria.getPageSize());
         idsQuery.setMaxResults(criteria.getPageSize());
@@ -498,41 +501,72 @@ public class EventJpaDao implements EventDao {
     }
 
     @Override
-    public List<Event> findAllMatching(final EventSearchCriteria criteria) {
+    public List<Event> findRecommendedPage(final EventSearchCriteria criteria, final SimilarityParameters parameters) {
+        Objects.requireNonNull(criteria.getViewerId(), "viewerId");
         final SearchFilter filter = buildSearchFilter(criteria);
-        // Siempre por fecha: el orden "de verdad" lo decide quien llama; este es solo el
-        // desempate estable (ver EventServiceImpl / EventSimilarityServiceImpl).
-        final Query idsQuery = em.createNativeQuery(
-                SEARCH_IDS_BASE + filter.where + " ORDER BY " + SORT_COLUMNS.get(EventSort.FECHA_ASC));
-        filter.bindTo(idsQuery);
+        final Map<String, Object> extra = new LinkedHashMap<>();
+        // Los parametros de la bolsa (ver RecommendationSql.attendedWhere()). El estado y "now" pueden estar ya en el
+        // filtro: es el mismo valor.
+        extra.put(CONFIRMED_PARAM, RegistrationStatus.CONFIRMED.name());
+        extra.put("historySize", parameters.getHistorySize());
+
+        final Query idsQuery = recommendationQuery(RecommendationSql.Mode.RECOMMENDED, filter, extra, parameters);
+        idsQuery.setFirstResult((criteria.getPage() - 1) * criteria.getPageSize());
+        idsQuery.setMaxResults(criteria.getPageSize());
+        return findOrderedByIds(idsOf(idsQuery));
+    }
+
+    @Override
+    public List<Event> findSimilarTo(final long eventId, final Long viewerId, final SimilarityParameters parameters) {
+        final EventSearchCriteria listing = new EventSearchCriteria();
+        listing.setViewerId(viewerId);
+        final SearchFilter filter = buildSearchFilter(listing).and(" AND e.id <> :targetId");
+        final Map<String, Object> extra = new LinkedHashMap<>();
+        extra.put("targetId", eventId);
+        extra.put("minScore", parameters.getRelatedMinScore());
+
+        final Query idsQuery = recommendationQuery(RecommendationSql.Mode.SIMILAR, filter, extra, parameters);
+        idsQuery.setMaxResults(parameters.getRelatedLimit());
+        return findOrderedByIds(idsOf(idsQuery));
+    }
+
+    // Arma la consulta de RecommendationSql con sus parametros: los del filtro, los de la bolsa y los coeficientes.
+    private Query recommendationQuery(final RecommendationSql.Mode mode, final SearchFilter filter,
+                                      final Map<String, Object> extra, final SimilarityParameters parameters) {
+        final boolean hasIgnored = !parameters.getIgnoredCategoryNames().isEmpty();
+        final Query query = em.createNativeQuery(RecommendationSql.build(mode, filter.from, filter.where, hasIgnored));
+        filter.bindTo(query);
+        SearchFilter.bind(query, extra);
+
+        final Map<String, Object> coefficients = new LinkedHashMap<>();
+        coefficients.put("weightCategory", parameters.getWeightCategory());
+        coefficients.put("weightPrice", parameters.getWeightPrice());
+        coefficients.put("weightNeighborhood", parameters.getWeightNeighborhood());
+        coefficients.put("weightHour", parameters.getWeightHour());
+        coefficients.put("weightWeekday", parameters.getWeightWeekday());
+        coefficients.put("weightOrganizer", parameters.getWeightOrganizer());
+        coefficients.put("freeVsPaidFactor", parameters.getFreeVsPaidFactor());
+        coefficients.put("maxBarrioKm", Barrio.MAX_DISTANCE_KM);
+        if (hasIgnored) {
+            coefficients.put("ignoredCategories", new ArrayList<>(parameters.getIgnoredCategoryNames()));
+        }
+        SearchFilter.bind(query, coefficients);
+        return query;
+    }
+
+    private static List<Long> idsOf(final Query idsQuery) {
         final List<Long> ids = new ArrayList<>();
         for (final Object id : idsQuery.getResultList()) {
             ids.add(((Number) id).longValue());
         }
-        // De a tandas: un IN con miles de ids pasa el limite de parametros del driver.
-        final List<Event> events = new ArrayList<>(ids.size());
-        for (int from = 0; from < ids.size(); from += FETCH_CHUNK) {
-            events.addAll(findOrderedByIds(ids.subList(from, Math.min(from + FETCH_CHUNK, ids.size()))));
-        }
-        return events;
-    }
-
-    @Override
-    public List<BigDecimal> findPublicPaidPrices() {
-        return em.createQuery(
-                        "SELECT e.price FROM Event e WHERE e.visibility = :visibility "
-                                + "AND e.approvalStatus = :approvalStatus AND e.cancelledAt IS NULL "
-                                + "AND e.price > 0 ORDER BY e.price ASC", BigDecimal.class)
-                .setParameter("visibility", EventVisibility.PUBLIC)
-                .setParameter("approvalStatus", EventApprovalStatus.APPROVED)
-                .getResultList();
+        return ids;
     }
 
     @Override
     public long countSearch(final EventSearchCriteria criteria) {
         final SearchFilter filter = buildSearchFilter(criteria);
         // SQL nativo por el mismo motivo que search().
-        final Query countQuery = em.createNativeQuery(SEARCH_COUNT_BASE + filter.where);
+        final Query countQuery = em.createNativeQuery(SEARCH_COUNT_BASE + filter.from + filter.where);
         filter.bindTo(countQuery);
         return ((Number) countQuery.getSingleResult()).longValue();
     }
@@ -563,13 +597,21 @@ public class EventJpaDao implements EventDao {
         // no aprobo (o que rechazo) tampoco. findById/findByIdForUpdate no
         // llevan ninguna de las cuatro: el detalle sigue siendo accesible (con
         // su propio chequeo de acceso, ver EventAccessServiceImpl.canView()).
-        final StringBuilder sql = new StringBuilder(
-                " WHERE e.event_date >= :now AND e.visibility = :publicVisibility AND e.cancelled_at IS NULL"
-                        + " AND e.approval_status = :approvedStatus");
+        final StringBuilder sql = new StringBuilder(" WHERE " + listingRules("e"));
         final Map<String, Object> params = new LinkedHashMap<>();
         params.put("now", new Date());
         params.put("publicVisibility", EventVisibility.PUBLIC.name());
         params.put("approvedStatus", EventApprovalStatus.APPROVED.name());
+
+        // Texto de la barra de busqueda: un JOIN que deja solo los eventos con todas las palabras (y su puntaje, que
+        // usa el orden por relevancia). Es parte del filtro, no del orden: el total y la pagina cuentan lo mismo.
+        String from = "";
+        final List<String> searchTerms = criteria.getSearchTerms();
+        if (!searchTerms.isEmpty()) {
+            final TextSearchSql textSearch = TextSearchSql.of(searchTerms);
+            from = textSearch.join();
+            params.putAll(textSearch.params());
+        }
 
         if (criteria.getViewerId() != null) {
             // Los eventos propios no se listan en el home (siguen en "Mis eventos"). creator_id
@@ -668,22 +710,42 @@ public class EventJpaDao implements EventDao {
             params.put(CONFIRMED_PARAM, RegistrationStatus.CONFIRMED.name());
         }
 
-        return new SearchFilter(sql.toString(), params);
+        return new SearchFilter(from, sql.toString(), params);
+    }
+
+    // Las cuatro reglas del listado publico, para el evento con ese alias. Una sola definicion: la usan el WHERE del
+    // listado (buildSearchFilter) y la busqueda de texto (TextSearchSql), que solo mira los eventos que se pueden ver.
+    // Lleva los parametros :now, :publicVisibility y :approvedStatus, que buildSearchFilter siempre carga.
+    static String listingRules(final String alias) {
+        return alias + ".event_date >= :now AND " + alias + ".visibility = :publicVisibility AND "
+                + alias + ".cancelled_at IS NULL AND " + alias + ".approval_status = :approvedStatus";
     }
 
     private static final class SearchFilter {
+        // Lo que va entre "FROM event e" y el WHERE (vacio, o el JOIN de la busqueda de texto).
+        private final String from;
         private final String where;
         private final Map<String, Object> params;
 
-        private SearchFilter(final String where, final Map<String, Object> params) {
+        private SearchFilter(final String from, final String where, final Map<String, Object> params) {
+            this.from = from;
             this.where = where;
             this.params = params;
         }
 
+        // El mismo filtro con una condicion mas (empieza con " AND ...").
+        private SearchFilter and(final String condition) {
+            return new SearchFilter(from, where + condition, params);
+        }
+
+        private void bindTo(final Query query) {
+            bind(query, params);
+        }
+
         // Pone cada parametro con nombre en la query. Las fechas llevan su
         // TemporalType (java.util.Date no dice si es fecha, hora o las dos).
-        private void bindTo(final Query query) {
-            for (final Map.Entry<String, Object> param : params.entrySet()) {
+        private static void bind(final Query query, final Map<String, Object> values) {
+            for (final Map.Entry<String, Object> param : values.entrySet()) {
                 if (param.getValue() instanceof Date) {
                     query.setParameter(param.getKey(), (Date) param.getValue(), TemporalType.TIMESTAMP);
                 } else {

@@ -1,5 +1,6 @@
 <%@ page contentType="text/html;charset=UTF-8" pageEncoding="UTF-8" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
+<%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions" %>
 <%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
 <%@ taglib prefix="sec" uri="http://www.springframework.org/security/tags" %>
 <%@ taglib prefix="paw" tagdir="/WEB-INF/tags" %>
@@ -30,9 +31,37 @@
         <p class="alert"><spring:message code="admin.users.suspendError.${suspendError}"/></p>
     </c:if>
 
+    <%-- Buscar por mail (contiene, sin importar mayusculas). GET: la busqueda queda en la URL y el paginador la repite. --%>
+    <spring:message code="admin.users.searchPlaceholder" var="searchPlaceholder"/>
+    <spring:message code="admin.users.searchLabel" var="searchLabel"/>
+    <spring:message code="admin.users.searchButton" var="searchButtonLabel"/>
+    <spring:message code="admin.users.clearSearch" var="clearSearchLabel"/>
+    <c:set var="searchText" value="${fn:trim(q)}"/>
+    <div class="search-bar-row">
+        <c:if test="${not empty searchText}">
+            <a class="results-clear" href="<c:url value='/admin/usuarios'/>"><c:out value="${clearSearchLabel}"/></a>
+        </c:if>
+        <form method="get" action="<c:url value='/admin/usuarios'/>" class="search-bar" role="search">
+            <input type="search" name="q" class="search-input" maxlength="150"
+                   value="${fn:escapeXml(q)}"
+                   placeholder="${fn:escapeXml(searchPlaceholder)}"
+                   aria-label="${fn:escapeXml(searchLabel)}"/>
+            <button type="submit" class="search-submit" aria-label="${fn:escapeXml(searchButtonLabel)}"><paw:icon name="search"/></button>
+        </form>
+    </div>
+    <c:if test="${not empty searchText}">
+        <div class="results-header">
+            <div class="results-info">
+                <h2 class="results-count"><spring:message code="admin.users.resultsCount" arguments="${totalElements}"/></h2>
+            </div>
+        </div>
+    </c:if>
+
     <c:choose>
         <c:when test="${empty users}">
-            <p class="empty-state"><spring:message code="admin.users.empty"/></p>
+            <p class="empty-state">
+                <spring:message code="${empty searchText ? 'admin.users.empty' : 'admin.users.searchEmpty'}"/>
+            </p>
         </c:when>
         <c:otherwise>
             <spring:message code="admin.users.suspendButton" var="suspendButtonLabel"/>
@@ -85,12 +114,14 @@
                                     <c:choose>
                                         <c:when test="${targetUser.suspended}">
                                             <form action="<c:url value='/admin/usuarios/${targetUser.id}/reactivar'/>" method="post">
+                                                <input type="hidden" name="returnTo" value="${fn:escapeXml(returnTo)}"/>
                                                 <paw:button text="${reactivateButtonLabel}"/>
                                             </form>
                                         </c:when>
                                         <%-- A un admin solo lo suspende un superadmin (ver AdminController.suspender). --%>
                                         <c:when test="${targetUser.canBeSuspendedBy(callerIsSuperadmin)}">
                                             <form action="<c:url value='/admin/usuarios/${targetUser.id}/suspender'/>" method="post">
+                                                <input type="hidden" name="returnTo" value="${fn:escapeXml(returnTo)}"/>
                                                 <paw:button text="${suspendButtonLabel}" cssClass="btn-danger"/>
                                             </form>
                                         </c:when>
@@ -107,12 +138,14 @@
                                             <c:when test="${targetUser.admin}">
                                                 <c:if test="${callerIsSuperadmin}">
                                                     <form action="<c:url value='/admin/usuarios/${targetUser.id}/revocar'/>" method="post">
+                                                        <input type="hidden" name="returnTo" value="${fn:escapeXml(returnTo)}"/>
                                                         <paw:button text="${revokeButtonLabel}"/>
                                                     </form>
                                                 </c:if>
                                             </c:when>
                                             <c:otherwise>
                                                 <form action="<c:url value='/admin/usuarios/${targetUser.id}/promover'/>" method="post">
+                                                    <input type="hidden" name="returnTo" value="${fn:escapeXml(returnTo)}"/>
                                                     <paw:button text="${promoteButtonLabel}"/>
                                                 </form>
                                             </c:otherwise>
@@ -126,7 +159,8 @@
                 </table>
             </div>
 
-            <paw:pager baseUrl="/admin/usuarios" currentPage="${currentPage}" totalPages="${totalPages}"/>
+            <paw:pager baseUrl="/admin/usuarios" currentPage="${currentPage}" totalPages="${totalPages}"
+                       extraParams="${pagerParams}"/>
         </c:otherwise>
     </c:choose>
 </main>

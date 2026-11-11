@@ -44,8 +44,8 @@
                             </li>
                         </c:forEach>
                     </ul>
-                    <paw:pager baseUrl="/perfil/bandeja" pageParam="chatsPage"
-                               currentPage="${chatGroupsCurrentPage}" totalPages="${chatGroupsTotalPages}"
+                    <paw:pager baseUrl="/perfil/bandeja" pageParam="gruposPage"
+                               currentPage="${groupsPage}" totalPages="${groupsTotalPages}"
                                otherParam="page" otherPage="${currentPage}"/>
                 </c:otherwise>
             </c:choose>
@@ -68,7 +68,7 @@
                             </c:if>
                         </c:forEach>
                         <input type="hidden" name="page" value="${currentPage}"/>
-                        <input type="hidden" name="chatsPage" value="${chatGroupsCurrentPage}"/>
+                        <input type="hidden" name="gruposPage" value="${groupsPage}"/>
                         <paw:button text="${markReadLabel}"/>
                     </form>
                 </c:if>
@@ -114,7 +114,7 @@
                 </ul>
 
                 <paw:pager baseUrl="/perfil/bandeja" currentPage="${currentPage}" totalPages="${totalPages}"
-                           otherParam="chatsPage" otherPage="${chatGroupsCurrentPage}"/>
+                           otherParam="gruposPage" otherPage="${groupsPage}"/>
             </c:otherwise>
         </c:choose>
     </main>

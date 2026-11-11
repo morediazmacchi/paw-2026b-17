@@ -5,8 +5,8 @@ import ar.edu.itba.paw.model.AdminEventSort;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventAccessSummary;
 import ar.edu.itba.paw.model.EventSearchCriteria;
+import ar.edu.itba.paw.model.SimilarityParameters;
 
-import java.math.BigDecimal;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -96,21 +96,30 @@ public interface EventDao {
 
     // Combina todos los filtros con AND (un campo en null en criteria significa "sin filtrar por
     // esto"); solo eventos futuros y no cancelados; ordenado y paginado segun criteria.
+    // Texto (criteria.getText(), ver SearchTerms): quedan los eventos que tienen TODAS las palabras en el titulo o en la
+    // descripcion, sin importar mayusculas, tildes ni puntuacion; las palabras de 4 letras o mas toleran un error de
+    // tipeo, pero solo contra el titulo. EventSort.RELEVANCIA ordena por que tan bien coincide (palabra al inicio del
+    // titulo, titulo, titulo con un error, descripcion; se suma por palabra); sin texto cae a fecha. Todo en la misma
+    // consulta que filtra y pagina (nunca se trae el listado entero a memoria).
     List<Event> search(EventSearchCriteria criteria);
 
     // Mismos filtros que search() (mismo WHERE), sin orden ni paginado: el total para el paginador.
     long countSearch(EventSearchCriteria criteria);
 
-    // Mismos filtros que search() (mismo WHERE), pero TODOS los que matchean, sin paginar y
-    // siempre por fecha ascendente (desempate por id). Es la base para ordenar en memoria lo
-    // que SQL no puede ordenar (ver EventSort.RECOMENDADOS): ignora criteria.getSort() y la
-    // pagina. Vienen con sus categorias cargadas.
-    List<Event> findAllMatching(EventSearchCriteria criteria);
+    // Orden RECOMENDADOS (ver EventSort): UNA pagina del listado, ya ordenada y ya cortada en la base. Mismo WHERE
+    // que search()/countSearch() (el total para el paginador sale de countSearch()); ignora criteria.getSort(). Cada
+    // evento que matchea suma, por cada uno de los ultimos parameters.getHistorySize() eventos que criteria.getViewerId()
+    // asistio (inscripcion CONFIRMED, ya ocurrido, no cancelado), exactamente S(candidato, ese evento); primero los de
+    // mas puntos, despues el que ocurre antes, despues el menor id. Sin eventos asistidos nadie suma y queda por fecha.
+    // Toda la cuenta (S, percentil de precio, suma, orden y LIMIT/OFFSET) es una sola consulta: nunca se traen los
+    // candidatos a memoria. criteria.getViewerId() es obligatorio.
+    List<Event> findRecommendedPage(EventSearchCriteria criteria, SimilarityParameters parameters);
 
-    // Los precios (> 0) de los eventos publicos, aprobados y no cancelados -- pasados incluidos --,
-    // de menor a mayor. Es la distribucion que usa EventSimilarity para ubicar un precio como
-    // percentil.
-    List<BigDecimal> findPublicPaidPrices();
+    // "Te puede interesar": los eventos del listado (mismas reglas que search(), y sin los propios de viewerId si no es
+    // null) mas parecidos al evento eventId -- S >= parameters.getRelatedMinScore() --, de mas a menos parecido (empate:
+    // el que ocurre antes, despues el menor id), como mucho parameters.getRelatedLimit(). El propio evento no entra.
+    // Vacio si eventId no existe o no es publico y aprobado. Tambien es una sola consulta.
+    List<Event> findSimilarTo(long eventId, Long viewerId, SimilarityParameters parameters);
 
     // Recordatorio de 24 hs: los eventos (publicos o privados) no cancelados que
     // empiezan entre "from" y "until" y a los que todavia no se les mando.

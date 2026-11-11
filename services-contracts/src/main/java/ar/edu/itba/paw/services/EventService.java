@@ -77,6 +77,8 @@ public interface EventService {
      * Sin pedir orden, quien tiene historial recibe RECOMENDADOS y el resto FECHA_ASC; RECOMENDADOS pedido
      * sin historial cae a FECHA_ASC. El resultado trae el orden efectivo y los ordenes a ofrecer (sin
      * RECOMENDADOS si no tiene historial). Con RECOMENDADOS el orden lo calcula EventSimilarityService.
+     * Si se busco texto (criteria.getText(), ver SearchTerms), el orden por defecto es RELEVANCIA, tambien para quien
+     * tiene historial; RELEVANCIA pedido sin texto se trata como "no pidio ninguno", y solo se ofrece cuando hay texto.
      */
     @Transactional(readOnly = true)
     EventSearchResult search(EventSearchCriteria criteria);

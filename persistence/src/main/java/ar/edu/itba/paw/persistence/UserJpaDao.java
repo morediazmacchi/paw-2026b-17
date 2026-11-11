@@ -8,9 +8,14 @@ import org.springframework.stereotype.Repository;
 
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
+import javax.persistence.TypedQuery;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -66,20 +71,74 @@ public class UserJpaDao implements UserDao {
                 .getResultList().stream().findFirst();
     }
 
+    // Caracter de escape del LIKE de la busqueda por mail. "!" y no "\" a proposito: una barra invertida dentro de un
+    // literal JPQL se presta a confusion. Hace falta escapar porque el "_" es de lo mas comun en un mail.
+    private static final String LIKE_ESCAPE = "!";
+
     @Override
-    public List<User> findPage(final int limit, final int offset) {
+    public List<User> findPage(final String emailText, final int limit, final int offset) {
+        final String text = normalized(emailText);
         // Paginar sobre usuarios y no sobre las filas del JOIN con roles (un usuario con
         // dos roles son dos filas): primero los ids de la pagina, despues los usuarios.
-        final List<Long> ids = em.createQuery("SELECT u.id FROM User u ORDER BY u.id", Long.class)
-                .setFirstResult(offset)
-                .setMaxResults(limit)
-                .getResultList();
-        return findByIds(ids);
+        final TypedQuery<Long> idsQuery;
+        if (text.isEmpty()) {
+            idsQuery = em.createQuery("SELECT u.id FROM User u ORDER BY u.id", Long.class);
+        } else {
+            // Mismo WHERE que count(). El orden: el mail igual al texto, despues los que empiezan con el, despues el resto.
+            final String escaped = escapeLike(text);
+            idsQuery = em.createQuery(
+                            "SELECT u.id FROM User u WHERE LOWER(u.email) LIKE :contains ESCAPE '" + LIKE_ESCAPE + "' "
+                                    + "ORDER BY CASE WHEN LOWER(u.email) = :exact THEN 0 "
+                                    + "WHEN LOWER(u.email) LIKE :prefix ESCAPE '" + LIKE_ESCAPE + "' THEN 1 ELSE 2 END, "
+                                    + "u.email, u.id", Long.class)
+                    .setParameter("contains", "%" + escaped + "%")
+                    .setParameter("prefix", escaped + "%")
+                    .setParameter("exact", text);
+        }
+        final List<Long> ids = idsQuery.setFirstResult(offset).setMaxResults(limit).getResultList();
+        return inOrderOf(ids);
     }
 
     @Override
-    public long countAll() {
-        return em.createQuery("SELECT COUNT(u) FROM User u", Long.class).getSingleResult();
+    public long count(final String emailText) {
+        final String text = normalized(emailText);
+        if (text.isEmpty()) {
+            return em.createQuery("SELECT COUNT(u) FROM User u", Long.class).getSingleResult();
+        }
+        return em.createQuery(
+                        "SELECT COUNT(u) FROM User u WHERE LOWER(u.email) LIKE :contains ESCAPE '" + LIKE_ESCAPE + "'",
+                        Long.class)
+                .setParameter("contains", "%" + escapeLike(text) + "%")
+                .getSingleResult();
+    }
+
+    // Sin espacios de los costados y en minuscula (la comparacion es contra LOWER(email)). "" si no hay texto.
+    private static String normalized(final String emailText) {
+        return emailText == null ? "" : emailText.trim().toLowerCase(Locale.ROOT);
+    }
+
+    // El texto como literal de un LIKE: %, _ y el propio caracter de escape pasan a ser letras comunes.
+    private static String escapeLike(final String text) {
+        return text.replace(LIKE_ESCAPE, LIKE_ESCAPE + LIKE_ESCAPE)
+                .replace("%", LIKE_ESCAPE + "%")
+                .replace("_", LIKE_ESCAPE + "_");
+    }
+
+    // Los usuarios de "ids" en ESE orden: findByIds() los devuelve por id, y aca el orden que importa es el de la
+    // consulta que eligio la pagina (puede ser el de relevancia del mail).
+    private List<User> inOrderOf(final List<Long> ids) {
+        final Map<Long, User> byId = new HashMap<>();
+        for (final User user : findByIds(ids)) {
+            byId.put(user.getId(), user);
+        }
+        final List<User> ordered = new ArrayList<>(ids.size());
+        for (final Long id : ids) {
+            final User user = byId.get(id);
+            if (user != null) {
+                ordered.add(user);
+            }
+        }
+        return ordered;
     }
 
     @Override

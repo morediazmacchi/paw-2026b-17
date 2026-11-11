@@ -466,3 +466,17 @@ CREATE TABLE IF NOT EXISTS follow (
     created_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
     PRIMARY KEY (follower_id, followed_id)
 );
+
+-- Indices de las recomendaciones (ver RecommendationSql). Idempotentes: corren en cada arranque.
+-- event_category: la clave primaria arranca por event_id; "que eventos tienen esta categoria" (las categorias en
+-- comun entre un candidato y los eventos asistidos) necesita el orden inverso.
+CREATE INDEX IF NOT EXISTS idx_event_category_category
+    ON event_category (category_id, event_id);
+-- registration: la bolsa de eventos asistidos filtra por persona y estado.
+CREATE INDEX IF NOT EXISTS idx_registration_user_status
+    ON registration (user_id, status);
+-- event: el listado (y los candidatos) cortan por fecha; y la distribucion de precios agrupa por precio.
+CREATE INDEX IF NOT EXISTS idx_event_date
+    ON event (event_date);
+CREATE INDEX IF NOT EXISTS idx_event_price
+    ON event (price);

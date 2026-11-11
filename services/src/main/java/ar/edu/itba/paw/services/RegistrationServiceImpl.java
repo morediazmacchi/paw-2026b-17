@@ -475,9 +475,12 @@ public class RegistrationServiceImpl implements RegistrationService {
 
     @Override
     @Transactional(readOnly = true)
-    public PendingRegistrations findPendingSummary(final long eventId) {
-        return new PendingRegistrations(registrationDao.findPendingByEvent(eventId), availableSpots(eventId),
-                isFull(eventId));
+    public PendingRegistrations findPendingSummary(final long eventId, final int page) {
+        final long total = registrationDao.countPending(eventId);
+        final int effectivePage = PageResult.clampPage(page, total, PAGE_SIZE);
+        final PageResult<Registration> pending = new PageResult<>(
+                registrationDao.findPendingByEvent(eventId, effectivePage, PAGE_SIZE), total, effectivePage, PAGE_SIZE);
+        return new PendingRegistrations(pending, availableSpots(eventId), isFull(eventId));
     }
 
     @Override

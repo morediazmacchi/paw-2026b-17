@@ -1236,15 +1236,17 @@ public class RegistrationServiceImplTest {
         // Arrange: cupo 3, 2 confirmados -> queda 1 lugar y no esta lleno
         final List<Registration> pending = Collections.singletonList(
                 new Registration(ModelFixtures.event(EVENT_ID), null, NORMALIZED_EMAIL, NAME, RegistrationStatus.PENDING));
-        when(mockRegistrationDao.findPendingByEvent(EVENT_ID)).thenReturn(pending);
+        when(mockRegistrationDao.countPending(EVENT_ID)).thenReturn(1L);
+        when(mockRegistrationDao.findPendingByEvent(EVENT_ID, 1, RegistrationServiceImpl.PAGE_SIZE)).thenReturn(pending);
         when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(3)));
         when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(2L);
 
         // Act
-        final PendingRegistrations result = registrationService.findPendingSummary(EVENT_ID);
+        final PendingRegistrations result = registrationService.findPendingSummary(EVENT_ID, 1);
 
         // Assert
         assertEquals(pending, result.getRegistrations());
+        assertEquals(1L, result.getTotalPending());
         assertEquals(Integer.valueOf(1), result.getAvailableSpots());
         assertFalse(result.isFull());
     }
@@ -1256,7 +1258,7 @@ public class RegistrationServiceImplTest {
         when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(2L);
 
         // Act
-        final PendingRegistrations result = registrationService.findPendingSummary(EVENT_ID);
+        final PendingRegistrations result = registrationService.findPendingSummary(EVENT_ID, 1);
 
         // Assert
         assertEquals(Integer.valueOf(0), result.getAvailableSpots());
@@ -1269,11 +1271,47 @@ public class RegistrationServiceImplTest {
         when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(null)));
 
         // Act
-        final PendingRegistrations result = registrationService.findPendingSummary(EVENT_ID);
+        final PendingRegistrations result = registrationService.findPendingSummary(EVENT_ID, 1);
 
         // Assert
         assertNull(result.getAvailableSpots());
         assertFalse(result.isFull());
+    }
+
+    @Test
+    public void testFindPendingSummaryReturnsTheRequestedPageWithItsTotals() {
+        // Arrange: 25 pendientes, de a RegistrationServiceImpl.PAGE_SIZE por pagina -> 3 paginas
+        final List<Registration> pageTwo = Collections.singletonList(
+                new Registration(ModelFixtures.event(EVENT_ID), null, NORMALIZED_EMAIL, NAME, RegistrationStatus.PENDING));
+        when(mockRegistrationDao.countPending(EVENT_ID)).thenReturn(25L);
+        when(mockRegistrationDao.findPendingByEvent(EVENT_ID, 2, RegistrationServiceImpl.PAGE_SIZE)).thenReturn(pageTwo);
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(null)));
+
+        // Act
+        final PendingRegistrations result = registrationService.findPendingSummary(EVENT_ID, 2);
+
+        // Assert
+        assertEquals(pageTwo, result.getRegistrations());
+        assertEquals(2, result.getPage());
+        assertEquals(3, result.getTotalPages());
+        assertEquals(25L, result.getTotalPending());
+    }
+
+    @Test
+    public void testFindPendingSummaryClampsAPageBeyondTheLastToTheLastOne() {
+        // Arrange: 25 pendientes -> la ultima pagina es la 3
+        final List<Registration> lastPage = Collections.singletonList(
+                new Registration(ModelFixtures.event(EVENT_ID), null, NORMALIZED_EMAIL, NAME, RegistrationStatus.PENDING));
+        when(mockRegistrationDao.countPending(EVENT_ID)).thenReturn(25L);
+        when(mockRegistrationDao.findPendingByEvent(EVENT_ID, 3, RegistrationServiceImpl.PAGE_SIZE)).thenReturn(lastPage);
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(null)));
+
+        // Act
+        final PendingRegistrations result = registrationService.findPendingSummary(EVENT_ID, 99);
+
+        // Assert
+        assertEquals(3, result.getPage());
+        assertEquals(lastPage, result.getRegistrations());
     }
 
     // ---- countPendingByEvents() / countConfirmedByEvents() ----

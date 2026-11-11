@@ -8,6 +8,7 @@ package ar.edu.itba.paw.webapp.form;
 import ar.edu.itba.paw.model.Barrio;
 import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.EventSort;
+import ar.edu.itba.paw.model.SearchTerms;
 import ar.edu.itba.paw.webapp.util.Paging;
 
 import java.math.BigDecimal;
@@ -23,6 +24,10 @@ import java.util.stream.Collectors;
 
 public class EventSearchForm {
 
+    // Lo que se escribio en la barra de busqueda (?q=). No es un filtro mas: no cuenta para hasActiveFilters() (que
+    // activa "Guardar busqueda": una busqueda guardada son los filtros, no el texto, asi que escribir solo texto no
+    // deja nada para guardar).
+    private String q;
     private List<String> categoria;
     private String precioMin;
     private String precioMax;
@@ -34,6 +39,24 @@ public class EventSearchForm {
     private String agotados;
     private String page;
     private String sort;
+
+    public String getQ() { return q; }
+    public void setQ(final String q) { this.q = q; }
+
+    // El texto como se lo vuelve a mostrar y se lo busca: sin espacios de mas y acotado (no es un error escribir de mas:
+    // se ignora lo que sobra, igual que con los otros filtros). "" si no hay.
+    public String getSearchText() {
+        if (q == null) {
+            return "";
+        }
+        final String trimmed = q.trim();
+        return trimmed.length() > SearchTerms.MAX_TEXT_LENGTH ? trimmed.substring(0, SearchTerms.MAX_TEXT_LENGTH) : trimmed;
+    }
+
+    // Si el texto tiene alguna palabra que buscar (un "?!" o un "   " no es una busqueda).
+    public boolean hasSearchText() {
+        return !SearchTerms.parse(getSearchText()).isEmpty();
+    }
 
     public List<String> getCategoria() { return categoria; }
     public void setCategoria(final List<String> categoria) { this.categoria = categoria; }
@@ -123,6 +146,7 @@ public class EventSearchForm {
 
     public EventSearchCriteria toCriteria() {
         final EventSearchCriteria criteria = new EventSearchCriteria();
+        criteria.setText(hasSearchText() ? getSearchText() : null);
         criteria.setCategoryIds(getSelectedCategoryIds());
         criteria.setBarrios(getSelectedBarrios());
 
@@ -151,6 +175,7 @@ public class EventSearchForm {
     // filtro, termina en "&" para que el JSP pueda agregar "page=N" al final.
     public String toFilterQuery() {
         final StringBuilder query = new StringBuilder();
+        appendParam(query, "q", getSearchText());
         if (categoria != null) {
             categoria.forEach(c -> appendParam(query, "categoria", c));
         }

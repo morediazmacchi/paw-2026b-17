@@ -19,6 +19,7 @@ import ar.edu.itba.paw.services.UserService;
 import ar.edu.itba.paw.webapp.form.RejectEventForm;
 import ar.edu.itba.paw.webapp.form.RequestChangesForm;
 import ar.edu.itba.paw.webapp.util.Paging;
+import ar.edu.itba.paw.webapp.util.UserListLink;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
@@ -195,12 +196,24 @@ public class AdminController {
     // Tamaño de pagina para "Usuarios"
 
     @RequestMapping(value = "/usuarios", method = RequestMethod.GET)
-    public ModelAndView usuarios(@RequestParam(value = "page", required = false) final String page,
+    public ModelAndView usuarios(@RequestParam(value = "q", required = false) final String q,
+                                  @RequestParam(value = "page", required = false) final String page,
                                   @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final PageResult<User> result = userService.findPage(Paging.parsePage(page));
+        final PageResult<User> result = userService.findPage(q, Paging.parsePage(page));
 
         final ModelAndView mav = new ModelAndView("admin/usuarios");
         mav.addObject("users", result.getContent());
+        // La busqueda por mail: el texto para volver a mostrarlo (la pantalla lo escapa) y cuantos usuarios matchean.
+        mav.addObject("q", q == null ? "" : q);
+        // Las acciones de cada fila (suspender, promover...) vuelven aca, a la misma busqueda y pagina: ver UserListLink.
+        mav.addObject("returnTo", UserListLink.of(q, result.getPage()));
+        // Lo que el paginador repite en sus links para que cambiar de pagina conserve la busqueda.
+        final Map<String, String> pagerParams = new LinkedHashMap<>();
+        if (q != null && !q.trim().isEmpty()) {
+            pagerParams.put("q", q.trim());
+        }
+        mav.addObject("pagerParams", pagerParams);
+        mav.addObject("totalElements", result.getTotalElements());
         mav.addObject("currentPage", result.getPage());
         mav.addObject("totalPages", result.getTotalPages());
         mav.addObject("currentUserId", currentUser.getId());
@@ -214,27 +227,30 @@ public class AdminController {
     @PreAuthorize("@adminSecurity.canSuspend(#id, authentication)")
     @RequestMapping(value = "/usuarios/{id}/suspender", method = RequestMethod.POST)
     public ModelAndView suspender(@PathVariable final long id,
+                                  @RequestParam(value = "returnTo", required = false) final String returnTo,
                                   @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
                                   final RedirectAttributes redirectAttributes) {
         final SuspendResult result = userService.suspend(currentUser, id);
         if (result != SuspendResult.OK) {
             redirectAttributes.addFlashAttribute("suspendError", result.name());
         }
-        return new ModelAndView("redirect:/admin/usuarios");
+        return new ModelAndView("redirect:" + UserListLink.safeReturnTo(returnTo));
     }
 
     @RequestMapping(value = "/usuarios/{id}/reactivar", method = RequestMethod.POST)
-    public ModelAndView reactivar(@PathVariable final long id) {
+    public ModelAndView reactivar(@PathVariable final long id,
+                                  @RequestParam(value = "returnTo", required = false) final String returnTo) {
         userService.reactivate(id);
-        return new ModelAndView("redirect:/admin/usuarios");
+        return new ModelAndView("redirect:" + UserListLink.safeReturnTo(returnTo));
     }
 
     // Dar el rol admin lo puede hacer cualquier admin (lo cubre el "/admin/**" de WebAuthConfig); sacarlo, solo un
     // superadmin (ver revocar() abajo).
     @RequestMapping(value = "/usuarios/{id}/promover", method = RequestMethod.POST)
-    public ModelAndView promover(@PathVariable final long id) {
+    public ModelAndView promover(@PathVariable final long id,
+                                 @RequestParam(value = "returnTo", required = false) final String returnTo) {
         userService.grantAdmin(id);
-        return new ModelAndView("redirect:/admin/usuarios");
+        return new ModelAndView("redirect:" + UserListLink.safeReturnTo(returnTo));
     }
 
     // El gate de SUPERADMIN esta en WebAuthConfig (antMatcher de /admin/usuarios/*/revocar). El "no a
@@ -242,13 +258,14 @@ public class AdminController {
     // esto solo se llega con un POST armado a mano.
     @RequestMapping(value = "/usuarios/{id}/revocar", method = RequestMethod.POST)
     public ModelAndView revocar(@PathVariable final long id,
+                                @RequestParam(value = "returnTo", required = false) final String returnTo,
                                 @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
                                 final RedirectAttributes redirectAttributes) {
         final RevokeAdminResult result = userService.revokeAdmin(currentUser, id);
         if (result != RevokeAdminResult.OK) {
             redirectAttributes.addFlashAttribute("revokeAdminError", result.name());
         }
-        return new ModelAndView("redirect:/admin/usuarios");
+        return new ModelAndView("redirect:" + UserListLink.safeReturnTo(returnTo));
     }
 
 

@@ -1,9 +1,11 @@
 package ar.edu.itba.paw.webapp.form;
 
 import ar.edu.itba.paw.model.EventSort;
+import ar.edu.itba.paw.model.SearchTerms;
 import org.junit.Test;
 
 import java.util.Arrays;
+import java.util.Collections;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -137,5 +139,83 @@ public class EventSearchFormTest {
         final EventSearchForm form = new EventSearchForm();
         form.setSort("PRECIO_DESC");
         assertEquals(EventSort.PRECIO_DESC, form.toCriteria().getSort());
+    }
+
+    // ---- barra de busqueda (q) ----
+
+    @Test
+    public void testToCriteriaCarriesTheSearchText() {
+        final EventSearchForm form = new EventSearchForm();
+        form.setQ("recital de rock");
+        assertEquals("recital de rock", form.toCriteria().getText());
+    }
+
+    @Test
+    public void testToCriteriaTrimsTheSearchText() {
+        final EventSearchForm form = new EventSearchForm();
+        form.setQ("  rock  ");
+        assertEquals("rock", form.toCriteria().getText());
+    }
+
+    @Test
+    public void testToCriteriaCutsTheSearchTextAtTheMaximumLength() {
+        final EventSearchForm form = new EventSearchForm();
+        form.setQ(String.join("", Collections.nCopies(SearchTerms.MAX_TEXT_LENGTH + 50, "a")));
+        assertEquals(SearchTerms.MAX_TEXT_LENGTH, form.toCriteria().getText().length());
+    }
+
+    @Test
+    public void testToCriteriaOfABlankSearchTextHasNoText() {
+        final EventSearchForm form = new EventSearchForm();
+        form.setQ("   ");
+        assertNull(form.toCriteria().getText());
+    }
+
+    @Test
+    public void testToCriteriaOfASearchTextOfOnlySignsHasNoText() {
+        final EventSearchForm form = new EventSearchForm();
+        form.setQ("¿?!...");
+        assertNull(form.toCriteria().getText());
+    }
+
+    @Test
+    public void testHasSearchTextIsTrueWhenThereIsAWordToSearch() {
+        final EventSearchForm form = new EventSearchForm();
+        form.setQ("rock");
+        assertTrue(form.hasSearchText());
+    }
+
+    @Test
+    public void testHasSearchTextIsFalseWithoutText() {
+        assertFalse(new EventSearchForm().hasSearchText());
+    }
+
+    @Test
+    public void testSearchTextIsNotAnActiveFilter() {
+        final EventSearchForm form = new EventSearchForm();
+        form.setQ("rock");
+        assertFalse(form.hasActiveFilters());
+    }
+
+    @Test
+    public void testToFilterQueryEncodesTheSearchText() {
+        final EventSearchForm form = new EventSearchForm();
+        form.setQ("Rock & Roll");
+        assertEquals("q=Rock+%26+Roll&", form.toFilterQuery());
+    }
+
+    @Test
+    public void testToFilterQueryKeepsTheSearchTextNextToTheFilters() {
+        final EventSearchForm form = new EventSearchForm();
+        form.setQ("rock");
+        form.setPrecioMax("500");
+        assertEquals("q=rock&precioMax=500&", form.toFilterQuery());
+    }
+
+    @Test
+    public void testToFilterQuerySkipsABlankSearchText() {
+        final EventSearchForm form = new EventSearchForm();
+        form.setQ("   ");
+        assertEquals("", form.toFilterQuery());
     }
 }

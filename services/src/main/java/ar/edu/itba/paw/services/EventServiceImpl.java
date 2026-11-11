@@ -190,32 +190,41 @@ public class EventServiceImpl implements EventService {
     public EventSearchResult search(final EventSearchCriteria criteria) {
         final boolean hasHistory = criteria.getViewerId() != null
                 && eventSimilarityService.hasAttendanceHistory(criteria.getViewerId());
+        final boolean hasText = criteria.hasSearchTerms();
         // RECOMENDADOS solo se ofrece a quien tiene historial: sin el, el orden seria identico a "Mas
-        // proximos" y la opcion no diria nada.
+        // proximos" y la opcion no diria nada. RELEVANCIA solo si se busco texto: sin texto no hay con que comparar.
         final List<EventSort> availableSorts = new ArrayList<>();
         for (final EventSort option : EventSort.values()) {
-            if (hasHistory || option != EventSort.RECOMENDADOS) {
+            if ((hasHistory || option != EventSort.RECOMENDADOS) && (hasText || option != EventSort.RELEVANCIA)) {
                 availableSorts.add(option);
             }
         }
-        final EventSort sort = effectiveSort(criteria.getSort(), hasHistory);
+        final EventSort sort = effectiveSort(criteria.getSort(), hasHistory, hasText);
         criteria.setSort(sort);
         return new EventSearchResult(searchPage(criteria), sort, availableSorts);
     }
 
-    // El orden que pidio la persona; si no pidio ninguno (null), RECOMENDADOS para quien ya asistio a algo y
-    // FECHA_ASC para el resto. RECOMENDADOS pedido a mano sin historial no dice nada, asi que cae a FECHA_ASC.
-    private static EventSort effectiveSort(final EventSort requested, final boolean hasHistory) {
-        if (requested == null) {
-            return hasHistory ? EventSort.RECOMENDADOS : EventSort.FECHA_ASC;
+    // El orden que pidio la persona si se puede aplicar. Si no pidio ninguno (null) o pidio uno que no tiene sentido
+    // (RECOMENDADOS sin historial, RELEVANCIA sin texto buscado), se usa el de por defecto: RELEVANCIA si busco texto
+    // (lo que buscaba pesa mas que lo que le recomendamos), si no RECOMENDADOS para quien ya asistio a algo y
+    // FECHA_ASC para el resto.
+    private static EventSort effectiveSort(final EventSort requested, final boolean hasHistory, final boolean hasText) {
+        final boolean applicable = requested != null
+                && !(requested == EventSort.RECOMENDADOS && !hasHistory)
+                && !(requested == EventSort.RELEVANCIA && !hasText);
+        if (applicable) {
+            return requested;
         }
-        return requested == EventSort.RECOMENDADOS && !hasHistory ? EventSort.FECHA_ASC : requested;
+        if (hasText) {
+            return EventSort.RELEVANCIA;
+        }
+        return hasHistory ? EventSort.RECOMENDADOS : EventSort.FECHA_ASC;
     }
 
     private PageResult<Event> searchPage(final EventSearchCriteria criteria) {
         criteria.setPageSize(PAGE_SIZE);
-        // RECOMENDADOS no tiene SQL (no es una columna): lo ordena EventSimilarityService en
-        // memoria (solo llega aca con historial, y por lo tanto con viewerId).
+        // RECOMENDADOS no es una columna: su puntaje lo calcula la base (EventSimilarityService pide la pagina ya
+        // ordenada a EventDao.findRecommendedPage; solo llega aca con historial, y por lo tanto con viewerId).
         if (criteria.getSort() == EventSort.RECOMENDADOS) {
             return eventSimilarityService.searchRecommended(criteria);
         }

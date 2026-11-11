@@ -112,18 +112,6 @@ public class EventChatJpaDao implements EventChatDao {
                 .executeUpdate();
     }
 
-    // Mismo FROM/WHERE que findGroupsByUser, sin las subconsultas de portada/no-leidos/ultimo
-    // mensaje (no hacen falta para contar). Lo usa el service para paginar (ver findGroupsByUser).
-    @Override
-    public long countGroupsByUser(final long userId) {
-        return ((Number) em.createNativeQuery(
-                        "SELECT COUNT(*) FROM event_chat_member m "
-                                + "JOIN registration r ON r.id = m.registration_id AND r.status = 'CONFIRMED' "
-                                + "WHERE m.user_id = :userId")
-                .setParameter("userId", userId)
-                .getSingleResult()).longValue();
-    }
-
     @Override
     @SuppressWarnings("unchecked")
     public List<ChatGroup> findGroupsByUser(final long userId, final int page, final int pageSize) {
@@ -144,7 +132,7 @@ public class EventChatJpaDao implements EventChatDao {
                                 + "JOIN registration r ON r.id = m.registration_id AND r.status = 'CONFIRMED' "
                                 + "JOIN event e ON e.id = m.event_id "
                                 + "WHERE m.user_id = :userId "
-                                + "ORDER BY last_message_at DESC NULLS LAST, m.joined_at DESC")
+                                + "ORDER BY last_message_at DESC NULLS LAST, m.joined_at DESC, m.event_id DESC")
                 .setParameter("userId", userId)
                 .setFirstResult((page - 1) * pageSize)
                 .setMaxResults(pageSize)
@@ -156,5 +144,17 @@ public class EventChatJpaDao implements EventChatDao {
                     ((Number) row[3]).longValue(), (Date) row[4]));
         }
         return groups;
+    }
+
+    @Override
+    public long countGroupsByUser(final long userId) {
+        // Mismas uniones y filtros que findGroupsByUser(): el total tiene que contar justo lo que se lista.
+        return ((Number) em.createNativeQuery(
+                        "SELECT COUNT(*) FROM event_chat_member m "
+                                + "JOIN registration r ON r.id = m.registration_id AND r.status = 'CONFIRMED' "
+                                + "JOIN event e ON e.id = m.event_id "
+                                + "WHERE m.user_id = :userId")
+                .setParameter("userId", userId)
+                .getSingleResult()).longValue();
     }
 }

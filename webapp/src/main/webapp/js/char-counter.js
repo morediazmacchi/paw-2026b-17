@@ -8,6 +8,7 @@
 // textarea de las vistas). Se salta:
 //  - password: el contador de una contrasena no aporta nada y rompe el boton
 //    de mostrar/ocultar.
+//  - search (la barra de busqueda de /eventos): el tope existe, pero un contador pegado a un buscador es ruido.
 //  - digits-only (cupo y precio, data-digits-only): son numeros, no texto.
 //  - la textarea espejo de las categorias (data-category-extra-hidden): la
 //    llena event-wizard.js con las respuestas de las preguntas, nunca la escribe
@@ -40,7 +41,7 @@
 
     function init() {
         var fields = document.querySelectorAll(
-            "input[maxlength]:not([type=password]):not([data-digits-only]), " +
+            "input[maxlength]:not([type=password]):not([type=search]):not([data-digits-only]), " +
             "textarea[maxlength]:not([data-category-extra-hidden])");
         for (var i = 0; i < fields.length; i++) {
             setUp(fields[i]);

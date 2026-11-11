@@ -78,4 +78,10 @@ public interface RegistrationDao {
     // Pantalla de "aceptar o rechazar inscriptos": las pendientes de este evento,
     // de la mas vieja a la mas nueva (a quien espera hace mas tiempo se lo atiende primero).
     List<Registration> findPendingByEvent(long eventId);
+
+    // Lo mismo de a una pagina (un evento con aprobacion y sin tope de cupos puede juntar muchisimos pedidos):
+    // paginas desde 1, mismo orden (el id desempata) y countPending() da el total para el paginador.
+    // findPendingByEvent() de arriba queda para quien necesita recorrerlas todas (ver
+    // RegistrationServiceImpl.moveRemainingPendingToWaitlist).
+    List<Registration> findPendingByEvent(long eventId, int page, int pageSize);
 }

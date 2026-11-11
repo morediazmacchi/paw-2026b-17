@@ -1222,7 +1222,9 @@ public class EventServiceImplTest {
         final EventSearchResult result = eventService.search(criteria);
 
         // Assert
-        assertEquals(Arrays.asList(EventSort.values()), result.getAvailableSorts());
+        assertEquals(Arrays.asList(EventSort.RECOMENDADOS, EventSort.FECHA_ASC, EventSort.FECHA_DESC,
+                EventSort.PRECIO_ASC, EventSort.PRECIO_DESC, EventSort.CUPOS_ASC, EventSort.CUPOS_DESC),
+                result.getAvailableSorts());
     }
 
     @Test
@@ -1234,8 +1236,129 @@ public class EventServiceImplTest {
         final EventSearchResult result = eventService.search(criteria);
 
         // Assert
-        assertFalse(result.getAvailableSorts().contains(EventSort.RECOMENDADOS));
-        assertEquals(EventSort.values().length - 1, result.getAvailableSorts().size());
+        assertEquals(Arrays.asList(EventSort.FECHA_ASC, EventSort.FECHA_DESC, EventSort.PRECIO_ASC,
+                EventSort.PRECIO_DESC, EventSort.CUPOS_ASC, EventSort.CUPOS_DESC), result.getAvailableSorts());
+    }
+
+    // ---- search() con texto buscado ----
+
+    private EventSearchCriteria textCriteriaFor(final Long viewerId, final String text, final EventSort requestedSort) {
+        final EventSearchCriteria criteria = criteriaFor(viewerId, requestedSort);
+        criteria.setText(text);
+        return criteria;
+    }
+
+    @Test
+    public void testSearchWithTextAndWithoutRequestedSortUsesRelevance() {
+        // Arrange
+        final EventSearchCriteria criteria = textCriteriaFor(CREATOR_ID, "rock", null);
+
+        // Act
+        final EventSearchResult result = eventService.search(criteria);
+
+        // Assert
+        assertEquals(EventSort.RELEVANCIA, result.getEffectiveSort());
+    }
+
+    @Test
+    public void testSearchWithTextUsesRelevanceEvenForAViewerWithHistory() {
+        // Arrange: los recomendados son datos senuelo que solo aparecerian si se los usara
+        final EventSearchCriteria criteria = textCriteriaFor(CREATOR_ID, "rock", null);
+        final List<Event> byRelevance = eventsWithIds(2);
+        when(eventSimilarityService.hasAttendanceHistory(CREATOR_ID)).thenReturn(true);
+        when(eventDao.countSearch(criteria)).thenReturn(2L);
+        when(eventDao.search(criteria)).thenReturn(byRelevance);
+        lenient().when(eventSimilarityService.searchRecommended(criteria))
+                .thenReturn(new PageResult<>(eventsWithIds(5), 5, 1, EventServiceImpl.PAGE_SIZE));
+
+        // Act
+        final EventSearchResult result = eventService.search(criteria);
+
+        // Assert
+        assertEquals(EventSort.RELEVANCIA, result.getEffectiveSort());
+        assertEquals(byRelevance, result.getPage().getContent());
+    }
+
+    @Test
+    public void testSearchWithTextKeepsAnExplicitSort() {
+        // Arrange
+        final EventSearchCriteria criteria = textCriteriaFor(null, "rock", EventSort.PRECIO_ASC);
+
+        // Act
+        final EventSearchResult result = eventService.search(criteria);
+
+        // Assert
+        assertEquals(EventSort.PRECIO_ASC, result.getEffectiveSort());
+    }
+
+    @Test
+    public void testSearchWithTextKeepsRecommendedWhenAViewerWithHistoryAsksForIt() {
+        // Arrange
+        final EventSearchCriteria criteria = textCriteriaFor(CREATOR_ID, "rock", EventSort.RECOMENDADOS);
+        when(eventSimilarityService.hasAttendanceHistory(CREATOR_ID)).thenReturn(true);
+        when(eventSimilarityService.searchRecommended(criteria))
+                .thenReturn(new PageResult<>(eventsWithIds(2), 2, 1, EventServiceImpl.PAGE_SIZE));
+
+        // Act
+        final EventSearchResult result = eventService.search(criteria);
+
+        // Assert
+        assertEquals(EventSort.RECOMENDADOS, result.getEffectiveSort());
+        assertEquals(2, result.getPage().getContent().size());
+    }
+
+    @Test
+    public void testSearchWithTextOffersRelevanceFirst() {
+        // Arrange
+        final EventSearchCriteria criteria = textCriteriaFor(null, "rock", null);
+
+        // Act
+        final EventSearchResult result = eventService.search(criteria);
+
+        // Assert
+        assertEquals(Arrays.asList(EventSort.RELEVANCIA, EventSort.FECHA_ASC, EventSort.FECHA_DESC,
+                EventSort.PRECIO_ASC, EventSort.PRECIO_DESC, EventSort.CUPOS_ASC, EventSort.CUPOS_DESC),
+                result.getAvailableSorts());
+    }
+
+    @Test
+    public void testSearchWithRelevanceRequestedButNoTextFallsBackToDate() {
+        // Arrange
+        final EventSearchCriteria criteria = criteriaFor(null, EventSort.RELEVANCIA);
+
+        // Act
+        final EventSearchResult result = eventService.search(criteria);
+
+        // Assert
+        assertEquals(EventSort.FECHA_ASC, result.getEffectiveSort());
+    }
+
+    @Test
+    public void testSearchWithRelevanceRequestedButNoTextFallsBackToRecommendedForAViewerWithHistory() {
+        // Arrange
+        final EventSearchCriteria criteria = criteriaFor(CREATOR_ID, EventSort.RELEVANCIA);
+        when(eventSimilarityService.hasAttendanceHistory(CREATOR_ID)).thenReturn(true);
+        when(eventSimilarityService.searchRecommended(criteria))
+                .thenReturn(new PageResult<>(eventsWithIds(1), 1, 1, EventServiceImpl.PAGE_SIZE));
+
+        // Act
+        final EventSearchResult result = eventService.search(criteria);
+
+        // Assert
+        assertEquals(EventSort.RECOMENDADOS, result.getEffectiveSort());
+    }
+
+    @Test
+    public void testSearchWithATextOfOnlySignsIsTheSameAsWithoutText() {
+        // Arrange
+        final EventSearchCriteria criteria = textCriteriaFor(null, "¿?!...", EventSort.RELEVANCIA);
+
+        // Act
+        final EventSearchResult result = eventService.search(criteria);
+
+        // Assert
+        assertEquals(EventSort.FECHA_ASC, result.getEffectiveSort());
+        assertFalse(result.getAvailableSorts().contains(EventSort.RELEVANCIA));
     }
 
     // ---- findMyEventsPage() ----

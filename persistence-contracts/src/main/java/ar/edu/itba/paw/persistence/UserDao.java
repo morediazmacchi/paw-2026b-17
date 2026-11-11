@@ -20,13 +20,15 @@ public interface UserDao {
     Optional<UserAccess> findAccessById(long id);
     Optional<User> findByEmail(String email);
 
-    // Para "Usuarios" del panel de admin (ver AdminController): una pagina de usuarios
-    // ordenados por id, con sus roles ya cargados. Pagina sobre la tabla users (no sobre
-    // las filas del JOIN con roles: un usuario con dos roles son dos filas). countAll()
-    // es el total para calcular las paginas.
-    List<User> findPage(int limit, int offset);
+    // Una pagina de "Usuarios", con la busqueda por mail. Pagina sobre la tabla users (no sobre las filas del JOIN
+    // con roles: un usuario con dos roles son dos filas). emailText null o en blanco = sin buscar: todos, por id.
+    // Con texto quedan los usuarios cuyo mail lo CONTIENE (sin importar mayusculas; solo el mail, no el nombre),
+    // primero el mail igual al texto, despues los que empiezan con el, despues el resto; en cada grupo por mail y
+    // despues por id. El texto es literal: %, _ y \ no son comodines (un mail con "_" es de lo mas comun).
+    List<User> findPage(String emailText, int limit, int offset);
 
-    long countAll();
+    // El total de findPage(emailText, ...) para calcular las paginas: los usuarios que matchean, no las filas del JOIN.
+    long count(String emailText);
 
     // Una sola consulta para varios ids (WHERE id IN (...)), para armar un mapa
     // id->User sin un findById() por cada uno (ver AdminController.seguimiento()/

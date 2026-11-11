@@ -1,6 +1,6 @@
 package ar.edu.itba.paw.services.config;
 
-import ar.edu.itba.paw.services.SimilarityParameters;
+import ar.edu.itba.paw.model.SimilarityParameters;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
@@ -48,7 +48,6 @@ public class SimilarityConfigTest {
         assertEquals(defaults.getWeightWeekday(), loaded.getWeightWeekday(), DELTA);
         assertEquals(defaults.getWeightOrganizer(), loaded.getWeightOrganizer(), DELTA);
         assertEquals(defaults.getFreeVsPaidFactor(), loaded.getFreeVsPaidFactor(), DELTA);
-        assertEquals(defaults.getPriceRefreshSeconds(), loaded.getPriceRefreshSeconds());
         assertEquals(defaults.getIgnoredCategoryNames(), loaded.getIgnoredCategoryNames());
         assertEquals(defaults.getRelatedLimit(), loaded.getRelatedLimit());
         assertEquals(defaults.getRelatedMinScore(), loaded.getRelatedMinScore(), DELTA);

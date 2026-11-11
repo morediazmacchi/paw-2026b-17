@@ -194,7 +194,35 @@ public class SavedSearchServiceImplTest {
         assertFalse(result);
     }
 
+    @Test
+    public void testSaveIgnoresTheSearchTextAndOnlyLooksAtTheFilters() {
+        // Arrange: los mismos filtros ya estaban guardados (sin texto); ahora se guardan con texto escrito
+        final EventSearchCriteria criteria = palermoCriteria();
+        criteria.setText("rock");
+        when(savedSearchDao.existsByKey(USER_ID, palermoKey())).thenReturn(true);
+
+        // Act
+        final SaveSearchResult result = savedSearchService.save(USER_ID, criteria);
+
+        // Assert
+        assertEquals(SaveSearchResult.ALREADY_SAVED, result);
+    }
+
     // ---- isSaved() ----
+
+    @Test
+    public void testIsSavedIgnoresTheSearchText() {
+        // Arrange: lo guardado son los filtros; el texto de la barra no es parte de la busqueda guardada
+        final EventSearchCriteria criteria = palermoCriteria();
+        criteria.setText("rock");
+        when(savedSearchDao.existsByKey(USER_ID, palermoKey())).thenReturn(true);
+
+        // Act
+        final boolean result = savedSearchService.isSaved(USER_ID, criteria);
+
+        // Assert
+        assertTrue(result);
+    }
 
     @Test
     public void testIsSavedIgnoresTheOrderInWhichTheFiltersWereChosen() {

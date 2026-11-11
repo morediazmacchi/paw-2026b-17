@@ -333,23 +333,26 @@ public class ProfileController {
     }
 
     // Bandeja de mensajes. Al abrirla se marcan todos como leidos. Los circulos de chat y los
-    // mensajes son dos paginados independientes (page / chatsPage), cada uno con su indice: ver
+    // mensajes son dos paginados independientes (page / gruposPage), cada uno con su indice: ver
     // pager.tag (pageParam/otherParam/otherPage), mismo patron que "Mis inscripciones".
     @RequestMapping(value = "/perfil/bandeja", method = RequestMethod.GET)
     public ModelAndView bandeja(@RequestParam(value = "page", required = false) final String page,
-                                @RequestParam(value = "chatsPage", required = false) final String chatsPage,
+                                @RequestParam(value = "gruposPage", required = false) final String groupsPage,
                                 @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final InboxPage inbox = inboxService.findPageWithEvents(currentUser.getId(), Paging.parsePage(page));
         final PageResult<InboxMessage> result = inbox.getMessages();
-        final PageResult<ChatGroup> chatGroups = eventChatService.findGroups(currentUser.getId(), Paging.parsePage(chatsPage));
 
         final ModelAndView mav = new ModelAndView("auth/bandeja");
         mav.addObject("user", currentUser);
         mav.addObject("messages", result.getContent());
         mav.addObject("hasUnread", inbox.isHasUnread());
-        mav.addObject("chatGroups", chatGroups.getContent());
-        mav.addObject("chatGroupsCurrentPage", chatGroups.getPage());
-        mav.addObject("chatGroupsTotalPages", chatGroups.getTotalPages());
+        // Los circulos de los grupos y los mensajes son dos listas paginadas independientes, cada una con su
+        // parametro (page / gruposPage); el JSP repite el de la otra en los links de cada paginador.
+        final PageResult<ChatGroup> groups = eventChatService.findGroupsPage(currentUser.getId(),
+                Paging.parsePage(groupsPage));
+        mav.addObject("chatGroups", groups.getContent());
+        mav.addObject("groupsPage", groups.getPage());
+        mav.addObject("groupsTotalPages", groups.getTotalPages());
         mav.addObject("eventsById", inbox.getEventsById());
         mav.addObject("currentPage", result.getPage());
         mav.addObject("totalPages", result.getTotalPages());
@@ -357,16 +360,16 @@ public class ProfileController {
     }
 
     // "Marcar como leidas": solo los mensajes de la pagina que se estaba viendo (sus ids
-    // vienen en el formulario). El GET de la bandeja no marca nada: solo lee. chatsPage viaja de
-    // vuelta en el redirect para no resetear el paginador de chats al marcar mensajes leidos.
+    // vienen en el formulario). El GET de la bandeja no marca nada: solo lee. gruposPage viaja de
+    // vuelta en el redirect para no resetear el paginador de grupos al marcar mensajes leidos.
     @RequestMapping(value = "/perfil/bandeja/marcar-leidas", method = RequestMethod.POST)
     public ModelAndView markInboxRead(@RequestParam(value = "ids", required = false) final List<Long> ids,
                                       @RequestParam(value = "page", required = false) final String page,
-                                      @RequestParam(value = "chatsPage", required = false) final String chatsPage,
+                                      @RequestParam(value = "gruposPage", required = false) final String groupsPage,
                                       @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         inboxService.markRead(currentUser.getId(), ids);
         return new ModelAndView("redirect:/perfil/bandeja?page=" + Paging.parsePage(page)
-                + "&chatsPage=" + Paging.parsePage(chatsPage));
+                + "&gruposPage=" + Paging.parsePage(groupsPage));
     }
 
     @RequestMapping(value = "/perfil/eventos", method = RequestMethod.GET)
@@ -400,6 +403,7 @@ public class ProfileController {
     @PreAuthorize("@eventSecurity.isOwner(#id, authentication)")
     @RequestMapping(value = "/perfil/eventos/{id}/inscriptos", method = RequestMethod.GET)
     public ModelAndView pendingRegistrations(@PathVariable final long id,
+                                              @RequestParam(value = "page", required = false) final String page,
                                               @RequestParam(value = "approved", required = false) final String approvedParam,
                                               @RequestParam(value = "rejected", required = false) final String rejectedParam,
                                               @RequestParam(value = "full", required = false) final String fullParam,
@@ -409,8 +413,10 @@ public class ProfileController {
         final ModelAndView mav = new ModelAndView("auth/inscriptos");
         mav.addObject("user", currentUser);
         mav.addObject("event", event);
-        final PendingRegistrations pending = registrationService.findPendingSummary(id);
+        final PendingRegistrations pending = registrationService.findPendingSummary(id, Paging.parsePage(page));
         mav.addObject("pendingRegistrations", pending.getRegistrations());
+        mav.addObject("currentPage", pending.getPage());
+        mav.addObject("totalPages", pending.getTotalPages());
         mav.addObject("approved", approvedParam != null);
         mav.addObject("rejected", rejectedParam != null);
         mav.addObject("fullNotice", fullParam != null);

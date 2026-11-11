@@ -1,6 +1,6 @@
 package ar.edu.itba.paw.services.config;
 
-import ar.edu.itba.paw.services.SimilarityParameters;
+import ar.edu.itba.paw.model.SimilarityParameters;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.PropertySource;
@@ -41,7 +41,6 @@ public class SimilarityConfig {
                 .weightWeekday(env.getProperty("similarity.weight.weekday", Double.class, d.getWeightWeekday()))
                 .weightOrganizer(env.getProperty("similarity.weight.organizer", Double.class, d.getWeightOrganizer()))
                 .freeVsPaidFactor(env.getProperty("similarity.price.free-vs-paid-factor", Double.class, d.getFreeVsPaidFactor()))
-                .priceRefreshSeconds(env.getProperty("similarity.price.refresh-seconds", Long.class, d.getPriceRefreshSeconds()))
                 .ignoredCategoryNames(ignoredCategories(env.getProperty("similarity.category.ignored"), d))
                 .relatedLimit(env.getProperty("similarity.related.limit", Integer.class, d.getRelatedLimit()))
                 .relatedMinScore(env.getProperty("similarity.related.min-score", Double.class, d.getRelatedMinScore()))

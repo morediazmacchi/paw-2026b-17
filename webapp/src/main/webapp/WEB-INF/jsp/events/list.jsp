@@ -98,6 +98,10 @@
     <spring:message code="event.list.filterButton" var="filterButtonLabel"/>
     <spring:message code="event.list.clearFiltersButton" var="clearFiltersLabel"/>
     <spring:message code="event.list.clearAllButton" var="clearAllLabel"/>
+    <spring:message code="event.list.searchPlaceholder" var="searchPlaceholder"/>
+    <spring:message code="event.list.searchLabel" var="searchLabel"/>
+    <spring:message code="event.list.searchButton" var="searchButtonLabel"/>
+    <spring:message code="event.list.clearSearchLink" var="clearSearchLabel"/>
 
     <form method="get" action="<c:url value='/eventos'/>">
     <div class="filter-bar-v2">
@@ -329,6 +333,15 @@
             </div>
         </details>
 
+        <%-- Busqueda por texto (titulo y descripcion), con la lupa adentro. Esta en el mismo form que los filtros y el
+             orden: el texto viaja con ellos, y Enter en cualquier campo manda la busqueda. El texto se muestra escapado. --%>
+        <div class="search-bar" role="search">
+            <input type="search" name="q" class="search-input" maxlength="100"
+                   value="${fn:escapeXml(q)}"
+                   placeholder="${fn:escapeXml(searchPlaceholder)}"
+                   aria-label="${fn:escapeXml(searchLabel)}"/>
+            <button type="submit" class="search-submit" aria-label="${fn:escapeXml(searchButtonLabel)}"><paw:icon name="search"/></button>
+        </div>
         <paw:button text="${filterButtonLabel}" cssClass="btn-accent"/>
         <c:if test="${hasActiveFilters}">
             <a class="btn btn-medium filter-clear-all" href="<c:url value='/eventos'/>">&times; <c:out value="${clearAllLabel}"/></a>
@@ -341,10 +354,13 @@
          donde se ve (esta fila, arriba del listado, no el acordeon de arriba). --%>
     <spring:message code="event.list.sortLabel" var="sortLabel"/>
     <div class="results-header">
-        <c:if test="${hasActiveFilters}">
+        <c:if test="${hasActiveFilters or hasSearchText}">
             <div class="results-info">
                 <h2 class="results-count"><spring:message code="event.list.resultsCount" arguments="${totalElements}"/></h2>
-                <a class="results-clear" href="<c:url value='/eventos'/>"><c:out value="${clearFiltersLabel}"/></a>
+                <c:if test="${hasSearchText}">
+                    <span class="results-query"><spring:message code="event.list.searchResultsFor"/> <strong><c:out value="${q}"/></strong></span>
+                </c:if>
+                <a class="results-clear" href="<c:url value='/eventos'/>"><c:out value="${hasActiveFilters ? clearFiltersLabel : clearSearchLabel}"/></a>
             </div>
         </c:if>
         <label class="sort-select">
@@ -390,8 +406,9 @@
                         <input type="hidden" name="precioMax" value="${fn:escapeXml(precioMax)}"/>
                         <input type="hidden" name="fechaDesde" value="${fn:escapeXml(fechaDesde)}"/>
                         <input type="hidden" name="fechaHasta" value="${fn:escapeXml(fechaHasta)}"/>
-                        <%-- Estos tres no se guardan (cambian solos con el tiempo), pero viajan para volver al
-                             listado con los mismos filtros que tenia puestos. --%>
+                        <%-- Estos no se guardan (el puntaje y los cupos cambian solos con el tiempo, y el texto de la
+                             busqueda no es un filtro), pero viajan para volver al listado tal como estaba. --%>
+                        <input type="hidden" name="q" value="${fn:escapeXml(q)}"/>
                         <input type="hidden" name="puntajeMin" value="${fn:escapeXml(puntajeMin)}"/>
                         <input type="hidden" name="pocosCupos" value="${fn:escapeXml(pocosCupos)}"/>
                         <input type="hidden" name="agotados" value="${fn:escapeXml(agotados)}"/>
