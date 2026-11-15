@@ -934,14 +934,6 @@ public class UserServiceImplTest {
         assertFalse(result);
     }
 
-    private static final long CALLER_ID = 99;
-
-    private static User callerUser() {
-        final User caller = new User("super@test.com", "Super");
-        caller.setId(CALLER_ID);
-        return caller;
-    }
-
     private static UserAccess accessOf(final long id, final Role... roles) {
         return new UserAccess(id, EnumSet.copyOf(Arrays.asList(roles)));
     }
@@ -953,25 +945,10 @@ public class UserServiceImplTest {
         when(userDao.removeRole(USER_ID, Role.ADMIN)).thenReturn(true);
 
         // Act
-        final RevokeAdminResult result = userService.revokeAdmin(callerUser(), USER_ID);
+        final RevokeAdminResult result = userService.revokeAdmin(USER_ID);
 
         // Assert
         assertEquals(RevokeAdminResult.OK, result);
-    }
-
-    // Validar antes de escribir: si se sacara el rol a si mismo, el resultado seria OK (removeRole
-    // daria true) si el chequeo no corriera antes.
-    @Test
-    public void testRevokeAdminOnYourOwnAccountReturnsOwnAccount() {
-        // Arrange
-        lenient().when(userDao.findAccessById(CALLER_ID)).thenReturn(Optional.of(accessOf(CALLER_ID, Role.USER, Role.ADMIN)));
-        lenient().when(userDao.removeRole(CALLER_ID, Role.ADMIN)).thenReturn(true);
-
-        // Act
-        final RevokeAdminResult result = userService.revokeAdmin(callerUser(), CALLER_ID);
-
-        // Assert
-        assertEquals(RevokeAdminResult.OWN_ACCOUNT, result);
     }
 
     // Un superadmin conserva ADMIN: si el service igual llamara a removeRole (que da true), el
@@ -984,7 +961,7 @@ public class UserServiceImplTest {
         lenient().when(userDao.removeRole(USER_ID, Role.ADMIN)).thenReturn(true);
 
         // Act
-        final RevokeAdminResult result = userService.revokeAdmin(callerUser(), USER_ID);
+        final RevokeAdminResult result = userService.revokeAdmin(USER_ID);
 
         // Assert
         assertEquals(RevokeAdminResult.TARGET_SUPERADMIN, result);
@@ -997,7 +974,7 @@ public class UserServiceImplTest {
         when(userDao.removeRole(USER_ID, Role.ADMIN)).thenReturn(false);
 
         // Act
-        final RevokeAdminResult result = userService.revokeAdmin(callerUser(), USER_ID);
+        final RevokeAdminResult result = userService.revokeAdmin(USER_ID);
 
         // Assert
         assertEquals(RevokeAdminResult.OK, result);
@@ -1009,50 +986,10 @@ public class UserServiceImplTest {
         when(userDao.findAccessById(USER_ID)).thenReturn(Optional.empty());
 
         // Act
-        final RevokeAdminResult result = userService.revokeAdmin(callerUser(), USER_ID);
+        final RevokeAdminResult result = userService.revokeAdmin(USER_ID);
 
         // Assert
         assertEquals(RevokeAdminResult.NOT_FOUND, result);
-    }
-
-    // ---- suspend(caller, target): el panel de admin ----
-
-    // Validar antes de escribir: si el service suspendiera primero, setSuspended daria true y el
-    // resultado seria OK.
-    @Test
-    public void testSuspendYourOwnAccountReturnsOwnAccount() {
-        // Arrange
-        lenient().when(userDao.setSuspended(CALLER_ID, true)).thenReturn(true);
-
-        // Act
-        final SuspendResult result = userService.suspend(callerUser(), CALLER_ID);
-
-        // Assert
-        assertEquals(SuspendResult.OWN_ACCOUNT, result);
-    }
-
-    @Test
-    public void testSuspendAnotherUserReturnsOk() {
-        // Arrange
-        when(userDao.setSuspended(USER_ID, true)).thenReturn(true);
-
-        // Act
-        final SuspendResult result = userService.suspend(callerUser(), USER_ID);
-
-        // Assert
-        assertEquals(SuspendResult.OK, result);
-    }
-
-    @Test
-    public void testSuspendAUserWhoDoesNotExistReturnsNotFound() {
-        // Arrange
-        when(userDao.setSuspended(USER_ID, true)).thenReturn(false);
-
-        // Act
-        final SuspendResult result = userService.suspend(callerUser(), USER_ID);
-
-        // Assert
-        assertEquals(SuspendResult.NOT_FOUND, result);
     }
 
     // ---- findPage() ----

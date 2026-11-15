@@ -27,9 +27,6 @@
     <c:if test="${not empty revokeAdminError}">
         <p class="alert"><spring:message code="admin.users.revokeAdminError.${revokeAdminError}"/></p>
     </c:if>
-    <c:if test="${not empty suspendError}">
-        <p class="alert"><spring:message code="admin.users.suspendError.${suspendError}"/></p>
-    </c:if>
 
     <%-- Buscar por mail (contiene, sin importar mayusculas). GET: la busqueda queda en la URL y el paginador la repite. --%>
     <spring:message code="admin.users.searchPlaceholder" var="searchPlaceholder"/>

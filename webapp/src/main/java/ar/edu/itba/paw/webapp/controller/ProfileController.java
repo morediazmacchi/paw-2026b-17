@@ -115,16 +115,23 @@ public class ProfileController {
         return currentUser == null ? null : accountSummaryService.countsFor(currentUser.getId(), currentUser.isAdmin());
     }
 
+    // La cuenta de quien mira, para la barra lateral y el perfil ("user" en el model de cada handler). Se lee
+    // de la base a proposito: la sesion (PlancitoUserDetails) solo lleva lo que hace falta para autorizar, y
+    // un nombre editado tiene que verse actualizado. Un objeto y no un valor simple, igual que accountCounts.
+    @ModelAttribute("user")
+    public User sidebarUser(@ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
+        return currentUser == null ? null : userService.findById(currentUser.getId()).orElse(null);
+    }
+
     @RequestMapping(value = "/perfil", method = RequestMethod.GET)
     public ModelAndView perfil(@RequestParam(value = "updated", required = false) final String updated,
                                 @RequestParam(value = "passwordChanged", required = false) final String passwordChanged,
-                                @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
+                                @ModelAttribute(value = "user", binding = false) final User user) {
         final ProfileForm profileForm = new ProfileForm();
-        profileForm.setNombre(currentUser.getName());
+        profileForm.setNombre(user.getName());
 
         final ModelAndView mav = new ModelAndView("auth/perfil");
-        mav.addObject("user", currentUser);
-        mav.addObject("followersCount", followService.countFollowers(currentUser.getId()));
+        mav.addObject("followersCount", followService.countFollowers(user.getId()));
         mav.addObject("profileForm", profileForm);
         mav.addObject("changePasswordForm", new ChangePasswordForm());
         mav.addObject("profileUpdated", updated != null);
@@ -149,7 +156,6 @@ public class ProfileController {
 
     private ModelAndView profileWithErrors(final ProfileForm form, final BindingResult errors, final User currentUser) {
         final ModelAndView mav = new ModelAndView("auth/perfil");
-        mav.addObject("user", currentUser);
         mav.addObject("followersCount", followService.countFollowers(currentUser.getId()));
         mav.addObject("profileForm", form);
         mav.addObject("profileFieldErrors", fieldErrorsOf(errors));
@@ -159,7 +165,8 @@ public class ProfileController {
 
     @RequestMapping(value = "/perfil/contrasena", method = RequestMethod.POST)
     public ModelAndView changePassword(@Valid final ChangePasswordForm form, final BindingResult errors,
-                                        @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
+                                        @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
+                                        @ModelAttribute(value = "user", binding = false) final User user) {
         if (!errors.hasErrors()) {
             final ChangePasswordResult result = userService.changePassword(
                     currentUser.getId(), form.getCurrentPassword(), form.getNewPassword());
@@ -172,10 +179,9 @@ public class ProfileController {
 
         if (errors.hasErrors()) {
             final ProfileForm profileForm = new ProfileForm();
-            profileForm.setNombre(currentUser.getName());
+            profileForm.setNombre(user.getName());
 
             final ModelAndView mav = new ModelAndView("auth/perfil");
-            mav.addObject("user", currentUser);
             mav.addObject("followersCount", followService.countFollowers(currentUser.getId()));
             mav.addObject("profileForm", profileForm);
             mav.addObject("changePasswordForm", form);
@@ -196,7 +202,6 @@ public class ProfileController {
                 currentUser.getId(), Paging.parsePage(upcomingPage), Paging.parsePage(pastPage));
 
         final ModelAndView mav = new ModelAndView("auth/inscripciones");
-        mav.addObject("user", currentUser);
         mav.addObject("upcomingRegistrations", result.getUpcoming());
         mav.addObject("pastRegistrations", result.getPast());
         return mav;
@@ -253,7 +258,6 @@ public class ProfileController {
         final PageResult<Event> result = favoriteService.findViewablePage(currentUser, Paging.parsePage(page));
 
         final ModelAndView mav = new ModelAndView("auth/favoritos");
-        mav.addObject("user", currentUser);
         mav.addObject("favoriteEvents", result.getContent());
         mav.addObject("currentPage", result.getPage());
         mav.addObject("totalPages", result.getTotalPages());
@@ -269,7 +273,6 @@ public class ProfileController {
         final Map<Long, String> categoryNames = categoryNames();
 
         final ModelAndView mav = new ModelAndView("auth/listas");
-        mav.addObject("user", currentUser);
         mav.addObject("savedSearches", result.getContent().stream()
                 .map(search -> SavedSearchView.of(search, categoryNames))
                 .collect(Collectors.toList()));
@@ -302,7 +305,6 @@ public class ProfileController {
             return new ModelAndView("redirect:/perfil/listas");
         }
         final ModelAndView mav = new ModelAndView("auth/desuscribirLista");
-        mav.addObject("user", currentUser);
         mav.addObject("savedSearch", SavedSearchView.of(search.get(), categoryNames()));
         return mav;
     }
@@ -325,7 +327,6 @@ public class ProfileController {
         final PageResult<Event> result = eventInvitationService.findInvitedEventsPage(currentUser.getId(), Paging.parsePage(page));
 
         final ModelAndView mav = new ModelAndView("auth/invitaciones");
-        mav.addObject("user", currentUser);
         mav.addObject("invitedEvents", result.getContent());
         mav.addObject("currentPage", result.getPage());
         mav.addObject("totalPages", result.getTotalPages());
@@ -343,7 +344,6 @@ public class ProfileController {
         final PageResult<InboxMessage> result = inbox.getMessages();
 
         final ModelAndView mav = new ModelAndView("auth/bandeja");
-        mav.addObject("user", currentUser);
         mav.addObject("messages", result.getContent());
         mav.addObject("hasUnread", inbox.isHasUnread());
         // Los circulos de los grupos y los mensajes son dos listas paginadas independientes, cada una con su
@@ -382,7 +382,6 @@ public class ProfileController {
                 reviewService.findCreatorReputation(currentUser.getId(), Paging.parsePage(resenasPage));
 
         final ModelAndView mav = new ModelAndView("auth/eventos");
-        mav.addObject("user", currentUser);
         // Cada evento con sus conteos de inscripciones (pendientes y confirmados, ver EventWithRegistrationStats).
         mav.addObject("createdEvents", result.getContent());
         mav.addObject("currentPage", result.getPage());
@@ -411,7 +410,6 @@ public class ProfileController {
         final Event event = eventService.findByIdOrThrow(id);
 
         final ModelAndView mav = new ModelAndView("auth/inscriptos");
-        mav.addObject("user", currentUser);
         mav.addObject("event", event);
         final PendingRegistrations pending = registrationService.findPendingSummary(id, Paging.parsePage(page));
         mav.addObject("pendingRegistrations", pending.getRegistrations());
@@ -468,20 +466,18 @@ public class ProfileController {
     public ModelAndView inviteForm(@PathVariable final long id,
                                     @RequestParam(value = "sent", required = false) final String sentParam,
                                     @RequestParam(value = "alreadyInvited", required = false) final String alreadyInvitedParam,
-                                    @RequestParam(value = "page", required = false) final String page,
-                                    @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
+                                    @RequestParam(value = "page", required = false) final String page) {
         final Event event = eventService.findByIdOrThrow(id);
-        return inviteFormView(event, currentUser, new InviteForm(), null, sentParam != null,
+        return inviteFormView(event, new InviteForm(), null, sentParam != null,
                 alreadyInvitedParam != null, Paging.parsePage(page));
     }
 
     @PreAuthorize("@eventSecurity.isOwner(#id, authentication)")
     @RequestMapping(value = "/perfil/eventos/{id}/invitar", method = RequestMethod.POST)
-    public ModelAndView invite(@PathVariable final long id, @Valid final InviteForm form, final BindingResult errors,
-                                @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
+    public ModelAndView invite(@PathVariable final long id, @Valid final InviteForm form, final BindingResult errors) {
         final Event event = eventService.findByIdOrThrow(id);
         if (errors.hasErrors()) {
-            return inviteFormView(event, currentUser, form, errors, false, false, 1);
+            return inviteFormView(event, form, errors, false, false, 1);
         }
         // Que el evento sea privado, no este cancelado ni haya pasado lo valida el service.
         final EventInvitationResult result = eventInvitationService.invite(id, form.getEmail());
@@ -490,7 +486,7 @@ public class ProfileController {
         }
         if (result == EventInvitationResult.INVALID_EMAIL) {
             errors.rejectValue("email", "Size.inviteForm.email");
-            return inviteFormView(event, currentUser, form, errors, false, false, 1);
+            return inviteFormView(event, form, errors, false, false, 1);
         }
         return new ModelAndView("redirect:/perfil/eventos/" + id + "/invitar?" + inviteParam(result));
     }
@@ -509,12 +505,11 @@ public class ProfileController {
         };
     }
 
-    private ModelAndView inviteFormView(final Event event, final User currentUser, final InviteForm form,
+    private ModelAndView inviteFormView(final Event event, final InviteForm form,
                                          final BindingResult errors, final boolean sent, final boolean alreadyInvited,
                                          final int page) {
         final PageResult<EventInvitation> invitations = eventInvitationService.findPageByEvent(event.getId(), page);
         final ModelAndView mav = new ModelAndView("auth/invitar");
-        mav.addObject("user", currentUser);
         mav.addObject("event", event);
         mav.addObject("inviteForm", form);
         if (errors != null) {

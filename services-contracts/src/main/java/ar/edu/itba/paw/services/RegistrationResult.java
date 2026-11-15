@@ -18,8 +18,6 @@ public class RegistrationResult {
         ALREADY_PENDING,
         /** El creador ya le habia rechazado una inscripcion a este evento. No se creo nada. */
         REJECTED,
-        /** Quien pide registrarse es el creador del evento: no se lo puede, no se creo nada. */
-        OWN_EVENT,
         /** El creador cancelo el evento: no se puede anotar nadie, no se creo nada. */
         CANCELLED,
         /** El evento ya termino: no tiene sentido anotarse, no se creo nada. */

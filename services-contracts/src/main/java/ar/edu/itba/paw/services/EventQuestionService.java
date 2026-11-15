@@ -2,7 +2,6 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.EventQuestion;
-import ar.edu.itba.paw.model.User;
 
 import java.util.Optional;
 
@@ -10,8 +9,11 @@ public interface EventQuestionService {
 
     int MAX_QUESTION_LENGTH = 300;
 
-    /** Pregunta de "asker" sobre el evento. Si sale bien, le avisa al organizador (mail + bandeja). */
-    QuestionResult ask(long eventId, User asker, String text);
+    /**
+     * Pregunta de la cuenta {@code askerId} sobre el evento (su nombre y mail se leen de la base, no de la sesion).
+     * Si sale bien, le avisa al organizador (mail + bandeja).
+     */
+    QuestionResult ask(long eventId, long askerId, String text);
 
     /**
      * Respuesta del organizador. Si sale bien, le avisa a quien pregunto (mail + bandeja). El evento

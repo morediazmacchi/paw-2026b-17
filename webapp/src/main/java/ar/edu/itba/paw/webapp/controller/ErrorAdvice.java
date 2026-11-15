@@ -37,16 +37,17 @@ public class ErrorAdvice {
 
     // Corre antes de CUALQUIER metodo de CUALQUIER controller (ControllerAdvice
     // es global) y deja "currentUser" en el Model de cada request. Sale del principal de la sesion
-    // (PlancitoUserDetails: id, email, nombre y roles, armado una sola vez en el login), sin ir a la
-    // base. Es un User "de sesion": solo trae esos cuatro datos. El nombre es el del login: si se edita
-    // el perfil se ve el viejo hasta el proximo login. Sin sesion es null.
+    // (PlancitoUserDetails: id, email y roles, armado una sola vez en el login), sin ir a la base. Es un
+    // User "de sesion": solo trae esos tres datos, los que sirven para autorizar; NO tiene nombre (no se
+    // autoriza con el y quedaria viejo al editar el perfil): quien lo necesita lo pide al service por id.
+    // Sin sesion es null.
     @ModelAttribute("currentUser")
     public User currentUserFromPrincipal(final Authentication authentication) {
         return PlancitoUserDetails.from(authentication).map(ErrorAdvice::toUser).orElse(null);
     }
 
     private static User toUser(final PlancitoUserDetails principal) {
-        final User user = new User(principal.getEmail(), principal.getName());
+        final User user = new User(principal.getEmail(), null);
         user.setId(principal.getId());
         user.setRoles(Arrays.stream(Role.values())
                 .filter(principal::hasRole)

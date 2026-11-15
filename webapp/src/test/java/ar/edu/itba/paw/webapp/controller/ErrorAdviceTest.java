@@ -60,16 +60,16 @@ public class ErrorAdviceTest {
 
     // ---- currentUser: sale del principal de la sesion, sin ir a la base ----
 
-    private static Authentication sessionOf(final long id, final String email, final String name, final String... roles) {
-        final PlancitoUserDetails principal = new PlancitoUserDetails(id, email, name, "", true,
+    private static Authentication sessionOf(final long id, final String email, final String... roles) {
+        final PlancitoUserDetails principal = new PlancitoUserDetails(id, email, "", true,
                 AuthorityUtils.createAuthorityList(roles));
         return new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
     }
 
     @Test
-    public void testCurrentUserCarriesTheIdEmailAndNameOfThePrincipal() {
+    public void testCurrentUserCarriesTheIdAndEmailOfThePrincipalButNoName() {
         // Arrange
-        final Authentication session = sessionOf(7, "ana@test.com", "Ana", Role.USER.getAuthority());
+        final Authentication session = sessionOf(7, "ana@test.com", Role.USER.getAuthority());
 
         // Act
         final User result = errorAdvice.currentUserFromPrincipal(session);
@@ -77,13 +77,13 @@ public class ErrorAdviceTest {
         // Assert
         assertEquals(7L, result.getId().longValue());
         assertEquals("ana@test.com", result.getEmail());
-        assertEquals("Ana", result.getName());
+        assertNull(result.getName());
     }
 
     @Test
     public void testCurrentUserCarriesTheRolesOfThePrincipal() {
         // Arrange
-        final Authentication session = sessionOf(1, "root@test.com", "Root",
+        final Authentication session = sessionOf(1, "root@test.com",
                 Role.USER.getAuthority(), Role.ADMIN.getAuthority(), Role.SUPERADMIN.getAuthority());
 
         // Act

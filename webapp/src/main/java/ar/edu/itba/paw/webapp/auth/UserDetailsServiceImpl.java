@@ -50,7 +50,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         // que es la suma de las dos). DaoAuthenticationProvider NO decide con esto antes de comparar la clave (ver
         // WebAuthConfig): despues, AccountStatusAfterPasswordCheck lanza LockedException si esta suspendida o
         // DisabledException si no confirmo el mail, y el failure handler mira solo el tipo de excepcion.
-        return new PlancitoUserDetails(user.getId(), user.getEmail(), user.getName(), passwordHash,
+        return new PlancitoUserDetails(user.getId(), user.getEmail(), passwordHash,
                 user.hasPassword() && user.isVerified(), !user.isSuspended(), toAuthorities(user));
     }
 

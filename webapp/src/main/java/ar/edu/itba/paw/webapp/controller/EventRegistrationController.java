@@ -40,13 +40,13 @@ public class EventRegistrationController {
     }
 
     // Quien se puede anotar (evento aprobado y, si es privado, con invitacion; sin excepcion de
-    // admin) lo decide @PreAuthorize antes de entrar (ver EventSecurity.canRegister).
+    // admin; el organizador no se anota a su evento) lo decide @PreAuthorize antes de entrar (ver EventSecurity.canRegister).
     @PreAuthorize("@eventSecurity.canRegister(#id, authentication)")
     @RequestMapping(value = "/eventos/{id}/quiero-ir", method = RequestMethod.POST)
     public ModelAndView rsvp(@PathVariable final long id,
                               @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
                               final RedirectAttributes redirectAttributes) {
-        final RegistrationResult result = registrationService.register(id, currentUser);
+        final RegistrationResult result = registrationService.register(id, currentUser.getId());
         redirectAttributes.addFlashAttribute("rsvp", rsvpParam(result));
         return new ModelAndView("redirect:/eventos/" + id);
     }
@@ -59,7 +59,6 @@ public class EventRegistrationController {
             case ALREADY_WAITLISTED -> "ya-en-waitlist";
             case ALREADY_PENDING -> "ya-pendiente";
             case REJECTED -> "rechazado";
-            case OWN_EVENT -> "propio-evento";
             case CANCELLED -> "cancelado";
             case FINISHED -> "finalizado";
             case CONFIRMED -> "confirmed";
@@ -91,7 +90,8 @@ public class EventRegistrationController {
         return new ModelAndView("redirect:/eventos/" + id);
     }
 
-    @PreAuthorize("@eventSecurity.canView(#id, authentication)")
+    // Reportar: ver el evento sin ser su organizador lo decide @PreAuthorize (ver EventSecurity.canInteract).
+    @PreAuthorize("@eventSecurity.canInteract(#id, authentication)")
     @RequestMapping(value = "/eventos/{id}/reportar", method = RequestMethod.POST)
     public ModelAndView reportar(@PathVariable final long id, @Valid final ReportForm form,
                                   final BindingResult errors, @ModelAttribute(value = "currentUser", binding = false) final User currentUser,

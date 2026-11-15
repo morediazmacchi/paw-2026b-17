@@ -60,7 +60,7 @@ public class AdminSecurityTest {
     // El que actua, tal como queda en la sesion despues del login.
     private static Authentication caller(final Role... roles) {
         final String[] authorities = Arrays.stream(roles).map(Role::getAuthority).toArray(String[]::new);
-        final PlancitoUserDetails principal = new PlancitoUserDetails(CALLER_ID, "admin@test.com", "Admin", "x", true,
+        final PlancitoUserDetails principal = new PlancitoUserDetails(CALLER_ID, "admin@test.com", "x", true,
                 AuthorityUtils.createAuthorityList(authorities));
         return new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
     }
@@ -79,13 +79,11 @@ public class AdminSecurityTest {
         assertTrue(security.canSuspend(TARGET_ID, caller(Role.USER, Role.ADMIN)));
     }
 
-    // "No a vos mismo" ya no se decide aca (es regla de negocio del service: SuspendResult.OWN_ACCOUNT):
-    // la regla solo mira roles, asi que un superadmin pasa tambien cuando el objetivo es el mismo.
     @Test
-    public void testTheRoleRuleDoesNotLookAtWhoTheTargetIs() {
+    public void testNobodyCanSuspendThemselves() {
         when(userService.findAccessById(CALLER_ID)).thenReturn(Optional.of(target(Role.USER, Role.ADMIN, Role.SUPERADMIN)));
 
-        assertTrue(security.canSuspend(CALLER_ID, caller(Role.USER, Role.ADMIN, Role.SUPERADMIN)));
+        assertFalse(security.canSuspend(CALLER_ID, caller(Role.USER, Role.ADMIN, Role.SUPERADMIN)));
     }
 
     @Test
@@ -122,6 +120,29 @@ public class AdminSecurityTest {
                 AuthorityUtils.createAuthorityList("ROLE_ANONYMOUS"));
 
         assertFalse(security.canSuspend(TARGET_ID, anonymous));
+    }
+
+    // ---- canRevokeAdmin() ----
+
+    @Test
+    public void testASuperadminCanRevokeTheAdminRoleOfAnotherUser() {
+        when(userService.findAccessById(TARGET_ID)).thenReturn(Optional.of(target(Role.USER, Role.ADMIN)));
+
+        assertTrue(security.canRevokeAdmin(TARGET_ID, caller(Role.USER, Role.ADMIN, Role.SUPERADMIN)));
+    }
+
+    @Test
+    public void testNobodyCanRevokeTheirOwnAdminRole() {
+        when(userService.findAccessById(CALLER_ID)).thenReturn(Optional.of(target(Role.USER, Role.ADMIN, Role.SUPERADMIN)));
+
+        assertFalse(security.canRevokeAdmin(CALLER_ID, caller(Role.USER, Role.ADMIN, Role.SUPERADMIN)));
+    }
+
+    @Test
+    public void testCannotRevokeTheAdminRoleOfAUserWhoDoesNotExist() {
+        when(userService.findAccessById(TARGET_ID)).thenReturn(Optional.empty());
+
+        assertFalse(security.canRevokeAdmin(TARGET_ID, caller(Role.USER, Role.ADMIN, Role.SUPERADMIN)));
     }
 
     // ---- canModerateEvent() ----

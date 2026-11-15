@@ -292,6 +292,15 @@ public class EventAccessServiceImplTest {
     }
 
     @Test
+    public void testTheOrganizerCannotRegisterInTheirOwnEvent() {
+        // Act
+        final boolean result = accessService.canRegister(event(EventVisibility.PUBLIC), CREATOR_ID);
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
     public void testCannotRegisterInAnEventStillPendingApproval() {
         // Arrange
         final Event event = event(EventVisibility.PUBLIC);

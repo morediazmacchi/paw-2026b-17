@@ -68,7 +68,7 @@ public class UserDetailsServiceImplTest {
     }
 
     @Test
-    public void testLoadUserByUsernameReturnsAPlancitoUserDetailsWithTheIdEmailAndName() {
+    public void testLoadUserByUsernameReturnsAPlancitoUserDetailsWithTheIdAndEmail() {
         // Arrange
         when(mockUserService.findByEmail(EMAIL)).thenReturn(Optional.of(verifiedUser()));
 
@@ -79,7 +79,6 @@ public class UserDetailsServiceImplTest {
         final PlancitoUserDetails principal = (PlancitoUserDetails) result;
         assertEquals(USER_ID, principal.getId());
         assertEquals(EMAIL, principal.getEmail());
-        assertEquals("Ana", principal.getName());
     }
 
     @Test

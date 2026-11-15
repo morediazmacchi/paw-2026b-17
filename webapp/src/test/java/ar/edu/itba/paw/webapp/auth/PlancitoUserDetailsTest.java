@@ -16,16 +16,15 @@ public class PlancitoUserDetailsTest {
 
     private static PlancitoUserDetails user(final Role... roles) {
         final String[] authorities = java.util.Arrays.stream(roles).map(Role::getAuthority).toArray(String[]::new);
-        return new PlancitoUserDetails(7L, "ana@test.com", "Ana", "x", true, AuthorityUtils.createAuthorityList(authorities));
+        return new PlancitoUserDetails(7L, "ana@test.com", "x", true, AuthorityUtils.createAuthorityList(authorities));
     }
 
     @Test
-    public void testItExposesTheIdTheEmailAndTheName() {
+    public void testItExposesTheIdAndTheEmail() {
         final PlancitoUserDetails user = user(Role.USER);
 
         assertEquals(7L, user.getId());
         assertEquals("ana@test.com", user.getEmail());
-        assertEquals("Ana", user.getName());
     }
 
     @Test
@@ -77,16 +76,16 @@ public class PlancitoUserDetailsTest {
 
     @Test
     public void testAnEnabledAndUnlockedAccountIsActive() {
-        assertTrue(new PlancitoUserDetails(7L, "ana@test.com", "Ana", "x", true, true, AuthorityUtils.NO_AUTHORITIES).isActive());
+        assertTrue(new PlancitoUserDetails(7L, "ana@test.com", "x", true, true, AuthorityUtils.NO_AUTHORITIES).isActive());
     }
 
     @Test
     public void testASuspendedAccountIsNotActiveEvenIfEnabled() {
-        assertFalse(new PlancitoUserDetails(7L, "ana@test.com", "Ana", "x", true, false, AuthorityUtils.NO_AUTHORITIES).isActive());
+        assertFalse(new PlancitoUserDetails(7L, "ana@test.com", "x", true, false, AuthorityUtils.NO_AUTHORITIES).isActive());
     }
 
     @Test
     public void testAnUnverifiedAccountIsNotActive() {
-        assertFalse(new PlancitoUserDetails(7L, "ana@test.com", "Ana", "x", false, true, AuthorityUtils.NO_AUTHORITIES).isActive());
+        assertFalse(new PlancitoUserDetails(7L, "ana@test.com", "x", false, true, AuthorityUtils.NO_AUTHORITIES).isActive());
     }
 }

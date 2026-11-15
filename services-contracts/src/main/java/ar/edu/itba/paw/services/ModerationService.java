@@ -18,10 +18,10 @@ public interface ModerationService {
     int MAX_CHANGES_MESSAGE_LENGTH = 1000;
 
     /**
-     * Reporta un evento. OWN_EVENT si quien reporta es su creador (no tiene
-     * sentido reportarse a si mismo); ALREADY_REPORTED si esa misma persona ya
+     * Reporta un evento. ALREADY_REPORTED si esa misma persona ya
      * tenia un reporte pendiente sobre este evento (no se crea uno nuevo, no
-     * tiene sentido duplicar la cola); si no, CREATED.
+     * tiene sentido duplicar la cola); si no, CREATED. Que quien reporta no sea el
+     * organizador lo decide @PreAuthorize en el controller (ver EventSecurity.canInteract).
      */
     ReportResult report(long eventId, User reporter, String reason);
 

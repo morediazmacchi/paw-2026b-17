@@ -86,8 +86,10 @@ public class EventAccessServiceImpl implements EventAccessService {
     @Override
     @Transactional(readOnly = true)
     public boolean canRegister(final EventAccessData event, final Long userId) {
-        // Sin sesion nadie se anota. Con sesion: lo mismo que canView() pero sin la excepcion de admin.
-        return userId != null && canView(event, userId, false);
+        // Sin sesion nadie se anota, y el organizador tampoco se anota a su propio evento (no tiene sentido
+        // pedirse aprobacion a si mismo ni "invitarse" a un privado propio). Con sesion: lo mismo que canView()
+        // pero sin la excepcion de admin.
+        return userId != null && !event.isCreatedBy(userId) && canView(event, userId, false);
     }
 
     @Override

@@ -35,7 +35,7 @@ public class SessionExpiringListenerTest {
     }
 
     private static PlancitoUserDetails principal(final long id, final String email) {
-        return new PlancitoUserDetails(id, email, "Nombre", "x", true,
+        return new PlancitoUserDetails(id, email, "x", true,
                 AuthorityUtils.createAuthorityList(Role.USER.getAuthority(), Role.ADMIN.getAuthority()));
     }
 

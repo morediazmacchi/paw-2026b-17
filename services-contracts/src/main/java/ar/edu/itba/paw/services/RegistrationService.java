@@ -4,7 +4,6 @@ package ar.edu.itba.paw.services;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationAccess;
 import ar.edu.itba.paw.model.RegistrationStatus;
-import ar.edu.itba.paw.model.User;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collection;
@@ -34,9 +33,10 @@ public interface RegistrationService {
      * @PreAuthorize en el controller (ver EventSecurity.canRegister).
      *
      * @throws EventNotFoundException si el evento no existe.
+     * @throws UserNotFoundException si la cuenta no existe (se lee de la base: la sesion solo lleva su id).
      */
     @Transactional(rollbackFor = Exception.class)
-    RegistrationResult register(long eventId, User user);
+    RegistrationResult register(long eventId, long userId);
 
     /**
      * @return true si el evento ya alcanzo su cupo maximo (siempre false si no tiene limite)

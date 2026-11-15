@@ -111,6 +111,17 @@ public class EventSecurity {
                 .orElse(false);
     }
 
+    // La persona puede preguntar y reportar el evento: puede verlo (ver canView) y NO es su organizador (no se
+    // pregunta ni se reporta a si mismo). Hace falta sesion (las URLs ya la exigen). Un evento que no existe da
+    // false, igual que uno que no se puede ver.
+    public boolean canInteract(final long eventId, final Authentication authentication) {
+        return PlancitoUserDetails.from(authentication)
+                .flatMap(user -> eventService.findAccessById(eventId)
+                        .map(event -> !event.isCreatedBy(user.getId())
+                                && eventAccessService.canView(event, user.getId(), user.hasRole(Role.ADMIN))))
+                .orElse(false);
+    }
+
     // La persona tiene su lugar CONFIRMADO en el evento (no pendiente, ni en espera, ni rechazado):
     // es lo que hace falta para unirse al grupo de chat. Sin inscripcion, o sin sesion, da false;
     // tampoco el organizador (no se anota a su propio evento).

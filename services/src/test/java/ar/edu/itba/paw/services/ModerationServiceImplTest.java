@@ -166,18 +166,6 @@ public class ModerationServiceImplTest {
     }
 
     @Test
-    public void testReportByTheEventsOwnCreatorReturnsOwnEvent() {
-        // Arrange
-        eventExists(someEvent());
-
-        // Act
-        final ReportResult result = moderationService.report(EVENT_ID, someUser(CREATOR_ID), REASON);
-
-        // Assert
-        assertEquals(ReportResult.OWN_EVENT, result);
-    }
-
-    @Test
     public void testReportTwiceBySameReporterWhileTheFirstIsStillPendingReturnsAlreadyReported() {
         // Arrange
         eventExists(someEvent());

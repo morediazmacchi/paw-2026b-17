@@ -14,7 +14,6 @@ import ar.edu.itba.paw.services.RegistrationService;
 import ar.edu.itba.paw.services.ReportQueuePage;
 import ar.edu.itba.paw.services.ReportResolutionResult;
 import ar.edu.itba.paw.services.RevokeAdminResult;
-import ar.edu.itba.paw.services.SuspendResult;
 import ar.edu.itba.paw.services.UserService;
 import ar.edu.itba.paw.webapp.form.RejectEventForm;
 import ar.edu.itba.paw.webapp.form.RequestChangesForm;
@@ -220,20 +219,14 @@ public class AdminController {
         return mav;
     }
 
-    // Quien puede suspender a quien segun el ROL (a otro admin solo un superadmin) lo decide
-    // @PreAuthorize antes de entrar (ver AdminSecurity.canSuspend). Que nadie se suspenda a si mismo es
-    // regla de negocio del service (SuspendResult.OWN_ACCOUNT): la pantalla ya esconde el boton, esto
-    // solo se llega con un POST armado a mano.
+    // Quien puede suspender a quien (a otro admin solo un superadmin, nadie a si mismo, un usuario que
+    // existe) lo decide @PreAuthorize antes de entrar (ver AdminSecurity.canSuspend): la pantalla ya
+    // esconde el boton, esto solo se llega con un POST armado a mano.
     @PreAuthorize("@adminSecurity.canSuspend(#id, authentication)")
     @RequestMapping(value = "/usuarios/{id}/suspender", method = RequestMethod.POST)
     public ModelAndView suspender(@PathVariable final long id,
-                                  @RequestParam(value = "returnTo", required = false) final String returnTo,
-                                  @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
-                                  final RedirectAttributes redirectAttributes) {
-        final SuspendResult result = userService.suspend(currentUser, id);
-        if (result != SuspendResult.OK) {
-            redirectAttributes.addFlashAttribute("suspendError", result.name());
-        }
+                                  @RequestParam(value = "returnTo", required = false) final String returnTo) {
+        userService.suspend(id);
         return new ModelAndView("redirect:" + UserListLink.safeReturnTo(returnTo));
     }
 
@@ -254,14 +247,14 @@ public class AdminController {
     }
 
     // El gate de SUPERADMIN esta en WebAuthConfig (antMatcher de /admin/usuarios/*/revocar). El "no a
-    // vos mismo" lo decide el service (RevokeAdminResult.OWN_ACCOUNT): la pantalla ya esconde el boton,
-    // esto solo se llega con un POST armado a mano.
+    // vos mismo" lo decide @PreAuthorize antes de entrar (ver AdminSecurity.canRevokeAdmin): la pantalla
+    // ya esconde el boton, esto solo se llega con un POST armado a mano.
+    @PreAuthorize("@adminSecurity.canRevokeAdmin(#id, authentication)")
     @RequestMapping(value = "/usuarios/{id}/revocar", method = RequestMethod.POST)
     public ModelAndView revocar(@PathVariable final long id,
                                 @RequestParam(value = "returnTo", required = false) final String returnTo,
-                                @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
                                 final RedirectAttributes redirectAttributes) {
-        final RevokeAdminResult result = userService.revokeAdmin(currentUser, id);
+        final RevokeAdminResult result = userService.revokeAdmin(id);
         if (result != RevokeAdminResult.OK) {
             redirectAttributes.addFlashAttribute("revokeAdminError", result.name());
         }

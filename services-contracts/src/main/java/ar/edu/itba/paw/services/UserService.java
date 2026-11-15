@@ -150,19 +150,11 @@ public interface UserService {
     boolean updateLocale(long userId, String locale);
 
     /**
-     * Suspension desde el panel de admin: igual que {@link #suspend(long)}, pero valida como regla de
-     * negocio que nadie se suspenda a si mismo (OWN_ACCOUNT, antes de escribir; igual que revokeAdmin()).
-     * Quien puede suspender a quien segun el rol (a otro admin solo un superadmin) NO se valida aca: lo
-     * decide @PreAuthorize en AdminController (ver AdminSecurity.canSuspend).
-     */
-    SuspendResult suspend(User caller, long targetId);
-
-    /**
      * Suspende la cuenta (ver UserDetailsServiceImpl): no va a poder loguearse
      * hasta que un admin la reactive. Le avisa por mail y por la bandeja, y cierra sus sesiones abiertas.
-     * Sin ninguna validacion de quien la pide: es para los caminos ya autorizados (la baja por moderacion,
-     * que ya paso por AdminSecurity.canResolveReport). El panel de admin usa
-     * {@link #suspend(User, long)}.
+     * Sin ninguna validacion de quien la pide: es para los caminos ya autorizados (el panel de admin, que
+     * pasa por AdminSecurity.canSuspend: quien puede suspender a quien y que nadie se suspenda a si mismo; y la
+     * baja por moderacion, que pasa por AdminSecurity.canResolveReport).
      */
     boolean suspend(long userId);
 
@@ -178,9 +170,10 @@ public interface UserService {
 
     /**
      * Le saca el rol ADMIN a un usuario (no toca SUPERADMIN). Quien puede invocar esto (solo un
-     * superadmin) lo controla la seguridad HTTP (ver WebAuthConfig), no este metodo. Si valida, como
-     * reglas de negocio, que nadie se lo saque a si mismo (OWN_ACCOUNT) y que el objetivo no sea un
-     * superadmin (TARGET_SUPERADMIN: no hay herencia de roles, sin ADMIN perderia el acceso a /admin/**).
+     * superadmin) lo controla la seguridad HTTP (ver WebAuthConfig), y que nadie se lo saque a si mismo,
+     * @PreAuthorize (ver AdminSecurity.canRevokeAdmin); no este metodo. Si valida, como regla de negocio,
+     * que el objetivo no sea un superadmin (TARGET_SUPERADMIN: no hay herencia de roles, sin ADMIN
+     * perderia el acceso a /admin/**).
      */
-    RevokeAdminResult revokeAdmin(User caller, long targetId);
+    RevokeAdminResult revokeAdmin(long targetId);
 }

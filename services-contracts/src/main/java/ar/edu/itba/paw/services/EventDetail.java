@@ -87,13 +87,13 @@ public class EventDetail {
     public boolean isCanUnregister() { return canUnregister; }
 
     // Se le ofrece el formulario de preguntar: el evento sigue abierto a preguntas y no es su organizador (ver
-    // QuestionResult.CLOSED / OWN_EVENT). Un visitante sin sesion tambien: la pantalla lo manda a iniciar sesion.
+    // QuestionResult.CLOSED y EventSecurity.canInteract). Un visitante sin sesion tambien: la pantalla lo manda a iniciar sesion.
     public boolean isCanAsk() { return canAsk; }
 
     // Se le ofrece responder las preguntas: es el organizador del evento (ver EventSecurity.canAnswerQuestion).
     public boolean isCanAnswer() { return canAnswer; }
 
-    // Se le ofrece reportar el evento: no es su organizador (ver ReportResult.OWN_EVENT).
+    // Se le ofrece reportar el evento: no es su organizador (ver EventSecurity.canInteract).
     public boolean isCanReport() { return canReport; }
     public boolean isFavorite() { return favorite; }
     public boolean isChatMember() { return chatMember; }

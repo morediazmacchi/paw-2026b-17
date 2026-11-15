@@ -9,6 +9,7 @@ import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.Review;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
+import ar.edu.itba.paw.model.exception.UserNotFoundException;
 import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.EventInvitationDao;
 import ar.edu.itba.paw.persistence.RegistrationDao;
@@ -39,6 +40,7 @@ public class RegistrationServiceImpl implements RegistrationService {
     private final EventInvitationDao invitationDao;
     private final InboxService inboxService;
     private final ReviewDao reviewDao;
+    private final UserService userService;
     // Proxy propio: cancel()/revoke() llaman a promoteFromWaitlist() de esta
     // misma clase, y ese es un metodo @Transactional del contrato publico (lo
     // llaman tambien EventServiceImpl y los tests, via el proxy de siempre).
@@ -60,18 +62,20 @@ public class RegistrationServiceImpl implements RegistrationService {
     public RegistrationServiceImpl(final RegistrationDao registrationDao, final EventDao eventDao,
                                     final NotificationService notificationService,
                                     final EventInvitationDao invitationDao,
-                                    final InboxService inboxService, final ReviewDao reviewDao) {
+                                    final InboxService inboxService, final ReviewDao reviewDao,
+                                    final UserService userService) {
         this.registrationDao = registrationDao;
         this.eventDao = eventDao;
         this.notificationService = notificationService;
         this.invitationDao = invitationDao;
         this.inboxService = inboxService;
         this.reviewDao = reviewDao;
+        this.userService = userService;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public RegistrationResult register(final long eventId, final User user) {
+    public RegistrationResult register(final long eventId, final long userId) {
         // Bloquea la fila del evento ANTES de chequear si ya existe: dos clics
         // simultaneos del mismo usuario ahora se serializan en este lock (el
         // segundo espera a que el primero termine su transaccion), en vez de
@@ -85,24 +89,16 @@ public class RegistrationServiceImpl implements RegistrationService {
         final Event event = eventDao.findByIdForUpdate(eventId)
                 .orElseThrow(() -> new EventNotFoundException(eventId));
 
-        final Registration existing = registrationDao.findByEventAndUserId(eventId, user.getId()).orElse(null);
+        final Registration existing = registrationDao.findByEventAndUserId(eventId, userId).orElse(null);
         if (existing != null) {
             return alreadyExistsResult(existing.getStatus());
         }
 
-        // El creador no se anota a su propio evento: no tiene sentido pedirse
-        // aprobacion a si mismo en uno con requiresApproval, ni "invitarse" a
-        // uno privado del que ya es dueño. Va antes de tocar la base: no se
-        // crea ninguna fila ni sale ningun mail.
-        if (event.isCreatedBy(user.getId())) {
-            return RegistrationResult.of(RegistrationResult.Status.OWN_EVENT);
-        }
-
         // Que se pueda anotar a este evento (aprobado y, si es privado, con invitacion; el admin
-        // no tiene excepcion) NO se valida aca: lo decide @PreAuthorize en el controller antes de
-        // entrar (ver EventSecurity.canRegister). Aca solo hace falta saber si tiene invitacion,
-        // porque eso le reserva el lugar (ver mas abajo).
-        final boolean invited = invitationDao.findByEventAndUserId(eventId, user.getId()).isPresent();
+        // no tiene excepcion; el organizador no se anota a su propio evento) NO se valida aca: lo
+        // decide @PreAuthorize en el controller antes de entrar (ver EventSecurity.canRegister). Aca solo
+        // hace falta saber si tiene invitacion, porque eso le reserva el lugar (ver mas abajo).
+        final boolean invited = invitationDao.findByEventAndUserId(eventId, userId).isPresent();
 
         // Un evento que ya paso no admite inscripciones. La pantalla esconde el
         // boton (ver detail.jsp), pero un POST directo no tiene que poder anotar
@@ -120,7 +116,10 @@ public class RegistrationServiceImpl implements RegistrationService {
         // Normalizado: "Test@mail.com" y "test@mail.com" son la misma persona.
         // Ya no hace falta para buscar la invitacion (eso ahora es por user_id,
         // ver mas abajo), pero si para las columnas email/name de la propia
-        // inscripcion y para los avisos de bandeja (inboxService.add()).
+        // inscripcion y para los avisos de bandeja (inboxService.add()). El mail y el nombre se leen de la
+        // cuenta, no de la sesion: el principal solo lleva lo que hace falta para autorizar (ver
+        // PlancitoUserDetails), y un nombre editado tiene que quedar actual en la fila.
+        final User user = userService.findById(userId).orElseThrow(() -> new UserNotFoundException(userId));
         final String normalizedEmail = user.getEmail().trim().toLowerCase();
 
         // Que el evento este lleno ya no es un error: la persona entra a la lista

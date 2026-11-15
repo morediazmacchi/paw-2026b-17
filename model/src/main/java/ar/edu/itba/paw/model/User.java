@@ -93,8 +93,8 @@ public class User implements RoleHolder {
     public Set<Role> getRoles() { return roles; }
     public void setRoles(final Set<Role> roles) { this.roles = roles; }
     // Para no preguntar por el rol con un literal en cada lugar (ver Role).
-    // Es la misma cuenta que ese id. Es la regla de "nadie actua sobre su propia cuenta" (suspenderse, sacarse el
-    // rol ADMIN): la usan los services (OWN_ACCOUNT) y la pantalla de usuarios.
+    // Es la misma cuenta que ese id: la pantalla de usuarios esconde con esto los botones sobre la propia cuenta
+    // (que el POST tampoco pase lo decide AdminSecurity), y el perfil publico distingue el propio.
     public boolean isSameAccountAs(final Long userId) {
         return getId() != null && getId().equals(userId);
     }

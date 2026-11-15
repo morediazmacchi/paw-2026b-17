@@ -182,9 +182,6 @@
             <c:when test="${rsvp == 'finalizado'}">
                 <p class="alert detail-alert"><spring:message code="event.detail.eventFinished"/></p>
             </c:when>
-            <c:when test="${rsvp == 'propio-evento'}">
-                <p class="alert detail-alert"><spring:message code="event.detail.ownEventNote"/></p>
-            </c:when>
             <c:when test="${rsvp == 'cancelado'}">
                 <p class="alert detail-alert"><spring:message code="event.detail.eventCancelled"/></p>
             </c:when>

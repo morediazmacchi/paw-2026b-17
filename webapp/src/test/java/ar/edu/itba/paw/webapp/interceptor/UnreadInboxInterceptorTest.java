@@ -43,7 +43,7 @@ public class UnreadInboxInterceptorTest {
     }
 
     private static Principal sessionOf(final long id) {
-        final PlancitoUserDetails principal = new PlancitoUserDetails(id, "ana@test.com", "Ana", "", true,
+        final PlancitoUserDetails principal = new PlancitoUserDetails(id, "ana@test.com", "", true,
                 AuthorityUtils.createAuthorityList(Role.USER.getAuthority()));
         return new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
     }

@@ -8,8 +8,6 @@ public enum ReportResult {
     /** Quien reporta ya tenia un reporte pendiente sobre este mismo evento. */
     ALREADY_REPORTED,
 
-    /** El creador del evento no puede reportar su propio evento. */
-    OWN_EVENT,
     /** El motivo esta vacio o supera ModerationService.MAX_REPORT_REASON_LENGTH. */
     INVALID
 }

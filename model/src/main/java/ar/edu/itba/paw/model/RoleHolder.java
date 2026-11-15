@@ -12,7 +12,7 @@ public interface RoleHolder {
     boolean isSuperadmin();
 
     // A un admin o a un superadmin solo lo suspende un superadmin; al resto, cualquier admin. (Que nadie se
-    // suspenda a si mismo es otra regla, del service: UserService.suspend(User, long).)
+    // suspenda a si mismo es otra regla: AdminSecurity.canSuspend.)
     default boolean canBeSuspendedBy(final boolean callerIsSuperadmin) {
         return callerIsSuperadmin || !(isAdmin() || isSuperadmin());
     }

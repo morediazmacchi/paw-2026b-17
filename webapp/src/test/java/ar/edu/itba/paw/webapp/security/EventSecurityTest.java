@@ -73,7 +73,7 @@ public class EventSecurityTest {
 
     // Lo que hay en la sesion despues del login: el principal es un PlancitoUserDetails.
     private static Authentication auth(final long id, final String email, final String... roles) {
-        final PlancitoUserDetails principal = new PlancitoUserDetails(id, email, "Nombre", "x", true,
+        final PlancitoUserDetails principal = new PlancitoUserDetails(id, email, "x", true,
                 AuthorityUtils.createAuthorityList(roles));
         return new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
     }
@@ -360,6 +360,48 @@ public class EventSecurityTest {
     @Test
     public void testCanRegisterIsFalseWithoutSession() {
         assertFalse(security.canRegister(EVENT_ID, anonymous()));
+    }
+
+    // ---- canInteract() (preguntar y reportar) ----
+
+    @Test
+    public void testCanInteractIsTrueForSomeoneWhoCanViewAnEventThatIsNotTheirs() {
+        final EventAccessSummary event = event(EVENT_ID, EventVisibility.PUBLIC);
+        when(eventService.findAccessById(EVENT_ID)).thenReturn(Optional.of(event));
+        when(eventAccessService.canView(event, Long.valueOf(OTHER_ID), false)).thenReturn(true);
+
+        assertTrue(security.canInteract(EVENT_ID, other()));
+    }
+
+    @Test
+    public void testCanInteractIsFalseForTheOrganizerOfTheEvent() {
+        final EventAccessSummary event = event(EVENT_ID, EventVisibility.PUBLIC);
+        when(eventService.findAccessById(EVENT_ID)).thenReturn(Optional.of(event));
+        // El organizador siempre puede VER su evento: si canInteract solo mirara eso, daria true.
+        lenient().when(eventAccessService.canView(event, Long.valueOf(CREATOR_ID), false)).thenReturn(true);
+
+        assertFalse(security.canInteract(EVENT_ID, creator()));
+    }
+
+    @Test
+    public void testCanInteractIsFalseForSomeoneWhoCannotViewTheEvent() {
+        final EventAccessSummary event = event(EVENT_ID, EventVisibility.PRIVATE);
+        when(eventService.findAccessById(EVENT_ID)).thenReturn(Optional.of(event));
+        when(eventAccessService.canView(event, Long.valueOf(OTHER_ID), false)).thenReturn(false);
+
+        assertFalse(security.canInteract(EVENT_ID, other()));
+    }
+
+    @Test
+    public void testCanInteractIsFalseWhenTheEventDoesNotExist() {
+        when(eventService.findAccessById(EVENT_ID)).thenReturn(Optional.empty());
+
+        assertFalse(security.canInteract(EVENT_ID, other()));
+    }
+
+    @Test
+    public void testCanInteractIsFalseWithoutSession() {
+        assertFalse(security.canInteract(EVENT_ID, anonymous()));
     }
 
     // ---- isConfirmedAttendee() ----

@@ -29,8 +29,9 @@ public class EventQuestionController {
         this.eventQuestionService = eventQuestionService;
     }
 
-    // Preguntar. Quien puede ver el evento lo decide @PreAuthorize antes de entrar (ver EventSecurity).
-    @PreAuthorize("@eventSecurity.canView(#id, authentication)")
+    // Preguntar. Quien puede (ver el evento sin ser su organizador) lo decide @PreAuthorize antes de entrar
+    // (ver EventSecurity.canInteract).
+    @PreAuthorize("@eventSecurity.canInteract(#id, authentication)")
     @RequestMapping(value = "/eventos/{id}/preguntas", method = RequestMethod.POST)
     public ModelAndView ask(@PathVariable final long id, @Valid final QuestionForm form,
                             final BindingResult errors, @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
@@ -38,7 +39,7 @@ public class EventQuestionController {
         if (errors.hasErrors()) {
             redirectAttributes.addFlashAttribute("questionMessage", "INVALID");
         } else {
-            final QuestionResult result = eventQuestionService.ask(id, currentUser, form.getText());
+            final QuestionResult result = eventQuestionService.ask(id, currentUser.getId(), form.getText());
             redirectAttributes.addFlashAttribute("questionMessage", result.name());
         }
         return new ModelAndView("redirect:/eventos/" + id + "#preguntas");

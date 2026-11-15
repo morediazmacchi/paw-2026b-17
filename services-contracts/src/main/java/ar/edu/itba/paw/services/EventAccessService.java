@@ -43,7 +43,8 @@ public interface EventAccessService {
      * de admin. Un admin puede VER un evento privado o pendiente para moderarlo, pero no inscribirse; si lo
      * invitaron a un privado, la invitacion cuenta como a cualquiera. Es la unica definicion de esta regla: la
      * usan la autorizacion (EventSecurity.canRegister) y el detalle (EventDetailService, para decidir que se
-     * le ofrece). {@code userId} null (sin sesion) nunca puede.
+     * le ofrece). {@code userId} null (sin sesion) nunca puede, y el organizador tampoco: no se anota a su
+     * propio evento.
      */
     boolean canRegister(EventAccessData event, Long userId);
 

@@ -39,6 +39,7 @@ public class EventQuestionServiceImplTest {
     private static final long CREATOR_ID = 1;
     private static final long OTHER_ID = 999;
     private static final String ASKER_EMAIL = "ana@mail.com";
+    private static final long ASKER_ID = 2;
 
     @Mock
     private EventQuestionDao questionDao;
@@ -50,13 +51,17 @@ public class EventQuestionServiceImplTest {
     private NotificationService notificationService;
     @Mock
     private EventAccessService accessChecker;
+    // El nombre y el mail de quien pregunta salen de su cuenta (la sesion solo lleva el id).
+    @Mock
+    private UserService userService;
 
     private EventQuestionServiceImpl questionService;
 
     @Before
     public void setUp() {
         questionService = new EventQuestionServiceImpl(
-                questionDao, eventService, inboxService, notificationService);
+                questionDao, eventService, inboxService, notificationService, userService);
+        lenient().when(userService.findById(ASKER_ID)).thenReturn(Optional.of(asker()));
         // Default para los tests que no son sobre el chequeo de acceso en si:
         // "puede verlo", para que la unica rama en juego sea la que cada uno testea.
     }
@@ -72,7 +77,7 @@ public class EventQuestionServiceImplTest {
 
     private static User asker() {
         final User user = new User(ASKER_EMAIL, "Ana");
-        user.setId(2L);
+        user.setId(ASKER_ID);
         return user;
     }
 
@@ -100,7 +105,7 @@ public class EventQuestionServiceImplTest {
         when(questionDao.create(any(EventQuestion.class))).thenReturn(created());
 
         // Act
-        final QuestionResult result = questionService.ask(EVENT_ID, asker(), "Hay estacionamiento?");
+        final QuestionResult result = questionService.ask(EVENT_ID, ASKER_ID, "Hay estacionamiento?");
 
         // Assert
         assertEquals(QuestionResult.CREATED, result);
@@ -113,7 +118,7 @@ public class EventQuestionServiceImplTest {
         lenient().when(questionDao.create(any(EventQuestion.class))).thenReturn(created());
 
         // Act
-        final QuestionResult result = questionService.ask(EVENT_ID, asker(), "   ");
+        final QuestionResult result = questionService.ask(EVENT_ID, ASKER_ID, "   ");
 
         // Assert
         assertEquals(QuestionResult.INVALID, result);
@@ -127,7 +132,7 @@ public class EventQuestionServiceImplTest {
         final String tooLong = new String(new char[EventQuestionService.MAX_QUESTION_LENGTH + 1]).replace('\0', 'a');
 
         // Act
-        final QuestionResult result = questionService.ask(EVENT_ID, asker(), tooLong);
+        final QuestionResult result = questionService.ask(EVENT_ID, ASKER_ID, tooLong);
 
         // Assert
         assertEquals(QuestionResult.INVALID, result);
@@ -141,24 +146,10 @@ public class EventQuestionServiceImplTest {
         final String maximum = new String(new char[EventQuestionService.MAX_QUESTION_LENGTH]).replace('\0', 'a');
 
         // Act
-        final QuestionResult result = questionService.ask(EVENT_ID, asker(), maximum);
+        final QuestionResult result = questionService.ask(EVENT_ID, ASKER_ID, maximum);
 
         // Assert
         assertEquals(QuestionResult.CREATED, result);
-    }
-
-    @Test
-    public void testTheOrganizerCannotAskOnTheirOwnEvent() {
-        // Arrange
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
-        final User organizer = new User(CREATOR_EMAIL, "Org");
-        organizer.setId(CREATOR_ID);
-
-        // Act
-        final QuestionResult result = questionService.ask(EVENT_ID, organizer, "Hola?");
-
-        // Assert
-        assertEquals(QuestionResult.OWN_EVENT, result);
     }
 
     @Test
@@ -167,7 +158,7 @@ public class EventQuestionServiceImplTest {
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(-2)));
 
         // Act
-        final QuestionResult result = questionService.ask(EVENT_ID, asker(), "Hola?");
+        final QuestionResult result = questionService.ask(EVENT_ID, ASKER_ID, "Hola?");
 
         // Assert
         assertEquals(QuestionResult.CLOSED, result);
@@ -181,7 +172,7 @@ public class EventQuestionServiceImplTest {
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event));
 
         // Act
-        final QuestionResult result = questionService.ask(EVENT_ID, asker(), "Hola?");
+        final QuestionResult result = questionService.ask(EVENT_ID, ASKER_ID, "Hola?");
 
         // Assert
         assertEquals(QuestionResult.CLOSED, result);
@@ -193,7 +184,7 @@ public class EventQuestionServiceImplTest {
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
-        questionService.ask(EVENT_ID, asker(), "Hola?");
+        questionService.ask(EVENT_ID, ASKER_ID, "Hola?");
 
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }

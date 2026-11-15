@@ -55,9 +55,6 @@ public class ModerationServiceImpl implements ModerationService {
         // la mapea a 404), no un resultado: los resultados son para conflictos de negocio.
         final Event event = eventService.findById(eventId)
                 .orElseThrow(() -> new EventNotFoundException(eventId));
-        if (event.isCreatedBy(reporter.getId())) {
-            return ReportResult.OWN_EVENT;
-        }
         if (eventReportDao.existsPendingByEventAndReporter(eventId, reporter.getId())) {
             return ReportResult.ALREADY_REPORTED;
         }

@@ -48,8 +48,8 @@ public class RegistrationServiceImplTest {
     private static final String NAME = "Ana";
     private static final String CREATOR_EMAIL = "creador@mail.com";
     // Quien se anota siempre esta logueado (ver EventRegistrationController.rsvp()): el
-    // service ya no recibe un email/nombre sueltos, recibe el User entero
-    // (con su id, que es lo que ahora identifica la fila). USER_ID/CREATOR_ID/
+    // service recibe solo su id y lee la cuenta (nombre y mail) de UserService, que es lo
+    // que identifica la fila. USER_ID/CREATOR_ID/
     // OTHER_ID son ids de "utileria" para estos tests con mocks, no hace falta
     // que existan de verdad en ninguna base.
     private static final long USER_ID = 10;
@@ -76,13 +76,18 @@ public class RegistrationServiceImplTest {
     // "Mis inscripciones" trae la reseña propia de cada evento ya pasado.
     @Mock
     private ReviewDao mockReviewDao;
+    // El nombre y el mail de quien se anota salen de su cuenta (la sesion solo lleva el id).
+    @Mock
+    private UserService userService;
 
     private RegistrationServiceImpl registrationService;
 
     @Before
     public void setUp() {
         registrationService = new RegistrationServiceImpl(
-                mockRegistrationDao, mockEventDao, notificationService, mockInvitationDao, inboxService, mockReviewDao);
+                mockRegistrationDao, mockEventDao, notificationService, mockInvitationDao, inboxService, mockReviewDao,
+                userService);
+        lenient().when(userService.findById(USER_ID)).thenReturn(Optional.of(someUser()));
         // En produccion lo resuelve Spring (@Autowired @Lazy, ver RegistrationServiceImpl):
         // aca no hay proxy, asi que "el propio proxy" es directamente la instancia real.
         registrationService.self = registrationService;
@@ -134,7 +139,7 @@ public class RegistrationServiceImplTest {
         when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.of(existing));
 
         // Act
-        final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
+        final RegistrationResult result = registrationService.register(EVENT_ID, USER_ID);
 
         // Assert
         assertEquals(RegistrationResult.Status.ALREADY_REGISTERED, result.getStatus());
@@ -146,7 +151,7 @@ public class RegistrationServiceImplTest {
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
-        registrationService.register(EVENT_ID, someUser());
+        registrationService.register(EVENT_ID, USER_ID);
 
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
@@ -157,7 +162,7 @@ public class RegistrationServiceImplTest {
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(finishedEvent()));
 
         // Act
-        final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
+        final RegistrationResult result = registrationService.register(EVENT_ID, USER_ID);
 
         // Assert: no se creo ninguna inscripcion (sin stub de create(), un create() devolveria null y romperia)
         assertEquals(RegistrationResult.Status.FINISHED, result.getStatus());
@@ -172,7 +177,7 @@ public class RegistrationServiceImplTest {
         when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(2L);
 
         // Act
-        final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
+        final RegistrationResult result = registrationService.register(EVENT_ID, USER_ID);
 
         // Assert
         assertEquals(RegistrationResult.Status.WAITLISTED, result.getStatus());
@@ -188,7 +193,7 @@ public class RegistrationServiceImplTest {
         when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.of(existing));
 
         // Act
-        final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
+        final RegistrationResult result = registrationService.register(EVENT_ID, USER_ID);
 
         // Assert
         assertEquals(RegistrationResult.Status.ALREADY_WAITLISTED, result.getStatus());
@@ -202,7 +207,7 @@ public class RegistrationServiceImplTest {
         when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(0L);
 
         // Act
-        final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
+        final RegistrationResult result = registrationService.register(EVENT_ID, USER_ID);
 
         // Assert
         assertEquals(RegistrationResult.Status.CONFIRMED, result.getStatus());
@@ -220,7 +225,7 @@ public class RegistrationServiceImplTest {
         when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(1L, 2L);
 
         // Act
-        final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
+        final RegistrationResult result = registrationService.register(EVENT_ID, USER_ID);
 
         // Assert
         assertEquals(RegistrationResult.Status.CONFIRMED, result.getStatus());
@@ -236,7 +241,7 @@ public class RegistrationServiceImplTest {
         when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(null)));
 
         // Act
-        final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
+        final RegistrationResult result = registrationService.register(EVENT_ID, USER_ID);
 
         // Assert
         assertEquals(RegistrationResult.Status.CONFIRMED, result.getStatus());
@@ -254,44 +259,10 @@ public class RegistrationServiceImplTest {
                 .thenReturn(Optional.of(new EventInvitation(ModelFixtures.event(EVENT_ID), NORMALIZED_EMAIL, CREATOR_EMAIL)));
 
         // Act
-        final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
+        final RegistrationResult result = registrationService.register(EVENT_ID, USER_ID);
 
         // Assert
         assertEquals(RegistrationResult.Status.CONFIRMED, result.getStatus());
-    }
-
-    // ---- register(): el creador no se anota a su propio evento ----
-
-    @Test
-    public void testRegisterReturnsOwnEventWhenTheCreatorTriesToRegister() {
-        // Arrange
-        final Event ownEvent = eventWithCapacity(10);
-        ownEvent.setCreator(ModelFixtures.user(USER_ID));
-        when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(ownEvent));
-
-        // Act
-        final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
-
-        // Assert
-        assertEquals(RegistrationResult.Status.OWN_EVENT, result.getStatus());
-    }
-
-    @Test
-    public void testRegisterDoesNotCreateOrNotifyWhenTheCreatorTriesToRegister() {
-        // Arrange
-        final Event ownEvent = eventWithCapacity(10);
-        ownEvent.setCreator(ModelFixtures.user(USER_ID));
-        when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(ownEvent));
-
-        // Act
-        final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
-
-        // Assert
-        // OWN_EVENT solo se devuelve ANTES de crear la inscripcion o notificar a
-        // nadie (early return): el resultado ya prueba que nada de eso paso.
-        assertEquals(RegistrationResult.Status.OWN_EVENT, result.getStatus());
     }
 
     // ---- register() con requiresApproval ----
@@ -304,7 +275,7 @@ public class RegistrationServiceImplTest {
         when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(0L);
 
         // Act
-        final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
+        final RegistrationResult result = registrationService.register(EVENT_ID, USER_ID);
 
         // Assert
         assertEquals(RegistrationResult.Status.PENDING, result.getStatus());
@@ -322,7 +293,7 @@ public class RegistrationServiceImplTest {
         when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(1L);
 
         // Act
-        final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
+        final RegistrationResult result = registrationService.register(EVENT_ID, USER_ID);
 
         // Assert
         assertEquals(RegistrationResult.Status.WAITLISTED, result.getStatus());
@@ -338,7 +309,7 @@ public class RegistrationServiceImplTest {
         when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.of(existing));
 
         // Act
-        final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
+        final RegistrationResult result = registrationService.register(EVENT_ID, USER_ID);
 
         // Assert
         assertEquals(RegistrationResult.Status.ALREADY_PENDING, result.getStatus());
@@ -352,7 +323,7 @@ public class RegistrationServiceImplTest {
         when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.of(existing));
 
         // Act
-        final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
+        final RegistrationResult result = registrationService.register(EVENT_ID, USER_ID);
 
         // Assert
         assertEquals(RegistrationResult.Status.REJECTED, result.getStatus());
@@ -388,7 +359,7 @@ public class RegistrationServiceImplTest {
         when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(1L);
 
         // Act
-        final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
+        final RegistrationResult result = registrationService.register(EVENT_ID, USER_ID);
 
         // Assert
         assertEquals(RegistrationResult.Status.PENDING, result.getStatus());
@@ -478,7 +449,7 @@ public class RegistrationServiceImplTest {
         when(mockInvitationDao.countOutstanding(EVENT_ID)).thenReturn(1L);
 
         // Act
-        final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
+        final RegistrationResult result = registrationService.register(EVENT_ID, USER_ID);
 
         // Assert
         assertEquals(RegistrationResult.Status.WAITLISTED, result.getStatus());
@@ -499,7 +470,7 @@ public class RegistrationServiceImplTest {
                 .thenReturn(Optional.of(new EventInvitation(ModelFixtures.event(EVENT_ID), NORMALIZED_EMAIL, CREATOR_EMAIL)));
 
         // Act
-        final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
+        final RegistrationResult result = registrationService.register(EVENT_ID, USER_ID);
 
         // Assert
         assertEquals(RegistrationResult.Status.CONFIRMED, result.getStatus());
@@ -515,7 +486,7 @@ public class RegistrationServiceImplTest {
                 .thenReturn(Optional.of(new EventInvitation(ModelFixtures.event(EVENT_ID), NORMALIZED_EMAIL, CREATOR_EMAIL)));
 
         // Act
-        final RegistrationResult result = registrationService.register(EVENT_ID, someUser());
+        final RegistrationResult result = registrationService.register(EVENT_ID, USER_ID);
 
         // Assert
         assertEquals(RegistrationResult.Status.CONFIRMED, result.getStatus());

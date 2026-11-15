@@ -25,13 +25,21 @@ public class AdminSecurity {
         this.moderationService = moderationService;
     }
 
-    // Solo la parte de ROLES (acceso): a un admin o al superadmin solo lo suspende un superadmin. Que
-    // nadie se suspenda a si mismo NO va aca: es regla de negocio y la valida el service
-    // (UserService.suspend(User, long) -> SuspendResult.OWN_ACCOUNT), igual que revokeAdmin().
+    // El admin puede suspender a ese usuario: existe, NO es el mismo admin, y si es admin o superadmin
+    // solo lo suspende un superadmin.
     public boolean canSuspend(final long targetId, final Authentication authentication) {
         return PlancitoUserDetails.from(authentication)
                 .flatMap(caller -> userService.findAccessById(targetId).map(target ->
-                        target.canBeSuspendedBy(caller.hasRole(Role.SUPERADMIN))))
+                        caller.getId() != targetId && target.canBeSuspendedBy(caller.hasRole(Role.SUPERADMIN))))
+                .orElse(false);
+    }
+
+    // El superadmin puede sacarle el rol admin a ese usuario: existe y NO es el mismo (quedaria afuera de
+    // /admin/** sin forma de deshacerlo). Que sea superadmin quien lo pide lo decide WebAuthConfig; que el
+    // objetivo no sea otro superadmin es regla de negocio del service (RevokeAdminResult.TARGET_SUPERADMIN).
+    public boolean canRevokeAdmin(final long targetId, final Authentication authentication) {
+        return PlancitoUserDetails.from(authentication)
+                .flatMap(caller -> userService.findAccessById(targetId).map(target -> caller.getId() != targetId))
                 .orElse(false);
     }
 

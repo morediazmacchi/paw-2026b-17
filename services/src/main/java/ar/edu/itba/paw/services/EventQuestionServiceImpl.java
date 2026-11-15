@@ -6,6 +6,7 @@ import ar.edu.itba.paw.model.EventQuestion;
 import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
+import ar.edu.itba.paw.model.exception.UserNotFoundException;
 import ar.edu.itba.paw.persistence.EventQuestionDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -23,27 +24,27 @@ public class EventQuestionServiceImpl implements EventQuestionService {
     private final EventService eventService;
     private final InboxService inboxService;
     private final NotificationService notificationService;
+    private final UserService userService;
 
     @Autowired
     public EventQuestionServiceImpl(final EventQuestionDao questionDao, final EventService eventService,
                                     final InboxService inboxService,
-                                    final NotificationService notificationService) {
+                                    final NotificationService notificationService,
+                                    final UserService userService) {
         this.questionDao = questionDao;
         this.eventService = eventService;
         this.inboxService = inboxService;
         this.notificationService = notificationService;
+        this.userService = userService;
     }
 
     @Override
     @Transactional
-    public QuestionResult ask(final long eventId, final User asker, final String text) {
+    public QuestionResult ask(final long eventId, final long askerId, final String text) {
         // Evento inexistente: el 404 ya lo da @PreAuthorize en el controller antes de llegar aca; esto solo
         // se alcanza si desaparece justo en el medio (carrera). Es la excepcion de siempre (ErrorAdvice
         // la mapea a 404), no un resultado: los resultados son para conflictos de negocio.
         final Event event = eventService.findById(eventId).orElseThrow(() -> new EventNotFoundException(eventId));
-        if (event.isCreatedBy(asker.getId())) {
-            return QuestionResult.OWN_EVENT;
-        }
         if (!event.isOpenForQuestions()) {
             return QuestionResult.CLOSED;
         }
@@ -52,6 +53,8 @@ public class EventQuestionServiceImpl implements EventQuestionService {
         if (body.isEmpty() || body.length() > MAX_QUESTION_LENGTH) {
             return QuestionResult.INVALID;
         }
+        // El nombre y el mail salen de la cuenta, no de la sesion (que solo lleva lo que hace falta para autorizar).
+        final User asker = userService.findById(askerId).orElseThrow(() -> new UserNotFoundException(askerId));
         final EventQuestion question = questionDao.create(new EventQuestion(event, asker, body));
 
         inboxService.add(event.getCreatorEmail(), InboxMessageType.NEW_QUESTION, eventId,
