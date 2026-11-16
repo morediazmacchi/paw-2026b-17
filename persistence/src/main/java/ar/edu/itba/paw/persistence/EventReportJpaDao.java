@@ -2,6 +2,8 @@
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.EventReport;
+import ar.edu.itba.paw.model.ReportStatusCounts;
+import ar.edu.itba.paw.model.ReportStatusFilter;
 import ar.edu.itba.paw.model.ReportTarget;
 import ar.edu.itba.paw.model.ReportStatus;
 import ar.edu.itba.paw.model.User;
@@ -10,10 +12,14 @@ import org.springframework.stereotype.Repository;
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 import javax.persistence.TemporalType;
+import javax.persistence.TypedQuery;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Repository
@@ -22,6 +28,11 @@ public class EventReportJpaDao implements EventReportDao {
     // Un reporte "abierto" todavia no llego a una resolucion final (DISMISSED/ACTIONED).
     private static final List<ReportStatus> OPEN_STATUSES =
             Arrays.asList(ReportStatus.PENDING, ReportStatus.CHANGES_REQUESTED);
+    private static final List<ReportStatus> RESOLVED_STATUSES =
+            Arrays.asList(ReportStatus.DISMISSED, ReportStatus.ACTIONED);
+    // Mas reciente actividad primero; el id desempata (ver EventReport.getLastActivityAt()).
+    private static final String SEARCH_ORDER_BY =
+            " ORDER BY COALESCE(r.resolvedAt, r.changesRequestedAt, r.createdAt) DESC, r.id DESC";
 
     @PersistenceContext
     private EntityManager em;
@@ -53,35 +64,100 @@ public class EventReportJpaDao implements EventReportDao {
     }
 
     @Override
-    public List<EventReport> findPending(final int page, final int pageSize) {
-        // id como desempate: sin el, dos reportes con la misma fecha podrian
-        // cambiar de lugar entre una pagina y la siguiente.
+    public List<EventReport> search(final String query, final ReportStatusFilter filter, final int page,
+                                     final int pageSize) {
+        final Map<String, Object> params = new HashMap<>();
+        final String where = searchWhere(query, filter, params);
         // Dos pasos (1+1): ids de la pagina, despues las entidades de esos ids.
-        final List<Long> ids = em.createQuery(
-                        "SELECT r.id FROM EventReport r WHERE r.status = :status "
-                                + "ORDER BY r.createdAt ASC, r.id ASC", Long.class)
-                .setParameter("status", ReportStatus.PENDING)
-                .setFirstResult((page - 1) * pageSize)
-                .setMaxResults(pageSize)
-                .getResultList();
-        return loadInOrder(ids);
+        final TypedQuery<Long> idsQuery =
+                em.createQuery("SELECT r.id FROM EventReport r" + where + SEARCH_ORDER_BY, Long.class);
+        params.forEach(idsQuery::setParameter);
+        idsQuery.setFirstResult((page - 1) * pageSize);
+        idsQuery.setMaxResults(pageSize);
+        return loadInOrder(idsQuery.getResultList());
     }
 
     @Override
-    public long countPending() {
-        return countByStatus(ReportStatus.PENDING);
+    public long countSearch(final String query, final ReportStatusFilter filter) {
+        final Map<String, Object> params = new HashMap<>();
+        final String where = searchWhere(query, filter, params);
+        final TypedQuery<Long> countQuery =
+                em.createQuery("SELECT COUNT(r) FROM EventReport r" + where, Long.class);
+        params.forEach(countQuery::setParameter);
+        return countQuery.getSingleResult();
+    }
+
+    // El WHERE de search()/countSearch(): el mismo filtro de texto y de pestaña en los dos, para que el total y
+    // la pagina nunca se desincronicen. "!" como caracter de escape del LIKE (ver likeContains()), igual que
+    // el buscador de titulo de "Todos los eventos" (EventJpaDao.ADMIN_TITLE_FILTER).
+    private static String searchWhere(final String query, final ReportStatusFilter filter,
+                                       final Map<String, Object> params) {
+        final List<String> conditions = new ArrayList<>();
+        switch (filter) {
+            case NEW:
+                params.put("pending", ReportStatus.PENDING);
+                conditions.add("r.status = :pending AND r.viewedAt IS NULL");
+                break;
+            case IN_REVIEW:
+                params.put("pending", ReportStatus.PENDING);
+                conditions.add("r.status = :pending AND r.viewedAt IS NOT NULL");
+                break;
+            case CHANGES_REQUESTED:
+                params.put("changesRequested", ReportStatus.CHANGES_REQUESTED);
+                conditions.add("r.status = :changesRequested");
+                break;
+            case RESOLVED:
+                params.put("resolvedStatuses", RESOLVED_STATUSES);
+                conditions.add("r.status IN :resolvedStatuses");
+                break;
+            default:
+                // ALL: sin condicion de estado.
+        }
+        if (query != null && !query.trim().isEmpty()) {
+            params.put("q", likeContains(query.trim()));
+            conditions.add("(LOWER(r.event.title) LIKE :q ESCAPE '!' OR LOWER(r.reporter.email) LIKE :q ESCAPE '!' "
+                    + "OR LOWER(r.reason) LIKE :q ESCAPE '!')");
+        }
+        return conditions.isEmpty() ? "" : " WHERE " + String.join(" AND ", conditions);
+    }
+
+    // Mismo criterio de escape que EventJpaDao.likeContains(): "!" como caracter de escape, asi un "%"/"_"/"!"
+    // que haya escrito la persona busca ese caracter literal, no es un comodin.
+    private static String likeContains(final String text) {
+        return "%" + text.toLowerCase().replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
     }
 
     @Override
-    public List<EventReport> findChangesRequested(final int page, final int pageSize) {
-        final List<Long> ids = em.createQuery(
-                        "SELECT r.id FROM EventReport r WHERE r.status = :status "
-                                + "ORDER BY r.changesRequestedAt ASC, r.id ASC", Long.class)
-                .setParameter("status", ReportStatus.CHANGES_REQUESTED)
-                .setFirstResult((page - 1) * pageSize)
-                .setMaxResults(pageSize)
-                .getResultList();
-        return loadInOrder(ids);
+    public ReportStatusCounts countStatuses() {
+        final Object[] row = (Object[]) em.createQuery(
+                        "SELECT COUNT(r), "
+                                + "SUM(CASE WHEN r.status = :pending AND r.viewedAt IS NULL THEN 1 ELSE 0 END), "
+                                + "SUM(CASE WHEN r.status = :pending AND r.viewedAt IS NOT NULL THEN 1 ELSE 0 END), "
+                                + "SUM(CASE WHEN r.status = :changesRequested THEN 1 ELSE 0 END), "
+                                + "SUM(CASE WHEN r.status IN :resolvedStatuses THEN 1 ELSE 0 END) "
+                                + "FROM EventReport r")
+                .setParameter("pending", ReportStatus.PENDING)
+                .setParameter("changesRequested", ReportStatus.CHANGES_REQUESTED)
+                .setParameter("resolvedStatuses", RESOLVED_STATUSES)
+                .getSingleResult();
+        return new ReportStatusCounts(((Number) row[0]).longValue(), countOf(row[1]), countOf(row[2]),
+                countOf(row[3]), countOf(row[4]));
+    }
+
+    // SUM sobre un CASE que nunca matcheo da NULL (ej. tabla vacia), no 0.
+    private static long countOf(final Object value) {
+        return value == null ? 0L : ((Number) value).longValue();
+    }
+
+    @Override
+    public boolean markViewed(final long reportId, final long adminUserId) {
+        return em.createQuery(
+                        "UPDATE EventReport r SET r.viewedAt = :now, r.viewedBy = :admin "
+                                + "WHERE r.id = :reportId AND r.viewedAt IS NULL")
+                .setParameter("now", new Date(), TemporalType.TIMESTAMP)
+                .setParameter("admin", em.getReference(User.class, adminUserId))
+                .setParameter("reportId", reportId)
+                .executeUpdate() == 1;
     }
 
     // Paso 2 del 1+1: carga los reportes de "ids" y los devuelve en el mismo orden que los ids.
@@ -94,17 +170,6 @@ public class EventReportJpaDao implements EventReportDao {
                         .setParameter("ids", ids)
                         .getResultList(),
                 EventReport::getId);
-    }
-
-    @Override
-    public long countChangesRequested() {
-        return countByStatus(ReportStatus.CHANGES_REQUESTED);
-    }
-
-    private long countByStatus(final ReportStatus status) {
-        return em.createQuery("SELECT COUNT(r) FROM EventReport r WHERE r.status = :status", Long.class)
-                .setParameter("status", status)
-                .getSingleResult();
     }
 
     @Override

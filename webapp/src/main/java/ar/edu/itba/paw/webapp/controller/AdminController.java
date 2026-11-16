@@ -2,6 +2,7 @@ package ar.edu.itba.paw.webapp.controller;
 
 import ar.edu.itba.paw.model.AdminEventSort;
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.ReportStatusFilter;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.services.EventApprovalResult;
@@ -18,6 +19,7 @@ import ar.edu.itba.paw.services.UserService;
 import ar.edu.itba.paw.webapp.form.RejectEventForm;
 import ar.edu.itba.paw.webapp.form.RequestChangesForm;
 import ar.edu.itba.paw.webapp.util.Paging;
+import ar.edu.itba.paw.webapp.util.ReportsListLink;
 import ar.edu.itba.paw.webapp.util.UserListLink;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -62,37 +64,65 @@ public class AdminController {
         return new ModelAndView("redirect:/admin/reportes");
     }
 
+    // Panel unificado "Reportes y seguimiento": todos los reportes (cualquier estado), buscables por texto y
+    // filtrables por pestaña (ver ReportStatusFilter). returnTo se arma una vez aca (con la busqueda, la
+    // pestaña y la pagina que se estan viendo) y viaja en cada formulario de la pantalla, para que resolver
+    // un reporte o abrir su seguimiento vuelva exactamente a esta misma vista (ver ReportsListLink).
     @RequestMapping(value = "/reportes", method = RequestMethod.GET)
-    public ModelAndView reportes(@RequestParam(value = "page", required = false) final String page) {
-        final ReportQueuePage queue = moderationService.findPendingQueue(Paging.parsePage(page));
-        return reportQueueView("admin/reportes", queue);
-    }
-
-    // Panel de seguimiento: reportes
-    // donde ya se le pidieron cambios al creador
-    @RequestMapping(value = "/reportes/seguimiento", method = RequestMethod.GET)
-    public ModelAndView seguimiento(@RequestParam(value = "page", required = false) final String page) {
-        final ReportQueuePage queue = moderationService.findChangesRequestedQueue(Paging.parsePage(page));
-        final ModelAndView mav = reportQueueView("admin/seguimiento", queue);
-        mav.addObject("requestedByUsersById", queue.getRequestedByUsersById());
-        return mav;
-    }
-
-    // Los reports con los datos para mostrarlos en el jsp (los arma el service).
-    private ModelAndView reportQueueView(final String viewName, final ReportQueuePage queue) {
-        final ModelAndView mav = new ModelAndView(viewName);
+    public ModelAndView reportes(@RequestParam(value = "q", required = false) final String q,
+                                  @RequestParam(value = "filtro", required = false) final String filtro,
+                                  @RequestParam(value = "page", required = false) final String page,
+                                  @RequestParam(value = "abierto", required = false) final String abierto) {
+        final ReportStatusFilter effectiveFilter = parseReportFilter(filtro);
+        final String trimmedQuery = q == null ? "" : q.trim();
+        final ReportQueuePage queue =
+                moderationService.searchQueue(trimmedQuery, effectiveFilter, Paging.parsePage(page));
+        final ModelAndView mav = new ModelAndView("admin/reportes");
         mav.addObject("reports", queue.getReports().getContent());
+        mav.addObject("totalElements", queue.getReports().getTotalElements());
         mav.addObject("currentPage", queue.getReports().getPage());
         mav.addObject("totalPages", queue.getReports().getTotalPages());
+        // "Mostrando X-Y de Z": el rango de esta pagina, para el caption sobre la tabla.
+        final int shownCount = queue.getReports().getContent().size();
+        final int firstShown = shownCount == 0 ? 0 : (queue.getReports().getPage() - 1) * queue.getReports().getPageSize() + 1;
+        mav.addObject("firstShown", firstShown);
+        mav.addObject("lastShown", firstShown + shownCount - 1);
         mav.addObject("eventsById", queue.getEventsById());
         mav.addObject("reportersById", queue.getReportersById());
+        mav.addObject("requestedByUsersById", queue.getRequestedByUsersById());
+        mav.addObject("counts", queue.getCounts());
+        mav.addObject("q", trimmedQuery);
+        mav.addObject("filtro", effectiveFilter.name());
+        mav.addObject("abierto", abierto == null ? "" : abierto);
+        mav.addObject("returnTo", ReportsListLink.of(trimmedQuery, effectiveFilter.name(), queue.getReports().getPage()));
+        final Map<String, String> pagerParams = new LinkedHashMap<>();
+        if (!trimmedQuery.isEmpty()) {
+            pagerParams.put("q", trimmedQuery);
+        }
+        pagerParams.put("filtro", effectiveFilter.name());
+        mav.addObject("pagerParams", pagerParams);
         return mav;
     }
 
-    // descartar/dar-de-baja
-    private static ModelAndView redirectToOrigin(final String origen) {
-        return new ModelAndView("seguimiento".equals(origen)
-                ? "redirect:/admin/reportes/seguimiento" : "redirect:/admin/reportes");
+    // Una pestaña que no existe (o ninguna) cae a "Todos", en vez de dar error.
+    private static ReportStatusFilter parseReportFilter(final String value) {
+        try {
+            return value == null ? ReportStatusFilter.ALL : ReportStatusFilter.valueOf(value);
+        } catch (final IllegalArgumentException e) {
+            return ReportStatusFilter.ALL;
+        }
+    }
+
+    // El admin abre el seguimiento de un reporte: si todavia no lo habia abierto nadie, pasa de "Nuevo" a "En
+    // revision" (ver ModerationService.markViewed()). No requiere canResolveReport: mirar el historial no es
+    // una decision de moderacion (a diferencia de descartar/pedir cambios/dar de baja), asi que no hay
+    // conflicto de intereses en verlo aunque el evento sea del propio admin.
+    @RequestMapping(value = "/reportes/{id}/ver", method = RequestMethod.POST)
+    public ModelAndView verReporte(@PathVariable final long id,
+                                    @RequestParam(value = "returnTo", required = false) final String returnTo,
+                                    @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
+        moderationService.markViewed(id, currentUser.getId());
+        return new ModelAndView("redirect:" + ReportsListLink.withOpened(ReportsListLink.safeReturnTo(returnTo), id));
     }
 
     // Resolver un reporte (descartar, pedir cambios, dar de baja): un admin no puede si el evento reportado
@@ -101,7 +131,7 @@ public class AdminController {
     @PreAuthorize("@adminSecurity.canResolveReport(#id, authentication)")
     @RequestMapping(value = "/reportes/{id}/descartar", method = RequestMethod.POST)
     public ModelAndView descartar(@PathVariable final long id,
-                                   @RequestParam(value = "origen", required = false) final String origen,
+                                   @RequestParam(value = "returnTo", required = false) final String returnTo,
                                    @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
                                    final RedirectAttributes redirectAttributes) {
         final ReportResolutionResult result = moderationService.dismiss(id, currentUser.getId());
@@ -109,7 +139,7 @@ public class AdminController {
         if (result != ReportResolutionResult.RESOLVED) {
             redirectAttributes.addFlashAttribute("adminReportError", result.name());
         }
-        return redirectToOrigin(origen);
+        return new ModelAndView("redirect:" + ReportsListLink.safeReturnTo(returnTo));
     }
 
     @PreAuthorize("@adminSecurity.canResolveReport(#id, authentication)")
@@ -117,7 +147,7 @@ public class AdminController {
     public ModelAndView darDeBaja(@PathVariable final long id,
                                    @RequestParam(value = "suspenderOrganizador", required = false)
                                    final String suspenderOrganizador,
-                                   @RequestParam(value = "origen", required = false) final String origen,
+                                   @RequestParam(value = "returnTo", required = false) final String returnTo,
                                    @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
                                    final RedirectAttributes redirectAttributes) {
         final ReportResolutionResult result =
@@ -125,23 +155,26 @@ public class AdminController {
         if (result != ReportResolutionResult.RESOLVED) {
             redirectAttributes.addFlashAttribute("adminReportError", result.name());
         }
-        return redirectToOrigin(origen);
+        return new ModelAndView("redirect:" + ReportsListLink.safeReturnTo(returnTo));
     }
 
     @PreAuthorize("@adminSecurity.canResolveReport(#id, authentication)")
     @RequestMapping(value = "/reportes/{id}/pedir-cambios", method = RequestMethod.POST)
     public ModelAndView pedirCambios(@PathVariable final long id, @Valid final RequestChangesForm form,
-                                      final BindingResult errors, @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
+                                      final BindingResult errors,
+                                      @RequestParam(value = "returnTo", required = false) final String returnTo,
+                                      @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
                                       final RedirectAttributes redirectAttributes) {
+        final String safeReturnTo = ReportsListLink.safeReturnTo(returnTo);
         if (errors.hasErrors()) {
             redirectAttributes.addFlashAttribute("adminReportError", "INVALID");
-            return new ModelAndView("redirect:/admin/reportes");
+            return new ModelAndView("redirect:" + safeReturnTo);
         }
         final ReportResolutionResult result = moderationService.requestChanges(id, currentUser.getId(), form.getMensaje());
         if (result != ReportResolutionResult.RESOLVED) {
             redirectAttributes.addFlashAttribute("adminReportError", result.name());
         }
-        return new ModelAndView("redirect:/admin/reportes");
+        return new ModelAndView("redirect:" + safeReturnTo);
     }
 
     // Revision previa a publicarse (ver EventApprovalStatus): distinto del sistema de reportes de arriba, son eventos

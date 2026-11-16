@@ -480,3 +480,9 @@ CREATE INDEX IF NOT EXISTS idx_event_date
     ON event (event_date);
 CREATE INDEX IF NOT EXISTS idx_event_price
     ON event (price);
+
+-- Panel unificado "Reportes y seguimiento" (ver EventReport.isInReview()): cuando un admin abre el detalle de
+-- un reporte PENDING por primera vez, queda marcado como "En revision" en vez de "Nuevo". ADD COLUMN IF NOT
+-- EXISTS: idempotente, no pierde datos (igual que users.cover_image_id mas arriba).
+ALTER TABLE event_report ADD COLUMN IF NOT EXISTS viewed_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE event_report ADD COLUMN IF NOT EXISTS viewed_by INTEGER REFERENCES users(id);

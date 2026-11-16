@@ -5,6 +5,7 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.EventReport;
+import ar.edu.itba.paw.model.ReportStatusFilter;
 import ar.edu.itba.paw.model.ReportTarget;
 import org.springframework.transaction.annotation.Transactional;
 import ar.edu.itba.paw.model.User;
@@ -26,39 +27,34 @@ public interface ModerationService {
     ReportResult report(long eventId, User reporter, String reason);
 
     /**
-     * Cola de moderacion: los reportes pendientes, mas viejo primero (FIFO), de
-     * a una pagina. Una pagina mayor a la ultima devuelve la ultima, una menor
-     * a 1 la primera; sin reportes, la pagina 1 vacia.
+     * El panel unificado "Reportes y seguimiento": todos los reportes (cualquier estado), filtrados por texto
+     * libre (evento, quien reporto, motivo; null/vacio = sin filtrar) y por pestaña (ver ReportStatusFilter),
+     * de a una pagina, el de actividad mas reciente primero (ver EventReport.getLastActivityAt()). Una pagina
+     * mayor a la ultima devuelve la ultima, una menor a 1 la primera; sin reportes, la pagina 1 vacia.
      */
-    PageResult<EventReport> findPendingPage(int page);
+    PageResult<EventReport> searchPage(String query, ReportStatusFilter filter, int page);
 
     /**
-     * Panel de seguimiento: los reportes con cambios pedidos (ver
-     * requestChanges()), esperando que un admin los revise de nuevo, mas
-     * viejo primero (FIFO), de a una pagina (mismo criterio de pagina fuera de
-     * rango que findPendingPage()).
-     */
-    PageResult<EventReport> findChangesRequestedPage(int page);
-
-    /**
-     * La cola de pendientes lista para mostrarse (mismo criterio de pagina que findPendingPage()): los reportes
-     * de la pagina con los eventos reportados y quienes reportaron, cada grupo en una sola consulta.
+     * El panel listo para mostrarse (mismo criterio de pagina que searchPage()): los reportes de la pagina con
+     * los eventos reportados, quienes reportaron y los admins que pidieron cambios (cada grupo en una sola
+     * consulta), mas los 5 contadores de las pestañas (sin filtrar por texto).
      */
     @Transactional(readOnly = true)
-    ReportQueuePage findPendingQueue(int page);
+    ReportQueuePage searchQueue(String query, ReportStatusFilter filter, int page);
 
     /**
-     * El panel de seguimiento listo para mostrarse (mismo criterio que findChangesRequestedPage()): ademas de
-     * lo de findPendingQueue(), los admins que pidieron los cambios.
+     * Un admin abre el detalle de un reporte: si seguia PENDING y nadie lo habia abierto antes, pasa a "en
+     * revision" (ver EventReport.isInReview()) y devuelve true. No hace nada (ni falla) si ya estaba visto, si
+     * no esta PENDING, o si el reporte no existe: abrir el detalle para mirarlo nunca es un error, solo que en
+     * esos casos devuelve false (nada que marcar).
      */
-    @Transactional(readOnly = true)
-    ReportQueuePage findChangesRequestedQueue(int page);
+    boolean markViewed(long reportId, long adminUserId);
 
     /**
      * El admin le pide al creador que corrija algo en el evento, en vez de
      * descartar el reporte o darlo de baja directo: le avisa (mail + bandeja)
      * con el mensaje que escribio, y el reporte pasa a CHANGES_REQUESTED
-     * (ver listChangesRequested()) hasta que un admin lo revise de nuevo y lo
+     * (pestaña "Modificacion solicitada" de searchQueue()) hasta que un admin lo revise de nuevo y lo
      * descarte o lo accione (dismiss()/removeEvent(), que tambien aceptan un
      * reporte en este estado). NOT_FOUND si el reporte no existe o ya no
      * estaba PENDING (ya se le habian pedido cambios, o ya estaba resuelto).

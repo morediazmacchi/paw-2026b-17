@@ -5,6 +5,7 @@ import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventReport;
 import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.ReportStatus;
+import ar.edu.itba.paw.model.ReportStatusFilter;
 import ar.edu.itba.paw.model.ReportTarget;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
@@ -64,36 +65,19 @@ public class ModerationServiceImpl implements ModerationService {
 
     @Override
     @Transactional(readOnly = true)
-    public PageResult<EventReport> findPendingPage(final int page) {
-        final long total = eventReportDao.countPending();
+    public PageResult<EventReport> searchPage(final String query, final ReportStatusFilter filter, final int page) {
+        final long total = eventReportDao.countSearch(query, filter);
         final int effectivePage = PageResult.clampPage(page, total, PAGE_SIZE);
-        return new PageResult<>(eventReportDao.findPending(effectivePage, PAGE_SIZE), total, effectivePage, PAGE_SIZE);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public PageResult<EventReport> findChangesRequestedPage(final int page) {
-        final long total = eventReportDao.countChangesRequested();
-        final int effectivePage = PageResult.clampPage(page, total, PAGE_SIZE);
-        return new PageResult<>(eventReportDao.findChangesRequested(effectivePage, PAGE_SIZE),
+        return new PageResult<>(eventReportDao.search(query, filter, effectivePage, PAGE_SIZE),
                 total, effectivePage, PAGE_SIZE);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public ReportQueuePage findPendingQueue(final int page) {
-        return toQueuePage(findPendingPage(page));
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public ReportQueuePage findChangesRequestedQueue(final int page) {
-        return toQueuePage(findChangesRequestedPage(page));
-    }
-
-    // Los eventos reportados, quienes reportaron y los admins que pidieron cambios: una consulta por grupo
-    // (no una por reporte), para mostrar la pagina sin que el caller tenga que ir a buscarlos.
-    private ReportQueuePage toQueuePage(final PageResult<EventReport> reports) {
+    public ReportQueuePage searchQueue(final String query, final ReportStatusFilter filter, final int page) {
+        final PageResult<EventReport> reports = searchPage(query, filter, page);
+        // Los eventos reportados, quienes reportaron y los admins que pidieron cambios: una consulta por
+        // grupo (no una por reporte), para mostrar la pagina sin que el caller tenga que ir a buscarlos.
         final List<Long> eventIds = reports.getContent().stream()
                 .map(EventReport::getEventId).distinct().collect(Collectors.toList());
         final List<Long> reporterIds = reports.getContent().stream()
@@ -104,7 +88,14 @@ public class ModerationServiceImpl implements ModerationService {
         return new ReportQueuePage(reports,
                 eventService.findByIds(eventIds).stream().collect(Collectors.toMap(Event::getId, e -> e)),
                 userService.findByIds(reporterIds).stream().collect(Collectors.toMap(User::getId, u -> u)),
-                userService.findByIds(requestedByIds).stream().collect(Collectors.toMap(User::getId, u -> u)));
+                userService.findByIds(requestedByIds).stream().collect(Collectors.toMap(User::getId, u -> u)),
+                eventReportDao.countStatuses());
+    }
+
+    @Override
+    @Transactional
+    public boolean markViewed(final long reportId, final long adminUserId) {
+        return eventReportDao.markViewed(reportId, adminUserId);
     }
 
     @Override

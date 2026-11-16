@@ -3,6 +3,8 @@ package ar.edu.itba.paw.services;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventReport;
 import ar.edu.itba.paw.model.ReportStatus;
+import ar.edu.itba.paw.model.ReportStatusCounts;
+import ar.edu.itba.paw.model.ReportStatusFilter;
 import ar.edu.itba.paw.model.ReportTarget;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
@@ -244,17 +246,17 @@ public class ModerationServiceImplTest {
         assertEquals(ReportResolutionResult.RESOLVED, result);
     }
 
-    // ---- findChangesRequestedPage() ----
+    // ---- searchPage() ----
 
     @Test
-    public void testFindChangesRequestedPageReturnsTheRequestedPageWithItsTotals() {
+    public void testSearchPageReturnsTheRequestedPageWithItsTotals() {
         // Arrange: 25 en total, de a ModerationServiceImpl.PAGE_SIZE por pagina -> 3 paginas
         final List<EventReport> pageTwo = Collections.singletonList(someChangesRequestedReport());
-        when(reportDao.countChangesRequested()).thenReturn(25L);
-        when(reportDao.findChangesRequested(2, ModerationServiceImpl.PAGE_SIZE)).thenReturn(pageTwo);
+        when(reportDao.countSearch(null, ReportStatusFilter.ALL)).thenReturn(25L);
+        when(reportDao.search(null, ReportStatusFilter.ALL, 2, ModerationServiceImpl.PAGE_SIZE)).thenReturn(pageTwo);
 
         // Act
-        final PageResult<EventReport> result = moderationService.findChangesRequestedPage(2);
+        final PageResult<EventReport> result = moderationService.searchPage(null, ReportStatusFilter.ALL, 2);
 
         // Assert
         assertEquals(pageTwo, result.getContent());
@@ -264,14 +266,14 @@ public class ModerationServiceImplTest {
     }
 
     @Test
-    public void testFindChangesRequestedPageShowsTheLastPageWhenThePageIsBeyondIt() {
+    public void testSearchPageShowsTheLastPageWhenThePageIsBeyondIt() {
         // Arrange: 25 en total -> la ultima pagina es la 3
         final List<EventReport> lastPage = Collections.singletonList(someChangesRequestedReport());
-        when(reportDao.countChangesRequested()).thenReturn(25L);
-        when(reportDao.findChangesRequested(3, ModerationServiceImpl.PAGE_SIZE)).thenReturn(lastPage);
+        when(reportDao.countSearch(null, ReportStatusFilter.ALL)).thenReturn(25L);
+        when(reportDao.search(null, ReportStatusFilter.ALL, 3, ModerationServiceImpl.PAGE_SIZE)).thenReturn(lastPage);
 
         // Act
-        final PageResult<EventReport> result = moderationService.findChangesRequestedPage(99);
+        final PageResult<EventReport> result = moderationService.searchPage(null, ReportStatusFilter.ALL, 99);
 
         // Assert
         assertEquals(3, result.getPage());
@@ -279,14 +281,14 @@ public class ModerationServiceImplTest {
     }
 
     @Test
-    public void testFindChangesRequestedPageShowsTheFirstPageWhenThePageIsBelowOne() {
+    public void testSearchPageShowsTheFirstPageWhenThePageIsBelowOne() {
         // Arrange
         final List<EventReport> firstPage = Collections.singletonList(someChangesRequestedReport());
-        when(reportDao.countChangesRequested()).thenReturn(25L);
-        when(reportDao.findChangesRequested(1, ModerationServiceImpl.PAGE_SIZE)).thenReturn(firstPage);
+        when(reportDao.countSearch(null, ReportStatusFilter.ALL)).thenReturn(25L);
+        when(reportDao.search(null, ReportStatusFilter.ALL, 1, ModerationServiceImpl.PAGE_SIZE)).thenReturn(firstPage);
 
         // Act
-        final PageResult<EventReport> result = moderationService.findChangesRequestedPage(-3);
+        final PageResult<EventReport> result = moderationService.searchPage(null, ReportStatusFilter.ALL, -3);
 
         // Assert
         assertEquals(1, result.getPage());
@@ -294,13 +296,14 @@ public class ModerationServiceImplTest {
     }
 
     @Test
-    public void testFindChangesRequestedPageWithNoResultsReturnsAnEmptyFirstPage() {
+    public void testSearchPageWithNoResultsReturnsAnEmptyFirstPage() {
         // Arrange
-        when(reportDao.countChangesRequested()).thenReturn(0L);
-        when(reportDao.findChangesRequested(1, ModerationServiceImpl.PAGE_SIZE)).thenReturn(Collections.emptyList());
+        when(reportDao.countSearch("nada", ReportStatusFilter.RESOLVED)).thenReturn(0L);
+        when(reportDao.search("nada", ReportStatusFilter.RESOLVED, 1, ModerationServiceImpl.PAGE_SIZE))
+                .thenReturn(Collections.emptyList());
 
         // Act
-        final PageResult<EventReport> result = moderationService.findChangesRequestedPage(5);
+        final PageResult<EventReport> result = moderationService.searchPage("nada", ReportStatusFilter.RESOLVED, 5);
 
         // Assert
         assertEquals(1, result.getPage());
@@ -457,49 +460,51 @@ public class ModerationServiceImplTest {
         assertEquals(ReportResolutionResult.RESOLVED, result);
     }
 
-    // ---- findPendingQueue() / findChangesRequestedQueue() ----
+    // ---- searchQueue() ----
 
-    private void pendingQueueOf(final EventReport report) {
-        when(reportDao.countPending()).thenReturn(1L);
-        when(reportDao.findPending(1, ModerationServiceImpl.PAGE_SIZE)).thenReturn(Collections.singletonList(report));
+    private void searchQueueOf(final EventReport report) {
+        when(reportDao.countSearch(null, ReportStatusFilter.ALL)).thenReturn(1L);
+        when(reportDao.search(null, ReportStatusFilter.ALL, 1, ModerationServiceImpl.PAGE_SIZE))
+                .thenReturn(Collections.singletonList(report));
+        lenient().when(reportDao.countStatuses()).thenReturn(new ReportStatusCounts(1, 1, 0, 0, 0));
     }
 
     @Test
-    public void testFindPendingQueueHoldsTheReportedEventsById() {
+    public void testSearchQueueHoldsTheReportedEventsById() {
         // Arrange
         final Event event = someEvent();
-        pendingQueueOf(somePendingReport());
+        searchQueueOf(somePendingReport());
         when(eventService.findByIds(Collections.singletonList(EVENT_ID))).thenReturn(Collections.singletonList(event));
 
         // Act
-        final ReportQueuePage result = moderationService.findPendingQueue(1);
+        final ReportQueuePage result = moderationService.searchQueue(null, ReportStatusFilter.ALL, 1);
 
         // Assert
         assertEquals(Collections.singletonMap(EVENT_ID, event), result.getEventsById());
     }
 
     @Test
-    public void testFindPendingQueueHoldsTheReportersById() {
+    public void testSearchQueueHoldsTheReportersById() {
         // Arrange
         final User reporter = someUser(REPORTER_ID);
-        pendingQueueOf(somePendingReport());
+        searchQueueOf(somePendingReport());
         when(userService.findByIds(Collections.singletonList(REPORTER_ID))).thenReturn(Collections.singletonList(reporter));
 
         // Act
-        final ReportQueuePage result = moderationService.findPendingQueue(1);
+        final ReportQueuePage result = moderationService.searchQueue(null, ReportStatusFilter.ALL, 1);
 
         // Assert
         assertEquals(Collections.singletonMap(REPORTER_ID, reporter), result.getReportersById());
     }
 
     @Test
-    public void testFindPendingQueueKeepsThePageOfReports() {
+    public void testSearchQueueKeepsThePageOfReports() {
         // Arrange
         final EventReport report = somePendingReport();
-        pendingQueueOf(report);
+        searchQueueOf(report);
 
         // Act
-        final ReportQueuePage result = moderationService.findPendingQueue(1);
+        final ReportQueuePage result = moderationService.searchQueue(null, ReportStatusFilter.ALL, 1);
 
         // Assert
         assertEquals(Collections.singletonList(report), result.getReports().getContent());
@@ -507,98 +512,76 @@ public class ModerationServiceImplTest {
     }
 
     @Test
-    public void testFindChangesRequestedQueueHoldsTheAdminsWhoAskedForChanges() {
+    public void testSearchQueueHoldsTheAdminsWhoAskedForChanges() {
         // Arrange
         final User admin = someUser(ADMIN_ID);
         final EventReport report = someChangesRequestedReport();
         report.setChangesRequestedBy(admin);
-        when(reportDao.countChangesRequested()).thenReturn(1L);
-        when(reportDao.findChangesRequested(1, ModerationServiceImpl.PAGE_SIZE))
+        when(reportDao.countSearch(null, ReportStatusFilter.CHANGES_REQUESTED)).thenReturn(1L);
+        when(reportDao.search(null, ReportStatusFilter.CHANGES_REQUESTED, 1, ModerationServiceImpl.PAGE_SIZE))
                 .thenReturn(Collections.singletonList(report));
         when(userService.findByIds(Collections.singletonList(ADMIN_ID))).thenReturn(Collections.singletonList(admin));
+        lenient().when(reportDao.countStatuses()).thenReturn(new ReportStatusCounts(1, 0, 0, 1, 0));
 
         // Act
-        final ReportQueuePage result = moderationService.findChangesRequestedQueue(1);
+        final ReportQueuePage result = moderationService.searchQueue(null, ReportStatusFilter.CHANGES_REQUESTED, 1);
 
         // Assert
         assertEquals(Collections.singletonMap(ADMIN_ID, admin), result.getRequestedByUsersById());
     }
 
     @Test
-    public void testFindChangesRequestedQueueWithoutReportsIsEmpty() {
+    public void testSearchQueueHoldsTheCountsOfEachTab() {
         // Arrange
-        when(reportDao.countChangesRequested()).thenReturn(0L);
+        final ReportStatusCounts counts = new ReportStatusCounts(4, 1, 1, 1, 1);
+        searchQueueOf(somePendingReport());
+        when(reportDao.countStatuses()).thenReturn(counts);
 
         // Act
-        final ReportQueuePage result = moderationService.findChangesRequestedQueue(1);
+        final ReportQueuePage result = moderationService.searchQueue(null, ReportStatusFilter.ALL, 1);
+
+        // Assert
+        assertSame(counts, result.getCounts());
+    }
+
+    @Test
+    public void testSearchQueueWithoutReportsIsEmpty() {
+        // Arrange
+        when(reportDao.countSearch("nada", ReportStatusFilter.ALL)).thenReturn(0L);
+        lenient().when(reportDao.countStatuses()).thenReturn(new ReportStatusCounts(0, 0, 0, 0, 0));
+
+        // Act
+        final ReportQueuePage result = moderationService.searchQueue("nada", ReportStatusFilter.ALL, 1);
 
         // Assert
         assertTrue(result.getReports().getContent().isEmpty());
         assertTrue(result.getEventsById().isEmpty());
     }
 
-    // ---- findPendingPage() ----
+    // ---- markViewed() ----
 
     @Test
-    public void testFindPendingPageReturnsTheRequestedPageWithItsTotals() {
-        // Arrange: 25 en total, de a ModerationServiceImpl.PAGE_SIZE por pagina -> 3 paginas
-        final List<EventReport> pageTwo = Collections.singletonList(somePendingReport());
-        when(reportDao.countPending()).thenReturn(25L);
-        when(reportDao.findPending(2, ModerationServiceImpl.PAGE_SIZE)).thenReturn(pageTwo);
-
-        // Act
-        final PageResult<EventReport> result = moderationService.findPendingPage(2);
-
-        // Assert
-        assertEquals(pageTwo, result.getContent());
-        assertEquals(2, result.getPage());
-        assertEquals(3, result.getTotalPages());
-        assertEquals(25L, result.getTotalElements());
-    }
-
-    @Test
-    public void testFindPendingPageShowsTheLastPageWhenThePageIsBeyondIt() {
-        // Arrange: 25 en total -> la ultima pagina es la 3
-        final List<EventReport> lastPage = Collections.singletonList(somePendingReport());
-        when(reportDao.countPending()).thenReturn(25L);
-        when(reportDao.findPending(3, ModerationServiceImpl.PAGE_SIZE)).thenReturn(lastPage);
-
-        // Act
-        final PageResult<EventReport> result = moderationService.findPendingPage(99);
-
-        // Assert
-        assertEquals(3, result.getPage());
-        assertEquals(lastPage, result.getContent());
-    }
-
-    @Test
-    public void testFindPendingPageShowsTheFirstPageWhenThePageIsBelowOne() {
+    public void testMarkViewedReturnsTrueWhenTheDaoMarkedIt() {
         // Arrange
-        final List<EventReport> firstPage = Collections.singletonList(somePendingReport());
-        when(reportDao.countPending()).thenReturn(25L);
-        when(reportDao.findPending(1, ModerationServiceImpl.PAGE_SIZE)).thenReturn(firstPage);
+        when(reportDao.markViewed(REPORT_ID, ADMIN_ID)).thenReturn(true);
 
         // Act
-        final PageResult<EventReport> result = moderationService.findPendingPage(-3);
+        final boolean result = moderationService.markViewed(REPORT_ID, ADMIN_ID);
 
         // Assert
-        assertEquals(1, result.getPage());
-        assertEquals(firstPage, result.getContent());
+        assertTrue(result);
     }
 
     @Test
-    public void testFindPendingPageWithNoResultsReturnsAnEmptyFirstPage() {
+    public void testMarkViewedReturnsFalseWhenTheReportWasAlreadyViewed() {
         // Arrange
-        when(reportDao.countPending()).thenReturn(0L);
-        when(reportDao.findPending(1, ModerationServiceImpl.PAGE_SIZE)).thenReturn(Collections.emptyList());
+        when(reportDao.markViewed(REPORT_ID, ADMIN_ID)).thenReturn(false);
 
         // Act
-        final PageResult<EventReport> result = moderationService.findPendingPage(5);
+        final boolean result = moderationService.markViewed(REPORT_ID, ADMIN_ID);
 
         // Assert
-        assertEquals(1, result.getPage());
-        assertEquals(0, result.getTotalPages());
-        assertTrue(result.getContent().isEmpty());
+        assertFalse(result);
     }
 
     // ---- findReportTarget() ----

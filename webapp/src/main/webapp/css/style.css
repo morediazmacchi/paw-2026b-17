@@ -2980,6 +2980,94 @@ button.btn-accent {
     margin-bottom: 2px;
 }
 
+/* Panel unificado "Reportes y seguimiento" (admin/reportes.jsp): mismo .responsive-table de arriba, columnas
+   propias (6: evento, reportado por, motivo, estado, ultima actualizacion, acciones). */
+.reports-table th:nth-child(1), .reports-table td:nth-child(1) { width: 22%; }
+.reports-table th:nth-child(2), .reports-table td:nth-child(2) { width: 16%; }
+.reports-table th:nth-child(3), .reports-table td:nth-child(3) { width: 20%; }
+.reports-table th:nth-child(4), .reports-table td:nth-child(4) { width: 14%; }
+.reports-table th:nth-child(5), .reports-table td:nth-child(5) { width: 13%; }
+.reports-table th:nth-child(6), .reports-table td:nth-child(6) { width: 15%; }
+
+/* Pestañas de pestaña (Todos/Nuevos/En revision/Modificacion solicitada/Resueltos), con el contador adentro
+   del pill (ver ReportStatusCounts). Mismo .pill/.pill-active que el resto del sitio. */
+.report-filter-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 18px;
+}
+
+.pill-count {
+    margin-left: 6px;
+    opacity: 0.75;
+    font-variant-numeric: tabular-nums;
+}
+
+/* El numerito de "Nuevos" resalta mas: a diferencia del resto, no hay otra senial visual (como el color
+   distinto del pill activo) marcando que hay algo pendiente de mirar. */
+.report-filter-new .pill-count {
+    opacity: 1;
+    font-weight: 700;
+}
+
+/* Estado de cada reporte (ver EventReport.isInReview()/isResolved()): mismo patron que .status-pill, con
+   colores propios por estado. */
+.report-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.report-status::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.report-status-new {
+    background: var(--accent);
+    color: var(--accent-text);
+}
+
+.report-status-in-review {
+    border: 1px solid #6b5320;
+    color: #e0a030;
+}
+
+.report-status-changes-requested {
+    border: 1px solid #4a3a7d;
+    color: #b89bff;
+}
+
+.report-status-resolved {
+    border: 1px solid var(--success-border);
+    color: #6fdc8c;
+}
+
+/* "Mostrando 1-10 de 24 reportes" sobre la tabla. */
+.reports-caption {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin-bottom: 10px;
+}
+
+/* Seguimiento de un reporte (modal): una linea por hito, en orden cronologico. */
+.tracking-timeline p {
+    margin: 0 0 10px;
+}
+
+.tracking-timeline p:last-child {
+    margin-bottom: 0;
+}
+
 @media (max-width: 620px) {
     .responsive-table-wrap {
         border: none;

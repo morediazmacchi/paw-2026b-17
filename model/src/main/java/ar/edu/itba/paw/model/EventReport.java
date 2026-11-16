@@ -62,6 +62,16 @@ public class EventReport {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "changes_requested_by")
     private User changesRequestedBy;
+    // Primera vez que un admin abrio el detalle de este reporte (ver ModerationService.markViewed()): null =
+    // "Nuevo" en el panel de reportes; con fecha = "En revisión". No se pisa en una segunda apertura (el que
+    // importa es el primero que lo noto), y no es un ReportStatus aparte: un reporte PENDING sigue siendo
+    // PENDING este lo haya visto alguien o no, esto es solo para ordenar/filtrar el panel.
+    @Column(name = "viewed_at")
+    @Temporal(TemporalType.TIMESTAMP)
+    private Date viewedAt;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "viewed_by")
+    private User viewedBy;
 
     public EventReport() {
     }
@@ -100,6 +110,11 @@ public class EventReport {
     public User getChangesRequestedBy() { return changesRequestedBy; }
     public void setChangesRequestedBy(final User changesRequestedBy) { this.changesRequestedBy = changesRequestedBy; }
     public Long getChangesRequestedByUserId() { return changesRequestedBy == null ? null : changesRequestedBy.getId(); }
+    public Date getViewedAt() { return viewedAt; }
+    public void setViewedAt(final Date viewedAt) { this.viewedAt = viewedAt; }
+    public User getViewedBy() { return viewedBy; }
+    public void setViewedBy(final User viewedBy) { this.viewedBy = viewedBy; }
+    public Long getViewedByUserId() { return viewedBy == null ? null : viewedBy.getId(); }
 
     public boolean isPending() { return status == ReportStatus.PENDING; }
 
@@ -108,4 +123,19 @@ public class EventReport {
     // los PENDING sin revisar: uno con cambios pedidos tambien se puede
     // descartar (el creador ya corrigio) o dar de baja (no corrigio).
     public boolean isOpen() { return status == ReportStatus.PENDING || status == ReportStatus.CHANGES_REQUESTED; }
+
+    // Subgrupo de PENDING: ya se abrio el detalle al menos una vez (ver viewedAt mas arriba).
+    public boolean isInReview() { return status == ReportStatus.PENDING && viewedAt != null; }
+
+    public boolean isResolved() { return status == ReportStatus.DISMISSED || status == ReportStatus.ACTIONED; }
+
+    // La fecha que importa para ordenar el panel: lo ultimo que le paso a este reporte (resuelto > cambios
+    // pedidos > solo creado). resolvedAt, si esta, siempre es cronologicamente el ultimo de los tres (resolve()
+    // solo corre sobre un reporte que ya estaba PENDING o CHANGES_REQUESTED).
+    public Date getLastActivityAt() {
+        if (resolvedAt != null) {
+            return resolvedAt;
+        }
+        return changesRequestedAt != null ? changesRequestedAt : createdAt;
+    }
 }

@@ -2,6 +2,8 @@
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.EventReport;
+import ar.edu.itba.paw.model.ReportStatusCounts;
+import ar.edu.itba.paw.model.ReportStatusFilter;
 import ar.edu.itba.paw.model.ReportTarget;
 import ar.edu.itba.paw.model.ReportStatus;
 
@@ -18,17 +20,21 @@ public interface EventReportDao {
     // solo si el reporte no existe.
     Optional<ReportTarget> findTargetById(long reportId);
 
-    // Cola de moderacion: los PENDING, mas viejo primero (ver AdminController).
-    // Una pagina (page empieza en 1); countPending() es el total para armar el paginador.
-    List<EventReport> findPending(int page, int pageSize);
+    // Panel unificado "Reportes y seguimiento" (ver ModerationService.searchQueue()): todos los reportes,
+    // filtrados por texto libre (evento, quien reporto, motivo) y por pestaña, de actividad mas reciente
+    // primero (ver EventReport.getLastActivityAt()). query puede ser null/vacio (sin filtrar por texto). Una
+    // pagina (page empieza en 1); countSearch() es el total para armar el paginador.
+    List<EventReport> search(String query, ReportStatusFilter filter, int page, int pageSize);
 
-    long countPending();
+    long countSearch(String query, ReportStatusFilter filter);
 
-    // Panel de seguimiento: los CHANGES_REQUESTED, mas viejo primero (mismo
-    // criterio FIFO que findPending()). Una pagina, igual que findPending().
-    List<EventReport> findChangesRequested(int page, int pageSize);
+    // Los 5 contadores de las pestañas, sin filtrar por texto: una sola consulta con SUM/CASE en vez de 5
+    // COUNT separados.
+    ReportStatusCounts countStatuses();
 
-    long countChangesRequested();
+    // Primera vez que un admin abre el detalle de este reporte: true si ESTA llamada lo marco (no pisa el
+    // momento si ya estaba visto). No hace nada si el reporte no existe.
+    boolean markViewed(long reportId, long adminUserId);
 
     // "Abierto" = PENDING o CHANGES_REQUESTED (ver EventReport.isOpen()): un
     // reporte con cambios pedidos tambien bloquea un reporte nuevo de la misma
