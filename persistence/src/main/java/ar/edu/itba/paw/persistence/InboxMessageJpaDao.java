@@ -2,15 +2,19 @@
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.InboxMessage;
+import ar.edu.itba.paw.model.InboxMessageType;
+import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.User;
 import org.springframework.stereotype.Repository;
 
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 import javax.persistence.TemporalType;
+import java.util.Collection;
 import java.util.Date;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Repository
 public class InboxMessageJpaDao implements InboxMessageDao {
@@ -22,6 +26,44 @@ public class InboxMessageJpaDao implements InboxMessageDao {
     public InboxMessage create(final InboxMessage message) {
         em.persist(message);
         return message;
+    }
+
+    // Los dos INSERT ... SELECT de abajo son SQL nativo: JPQL no tiene un INSERT estandar. Corren igual en
+    // Postgres y HSQLDB. No mencionan id ni created_at: los pone la base (SERIAL y DEFAULT now()), igual que
+    // create(). El CAST del tipo es para HSQLDB, que no acepta un parametro sin tipo en la lista del SELECT.
+    // recipient_email va en minuscula y sin espacios, y user_id es la cuenta con ese mail (LEFT JOIN: puede no
+    // haber), lo mismo que hacia InboxServiceImpl.add() con cada uno por separado.
+
+    @Override
+    public int createForRegistrants(final long eventId, final InboxMessageType type,
+                                    final Collection<RegistrationStatus> statuses) {
+        return em.createNativeQuery(
+                        "INSERT INTO inbox_message (recipient_email, user_id, type, event_id) "
+                                + "SELECT LOWER(TRIM(r.email)), u.id, CAST(:type AS VARCHAR(40)), r.event_id "
+                                + "FROM registration r "
+                                + "LEFT JOIN users u ON u.email = LOWER(TRIM(r.email)) "
+                                + "WHERE r.event_id = :eventId AND r.status IN (:statuses)")
+                .setParameter("type", type.name())
+                .setParameter("eventId", eventId)
+                .setParameter("statuses", statuses.stream().map(Enum::name).collect(Collectors.toList()))
+                .executeUpdate();
+    }
+
+    @Override
+    public int createForFollowersOfCreator(final long eventId, final InboxMessageType type) {
+        // El actor (o.name) sale de la cuenta del organizador en la misma consulta: no hace falta pasarlo (y un
+        // parametro null en la lista del SELECT no tiene tipo para la base).
+        return em.createNativeQuery(
+                        "INSERT INTO inbox_message (recipient_email, user_id, type, event_id, actor_name) "
+                                + "SELECT LOWER(TRIM(u.email)), u.id, CAST(:type AS VARCHAR(40)), e.id, o.name "
+                                + "FROM event e "
+                                + "JOIN users o ON o.id = e.creator_id "
+                                + "JOIN follow f ON f.followed_id = e.creator_id "
+                                + "JOIN users u ON u.id = f.follower_id "
+                                + "WHERE e.id = :eventId")
+                .setParameter("type", type.name())
+                .setParameter("eventId", eventId)
+                .executeUpdate();
     }
 
     @Override

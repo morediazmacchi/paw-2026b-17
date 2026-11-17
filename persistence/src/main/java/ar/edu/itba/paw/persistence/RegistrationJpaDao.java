@@ -150,10 +150,12 @@ public class RegistrationJpaDao implements RegistrationDao {
     }
 
     @Override
-    public List<Registration> findByEventId(final long eventId) {
+    public List<Registration> findConfirmedByEventId(final long eventId) {
         return em.createQuery(
-                        "FROM Registration r WHERE r.event.id = :eventId ORDER BY r.registeredAt ASC", Registration.class)
+                        "FROM Registration r WHERE r.event.id = :eventId AND r.status IN :statuses "
+                                + "ORDER BY r.registeredAt ASC, r.id ASC", Registration.class)
                 .setParameter("eventId", eventId)
+                .setParameter("statuses", RegistrationStatus.withConfirmedPlace())
                 .getResultList();
     }
 

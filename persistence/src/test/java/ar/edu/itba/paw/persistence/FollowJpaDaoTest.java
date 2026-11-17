@@ -1,6 +1,6 @@
 package ar.edu.itba.paw.persistence;
 
-import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.model.FollowerContact;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -163,19 +163,35 @@ public class FollowJpaDaoTest {
         insertFollow(followerId, unrelatedFollowedId);
 
         // Act
-        final List<User> result = followDao.findFollowers(followedId);
+        final List<FollowerContact> result = followDao.findFollowers(followedId);
 
         // Assert
         assertEquals(2, result.size());
-        final List<Long> ids = result.stream().map(User::getId).collect(Collectors.toList());
+        final List<Long> ids = result.stream().map(FollowerContact::getId).collect(Collectors.toList());
         assertTrue(ids.contains(followerId));
         assertTrue(ids.contains(otherFollowerId));
     }
 
     @Test
+    public void testFindFollowersBringsTheEmailNameAndLanguageOfTheFollower() {
+        // Arrange
+        jdbcTemplate.update("UPDATE users SET preferred_locale = 'en' WHERE id = ?", followerId);
+        insertFollow(followerId, followedId);
+
+        // Act
+        final List<FollowerContact> result = followDao.findFollowers(followedId);
+
+        // Assert
+        assertEquals(1, result.size());
+        assertEquals("fan@mail.com", result.get(0).getEmail());
+        assertEquals("Fan", result.get(0).getName());
+        assertEquals("en", result.get(0).getLocale());
+    }
+
+    @Test
     public void testFindFollowersWithNoFollowersIsEmpty() {
         // Act
-        final List<User> result = followDao.findFollowers(followedId);
+        final List<FollowerContact> result = followDao.findFollowers(followedId);
 
         // Assert
         assertTrue(result.isEmpty());

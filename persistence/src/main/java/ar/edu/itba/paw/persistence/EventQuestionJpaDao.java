@@ -11,7 +11,6 @@ import javax.persistence.TemporalType;
 import java.util.Date;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 
 @Repository
@@ -71,14 +70,11 @@ public class EventQuestionJpaDao implements EventQuestionDao {
     }
 
     @Override
-    public Optional<Long> findEventCreatorId(final long questionId) {
-        // Una sola columna (event.creator_id): ni la pregunta, ni el evento, ni el usuario.
-        // creator_id puede ser NULL (evento legacy sin organizador): la consulta devuelve una fila con null y
-        // findFirst() tira NullPointerException con un elemento nulo. Se descartan los nulos -> vacio ->
-        // la regla de acceso deniega (en vez de un 500).
-        return em.createQuery("SELECT q.event.creator.id FROM EventQuestion q WHERE q.id = :id", Long.class)
+    public Optional<Long> findEventId(final long questionId) {
+        // Una sola columna (event_question.event_id, NOT NULL): ni la pregunta, ni el evento, sin JOIN.
+        return em.createQuery("SELECT q.event.id FROM EventQuestion q WHERE q.id = :id", Long.class)
                 .setParameter("id", questionId)
-                .getResultList().stream().filter(Objects::nonNull).findFirst();
+                .getResultList().stream().findFirst();
     }
 
     @Override

@@ -11,6 +11,7 @@ import ar.edu.itba.paw.model.EventCategory;
 import ar.edu.itba.paw.model.EventCategoryInfo;
 import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.EventSort;
+import ar.edu.itba.paw.model.FollowerContact;
 import ar.edu.itba.paw.model.Image;
 import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.Registration;
@@ -31,16 +32,23 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 public class EventServiceImpl implements EventService {
 
     static final int PAGE_SIZE = 12;
+
+    // A quienes les llega a la bandeja que el evento se cancelo: todos menos los rechazados (ver
+    // notifyRegistrantsOfCancellation()).
+    private static final Set<RegistrationStatus> CANCELLATION_NOTICE_STATUSES =
+            EnumSet.complementOf(EnumSet.of(RegistrationStatus.REJECTED));
 
     private final EventDao eventDao;
     private final UserService userService;
@@ -288,13 +296,13 @@ public class EventServiceImpl implements EventService {
         }
         // Solo a los confirmados, mismo criterio que cancel(): a alguien
         // pendiente/rechazado/en lista de espera todavia no tiene un lugar
-        // asegurado en base al cual le importe que cambio el evento.
-        for (final Registration registration : registrationService.findByEventId(eventId)) {
-            if (registration.isConfirmed()) {
-                notificationService.notifyEventUpdated(changes, registration);
-                inboxService.add(registration.getEmail(), InboxMessageType.EVENT_UPDATED, eventId, null, null);
-            }
+        // asegurado en base al cual le importe que cambio el evento. Los mails
+        // salen uno por persona (en otro hilo, despues del commit); los avisos
+        // de la bandeja, todos juntos en una sola sentencia.
+        for (final Registration registration : registrationService.findConfirmedByEventId(eventId)) {
+            notificationService.notifyEventUpdated(changes, registration);
         }
+        inboxService.addForRegistrants(eventId, InboxMessageType.EVENT_UPDATED, RegistrationStatus.withConfirmedPlace());
         // Si subio el cupo (o se lo saco), los primeros de la lista de espera entran.
         // Despues del aviso de cambios: a los que entran ahora les llega ya el mail
         // de que estan confirmados, no hace falta ademas contarles que el evento cambio.
@@ -370,8 +378,9 @@ public class EventServiceImpl implements EventService {
             return;
         }
         final String organizerName = event.getCreator().getName();
-        for (final User follower : followService.findFollowers(organizerId)) {
-            inboxService.add(follower.getEmail(), InboxMessageType.FOLLOWED_USER_NEW_EVENT, event.getId(), organizerName, null);
+        // La bandeja, todos juntos en una sola sentencia; el mail, uno por seguidor (en otro hilo, despues del commit).
+        inboxService.addForFollowersOfCreator(event.getId(), InboxMessageType.FOLLOWED_USER_NEW_EVENT);
+        for (final FollowerContact follower : followService.findFollowers(organizerId)) {
             notificationService.notifyFollowedUserNewEvent(follower, event, organizerName);
         }
     }
@@ -492,13 +501,9 @@ public class EventServiceImpl implements EventService {
     // para quien esta anotado el motivo (el organizador o un admin) no cambia
     // el aviso que le corresponde.
     private void notifyRegistrantsOfCancellation(final Event event) {
-        for (final Registration registration : registrationService.findByEventId(event.getId())) {
-            if (registration.isConfirmed()) {
-                notificationService.notifyEventCancelled(event, registration);
-            }
-            if (registration.getStatus() != RegistrationStatus.REJECTED) {
-                inboxService.add(registration.getEmail(), InboxMessageType.EVENT_CANCELLED, event.getId(), null, null);
-            }
+        for (final Registration registration : registrationService.findConfirmedByEventId(event.getId())) {
+            notificationService.notifyEventCancelled(event, registration);
         }
+        inboxService.addForRegistrants(event.getId(), InboxMessageType.EVENT_CANCELLED, CANCELLATION_NOTICE_STATUSES);
     }
 }

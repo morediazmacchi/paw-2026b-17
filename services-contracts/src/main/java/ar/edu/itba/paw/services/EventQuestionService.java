@@ -18,15 +18,17 @@ public interface EventQuestionService {
     /**
      * Respuesta del organizador. Si sale bien, le avisa a quien pregunto (mail + bandeja). El evento
      * es el de la pregunta. Que quien responde sea el organizador de ese evento NO se valida aca: lo
-     * decide @PreAuthorize en el controller (ver EventSecurity.canAnswerQuestion).
+     * decide @PreAuthorize en el controller (ver EventSecurity.canAnswerQuestion). Un texto vacio o de mas
+     * de MAX_QUESTION_LENGTH caracteres devuelve INVALID sin tocar nada.
      */
     AnswerResult answer(long questionId, String text);
 
     /**
-     * Id del organizador del evento al que pertenece la pregunta, para decidir quien puede responderla
-     * (ver EventSecurity.canAnswerQuestion). Lectura acotada: no carga la pregunta ni el evento.
+     * Id del evento al que pertenece la pregunta, para comprobar que es el de la URL (ver
+     * EventSecurity.canAnswerQuestion). Lectura acotada: no carga la pregunta ni el evento. Vacio si la
+     * pregunta no existe.
      */
-    Optional<Long> findEventCreatorId(long questionId);
+    Optional<Long> findEventId(long questionId);
 
     /** Las preguntas del evento, mas nuevas primero. */
     PageResult<EventQuestion> findPage(long eventId, int page);

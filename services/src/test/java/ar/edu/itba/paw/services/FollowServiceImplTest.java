@@ -1,6 +1,7 @@
 package ar.edu.itba.paw.services;
 
-import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.model.EventAccessSummary;
+import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.FollowDao;
 import org.junit.Before;
 import org.junit.Test;
@@ -8,8 +9,7 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
-import java.util.Arrays;
-import java.util.List;
+import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -22,55 +22,89 @@ import static org.mockito.Mockito.when;
 public class FollowServiceImplTest {
 
     private static final long FOLLOWER_ID = 1;
+    // El organizador del evento EVENT_ID.
     private static final long FOLLOWED_ID = 2;
+    private static final long EVENT_ID = 10;
 
     @Mock
     private FollowDao followDao;
+    @Mock
+    private EventDao eventDao;
 
     private FollowServiceImpl followService;
 
     @Before
     public void setUp() {
-        followService = new FollowServiceImpl(followDao);
+        followService = new FollowServiceImpl(followDao, eventDao);
     }
 
-    @Test
-    public void testFollowReturnsOk() {
-        // Act
-        final FollowResult result = followService.follow(FOLLOWER_ID, FOLLOWED_ID);
-
-        // Assert
-        assertEquals(FollowResult.OK, result);
+    private void eventOrganizedBy(final Long organizerId) {
+        when(eventDao.findAccessById(EVENT_ID))
+                .thenReturn(Optional.of(new EventAccessSummary(EVENT_ID, organizerId, false, true)));
     }
 
+    // El dao solo responde true para (seguidor, organizador del evento): si el service siguiera a otra
+    // persona (por ejemplo, al id del evento), el resultado seria false.
     @Test
-    public void testFollowYourselfReturnsOwnProfile() {
-        // Act
-        final FollowResult result = followService.follow(FOLLOWER_ID, FOLLOWER_ID);
-
-        // Assert
-        assertEquals(FollowResult.OWN_PROFILE, result);
-    }
-
-    @Test
-    public void testUnfollowReturnsWhatTheDaoReturns() {
+    public void testFollowOrganizerOfFollowsTheOrganizerOfTheEvent() {
         // Arrange
-        when(followDao.unfollow(FOLLOWER_ID, FOLLOWED_ID)).thenReturn(true);
+        eventOrganizedBy(FOLLOWED_ID);
+        when(followDao.follow(FOLLOWER_ID, FOLLOWED_ID)).thenReturn(true);
 
         // Act
-        final boolean result = followService.unfollow(FOLLOWER_ID, FOLLOWED_ID);
+        final boolean result = followService.followOrganizerOf(EVENT_ID, FOLLOWER_ID);
 
         // Assert
         assertTrue(result);
     }
 
     @Test
-    public void testUnfollowWhenNotFollowingReturnsFalse() {
+    public void testFollowOrganizerOfWhenAlreadyFollowingReturnsFalse() {
         // Arrange
+        eventOrganizedBy(FOLLOWED_ID);
+        when(followDao.follow(FOLLOWER_ID, FOLLOWED_ID)).thenReturn(false);
+
+        // Act
+        final boolean result = followService.followOrganizerOf(EVENT_ID, FOLLOWER_ID);
+
+        // Assert
+        assertFalse(result);
+    }
+
+    // Evento viejo sin organizador cargado: no hay a quien seguir.
+    @Test
+    public void testFollowOrganizerOfAnEventWithoutOrganizerReturnsFalse() {
+        // Arrange
+        eventOrganizedBy(null);
+
+        // Act
+        final boolean result = followService.followOrganizerOf(EVENT_ID, FOLLOWER_ID);
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    public void testUnfollowOrganizerOfStopsFollowingTheOrganizerOfTheEvent() {
+        // Arrange
+        eventOrganizedBy(FOLLOWED_ID);
+        when(followDao.unfollow(FOLLOWER_ID, FOLLOWED_ID)).thenReturn(true);
+
+        // Act
+        final boolean result = followService.unfollowOrganizerOf(EVENT_ID, FOLLOWER_ID);
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    public void testUnfollowOrganizerOfWhenNotFollowingReturnsFalse() {
+        // Arrange
+        eventOrganizedBy(FOLLOWED_ID);
         when(followDao.unfollow(FOLLOWER_ID, FOLLOWED_ID)).thenReturn(false);
 
         // Act
-        final boolean result = followService.unfollow(FOLLOWER_ID, FOLLOWED_ID);
+        final boolean result = followService.unfollowOrganizerOf(EVENT_ID, FOLLOWER_ID);
 
         // Assert
         assertFalse(result);
@@ -98,20 +132,5 @@ public class FollowServiceImplTest {
 
         // Assert
         assertEquals(3L, result);
-    }
-
-    @Test
-    public void testFindFollowersReturnsWhatTheDaoReturns() {
-        // Arrange
-        final User follower = new User();
-        follower.setId(FOLLOWER_ID);
-        final List<User> followers = Arrays.asList(follower);
-        when(followDao.findFollowers(FOLLOWED_ID)).thenReturn(followers);
-
-        // Act
-        final List<User> result = followService.findFollowers(FOLLOWED_ID);
-
-        // Assert
-        assertEquals(followers, result);
     }
 }

@@ -36,8 +36,13 @@ public class WebMailLinksTest {
     }
 
     @Test
-    public void testAttendeesLinkPointsToTheOrganizersRegistrantsScreen() {
-        assertEquals(BASE + "/perfil/eventos/12/inscriptos", links.attendees(12));
+    public void testAttendeesLinkPointsToTheFullListOfRegistrants() {
+        assertEquals(BASE + "/eventos/12/inscriptos", links.attendees(12));
+    }
+
+    @Test
+    public void testPendingRequestsLinkPointsToTheRequestsToAcceptOrReject() {
+        assertEquals(BASE + "/perfil/eventos/12/inscriptos", links.pendingRequests(12));
     }
 
     @Test

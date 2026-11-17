@@ -6,7 +6,6 @@ import ar.edu.itba.paw.model.EventInvitation;
 import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.EventInvitationDao;
-import ar.edu.itba.paw.persistence.RegistrationDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,20 +19,20 @@ public class EventInvitationServiceImpl implements EventInvitationService {
 
     private final EventInvitationDao invitationDao;
     private final EventDao eventDao;
-    private final RegistrationDao registrationDao;
+    private final RegistrationService registrationService;
     private final NotificationService notificationService;
     private final InboxService inboxService;
     private final UserService userService;
 
     @Autowired
     public EventInvitationServiceImpl(final EventInvitationDao invitationDao, final EventDao eventDao,
-                                       final RegistrationDao registrationDao,
+                                       final RegistrationService registrationService,
                                        final NotificationService notificationService,
                                        final InboxService inboxService,
                                        final UserService userService) {
         this.invitationDao = invitationDao;
         this.eventDao = eventDao;
-        this.registrationDao = registrationDao;
+        this.registrationService = registrationService;
         this.notificationService = notificationService;
         this.inboxService = inboxService;
         this.userService = userService;
@@ -58,6 +57,11 @@ public class EventInvitationServiceImpl implements EventInvitationService {
         if (!event.isPrivate()) {
             return EventInvitationResult.EVENT_PUBLIC;
         }
+        // Hasta que un admin lo apruebe, el evento solo lo ven su creador y los admins (ver
+        // EventAccessService.canView): el mail y el aviso de la invitacion llevarian a un 404.
+        if (!event.isApproved()) {
+            return EventInvitationResult.NOT_APPROVED;
+        }
         // Un evento que ya paso tampoco invita a nadie (saldria el mail de invitacion a algo que ya
         // sucedio); el cancelado, tampoco (ver arriba).
         if (event.isFinished()) {
@@ -76,14 +80,14 @@ public class EventInvitationServiceImpl implements EventInvitationService {
         }
 
         // Cada invitacion reserva un lugar (cuenta como cupo ocupado): si ya no
-        // queda ninguno, no se puede invitar a nadie mas.
-        if (event.getMaxCapacity() != null && registrationDao.countConfirmed(eventId)
-                + invitationDao.countOutstanding(eventId) >= event.getMaxCapacity()) {
+        // queda ninguno, no se puede invitar a nadie mas. Que es "lleno" lo define
+        // un solo lugar (RegistrationService.isFull: confirmados + invitaciones sin usar).
+        if (registrationService.isFull(eventId)) {
             return EventInvitationResult.FULL;
         }
 
         final EventInvitation invitation = new EventInvitation(event, normalizedEmail, event.getCreatorEmail());
-        // Quien invita es el creador del evento (arriba ya se chequeo que creatorId lo sea).
+        // Quien invita es el creador del evento (lo decide @PreAuthorize en el controller).
         invitation.setInvitedByUser(event.getCreator());
         // Optimista (Grupo B, ver schema.sql): si el invitado ya tiene cuenta,
         // se enlaza de una. Si no, queda en null y se reconcilia solo cuando

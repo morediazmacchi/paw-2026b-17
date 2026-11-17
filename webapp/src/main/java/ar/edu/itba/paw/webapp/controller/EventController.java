@@ -253,27 +253,25 @@ public class EventController {
         }
     }
 
-    // Seguir/dejar de seguir al organizador de ESTE evento: el id del organizador se resuelve del
-    // lado del server (no se confia en uno que mandara el cliente). El "no te podes seguir a vos
-    // mismo" lo decide el service (FollowResult.OWN_PROFILE); el boton ya no se ofrece en ese caso,
-    // esto solo se llegaria con un POST armado a mano.
+    // Seguir al organizador de ESTE evento: el service lo resuelve a partir del evento (no se confia en un id
+    // que mande el cliente). Quien puede lo decide @PreAuthorize antes de entrar (ver EventSecurity.canInteract):
+    // tiene que poder ver el evento y no ser su organizador ("no te seguis a vos mismo"). El boton ya no se
+    // ofrece en ese caso: esto solo se alcanza con un POST armado a mano, y da el mismo 404.
+    @PreAuthorize("@eventSecurity.canInteract(#id, authentication)")
     @RequestMapping(value = "/eventos/{id}/seguir-organizador", method = RequestMethod.POST)
     public ModelAndView followOrganizer(@PathVariable final long id,
                                         @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final Event event = eventService.findByIdOrThrow(id);
-        if (event.getCreatorId() != null) {
-            followService.follow(currentUser.getId(), event.getCreatorId());
-        }
+        followService.followOrganizerOf(id, currentUser.getId());
         return new ModelAndView("redirect:/eventos/" + id);
     }
 
+    // Dejar de seguir: alcanza con poder ver el evento (un evento que no podes ver no sirve para llegar a su
+    // organizador).
+    @PreAuthorize("@eventSecurity.canView(#id, authentication)")
     @RequestMapping(value = "/eventos/{id}/dejar-de-seguir-organizador", method = RequestMethod.POST)
     public ModelAndView unfollowOrganizer(@PathVariable final long id,
                                           @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final Event event = eventService.findByIdOrThrow(id);
-        if (event.getCreatorId() != null) {
-            followService.unfollow(currentUser.getId(), event.getCreatorId());
-        }
+        followService.unfollowOrganizerOf(id, currentUser.getId());
         return new ModelAndView("redirect:/eventos/" + id);
     }
 

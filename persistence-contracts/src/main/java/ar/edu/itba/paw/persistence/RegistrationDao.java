@@ -46,14 +46,15 @@ public interface RegistrationDao {
     /** Para el badge de "Mis inscripciones" (ver ProfileController): sin traer las filas. */
     long countByUserId(long userId);
 
-    // "Ver inscriptos" del organizador: todos los de un evento, en orden de
-    // llegada (mas antiguos primero) -- al reves que findByEmail a proposito,
-    // aca lo que importa es quien se anoto primero, no lo mas reciente.
-    List<Registration> findByEventId(long eventId);
+    // Los que tienen el lugar confirmado (RegistrationStatus.withConfirmedPlace()) en un evento, en orden de
+    // llegada: a quienes se les manda el mail de "cambio el evento", "se cancelo" y el recordatorio de 24 hs. El
+    // filtro va en el WHERE (no se traen todas para descartar en memoria). Sin paginar: el aviso sale para todos
+    // en la misma pasada.
+    List<Registration> findConfirmedByEventId(long eventId);
 
-    // Lo mismo de a una pagina, para las pantallas "Ver inscriptos" (un evento sin tope de cupos puede tener
-    // muchisimas): paginas desde 1, mismo orden (el id desempata) y countByEventId() da el total para el paginador.
-    // findByEventId() de arriba queda para quien necesita recorrer a todos (avisos, recordatorios).
+    // "Ver inscriptos" del organizador, de a una pagina (un evento sin tope de cupos puede tener muchisimas):
+    // todos los de un evento en orden de llegada (mas antiguos primero; el id desempata), paginas desde 1, y
+    // countByEventId() da el total para el paginador.
     List<Registration> findByEventId(long eventId, int page, int pageSize);
 
     long countByEventId(long eventId);

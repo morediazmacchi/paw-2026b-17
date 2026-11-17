@@ -1,6 +1,8 @@
 // Que paso, para cada mensaje de la bandeja (ver InboxMessage). Se guarda con
 // name() en inbox_message.type, igual que los otros enums. El texto que ve la
 // persona sale de messages.properties (inbox.type.<NOMBRE>), no de aca.
+// Cada tipo dice tambien que pantalla abre su boton "Abrir" (getTarget()): sin
+// argumento, el detalle del evento.
 package ar.edu.itba.paw.model;
 
 public enum InboxMessageType {
@@ -25,11 +27,14 @@ public enum InboxMessageType {
     FOLLOWED_USER_NEW_EVENT,
 
     // ---- Para quien organiza ----
-    NEW_REGISTRATION,
-    REGISTRATION_CANCELLED,
-    NEW_PENDING,
+    // Se anoto o se dio de baja alguien: abre la lista completa de inscriptos (no la de pedidos pendientes:
+    // en un evento sin aprobacion esa esta vacia y la persona no aparece ahi).
+    NEW_REGISTRATION(Target.ATTENDEES),
+    REGISTRATION_CANCELLED(Target.ATTENDEES),
+    // Alguien pidio anotarse en un evento con aprobacion: abre los pedidos pendientes, donde se acepta o rechaza.
+    NEW_PENDING(Target.PENDING_REQUESTS),
     // Recordatorio automatico para el organizador: su evento empieza en menos de 24 hs.
-    EVENT_TOMORROW,
+    EVENT_TOMORROW(Target.ATTENDEES),
     // Al organizador: alguien pregunto en su evento.
     NEW_QUESTION,
     // A quien pregunto: el organizador le respondio.
@@ -49,5 +54,29 @@ public enum InboxMessageType {
     // un admin aprobo el evento recien creado, ya es visible publicamente.
     EVENT_APPROVED,
     // Un admin rechazo el evento recien creado (definitivo, no hay reenvio).
-    EVENT_REJECTED
+    EVENT_REJECTED;
+
+    // Que pantalla del evento abre el aviso. Dice QUE pantalla, no su URL: la ruta la pone la vista.
+    public enum Target {
+        // El detalle del evento.
+        EVENT,
+        // Todos los inscriptos (solo la ve su organizador).
+        ATTENDEES,
+        // Los pedidos pendientes de aceptar o rechazar (solo la ve su organizador).
+        PENDING_REQUESTS
+    }
+
+    private final Target target;
+
+    InboxMessageType() {
+        this(Target.EVENT);
+    }
+
+    InboxMessageType(final Target target) {
+        this.target = target;
+    }
+
+    public Target getTarget() {
+        return target;
+    }
 }

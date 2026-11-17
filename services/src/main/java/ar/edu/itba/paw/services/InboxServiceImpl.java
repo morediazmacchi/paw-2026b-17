@@ -4,6 +4,7 @@ package ar.edu.itba.paw.services;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.InboxMessage;
 import ar.edu.itba.paw.model.InboxMessageType;
+import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.InboxMessageDao;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,6 +15,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -52,6 +54,23 @@ public class InboxServiceImpl implements InboxService {
         // cuando se registre (ver UserServiceImpl.register()).
         userService.findByEmail(normalizedEmail).ifPresent(message::setUser);
         return inboxMessageDao.create(message);
+    }
+
+    @Override
+    @Transactional
+    public int addForRegistrants(final long eventId, final InboxMessageType type,
+                                 final Set<RegistrationStatus> statuses) {
+        // Sin estados no hay a quien avisar (y un "IN ()" vacio no es una consulta valida).
+        if (statuses == null || statuses.isEmpty()) {
+            return 0;
+        }
+        return inboxMessageDao.createForRegistrants(eventId, type, statuses);
+    }
+
+    @Override
+    @Transactional
+    public int addForFollowersOfCreator(final long eventId, final InboxMessageType type) {
+        return inboxMessageDao.createForFollowersOfCreator(eventId, type);
     }
 
     @Override

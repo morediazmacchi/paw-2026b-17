@@ -4,31 +4,33 @@ import ar.edu.itba.paw.model.ChatGroup;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventInvitation;
 import ar.edu.itba.paw.model.InboxMessage;
-import ar.edu.itba.paw.model.Category;
-import ar.edu.itba.paw.model.SavedSearch;
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import ar.edu.itba.paw.services.AccountCounts;
 import ar.edu.itba.paw.services.AccountSummaryService;
 import ar.edu.itba.paw.services.ApprovalResult;
-import ar.edu.itba.paw.services.CategoryService;
 import ar.edu.itba.paw.services.ChangePasswordResult;
 import ar.edu.itba.paw.services.CreatorReputation;
 import ar.edu.itba.paw.services.EventInvitationResult;
 import ar.edu.itba.paw.services.EventInvitationService;
-import ar.edu.itba.paw.services.EventChatService;
-import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.EventWithRegistrationStats;
 import ar.edu.itba.paw.services.FavoriteService;
 import ar.edu.itba.paw.services.FollowService;
 import ar.edu.itba.paw.services.InboxPage;
 import ar.edu.itba.paw.services.InboxService;
+import ar.edu.itba.paw.services.InviteView;
+import ar.edu.itba.paw.services.MyAccountService;
+import ar.edu.itba.paw.services.MyEventsView;
+import ar.edu.itba.paw.services.MyInboxView;
 import ar.edu.itba.paw.services.MyRegistrationsView;
 import ar.edu.itba.paw.services.PageResult;
 import ar.edu.itba.paw.services.PendingRegistrations;
+import ar.edu.itba.paw.services.PendingRequestsView;
 import ar.edu.itba.paw.services.RegistrationService;
 import ar.edu.itba.paw.services.ReviewResult;
 import ar.edu.itba.paw.services.ReviewService;
 import ar.edu.itba.paw.services.SavedSearchService;
+import ar.edu.itba.paw.services.SavedSearchWithCategoryNames;
 import ar.edu.itba.paw.services.UnregisterResult;
 import ar.edu.itba.paw.services.UpdateProfileResult;
 import ar.edu.itba.paw.services.UserService;
@@ -63,42 +65,37 @@ public class ProfileController {
 
     private final UserService userService;
     private final RegistrationService registrationService;
-    private final EventService eventService;
     private final FavoriteService favoriteService;
     private final ReviewService reviewService;
     private final EventInvitationService eventInvitationService;
     private final MessageSource messageSource;
     private final InboxService inboxService;
-    private final EventChatService eventChatService;
     private final AccountSummaryService accountSummaryService;
     private final SavedSearchService savedSearchService;
-    private final CategoryService categoryService;
     private final FollowService followService;
+    private final MyAccountService myAccountService;
 
     @Autowired
     public ProfileController(final UserService userService,
-                              final RegistrationService registrationService, final EventService eventService,
+                              final RegistrationService registrationService,
                               final FavoriteService favoriteService, final ReviewService reviewService,
                               final EventInvitationService eventInvitationService,
                               final MessageSource messageSource, final InboxService inboxService,
-                              final EventChatService eventChatService,
                               final AccountSummaryService accountSummaryService,
                               final SavedSearchService savedSearchService,
-                              final CategoryService categoryService,
-                              final FollowService followService) {
+                              final FollowService followService,
+                              final MyAccountService myAccountService) {
         this.userService = userService;
         this.registrationService = registrationService;
-        this.eventService = eventService;
         this.favoriteService = favoriteService;
         this.reviewService = reviewService;
         this.eventInvitationService = eventInvitationService;
         this.messageSource = messageSource;
         this.inboxService = inboxService;
-        this.eventChatService = eventChatService;
         this.accountSummaryService = accountSummaryService;
         this.savedSearchService = savedSearchService;
         this.followService = followService;
-        this.categoryService = categoryService;
+        this.myAccountService = myAccountService;
     }
 
     private Map<String, String> fieldErrorsOf(final BindingResult errors) {
@@ -269,12 +266,12 @@ public class ProfileController {
     @RequestMapping(value = "/perfil/listas", method = RequestMethod.GET)
     public ModelAndView misListas(@RequestParam(value = "page", required = false) final String page,
                                   @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final PageResult<SavedSearch> result = savedSearchService.findPageByUser(currentUser.getId(), Paging.parsePage(page));
-        final Map<Long, String> categoryNames = categoryNames();
+        final PageResult<SavedSearchWithCategoryNames> result =
+                myAccountService.findSavedSearches(currentUser.getId(), Paging.parsePage(page));
 
         final ModelAndView mav = new ModelAndView("auth/listas");
         mav.addObject("savedSearches", result.getContent().stream()
-                .map(search -> SavedSearchView.of(search, categoryNames))
+                .map(SavedSearchView::of)
                 .collect(Collectors.toList()));
         mav.addObject("currentPage", result.getPage());
         mav.addObject("totalPages", result.getTotalPages());
@@ -299,13 +296,13 @@ public class ProfileController {
     public ModelAndView confirmarDesuscripcion(@PathVariable final long id,
                                                @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
                                                final RedirectAttributes redirectAttributes) {
-        final Optional<SavedSearch> search = savedSearchService.findByIdForUser(currentUser.getId(), id);
+        final Optional<SavedSearchWithCategoryNames> search = myAccountService.findSavedSearch(currentUser.getId(), id);
         if (!search.isPresent()) {
             redirectAttributes.addFlashAttribute("listDeleted", false);
             return new ModelAndView("redirect:/perfil/listas");
         }
         final ModelAndView mav = new ModelAndView("auth/desuscribirLista");
-        mav.addObject("savedSearch", SavedSearchView.of(search.get(), categoryNames()));
+        mav.addObject("savedSearch", SavedSearchView.of(search.get()));
         return mav;
     }
 
@@ -315,10 +312,6 @@ public class ProfileController {
                                       final RedirectAttributes redirectAttributes) {
         redirectAttributes.addFlashAttribute("listDeleted", savedSearchService.delete(currentUser.getId(), id));
         return new ModelAndView("redirect:/perfil/listas");
-    }
-
-    private Map<Long, String> categoryNames() {
-        return categoryService.findAll().stream().collect(Collectors.toMap(Category::getId, Category::getName));
     }
 
     @RequestMapping(value = "/perfil/invitaciones", method = RequestMethod.GET)
@@ -340,7 +333,9 @@ public class ProfileController {
     public ModelAndView bandeja(@RequestParam(value = "page", required = false) final String page,
                                 @RequestParam(value = "gruposPage", required = false) final String groupsPage,
                                 @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final InboxPage inbox = inboxService.findPageWithEvents(currentUser.getId(), Paging.parsePage(page));
+        final MyInboxView view = myAccountService.findInbox(currentUser.getId(), Paging.parsePage(page),
+                Paging.parsePage(groupsPage));
+        final InboxPage inbox = view.getInbox();
         final PageResult<InboxMessage> result = inbox.getMessages();
 
         final ModelAndView mav = new ModelAndView("auth/bandeja");
@@ -348,8 +343,7 @@ public class ProfileController {
         mav.addObject("hasUnread", inbox.isHasUnread());
         // Los circulos de los grupos y los mensajes son dos listas paginadas independientes, cada una con su
         // parametro (page / gruposPage); el JSP repite el de la otra en los links de cada paginador.
-        final PageResult<ChatGroup> groups = eventChatService.findGroupsPage(currentUser.getId(),
-                Paging.parsePage(groupsPage));
+        final PageResult<ChatGroup> groups = view.getChatGroups();
         mav.addObject("chatGroups", groups.getContent());
         mav.addObject("groupsPage", groups.getPage());
         mav.addObject("groupsTotalPages", groups.getTotalPages());
@@ -376,10 +370,10 @@ public class ProfileController {
     public ModelAndView misEventos(@RequestParam(value = "page", required = false) final String page,
                                    @RequestParam(value = "resenasPage", required = false) final String resenasPage,
                                    @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final PageResult<EventWithRegistrationStats> result =
-                eventService.findMyEventsPage(currentUser.getId(), Paging.parsePage(page));
-        final CreatorReputation reputation =
-                reviewService.findCreatorReputation(currentUser.getId(), Paging.parsePage(resenasPage));
+        final MyEventsView view = myAccountService.findMyEvents(currentUser.getId(), Paging.parsePage(page),
+                Paging.parsePage(resenasPage));
+        final PageResult<EventWithRegistrationStats> result = view.getEvents();
+        final CreatorReputation reputation = view.getReputation();
 
         final ModelAndView mav = new ModelAndView("auth/eventos");
         // Cada evento con sus conteos de inscripciones (pendientes y confirmados, ver EventWithRegistrationStats).
@@ -405,13 +399,13 @@ public class ProfileController {
                                               @RequestParam(value = "page", required = false) final String page,
                                               @RequestParam(value = "approved", required = false) final String approvedParam,
                                               @RequestParam(value = "rejected", required = false) final String rejectedParam,
-                                              @RequestParam(value = "full", required = false) final String fullParam,
-                                              @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final Event event = eventService.findByIdOrThrow(id);
+                                              @RequestParam(value = "full", required = false) final String fullParam) {
+        final PendingRequestsView view = myAccountService.findPendingRequests(id, Paging.parsePage(page))
+                .orElseThrow(() -> new EventNotFoundException(id));
+        final PendingRegistrations pending = view.getPending();
 
         final ModelAndView mav = new ModelAndView("auth/inscriptos");
-        mav.addObject("event", event);
-        final PendingRegistrations pending = registrationService.findPendingSummary(id, Paging.parsePage(page));
+        mav.addObject("event", view.getEvent());
         mav.addObject("pendingRegistrations", pending.getRegistrations());
         mav.addObject("currentPage", pending.getPage());
         mav.addObject("totalPages", pending.getTotalPages());
@@ -467,17 +461,15 @@ public class ProfileController {
                                     @RequestParam(value = "sent", required = false) final String sentParam,
                                     @RequestParam(value = "alreadyInvited", required = false) final String alreadyInvitedParam,
                                     @RequestParam(value = "page", required = false) final String page) {
-        final Event event = eventService.findByIdOrThrow(id);
-        return inviteFormView(event, new InviteForm(), null, sentParam != null,
+        return inviteFormView(id, new InviteForm(), null, sentParam != null,
                 alreadyInvitedParam != null, Paging.parsePage(page));
     }
 
     @PreAuthorize("@eventSecurity.isOwner(#id, authentication)")
     @RequestMapping(value = "/perfil/eventos/{id}/invitar", method = RequestMethod.POST)
     public ModelAndView invite(@PathVariable final long id, @Valid final InviteForm form, final BindingResult errors) {
-        final Event event = eventService.findByIdOrThrow(id);
         if (errors.hasErrors()) {
-            return inviteFormView(event, form, errors, false, false, 1);
+            return inviteFormView(id, form, errors, false, false, 1);
         }
         // Que el evento sea privado, no este cancelado ni haya pasado lo valida el service.
         final EventInvitationResult result = eventInvitationService.invite(id, form.getEmail());
@@ -486,7 +478,7 @@ public class ProfileController {
         }
         if (result == EventInvitationResult.INVALID_EMAIL) {
             errors.rejectValue("email", "Size.inviteForm.email");
-            return inviteFormView(event, form, errors, false, false, 1);
+            return inviteFormView(id, form, errors, false, false, 1);
         }
         return new ModelAndView("redirect:/perfil/eventos/" + id + "/invitar?" + inviteParam(result));
     }
@@ -501,16 +493,19 @@ public class ProfileController {
             case FULL -> "full";
             case SELF_INVITE -> "selfInvite";
             case EVENT_PUBLIC -> "eventPublic";
+            case NOT_APPROVED -> "notApproved";
             case NOT_ALLOWED, INVALID_EMAIL -> throw new IllegalStateException(result + " ya se filtro antes de llegar aca");
         };
     }
 
-    private ModelAndView inviteFormView(final Event event, final InviteForm form,
+    private ModelAndView inviteFormView(final long eventId, final InviteForm form,
                                          final BindingResult errors, final boolean sent, final boolean alreadyInvited,
                                          final int page) {
-        final PageResult<EventInvitation> invitations = eventInvitationService.findPageByEvent(event.getId(), page);
+        final InviteView view = myAccountService.findInviteScreen(eventId, page)
+                .orElseThrow(() -> new EventNotFoundException(eventId));
+        final PageResult<EventInvitation> invitations = view.getInvitations();
         final ModelAndView mav = new ModelAndView("auth/invitar");
-        mav.addObject("event", event);
+        mav.addObject("event", view.getEvent());
         mav.addObject("inviteForm", form);
         if (errors != null) {
             mav.addObject("fieldErrors", fieldErrorsOf(errors));

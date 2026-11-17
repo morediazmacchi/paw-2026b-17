@@ -2,6 +2,7 @@ package ar.edu.itba.paw.webapp.util;
 
 import ar.edu.itba.paw.model.Barrio;
 import ar.edu.itba.paw.model.SavedSearch;
+import ar.edu.itba.paw.services.SavedSearchWithCategoryNames;
 
 import java.math.BigDecimal;
 import java.net.URLEncoder;
@@ -12,7 +13,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -44,13 +44,10 @@ public final class SavedSearchView {
         this.eventsPath = eventsPath;
     }
 
-    /** categoryNames: el nombre de cada categoria por su id (una categoria que ya no existe no se muestra). */
-    public static SavedSearchView of(final SavedSearch search, final Map<Long, String> categoryNames) {
-        final List<String> categories = search.getCategoryIds().stream()
-                .sorted()
-                .map(categoryNames::get)
-                .filter(name -> name != null)
-                .collect(Collectors.toList());
+    /** Los nombres de las categorias ya vienen resueltos por el service (ver MyAccountService). */
+    public static SavedSearchView of(final SavedSearchWithCategoryNames named) {
+        final SavedSearch search = named.getSearch();
+        final List<String> categories = named.getCategoryNames();
         final List<String> barrios = search.getBarrios().stream()
                 .sorted(Comparator.comparing(Barrio::getDisplayName))
                 .map(Barrio::getDisplayName)

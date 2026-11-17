@@ -453,8 +453,8 @@ public class RegistrationServiceImpl implements RegistrationService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<Registration> findByEventId(final long eventId) {
-        return registrationDao.findByEventId(eventId);
+    public List<Registration> findConfirmedByEventId(final long eventId) {
+        return registrationDao.findConfirmedByEventId(eventId);
     }
 
     @Override

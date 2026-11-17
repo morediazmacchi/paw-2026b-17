@@ -2,12 +2,12 @@ package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.EventApprovalStatus;
 import ar.edu.itba.paw.model.EventInvitation;
 import ar.edu.itba.paw.model.EventVisibility;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.EventInvitationDao;
-import ar.edu.itba.paw.persistence.RegistrationDao;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -39,7 +39,7 @@ public class EventInvitationServiceImplTest {
     @Mock
     private EventDao mockEventDao;
     @Mock
-    private RegistrationDao mockRegistrationDao;
+    private RegistrationService mockRegistrationService;
     @Mock
     private NotificationService mockNotificationService;
     @Mock
@@ -54,7 +54,7 @@ public class EventInvitationServiceImplTest {
     @Before
     public void setUp() {
         invitationService = new EventInvitationServiceImpl(
-                mockInvitationDao, mockEventDao, mockRegistrationDao, mockNotificationService, mockInboxService, mockUserService);
+                mockInvitationDao, mockEventDao, mockRegistrationService, mockNotificationService, mockInboxService, mockUserService);
     }
 
     private static Event privateEvent() {
@@ -63,6 +63,8 @@ public class EventInvitationServiceImplTest {
         event.setCreatorEmail(CREATOR_EMAIL);
         event.setCreator(ModelFixtures.user(CREATOR_ID));
         event.setVisibility(EventVisibility.PRIVATE);
+        // Ya aprobado por un admin: antes de eso no se puede invitar (ver el test de NOT_APPROVED).
+        event.setApprovalStatus(EventApprovalStatus.APPROVED);
         // Futura: invite() pregunta isFinished(), que no admite fecha nula.
         event.setEventDate(new java.util.Date(System.currentTimeMillis() + 24L * 60 * 60 * 1000));
         return event;
@@ -159,6 +161,21 @@ public class EventInvitationServiceImplTest {
 
         // Assert
         assertEquals(EventInvitationResult.EVENT_PUBLIC, result);
+    }
+
+    // Privado pero todavia sin aprobar: solo lo ven su creador y los admins, la invitacion llevaria a un 404.
+    @Test
+    public void testInviteReturnsNotApprovedWhenThePrivateEventIsStillPendingApproval() {
+        // Arrange
+        final Event pending = privateEvent();
+        pending.setApprovalStatus(EventApprovalStatus.PENDING);
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(pending));
+
+        // Act
+        final EventInvitationResult result = invitationService.invite(EVENT_ID, INVITEE_EMAIL);
+
+        // Assert
+        assertEquals(EventInvitationResult.NOT_APPROVED, result);
     }
 
     // Un evento cancelado no invita a nadie (saldria el mail de una cosa que no va a pasar).
@@ -282,16 +299,15 @@ public class EventInvitationServiceImplTest {
     }
 
     // ---- cupo: cada invitacion reserva un lugar ----
+    // Que es "lleno" (confirmados + invitaciones sin usar) se testea en RegistrationServiceImplTest (isFull):
+    // aca solo importa que invite() respete esa respuesta.
 
     @Test
-    public void testInviteReturnsFullWhenConfirmedPlusInvitationsReachTheCapacity() {
+    public void testInviteReturnsFullWhenTheEventIsFull() {
         // Arrange
-        final Event event = privateEvent();
-        event.setMaxCapacity(3);
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(event));
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
         when(mockInvitationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
-        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(1L);
-        when(mockInvitationDao.countOutstanding(EVENT_ID)).thenReturn(2L);
+        when(mockRegistrationService.isFull(EVENT_ID)).thenReturn(true);
 
         // Act
         final EventInvitationResult result = invitationService.invite(EVENT_ID, INVITEE_EMAIL);
@@ -303,12 +319,9 @@ public class EventInvitationServiceImplTest {
     @Test
     public void testInviteStillWorksWhileThereIsRoomLeft() {
         // Arrange
-        final Event event = privateEvent();
-        event.setMaxCapacity(3);
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(event));
+        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
         when(mockInvitationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
-        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(1L);
-        when(mockInvitationDao.countOutstanding(EVENT_ID)).thenReturn(1L);
+        when(mockRegistrationService.isFull(EVENT_ID)).thenReturn(false);
         when(mockUserService.findByEmail(NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
 
         // Act

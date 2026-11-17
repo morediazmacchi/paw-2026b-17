@@ -3,6 +3,7 @@ package ar.edu.itba.paw.services;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventInvitation;
 import ar.edu.itba.paw.model.EventQuestion;
+import ar.edu.itba.paw.model.FollowerContact;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.persistence.UserDao;
@@ -141,7 +142,7 @@ public class NotificationServiceImpl implements NotificationService {
             variables.put("registrantEmail", registration.getEmail());
             // Manda directo al evento: ahi vive la pantalla de aceptar/rechazar
             // (ver ProfileController), no hace falta un link aparte.
-            variables.put("reviewUrl", links.attendees(event.getId()));
+            variables.put("reviewUrl", links.pendingRequests(event.getId()));
 
             mailService.send(event.getCreatorEmail(),
                     "new-pending-registration",
@@ -607,9 +608,10 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Async
     @Override
-    public void notifyFollowedUserNewEvent(final User follower, final Event event, final String organizerName) {
+    public void notifyFollowedUserNewEvent(final FollowerContact follower, final Event event, final String organizerName) {
         try {
-            final Locale locale = localeFor(follower);
+            // El idioma ya viene en la proyeccion: no se vuelve a la base por cada seguidor.
+            final Locale locale = toLocale(follower.getLocale());
             final Map<String, Object> variables = eventVariables(event, locale);
             variables.put("personName", displayName(follower.getName(), follower.getEmail()));
             variables.put("organizerName", organizerName);

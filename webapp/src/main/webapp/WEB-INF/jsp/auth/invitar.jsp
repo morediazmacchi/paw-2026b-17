@@ -55,13 +55,18 @@
         <c:if test="${not event.inviteOnly}">
             <p class="alert"><spring:message code="auth.invite.eventPublicMessage"/></p>
         </c:if>
+        <%-- Privado pero sin aprobar: solo lo ven su creador y los admins, asi que una invitacion llevaria a
+             un 404 (EventInvitationService.invite() devuelve NOT_APPROVED). --%>
+        <c:if test="${event.inviteOnly and not event.approved}">
+            <p class="alert"><spring:message code="auth.invite.notApprovedMessage"/></p>
+        </c:if>
         <c:if test="${param.selfInvite != null}">
             <p class="alert"><spring:message code="auth.invite.selfInviteMessage"/></p>
         </c:if>
 
-        <%-- El formulario y la lista solo tienen sentido en un evento privado; en uno publico queda
+        <%-- El formulario y la lista solo tienen sentido en un evento privado ya aprobado; si no, queda
              solo el cartel de arriba. --%>
-        <c:if test="${event.inviteOnly}">
+        <c:if test="${event.inviteOnly and event.approved}">
             <spring:message code="auth.invite.emailLabel" var="emailLabel"/>
             <spring:message code="auth.invite.submitButton" var="submitButtonLabel"/>
             <form action="<c:url value='/perfil/eventos/${event.id}/invitar'/>" method="post" novalidate="novalidate">
