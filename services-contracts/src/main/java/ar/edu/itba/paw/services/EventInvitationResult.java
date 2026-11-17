@@ -19,6 +19,11 @@ public enum EventInvitationResult {
      * como cartel.
      */
     EVENT_PUBLIC,
+    /**
+     * El evento es privado pero un admin todavia no lo aprobo (pendiente, con cambios pedidos o rechazado).
+     * Hasta que lo aprueben nadie mas que el creador y un admin lo puede ver: la invitacion llevaria a un 404.
+     */
+    NOT_APPROVED,
     /** El evento no existe, esta cancelado o ya paso. (Quien invita lo decide @PreAuthorize.) */
     NOT_ALLOWED,
     /** El mail esta vacio o supera EventInvitationService.MAX_EMAIL_LENGTH. */

@@ -3,6 +3,7 @@ package ar.edu.itba.paw.services;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventInvitation;
 import ar.edu.itba.paw.model.EventQuestion;
+import ar.edu.itba.paw.model.FollowerContact;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.User;
 
@@ -134,7 +135,7 @@ public interface NotificationService {
     void notifyEventChangesRequested(Event event, String message);
 
     /** Un organizador que sigue (ver FollowService) publico un evento nuevo y quedo aprobado -> le avisa a quien lo sigue. */
-    void notifyFollowedUserNewEvent(User follower, Event event, String organizerName);
+    void notifyFollowedUserNewEvent(FollowerContact follower, Event event, String organizerName);
 
     /** Un admin suspendio la cuenta -> le avisa a esa persona. */
     void notifyUserSuspended(User user);

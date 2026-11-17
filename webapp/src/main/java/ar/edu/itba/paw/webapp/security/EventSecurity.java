@@ -2,7 +2,6 @@ package ar.edu.itba.paw.webapp.security;
 
 import ar.edu.itba.paw.model.EventAccessData;
 import ar.edu.itba.paw.model.EventAccessSummary;
-import ar.edu.itba.paw.model.HasCreator;
 import ar.edu.itba.paw.model.RegistrationAccess;
 import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.services.EventAccessService;
@@ -51,14 +50,17 @@ public class EventSecurity {
                 .orElse(false);
     }
 
-    // El usuario logueado es el organizador del evento AL QUE PERTENECE la pregunta. Se decide solo con
-    // el id de la pregunta (el id del evento de la URL es solo ruteo y no se usa para autorizar). Una
-    // pregunta que no existe da false, igual que una de un evento ajeno. Lectura acotada: solo el id
-    // del organizador.
-    public boolean canAnswerQuestion(final long questionId, final Authentication authentication) {
-        return PlancitoUserDetails.from(authentication)
-                .flatMap(user -> eventQuestionService.findEventCreatorId(questionId)
-                        .map(creatorId -> HasCreator.isCreator(user.getId(), creatorId)))
+    // El usuario logueado es el organizador del evento de la URL Y la pregunta es de ese evento (mismo
+    // criterio que isOwnerOfRegistrationEvent): con un evento propio en la URL no se responde la pregunta de
+    // otro evento. Una pregunta que no existe da false, igual que una de un evento ajeno. Lectura acotada:
+    // solo el id del evento de la pregunta.
+    public boolean canAnswerQuestion(final long eventId, final long questionId,
+                                     final Authentication authentication) {
+        if (!isOwner(eventId, authentication)) {
+            return false;
+        }
+        return eventQuestionService.findEventId(questionId)
+                .map(questionEventId -> questionEventId == eventId)
                 .orElse(false);
     }
 

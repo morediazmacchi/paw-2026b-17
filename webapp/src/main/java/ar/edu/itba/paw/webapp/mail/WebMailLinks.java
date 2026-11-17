@@ -47,6 +47,11 @@ public class WebMailLinks implements MailLinks {
 
     @Override
     public String attendees(final long eventId) {
+        return event(eventId) + "/inscriptos";
+    }
+
+    @Override
+    public String pendingRequests(final long eventId) {
         return baseUrl + "/perfil/eventos/" + eventId + "/inscriptos";
     }
 

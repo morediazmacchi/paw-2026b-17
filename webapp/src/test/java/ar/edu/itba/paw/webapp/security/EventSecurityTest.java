@@ -236,29 +236,40 @@ public class EventSecurityTest {
     private static final long QUESTION_ID = 40L;
 
     @Test
-    public void testCanAnswerQuestionIsTrueForTheCreatorOfTheQuestionsEvent() {
-        when(eventQuestionService.findEventCreatorId(QUESTION_ID)).thenReturn(Optional.of(CREATOR_ID));
+    public void testCanAnswerQuestionIsTrueForTheOwnerWhenTheQuestionBelongsToTheEvent() {
+        when(eventService.findAccessById(EVENT_ID)).thenReturn(Optional.of(event(EVENT_ID, EventVisibility.PUBLIC)));
+        when(eventQuestionService.findEventId(QUESTION_ID)).thenReturn(Optional.of(EVENT_ID));
 
-        assertTrue(security.canAnswerQuestion(QUESTION_ID, creator()));
+        assertTrue(security.canAnswerQuestion(EVENT_ID, QUESTION_ID, creator()));
+    }
+
+    // Evento propio en la URL con la pregunta de otro evento: no alcanza con ser dueño del de la URL.
+    @Test
+    public void testCanAnswerQuestionIsFalseWhenTheQuestionBelongsToAnotherEvent() {
+        when(eventService.findAccessById(EVENT_ID)).thenReturn(Optional.of(event(EVENT_ID, EventVisibility.PUBLIC)));
+        when(eventQuestionService.findEventId(QUESTION_ID)).thenReturn(Optional.of(OTHER_EVENT_ID));
+
+        assertFalse(security.canAnswerQuestion(EVENT_ID, QUESTION_ID, creator()));
     }
 
     @Test
     public void testCanAnswerQuestionIsFalseForSomeoneElse() {
-        when(eventQuestionService.findEventCreatorId(QUESTION_ID)).thenReturn(Optional.of(CREATOR_ID));
+        when(eventService.findAccessById(EVENT_ID)).thenReturn(Optional.of(event(EVENT_ID, EventVisibility.PUBLIC)));
 
-        assertFalse(security.canAnswerQuestion(QUESTION_ID, other()));
+        assertFalse(security.canAnswerQuestion(EVENT_ID, QUESTION_ID, other()));
     }
 
     @Test
     public void testCanAnswerQuestionIsFalseWhenTheQuestionDoesNotExist() {
-        when(eventQuestionService.findEventCreatorId(QUESTION_ID)).thenReturn(Optional.empty());
+        when(eventService.findAccessById(EVENT_ID)).thenReturn(Optional.of(event(EVENT_ID, EventVisibility.PUBLIC)));
+        when(eventQuestionService.findEventId(QUESTION_ID)).thenReturn(Optional.empty());
 
-        assertFalse(security.canAnswerQuestion(QUESTION_ID, creator()));
+        assertFalse(security.canAnswerQuestion(EVENT_ID, QUESTION_ID, creator()));
     }
 
     @Test
     public void testCanAnswerQuestionIsFalseWithoutAuthentication() {
-        assertFalse(security.canAnswerQuestion(QUESTION_ID, null));
+        assertFalse(security.canAnswerQuestion(EVENT_ID, QUESTION_ID, null));
     }
 
     // ---- canView() ----

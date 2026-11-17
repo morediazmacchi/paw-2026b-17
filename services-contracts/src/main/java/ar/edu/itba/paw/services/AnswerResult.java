@@ -7,6 +7,10 @@ public enum AnswerResult {
     // Ya tenia respuesta (doble click, dos pestañas): no se pisa.
     ALREADY_ANSWERED,
 
+    // El texto esta vacio o supera EventQuestionService.MAX_QUESTION_LENGTH (el mismo largo que la pregunta). El
+    // form ya lo valida para dar feedback; esto es la defensa del service.
+    INVALID,
+
     // La pregunta ya no existe (un admin la eliminó justo en el medio). Quién puede responder
     // lo decide @PreAuthorize en el controller, no es un resultado.
     NOT_FOUND

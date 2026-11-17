@@ -3,6 +3,7 @@ package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.Follow;
 import ar.edu.itba.paw.model.FollowId;
+import ar.edu.itba.paw.model.FollowerContact;
 import ar.edu.itba.paw.model.User;
 import org.springframework.stereotype.Repository;
 
@@ -46,8 +47,12 @@ public class FollowJpaDao implements FollowDao {
     }
 
     @Override
-    public List<User> findFollowers(final long followedId) {
-        return em.createQuery("SELECT f.follower FROM Follow f WHERE f.followed.id = :followedId", User.class)
+    public List<FollowerContact> findFollowers(final long followedId) {
+        // Proyeccion (SELECT NEW): solo las cuatro columnas que usa el mail, no la cuenta entera.
+        return em.createQuery(
+                        "SELECT NEW ar.edu.itba.paw.model.FollowerContact(u.id, u.email, u.name, u.locale) "
+                                + "FROM Follow f JOIN f.follower u WHERE f.followed.id = :followedId "
+                                + "ORDER BY u.id", FollowerContact.class)
                 .setParameter("followedId", followedId)
                 .getResultList();
     }

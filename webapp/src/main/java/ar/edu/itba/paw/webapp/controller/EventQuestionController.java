@@ -45,10 +45,10 @@ public class EventQuestionController {
         return new ModelAndView("redirect:/eventos/" + id + "#preguntas");
     }
 
-    // Responder. Quien puede lo decide @PreAuthorize antes de entrar, por la pregunta: el organizador del
-    // evento al que ella pertenece (ver EventSecurity.canAnswerQuestion). El id del evento de la URL es
-    // solo ruteo (a donde se vuelve), no autoriza nada.
-    @PreAuthorize("@eventSecurity.canAnswerQuestion(#questionId, authentication)")
+    // Responder. Quien puede lo decide @PreAuthorize antes de entrar: el organizador del evento de la URL,
+    // y solo si la pregunta es de ese evento (ver EventSecurity.canAnswerQuestion). Dos ids en la URL: se
+    // comprueba que el segundo pertenezca al primero.
+    @PreAuthorize("@eventSecurity.canAnswerQuestion(#id, #questionId, authentication)")
     @RequestMapping(value = "/eventos/{id}/preguntas/{questionId}/responder", method = RequestMethod.POST)
     public ModelAndView answer(@PathVariable final long id, @PathVariable final long questionId,
                                @Valid final QuestionForm form, final BindingResult errors,

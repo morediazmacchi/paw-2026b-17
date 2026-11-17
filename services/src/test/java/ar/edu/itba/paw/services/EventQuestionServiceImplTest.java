@@ -12,6 +12,7 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -19,6 +20,7 @@ import java.util.Optional;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
@@ -222,6 +224,38 @@ public class EventQuestionServiceImplTest {
         assertEquals(AnswerResult.ALREADY_ANSWERED, result);
     }
 
+    // Pregunta respondible y un dao que guardaria cualquier texto: si answer() no validara, daria ANSWERED.
+    private void answerableQuestionAcceptingAnyText() {
+        lenient().when(questionDao.findById(QUESTION_ID)).thenReturn(Optional.of(questionOf(EVENT_ID)));
+        lenient().when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
+        lenient().when(questionDao.answer(eq(QUESTION_ID), anyString(), any(Date.class))).thenReturn(true);
+    }
+
+    @Test
+    public void testABlankAnswerIsInvalid() {
+        // Arrange
+        answerableQuestionAcceptingAnyText();
+
+        // Act
+        final AnswerResult result = questionService.answer(QUESTION_ID, "   ");
+
+        // Assert
+        assertEquals(AnswerResult.INVALID, result);
+    }
+
+    @Test
+    public void testAnAnswerLongerThanTheMaximumIsInvalid() {
+        // Arrange
+        answerableQuestionAcceptingAnyText();
+        final String tooLong = String.join("", Collections.nCopies(EventQuestionService.MAX_QUESTION_LENGTH + 1, "a"));
+
+        // Act
+        final AnswerResult result = questionService.answer(QUESTION_ID, tooLong);
+
+        // Assert
+        assertEquals(AnswerResult.INVALID, result);
+    }
+
     @Test
     public void testAQuestionThatDoesNotExistIsNotFound() {
         // Arrange
@@ -244,27 +278,27 @@ public class EventQuestionServiceImplTest {
         questionService.answer(QUESTION_ID, "Si");
     }
 
-    // ---- findEventCreatorId() ----
+    // ---- findEventId() ----
 
     @Test
-    public void testFindEventCreatorIdReturnsTheCreatorTheDaoFound() {
+    public void testFindEventIdReturnsTheEventTheDaoFound() {
         // Arrange
-        when(questionDao.findEventCreatorId(QUESTION_ID)).thenReturn(Optional.of(CREATOR_ID));
+        when(questionDao.findEventId(QUESTION_ID)).thenReturn(Optional.of(EVENT_ID));
 
         // Act
-        final Optional<Long> result = questionService.findEventCreatorId(QUESTION_ID);
+        final Optional<Long> result = questionService.findEventId(QUESTION_ID);
 
         // Assert
-        assertEquals(Optional.of(CREATOR_ID), result);
+        assertEquals(Optional.of(EVENT_ID), result);
     }
 
     @Test
-    public void testFindEventCreatorIdIsEmptyWhenTheQuestionDoesNotExist() {
+    public void testFindEventIdIsEmptyWhenTheQuestionDoesNotExist() {
         // Arrange
-        when(questionDao.findEventCreatorId(QUESTION_ID)).thenReturn(Optional.empty());
+        when(questionDao.findEventId(QUESTION_ID)).thenReturn(Optional.empty());
 
         // Act
-        final Optional<Long> result = questionService.findEventCreatorId(QUESTION_ID);
+        final Optional<Long> result = questionService.findEventId(QUESTION_ID);
 
         // Assert
         assertFalse(result.isPresent());

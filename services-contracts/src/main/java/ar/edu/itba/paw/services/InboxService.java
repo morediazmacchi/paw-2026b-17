@@ -3,8 +3,10 @@ package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.InboxMessage;
 import ar.edu.itba.paw.model.InboxMessageType;
+import ar.edu.itba.paw.model.RegistrationStatus;
 
 import java.util.List;
+import java.util.Set;
 
 public interface InboxService {
 
@@ -15,6 +17,20 @@ public interface InboxService {
      * recien despues del COMMIT). eventId, actorName y body pueden ser null.
      */
     InboxMessage add(String recipientEmail, InboxMessageType type, Long eventId, String actorName, String body);
+
+    /**
+     * El mismo aviso a cada inscripto de ese evento cuyo estado este en statuses (por ejemplo "se cancelo el
+     * evento" a todos menos los rechazados), en una sola sentencia: no busca la cuenta de cada uno por separado
+     * como add(). Va dentro de la transaccion de quien llama, igual que add(). Devuelve cuantos avisos dejo
+     * (0 si statuses esta vacio).
+     */
+    int addForRegistrants(long eventId, InboxMessageType type, Set<RegistrationStatus> statuses);
+
+    /**
+     * El mismo aviso a cada persona que sigue al organizador de ese evento, con el nombre del organizador como
+     * actor. Una sola sentencia, como addForRegistrants(). Devuelve cuantos avisos dejo.
+     */
+    int addForFollowersOfCreator(long eventId, InboxMessageType type);
 
     /**
      * Una pagina de la bandeja de ese usuario logueado, mas nuevos primero. Una

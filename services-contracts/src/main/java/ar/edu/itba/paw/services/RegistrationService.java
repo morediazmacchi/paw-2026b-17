@@ -135,18 +135,12 @@ public interface RegistrationService {
     Map<Long, RegistrationStatus> findStatusesByEventIds(long userId, Collection<Long> eventIds);
 
     /**
-     * "Ver inscriptos" del organizador: todos los anotados a un evento, en
-     * orden de llegada.
-     *
-     * OJO: este metodo NO valida quien pregunta -- a diferencia de cancel(),
-     * que solo deja cancelar tu propia inscripcion, este eventId es un
-     * parametro arbitrario (viene de la URL, no del usuario logueado como
-     * findByUserId). Quien llama (EventController.inscriptos()) tiene que
-     * verificar que el que pregunta sea el creador del evento ANTES de
-     * mostrar esta lista.
+     * Los que tienen el lugar confirmado en un evento, en orden de llegada: a quienes se les manda el mail
+     * cuando el evento cambia, se cancela o es al dia siguiente. El filtro lo hace la base. Solo lo usan otros
+     * services (no se muestra en ninguna pantalla).
      */
     @Transactional(readOnly = true)
-    List<Registration> findByEventId(long eventId);
+    List<Registration> findConfirmedByEventId(long eventId);
 
     /**
      * Lo mismo que findByEventId pero de a una pagina, para las pantallas "Ver inscriptos" del

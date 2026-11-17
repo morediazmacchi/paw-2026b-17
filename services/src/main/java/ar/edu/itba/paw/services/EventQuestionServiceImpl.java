@@ -68,16 +68,22 @@ public class EventQuestionServiceImpl implements EventQuestionService {
     public AnswerResult answer(final long questionId, final String text) {
         // Que quien responde sea el organizador del evento de la pregunta lo decide @PreAuthorize en
         // el controller (ver EventSecurity.canAnswerQuestion). El evento es el de la pregunta.
+        // El form ya lo valida para dar feedback; esto es la defensa del service (igual que ask()), antes de
+        // leer o escribir nada. Mismo largo que la pregunta: answer_text tambien es VARCHAR(300).
+        final String body = text == null ? "" : text.trim();
+        if (body.isEmpty() || body.length() > MAX_QUESTION_LENGTH) {
+            return AnswerResult.INVALID;
+        }
         final EventQuestion question = questionDao.findById(questionId).orElse(null);
         if (question == null) {
             return AnswerResult.NOT_FOUND;
         }
         final long eventId = question.getEventId();
         final Event event = eventService.findById(eventId).orElseThrow(() -> new EventNotFoundException(eventId));
-        if (!questionDao.answer(questionId, text.trim(), new Date())) {
+        if (!questionDao.answer(questionId, body, new Date())) {
             return AnswerResult.ALREADY_ANSWERED;
         }
-        question.setAnswer(text.trim());
+        question.setAnswer(body);
 
         // El nombre y el mail se leen ahora, con la pregunta en sesion (viene con JOIN FETCH), y se
         // pasan al envio @Async: no debe leer la relacion desde otro hilo.
@@ -90,8 +96,8 @@ public class EventQuestionServiceImpl implements EventQuestionService {
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<Long> findEventCreatorId(final long questionId) {
-        return questionDao.findEventCreatorId(questionId);
+    public Optional<Long> findEventId(final long questionId) {
+        return questionDao.findEventId(questionId);
     }
 
     @Override

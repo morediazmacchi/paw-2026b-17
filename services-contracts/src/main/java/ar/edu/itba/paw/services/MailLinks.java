@@ -20,8 +20,11 @@ public interface MailLinks {
     // La pantalla de editar un evento.
     String editEvent(long eventId);
 
-    // "Inscriptos" de un evento (la pantalla del organizador).
+    // Todos los inscriptos de un evento (pantalla del organizador).
     String attendees(long eventId);
+
+    // Los pedidos pendientes de un evento con aprobacion, donde el organizador los acepta o rechaza.
+    String pendingRequests(long eventId);
 
     // Confirmar que se quiere dejar de recibir avisos de esa busqueda guardada (pide iniciar sesion).
     String unsubscribeSavedSearch(long savedSearchId);

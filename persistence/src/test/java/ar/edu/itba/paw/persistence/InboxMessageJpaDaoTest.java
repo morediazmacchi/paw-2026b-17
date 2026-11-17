@@ -3,6 +3,7 @@ package ar.edu.itba.paw.persistence;
 import ar.edu.itba.paw.model.InboxMessage;
 import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.User;
 import org.junit.Before;
 import org.junit.Test;
@@ -20,7 +21,9 @@ import javax.persistence.PersistenceContext;
 import javax.sql.DataSource;
 import java.sql.Timestamp;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
@@ -81,6 +84,168 @@ public class InboxMessageJpaDaoTest {
 
     private String whereId(final long id) {
         return "id = " + id;
+    }
+
+    private void insertRegistration(final long eventId, final String email, final Long userId,
+                                    final RegistrationStatus status) {
+        jdbcTemplate.update("INSERT INTO registration (event_id, email, user_id, name, status) VALUES (?, ?, ?, ?, ?)",
+                eventId, email, userId, "Alguien", status.name());
+    }
+
+    private long insertEventCreatedBy(final long creatorId) {
+        jdbcTemplate.update(
+                "INSERT INTO event (title, event_date, address, creator_email, creator_id) VALUES (?, ?, ?, ?, ?)",
+                "Feria", new Timestamp(System.currentTimeMillis()), "Corrientes 1234", "organizadora@mail.com", creatorId);
+        return jdbcTemplate.queryForObject("SELECT id FROM event ORDER BY id DESC LIMIT 1", Long.class);
+    }
+
+    private void insertFollow(final long followerId, final long followedId) {
+        jdbcTemplate.update("INSERT INTO follow (follower_id, followed_id) VALUES (?, ?)", followerId, followedId);
+    }
+
+    private List<String> recipientsOf(final InboxMessageType type) {
+        return jdbcTemplate.queryForList(
+                "SELECT recipient_email FROM inbox_message WHERE type = ? ORDER BY recipient_email",
+                String.class, type.name());
+    }
+
+    // ---- createForRegistrants() ----
+
+    @Test
+    public void testCreateForRegistrantsLeavesOneMessagePerRegistrantInTheGivenStatuses() {
+        // Arrange: una inscripcion por estado; solo las dos primeras estan en los estados pedidos.
+        insertRegistration(eventId, "confirmada@mail.com", null, RegistrationStatus.CONFIRMED);
+        insertRegistration(eventId, "espera@mail.com", null, RegistrationStatus.WAITLISTED);
+        insertRegistration(eventId, "rechazada@mail.com", null, RegistrationStatus.REJECTED);
+
+        // Act
+        final int created = inboxMessageDao.createForRegistrants(eventId, InboxMessageType.EVENT_CANCELLED,
+                EnumSet.of(RegistrationStatus.CONFIRMED, RegistrationStatus.WAITLISTED));
+
+        // Assert
+        assertEquals(2, created);
+        assertEquals(Arrays.asList("confirmada@mail.com", "espera@mail.com"), recipientsOf(InboxMessageType.EVENT_CANCELLED));
+    }
+
+    @Test
+    public void testCreateForRegistrantsIgnoresRegistrantsOfOtherEvents() {
+        // Arrange
+        final long otherEventId = insertEventCreatedBy(insertUser("organizadora@mail.com"));
+        insertRegistration(eventId, "de-este@mail.com", null, RegistrationStatus.CONFIRMED);
+        insertRegistration(otherEventId, "de-otro@mail.com", null, RegistrationStatus.CONFIRMED);
+
+        // Act
+        inboxMessageDao.createForRegistrants(eventId, InboxMessageType.EVENT_UPDATED,
+                EnumSet.of(RegistrationStatus.CONFIRMED));
+
+        // Assert
+        assertEquals(Collections.singletonList("de-este@mail.com"), recipientsOf(InboxMessageType.EVENT_UPDATED));
+    }
+
+    @Test
+    public void testCreateForRegistrantsLinksTheAccountWithThatEmailAndTheEvent() {
+        // Arrange
+        final long userId = insertUser(EMAIL);
+        insertRegistration(eventId, EMAIL, userId, RegistrationStatus.CONFIRMED);
+
+        // Act
+        inboxMessageDao.createForRegistrants(eventId, InboxMessageType.EVENT_REMINDER,
+                EnumSet.of(RegistrationStatus.CONFIRMED));
+
+        // Assert
+        final Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT user_id, event_id, actor_name, read_at FROM inbox_message WHERE recipient_email = ?", EMAIL);
+        assertEquals(userId, ((Number) row.get("user_id")).longValue());
+        assertEquals(eventId, ((Number) row.get("event_id")).longValue());
+        assertNull(row.get("actor_name"));
+        assertNull(row.get("read_at"));
+    }
+
+    @Test
+    public void testCreateForRegistrantsLeavesTheAccountEmptyWhenThatEmailHasNone() {
+        // Arrange
+        insertRegistration(eventId, OTHER_EMAIL, null, RegistrationStatus.CONFIRMED);
+
+        // Act
+        inboxMessageDao.createForRegistrants(eventId, InboxMessageType.EVENT_REMINDER,
+                EnumSet.of(RegistrationStatus.CONFIRMED));
+
+        // Assert
+        final Long userId = jdbcTemplate.queryForObject(
+                "SELECT user_id FROM inbox_message WHERE recipient_email = ?", Long.class, OTHER_EMAIL);
+        assertNull(userId);
+    }
+
+    @Test
+    public void testCreateForRegistrantsStoresTheEmailInLowercaseAndWithoutSpaces() {
+        // Arrange
+        final long userId = insertUser(EMAIL);
+        insertRegistration(eventId, "  Ana@Mail.COM ", null, RegistrationStatus.CONFIRMED);
+
+        // Act
+        inboxMessageDao.createForRegistrants(eventId, InboxMessageType.EVENT_REMINDER,
+                EnumSet.of(RegistrationStatus.CONFIRMED));
+
+        // Assert
+        final Map<String, Object> row = jdbcTemplate.queryForMap("SELECT recipient_email, user_id FROM inbox_message");
+        assertEquals(EMAIL, row.get("recipient_email"));
+        assertEquals(userId, ((Number) row.get("user_id")).longValue());
+    }
+
+    // ---- createForFollowersOfCreator() ----
+
+    @Test
+    public void testCreateForFollowersOfCreatorLeavesOneMessagePerFollowerOfTheOrganizer() {
+        // Arrange: dos siguen a la organizadora; un tercero sigue a otra persona (no tiene que recibir nada).
+        final long organizerId = insertUser("organizadora@mail.com");
+        final long otherOrganizerId = insertUser("otra-organizadora@mail.com");
+        final long featuredEventId = insertEventCreatedBy(organizerId);
+        insertFollow(insertUser("fan1@mail.com"), organizerId);
+        insertFollow(insertUser("fan2@mail.com"), organizerId);
+        insertFollow(insertUser("fan-de-otra@mail.com"), otherOrganizerId);
+
+        // Act
+        final int created = inboxMessageDao.createForFollowersOfCreator(featuredEventId,
+                InboxMessageType.FOLLOWED_USER_NEW_EVENT);
+
+        // Assert
+        assertEquals(2, created);
+        assertEquals(Arrays.asList("fan1@mail.com", "fan2@mail.com"), recipientsOf(InboxMessageType.FOLLOWED_USER_NEW_EVENT));
+    }
+
+    @Test
+    public void testCreateForFollowersOfCreatorUsesTheOrganizerNameAsActorAndLinksTheFollower() {
+        // Arrange
+        jdbcTemplate.update("INSERT INTO users (email, name) VALUES (?, ?)", "organizadora@mail.com", "Lola");
+        final long organizerId = jdbcTemplate.queryForObject(
+                "SELECT id FROM users WHERE email = ?", Long.class, "organizadora@mail.com");
+        final long featuredEventId = insertEventCreatedBy(organizerId);
+        final long fanId = insertUser("fan@mail.com");
+        insertFollow(fanId, organizerId);
+
+        // Act
+        inboxMessageDao.createForFollowersOfCreator(featuredEventId, InboxMessageType.FOLLOWED_USER_NEW_EVENT);
+
+        // Assert
+        final Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT user_id, event_id, actor_name FROM inbox_message WHERE recipient_email = 'fan@mail.com'");
+        assertEquals(fanId, ((Number) row.get("user_id")).longValue());
+        assertEquals(featuredEventId, ((Number) row.get("event_id")).longValue());
+        assertEquals("Lola", row.get("actor_name"));
+    }
+
+    @Test
+    public void testCreateForFollowersOfCreatorOfAnEventWithoutOrganizerLeavesNothing() {
+        // Arrange: el evento del setUp no tiene creator_id (evento viejo); hay seguimientos, pero de nadie suyo.
+        insertFollow(insertUser("fan@mail.com"), insertUser("organizadora@mail.com"));
+
+        // Act
+        final int created = inboxMessageDao.createForFollowersOfCreator(eventId,
+                InboxMessageType.FOLLOWED_USER_NEW_EVENT);
+
+        // Assert
+        assertEquals(0, created);
+        assertEquals(0, JdbcTestUtils.countRowsInTable(jdbcTemplate, "inbox_message"));
     }
 
     // ---- create() ----

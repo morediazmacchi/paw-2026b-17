@@ -3,6 +3,7 @@ package ar.edu.itba.paw.services;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.InboxMessage;
 import ar.edu.itba.paw.model.InboxMessageType;
+import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.InboxMessageDao;
@@ -15,14 +16,16 @@ import org.mockito.junit.MockitoJUnitRunner;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 /**
@@ -212,6 +215,47 @@ public class InboxServiceImplTest {
 
         // Act
         final long result = inboxService.countUnread(USER_ID);
+
+        // Assert
+        assertEquals(2, result);
+    }
+
+    // ---- addForRegistrants() / addForFollowersOfCreator() ----
+
+    @Test
+    public void testAddForRegistrantsReturnsHowManyMessagesWereLeft() {
+        // Arrange: el stub solo responde con el evento, el tipo y los estados correctos.
+        when(inboxDao.createForRegistrants(7L, InboxMessageType.EVENT_CANCELLED,
+                EnumSet.of(RegistrationStatus.CONFIRMED, RegistrationStatus.WAITLISTED))).thenReturn(3);
+
+        // Act
+        final int result = inboxService.addForRegistrants(7L, InboxMessageType.EVENT_CANCELLED,
+                EnumSet.of(RegistrationStatus.CONFIRMED, RegistrationStatus.WAITLISTED));
+
+        // Assert
+        assertEquals(3, result);
+    }
+
+    @Test
+    public void testAddForRegistrantsWithNoStatusesLeavesNothing() {
+        // Arrange: senuelo -- si el service le pidiera a la base un "IN ()" vacio, el resultado seria 5.
+        lenient().when(inboxDao.createForRegistrants(anyLong(), any(), any())).thenReturn(5);
+
+        // Act
+        final int result = inboxService.addForRegistrants(7L, InboxMessageType.EVENT_CANCELLED,
+                EnumSet.noneOf(RegistrationStatus.class));
+
+        // Assert
+        assertEquals(0, result);
+    }
+
+    @Test
+    public void testAddForFollowersOfCreatorReturnsHowManyMessagesWereLeft() {
+        // Arrange
+        when(inboxDao.createForFollowersOfCreator(7L, InboxMessageType.FOLLOWED_USER_NEW_EVENT)).thenReturn(2);
+
+        // Act
+        final int result = inboxService.addForFollowersOfCreator(7L, InboxMessageType.FOLLOWED_USER_NEW_EVENT);
 
         // Assert
         assertEquals(2, result);

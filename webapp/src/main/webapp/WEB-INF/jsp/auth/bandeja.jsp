@@ -75,12 +75,14 @@
                 <ul class="inbox-list">
                     <c:forEach var="message" items="${messages}">
                         <c:set var="event" value="${eventsById[message.eventId]}"/>
-                        <%-- A donde lleva cada aviso: lo que le toca al organizador
-                             a "Inscriptos" de su evento, y el resto al detalle del evento. --%>
+                        <%-- Que pantalla abre cada aviso lo decide su tipo (InboxMessageType.getTarget()); aca solo
+                             se traduce esa pantalla a su ruta. --%>
                         <c:choose>
                             <c:when test="${empty event}"><c:set var="targetUrl" value=""/></c:when>
-                            <c:when test="${message.type == 'NEW_REGISTRATION' or message.type == 'REGISTRATION_CANCELLED'
-                                            or message.type == 'NEW_PENDING' or message.type == 'EVENT_TOMORROW'}">
+                            <c:when test="${message.type.target == 'ATTENDEES'}">
+                                <c:url var="targetUrl" value="/eventos/${event.id}/inscriptos"/>
+                            </c:when>
+                            <c:when test="${message.type.target == 'PENDING_REQUESTS'}">
                                 <c:url var="targetUrl" value="/perfil/eventos/${event.id}/inscriptos"/>
                             </c:when>
                             <c:otherwise><c:url var="targetUrl" value="/eventos/${event.id}"/></c:otherwise>

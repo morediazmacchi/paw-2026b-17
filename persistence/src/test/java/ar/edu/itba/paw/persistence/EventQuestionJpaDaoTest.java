@@ -265,48 +265,26 @@ public class EventQuestionJpaDaoTest {
         assertEquals(3, count);
     }
 
-    // ---- findEventCreatorId() ----
-
-    private long insertEventCreatedBy(final String title, final long creatorId) {
-        jdbcTemplate.update(
-                "INSERT INTO event (title, event_date, address, creator_email, creator_id) VALUES (?, ?, ?, ?, ?)",
-                title, new Timestamp(System.currentTimeMillis()), "Corrientes 1234", CREATOR_EMAIL, creatorId);
-        return jdbcTemplate.queryForObject("SELECT id FROM event WHERE title = ?", Long.class, title);
-    }
+    // ---- findEventId() ----
 
     @Test
-    public void testFindEventCreatorIdReturnsTheCreatorOfTheQuestionsEvent() {
-        // Arrange
-        final long creatorId = insertUser("organizador@mail.com", "Ola");
-        final long otherCreatorId = insertUser("otro@mail.com", "Beto");
-        final long questionId = insertQuestion(insertEventCreatedBy("Del organizador", creatorId), userId, "Hay lugar?");
-        insertQuestion(insertEventCreatedBy("De otro", otherCreatorId), userId, "Señuelo");
+    public void testFindEventIdReturnsTheEventOfTheQuestion() {
+        // Arrange: una pregunta en otro evento como señuelo
+        final long eventId = insertEvent("El de la pregunta");
+        final long questionId = insertQuestion(eventId, userId, "Hay lugar?");
+        insertQuestion(insertEvent("Otro evento"), userId, "Señuelo");
 
         // Act
-        final Optional<Long> result = questionDao.findEventCreatorId(questionId);
+        final Optional<Long> result = questionDao.findEventId(questionId);
 
         // Assert
-        assertEquals(Optional.of(creatorId), result);
-    }
-
-    // creator_id puede ser NULL (evento legacy sin organizador): sin el filtro de nulos, findFirst() tiraba
-    // NullPointerException con ese elemento nulo y la regla de acceso terminaba en un 500.
-    @Test
-    public void testFindEventCreatorIdIsEmptyForAnEventWithoutCreator() {
-        // Arrange: insertEvent() deja creator_id en NULL; se pregunta sobre ese evento
-        final long questionId = insertQuestion(insertEvent("Evento sin organizador"), userId, "Hay lugar?");
-
-        // Act
-        final Optional<Long> result = questionDao.findEventCreatorId(questionId);
-
-        // Assert
-        assertFalse(result.isPresent());
+        assertEquals(Optional.of(eventId), result);
     }
 
     @Test
-    public void testFindEventCreatorIdIsEmptyWhenTheQuestionDoesNotExist() {
+    public void testFindEventIdIsEmptyWhenTheQuestionDoesNotExist() {
         // Act
-        final Optional<Long> result = questionDao.findEventCreatorId(987654L);
+        final Optional<Long> result = questionDao.findEventId(987654L);
 
         // Assert
         assertFalse(result.isPresent());

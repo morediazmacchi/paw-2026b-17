@@ -27,6 +27,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -450,24 +451,29 @@ public class RegistrationJpaDaoTest {
         assertEquals(0, count);
     }
 
-    // ---- findByEventId() ("Ver inscriptos" del organizador) ----
+    // ---- findConfirmedByEventId() (a quienes se les manda el mail de cambio, cancelacion y recordatorio) ----
 
     @Test
-    public void testFindByEventIdReturnsAllRegistrationsForThatEvent() {
-        // Arrange
-        insertRegistration(eventId, EMAIL, userId, NAME, RegistrationStatus.CONFIRMED);
-        final long otherUserId = insertUser("otro@mail.com", "Otro");
-        insertRegistration(eventId, "otro@mail.com", otherUserId, "Otro", RegistrationStatus.CONFIRMED);
+    public void testFindConfirmedByEventIdReturnsOnlyTheConfirmedOnes() {
+        // Arrange: una confirmada y una de cada estado sin lugar (no tienen que salir).
+        final long confirmedId = insertRegistration(eventId, EMAIL, userId, NAME, RegistrationStatus.CONFIRMED);
+        insertRegistration(eventId, "espera@mail.com", insertUser("espera@mail.com", "Espera"), "Espera",
+                RegistrationStatus.WAITLISTED);
+        insertRegistration(eventId, "pendiente@mail.com", insertUser("pendiente@mail.com", "Pendiente"), "Pendiente",
+                RegistrationStatus.PENDING);
+        insertRegistration(eventId, "rechazado@mail.com", insertUser("rechazado@mail.com", "Rechazado"), "Rechazado",
+                RegistrationStatus.REJECTED);
 
         // Act
-        final List<Registration> found = registrationDao.findByEventId(eventId);
+        final List<Registration> found = registrationDao.findConfirmedByEventId(eventId);
 
         // Assert
-        assertEquals(2, found.size());
+        assertEquals(1, found.size());
+        assertEquals(confirmedId, found.get(0).getId().longValue());
     }
 
     @Test
-    public void testFindByEventIdDoesNotReturnRegistrationsOfOtherEvents() {
+    public void testFindConfirmedByEventIdDoesNotReturnRegistrationsOfOtherEvents() {
         // Arrange
         final long otherEventId = insertEvent();
         insertRegistration(eventId, EMAIL, userId, NAME, RegistrationStatus.CONFIRMED);
@@ -475,7 +481,7 @@ public class RegistrationJpaDaoTest {
         insertRegistration(otherEventId, "otro@mail.com", otherUserId, "Otro", RegistrationStatus.CONFIRMED);
 
         // Act
-        final List<Registration> found = registrationDao.findByEventId(eventId);
+        final List<Registration> found = registrationDao.findConfirmedByEventId(eventId);
 
         // Assert
         assertEquals(1, found.size());
@@ -483,11 +489,28 @@ public class RegistrationJpaDaoTest {
     }
 
     @Test
-    public void testFindByEventIdReturnsEmptyWhenNobodyIsRegistered() {
+    public void testFindConfirmedByEventIdReturnsThemInArrivalOrder() {
+        // Arrange: la segunda se inserta primero, pero se anoto despues.
+        final long otherUserId = insertUser("otro@mail.com", "Otro");
+        final long later = insertRegistrationAt(eventId, "otro@mail.com", otherUserId, "Otro",
+                RegistrationStatus.CONFIRMED, new Timestamp(System.currentTimeMillis() - 1000L));
+        final long earlier = insertRegistrationAt(eventId, EMAIL, userId, NAME,
+                RegistrationStatus.CONFIRMED, new Timestamp(System.currentTimeMillis() - 5000L));
+
+        // Act
+        final List<Registration> found = registrationDao.findConfirmedByEventId(eventId);
+
+        // Assert
+        assertEquals(Arrays.asList(earlier, later),
+                found.stream().map(Registration::getId).collect(Collectors.toList()));
+    }
+
+    @Test
+    public void testFindConfirmedByEventIdReturnsEmptyWhenNobodyIsRegistered() {
         // Arrange: no se inserta ninguna inscripcion.
 
         // Act
-        final List<Registration> found = registrationDao.findByEventId(eventId);
+        final List<Registration> found = registrationDao.findConfirmedByEventId(eventId);
 
         // Assert
         assertTrue(found.isEmpty());
