@@ -99,13 +99,14 @@ public interface NotificationService {
 
     /**
      * El creador cancelo el evento -> le avisa a cada inscripto confirmado de la lista. Es UN solo envio
-     * asincronico para toda la lista (no uno por persona): asi un evento con muchos inscriptos no llena el
-     * pool de mails ni deja a quien cancela esperando, y los idiomas se buscan todos juntos.
+     * asincronico para toda la lista (no uno por persona), y los idiomas se buscan todos juntos. La lista es UNA
+     * tanda: la arma y la recorre MassNotifier, en segundo plano y despues del commit, de a tandas (nunca todos
+     * los inscriptos de un evento de una vez, ni desde el hilo de quien cancela).
      */
     void notifyEventCancelled(Event event, List<Registration> registrations);
 
     /**
-     * El creador edito el evento -> le avisa a cada inscripto confirmado de la lista (un solo envio
+     * El creador edito el evento -> le avisa a cada inscripto confirmado de la tanda (un solo envio
      * asincronico para todos, ver notifyEventCancelled()).
      * "event" son los datos YA actualizados (lo que cambio es justo lo que
      * el mail tiene que mostrar).
@@ -113,7 +114,7 @@ public interface NotificationService {
     void notifyEventUpdated(Event event, List<Registration> registrations);
 
     /**
-     * El evento empieza en menos de 24 hs -> recordatorio a cada inscripto confirmado de la lista (un solo
+     * El evento empieza en menos de 24 hs -> recordatorio a cada inscripto confirmado de la tanda (un solo
      * envio asincronico para todos, ver notifyEventCancelled()).
      */
     void notifyEventReminder(Event event, List<Registration> registrations);
@@ -153,8 +154,9 @@ public interface NotificationService {
 
     /**
      * Un organizador que sigue (ver FollowService) publico un evento nuevo y quedo aprobado -> le avisa a cada
-     * persona de la lista que lo sigue. Un solo envio asincronico para toda la lista (ver notifyEventCancelled()):
-     * un organizador con muchos seguidores no deja esperando al admin que aprueba.
+     * persona de la tanda que lo sigue. Un solo envio asincronico para toda la tanda (ver notifyEventCancelled()):
+     * los seguidores los busca de a tandas MassNotifier, en segundo plano y despues del commit, asi un organizador
+     * con muchos seguidores no deja esperando al admin que aprueba.
      */
     void notifyFollowedUserNewEvent(List<FollowerContact> followers, Event event, String organizerName);
 

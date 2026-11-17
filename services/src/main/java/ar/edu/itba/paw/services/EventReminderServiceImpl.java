@@ -21,16 +21,17 @@ public class EventReminderServiceImpl implements EventReminderService {
     static final long ONE_DAY_MILLIS = 24L * 60 * 60 * 1000;
 
     private final EventService eventService;
-    private final RegistrationService registrationService;
+    // Los mails a los confirmados (pueden ser muchos): en segundo plano, despues del commit y de a tandas.
+    private final MassNotifier massNotifier;
     private final NotificationService notificationService;
     private final InboxService inboxService;
 
     @Autowired
-    public EventReminderServiceImpl(final EventService eventService, final RegistrationService registrationService,
+    public EventReminderServiceImpl(final EventService eventService, final MassNotifier massNotifier,
                                     final NotificationService notificationService,
                                     final InboxService inboxService) {
         this.eventService = eventService;
-        this.registrationService = registrationService;
+        this.massNotifier = massNotifier;
         this.notificationService = notificationService;
         this.inboxService = inboxService;
     }
@@ -63,9 +64,10 @@ public class EventReminderServiceImpl implements EventReminderService {
 
         // Solo a los confirmados: son los que tienen un lugar. Lista de espera y
         // pendientes todavia no tienen a que ir.
-        // Mails todos en UNA tarea (en otro hilo, despues del commit); la bandeja, todos juntos en una sola sentencia.
-        notificationService.notifyEventReminder(event, registrationService.findConfirmedByEventId(eventId));
+        // La bandeja, todos juntos en una sola sentencia, dentro de esta transaccion. Los mails: aca no se busca a
+        // nadie; MassNotifier (@Async) los busca de a tandas y los manda en segundo plano, despues del commit.
         inboxService.addForRegistrants(eventId, InboxMessageType.EVENT_REMINDER, RegistrationStatus.withConfirmedPlace());
+        massNotifier.sendEventReminder(eventId);
         notificationService.notifyOrganizerEventReminder(event);
         inboxService.add(event.getCreatorEmail(), InboxMessageType.EVENT_TOMORROW, eventId, null, null);
 

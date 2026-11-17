@@ -32,11 +32,12 @@ public interface FollowService {
     boolean isFollowing(long followerId, long followedId);
 
     /**
-     * A quienes mandarles el mail cuando este usuario publique un evento nuevo (ver EventServiceImpl.approve()):
-     * solo mail, nombre e idioma de cada uno, no la cuenta entera.
+     * Una tanda de a quienes mandarles el mail cuando este usuario publique un evento nuevo: los de id mayor a
+     * afterId, de menor a mayor id, hasta limit. La recorre MassNotifier en segundo plano y despues del commit, de
+     * a una tanda por vez. Solo mail, nombre e idioma de cada uno, no la cuenta entera.
      */
     @Transactional(readOnly = true)
-    List<FollowerContact> findFollowers(long followedId);
+    List<FollowerContact> findFollowersAfter(long followedId, long afterId, int limit);
 
     /** Cuantos lo siguen (el contador de "Mi perfil"). */
     @Transactional(readOnly = true)

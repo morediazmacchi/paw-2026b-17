@@ -125,16 +125,17 @@ public interface EventService {
      *         de {@link #MAX_YEARS_AHEAD} años, o no queda ninguna categoria.
      * @throws InvalidImageException si se suben mas de Event.MAX_IMAGES imagenes o alguna es invalida.
      *
-     * Avisa que el evento cambio con un {@link EventUpdatedEvent} (dentro de esta misma transaccion): a los
-     * inscriptos les avisa, y a la lista de espera la hace avanzar si subio el cupo, quien escucha ese anuncio
-     * (RegistrantsEventListener). Asi EventService no depende de RegistrationService, que si depende de este.
+     * Avisa que el evento cambio con un {@link EventUpdatedEvent} (dentro de esta misma transaccion). Lo escuchan
+     * RegistrantsEventListener (en esta transaccion: la bandeja de los confirmados y hacer avanzar la lista de espera
+     * si subio el cupo) y MassNotifier (el mail a los confirmados, en segundo plano, despues del commit y de a
+     * tandas). Asi EventService no depende de RegistrationService, que si depende de este.
      */
     @Transactional(rollbackFor = Exception.class)
     EventUpdateOutcome update(long eventId, EventDTO dto);
 
     /**
-     * Cancela (soft-delete) un evento existente y avisa a sus inscriptos (con un {@link EventCancelledEvent}, ver
-     * update()). Que quien lo cancela sea el creador NO se valida aca: lo decide
+     * Cancela (soft-delete) un evento existente y avisa a sus inscriptos (con un {@link EventCancelledEvent}: la
+     * bandeja dentro de esta transaccion y los mails en segundo plano despues del commit, ver update()). Que quien lo cancela sea el creador NO se valida aca: lo decide
      * @PreAuthorize en el controller (ver EventSecurity.isOwner).
      *
      * @throws EventNotFoundException si el evento no existe.
@@ -153,7 +154,9 @@ public interface EventService {
 
     /**
      * Un admin revisa y aprueba un evento recien creado (ver EventApprovalStatus):
-     * recien ahi se vuelve visible publicamente. Avisa al creador.
+     * recien ahi se vuelve visible publicamente. Avisa al creador y, con un {@link EventApprovedEvent}, a quienes
+     * siguen al organizador (la bandeja dentro de esta transaccion; los mails en segundo plano, despues del commit
+     * y de a tandas, ver MassNotifier).
      * Que un admin no pueda aprobar/rechazar su propio evento (conflicto de intereses) NO se valida
      * aca: lo decide @PreAuthorize en AdminController (ver AdminSecurity.canModerateEvent).
      */

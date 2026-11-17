@@ -37,7 +37,7 @@ public class EventReminderServiceImplTest {
     @Mock
     private EventService eventService;
     @Mock
-    private RegistrationService registrationService;
+    private MassNotifier massNotifier;
     @Mock
     private NotificationService notificationService;
     @Mock
@@ -47,7 +47,7 @@ public class EventReminderServiceImplTest {
 
     @Before
     public void setUp() {
-        reminderService = new EventReminderServiceImpl(eventService, registrationService, notificationService, inboxService);
+        reminderService = new EventReminderServiceImpl(eventService, massNotifier, notificationService, inboxService);
     }
 
     private static Event eventInHours(final long id, final long hours) {

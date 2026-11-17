@@ -12,6 +12,7 @@ import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import ar.edu.itba.paw.model.exception.UserNotFoundException;
 import ar.edu.itba.paw.persistence.RegistrationDao;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,13 +38,16 @@ public class RegistrationServiceImpl implements RegistrationService {
     private final InboxService inboxService;
     private final ReviewService reviewService;
     private final UserService userService;
+    // Para anunciar que muchas inscripciones cambiaron de estado de golpe (ver RegistrationsMovedEvent): los mails a
+    // esas personas los manda MassNotifier, en segundo plano y despues del commit.
+    private final ApplicationEventPublisher eventPublisher;
 
     @Autowired
     public RegistrationServiceImpl(final RegistrationDao registrationDao, final EventService eventService,
                                    final NotificationService notificationService,
                                    final EventInvitationService invitationService,
                                    final InboxService inboxService, final ReviewService reviewService,
-                                   final UserService userService) {
+                                   final UserService userService, final ApplicationEventPublisher eventPublisher) {
         this.registrationDao = registrationDao;
         this.eventService = eventService;
         this.notificationService = notificationService;
@@ -51,6 +55,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         this.inboxService = inboxService;
         this.reviewService = reviewService;
         this.userService = userService;
+        this.eventPublisher = eventPublisher;
     }
 
     @Override
@@ -424,8 +429,14 @@ public class RegistrationServiceImpl implements RegistrationService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<Registration> findConfirmedByEventId(final long eventId) {
-        return registrationDao.findConfirmedByEventId(eventId);
+    public List<Registration> findConfirmedByEventIdAfter(final long eventId, final long afterId, final int limit) {
+        return registrationDao.findConfirmedByEventIdAfter(eventId, afterId, limit);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Registration> findByIds(final List<Long> ids) {
+        return registrationDao.findByIds(ids);
     }
 
     @Override
@@ -441,12 +452,6 @@ public class RegistrationServiceImpl implements RegistrationService {
     @Transactional(readOnly = true)
     public Optional<EventRegistrants> findRegistrants(final long eventId, final int page) {
         return eventService.findById(eventId).map(event -> new EventRegistrants(event, findPageByEventId(eventId, page)));
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<Registration> findPendingByEvent(final long eventId) {
-        return registrationDao.findPendingByEvent(eventId);
     }
 
     @Override
@@ -532,21 +537,19 @@ public class RegistrationServiceImpl implements RegistrationService {
     }
 
     private void moveRemainingPendingToWaitlist(final Event event) {
-        final List<Registration> moved = registrationDao.findPendingByEvent(event.getId());
+        // Solo los ids (no se carga ninguna inscripcion): es lo minimo para saber a quienes les cambia el estado.
+        final List<Long> moved = registrationDao.findPendingIdsByEvent(event.getId());
         if (moved.isEmpty()) {
             return;
         }
         // Pueden ser muchos (todos los pendientes del evento, que esta bloqueado mientras tanto): nada de un UPDATE,
-        // un aviso ni un mail por vuelta. El estado, una sola sentencia; la bandeja, una sola sentencia con los ids
-        // exactos de los que acaban de pasar (no por estado: agarraria tambien a los que ya estaban en espera); los
-        // mails, todos en una sola tarea (en otro hilo, despues del commit).
+        // un aviso ni un mail por vuelta. Aca, dentro de la transaccion: el estado, una sola sentencia; la bandeja, una
+        // sola sentencia con los ids exactos de los que acaban de pasar (no por estado: agarraria tambien a los que ya
+        // estaban en espera). Los mails NO: se anuncia el cambio (con los ids) y MassNotifier los manda en segundo
+        // plano, despues del commit, cargando a esas personas de a tandas.
         registrationDao.updateStatusOfAll(moved, RegistrationStatus.WAITLISTED);
-        inboxService.addForRegistrations(InboxMessageType.REGISTERED_WAITLISTED, idsOf(moved));
-        notificationService.notifyWaitlistJoined(event, moved);
-    }
-
-    private static List<Long> idsOf(final List<Registration> registrations) {
-        return registrations.stream().map(Registration::getId).collect(Collectors.toList());
+        inboxService.addForRegistrations(InboxMessageType.REGISTERED_WAITLISTED, moved);
+        eventPublisher.publishEvent(new RegistrationsMovedEvent(event.getId(), moved, RegistrationStatus.WAITLISTED));
     }
 
     @Override
@@ -639,27 +642,27 @@ public class RegistrationServiceImpl implements RegistrationService {
         if (free == 0) {
             return 0;
         }
-        final List<Registration> next = registrationDao.findNextWaitlisted(eventId, (int) free);
-        if (next.isEmpty()) {
+        // Solo los ids (no se carga ninguna inscripcion): es lo minimo para saber a quienes les cambia el estado.
+        final List<Long> ids = registrationDao.findNextWaitlistedIds(eventId, (int) free);
+        if (ids.isEmpty()) {
             return 0;
         }
         // Todos juntos y no uno por vuelta: el evento esta bloqueado (FOR UPDATE) hasta el commit y, con el cupo
-        // sacado, entra toda la lista de espera. El estado, una sola sentencia; la bandeja, dos (la de cada persona y la
-        // del organizador, con el nombre de esa persona), con los ids exactos; los mails, una tarea por tipo.
-        final List<Long> ids = idsOf(next);
+        // sacado, entra toda la lista de espera. Aca, dentro de la transaccion: el estado, una sola sentencia; la
+        // bandeja, dos (la de cada persona y la del organizador, con el nombre de esa persona), con los ids exactos.
+        // Los mails NO: se anuncia el cambio (con los ids) y MassNotifier los manda en segundo plano, despues del
+        // commit, cargando a esas personas de a tandas.
+        final RegistrationStatus newStatus = toPending ? RegistrationStatus.PENDING : RegistrationStatus.CONFIRMED;
+        registrationDao.updateStatusOfAll(ids, newStatus);
         if (toPending) {
-            registrationDao.updateStatusOfAll(next, RegistrationStatus.PENDING);
-            notificationService.notifyRegistrationPending(event, next);
-            notificationService.notifyNewPendingRegistration(event, next);
             inboxService.addForRegistrations(InboxMessageType.REGISTERED_PENDING, ids);
             inboxService.addForOrganizerOfRegistrations(InboxMessageType.NEW_PENDING, ids);
         } else {
-            registrationDao.updateStatusOfAll(next, RegistrationStatus.CONFIRMED);
-            notificationService.notifyWaitlistPromoted(event, next);
             inboxService.addForRegistrations(InboxMessageType.WAITLIST_PROMOTED, ids);
             inboxService.addForOrganizerOfRegistrations(InboxMessageType.NEW_REGISTRATION, ids);
         }
-        return next.size();
+        eventPublisher.publishEvent(new RegistrationsMovedEvent(eventId, ids, newStatus));
+        return ids.size();
     }
 
     // Busca una inscripcion pendiente. Optional.empty() cubre los dos motivos de "no" (no existe, o no

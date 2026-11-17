@@ -39,8 +39,8 @@ public class FollowServiceImpl implements FollowService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<FollowerContact> findFollowers(final long followedId) {
-        return followDao.findFollowers(followedId);
+    public List<FollowerContact> findFollowersAfter(final long followedId, final long afterId, final int limit) {
+        return followDao.findFollowersAfter(followedId, afterId, limit);
     }
 
     @Override

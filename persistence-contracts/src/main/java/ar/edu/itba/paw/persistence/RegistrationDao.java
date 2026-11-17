@@ -23,22 +23,28 @@ public interface RegistrationDao {
 
     Optional<RegistrationAccess> findAccessByEventAndUserId(long eventId, long userId);
 
-    /** Los proximos de la lista de espera de este evento, del que llego primero al ultimo. */
-    List<Registration> findNextWaitlisted(long eventId, int limit);
+    // Los ids (solo los ids: una columna, sin cargar las inscripciones) de los proximos de la lista de espera de
+    // este evento, del que llego primero al ultimo, hasta "limit". Es lo minimo para decidir a quien le cambia el
+    // estado (ver RegistrationServiceImpl.promoteFromWaitlist); a quien avisarle y como se busca despues, de a
+    // tandas y en segundo plano (ver findByIds y MassNotifier).
+    List<Long> findNextWaitlistedIds(long eventId, int limit);
 
     /** Cambia el estado: PENDING a CONFIRMED/REJECTED/WAITLISTED, WAITLISTED a CONFIRMED,
      *  CONFIRMED a REJECTED (el creador revoca). */
     boolean updateStatus(long id, RegistrationStatus status);
 
     /**
-     * Le pone ese estado a todas esas inscripciones en UNA sola sentencia (UPDATE ... WHERE id IN), en vez de un
+     * Le pone ese estado a las inscripciones de esos ids en UNA sola sentencia (UPDATE ... WHERE id IN), en vez de un
      * UPDATE por inscripcion al hacer commit (dirty checking de updateStatus(id, ...)). Para los procesos que mueven
      * a muchas de golpe (promover la lista de espera, pasar los pendientes a lista de espera) mientras el evento
-     * esta bloqueado. Como un UPDATE masivo no actualiza las entidades ya cargadas, las de la lista se sueltan del
-     * EntityManager y se les pone el estado nuevo en memoria: nada las reescribe despues con el estado viejo.
-     * La lista no puede estar vacia. Devuelve cuantas filas cambio.
+     * esta bloqueado. Recibe ids y no entidades: quien llama no necesita cargarlas. La lista no puede estar vacia.
+     * Devuelve cuantas filas cambio.
      */
-    int updateStatusOfAll(java.util.Collection<Registration> registrations, RegistrationStatus status);
+    int updateStatusOfAll(Collection<Long> registrationIds, RegistrationStatus status);
+
+    // Las inscripciones de esos ids, ordenadas por id. Para los avisos masivos en segundo plano (ver MassNotifier):
+    // reciben la lista de ids que cambiaron de estado y las cargan de a una tanda por vez, nunca todas juntas.
+    List<Registration> findByIds(Collection<Long> ids);
 
     // "Mis inscripciones", de a una pagina (page empieza en 1), en dos listas separadas por la fecha del
     // evento respecto de "now": las de eventos que todavia no pasaron (fecha >= now, la mas proxima
@@ -55,11 +61,11 @@ public interface RegistrationDao {
     /** Para el badge de "Mis inscripciones" (ver ProfileController): sin traer las filas. */
     long countByUserId(long userId);
 
-    // Los que tienen el lugar confirmado (RegistrationStatus.withConfirmedPlace()) en un evento, en orden de
-    // llegada: a quienes se les manda el mail de "cambio el evento", "se cancelo" y el recordatorio de 24 hs. El
-    // filtro va en el WHERE (no se traen todas para descartar en memoria). Sin paginar: el aviso sale para todos
-    // en la misma pasada.
-    List<Registration> findConfirmedByEventId(long eventId);
+    // Una tanda de los que tienen el lugar confirmado (RegistrationStatus.withConfirmedPlace()) en un evento: los
+    // de id mayor a "afterId", de menor a mayor id, hasta "limit". A quienes se les manda el mail de "cambio el
+    // evento", "se cancelo" y el recordatorio de 24 hs. Se recorre de a tandas (la siguiente arranca despues del
+    // ultimo id de la anterior), en segundo plano y despues del commit (ver MassNotifier): nunca todas de golpe.
+    List<Registration> findConfirmedByEventIdAfter(long eventId, long afterId, int limit);
 
     // "Ver inscriptos" del organizador, de a una pagina (un evento sin tope de cupos puede tener muchisimas):
     // todos los de un evento en orden de llegada (mas antiguos primero; el id desempata), paginas desde 1, y
@@ -80,13 +86,14 @@ public interface RegistrationDao {
     // (GROUP BY event_id). Un evento sin ninguna no aparece en el mapa.
     Map<Long, Long> countByEventsAndStatus(Collection<Long> eventIds, RegistrationStatus status);
 
-    // Pantalla de "aceptar o rechazar inscriptos": las pendientes de este evento,
-    // de la mas vieja a la mas nueva (a quien espera hace mas tiempo se lo atiende primero).
-    List<Registration> findPendingByEvent(long eventId);
+    // Los ids (solo los ids, sin cargar las inscripciones) de las pendientes de este evento, de la mas vieja a la
+    // mas nueva. Es lo minimo para pasarlas a lista de espera cuando el evento se llena (ver
+    // RegistrationServiceImpl.moveRemainingPendingToWaitlist); el aviso a esas personas se arma despues, de a
+    // tandas y en segundo plano (ver findByIds y MassNotifier).
+    List<Long> findPendingIdsByEvent(long eventId);
 
-    // Lo mismo de a una pagina (un evento con aprobacion y sin tope de cupos puede juntar muchisimos pedidos):
-    // paginas desde 1, mismo orden (el id desempata) y countPending() da el total para el paginador.
-    // findPendingByEvent() de arriba queda para quien necesita recorrerlas todas (ver
-    // RegistrationServiceImpl.moveRemainingPendingToWaitlist).
+    // Pantalla de "aceptar o rechazar inscriptos": las pendientes de este evento de a una pagina, de la mas vieja a
+    // la mas nueva (a quien espera hace mas tiempo se lo atiende primero; el id desempata). Paginas desde 1 y
+    // countPending() da el total para el paginador.
     List<Registration> findPendingByEvent(long eventId, int page, int pageSize);
 }

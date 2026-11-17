@@ -145,12 +145,16 @@ public class RegistrationJpaDao implements RegistrationDao {
     }
 
     @Override
-    public List<Registration> findConfirmedByEventId(final long eventId) {
+    public List<Registration> findConfirmedByEventIdAfter(final long eventId, final long afterId, final int limit) {
+        // Paginacion por "despues de este id" (no OFFSET): cada tanda arranca donde termino la anterior, asi recorrer
+        // todas cuesta lo mismo en la primera tanda que en la ultima.
         return em.createQuery(
                         "FROM Registration r WHERE r.event.id = :eventId AND r.status IN :statuses "
-                                + "ORDER BY r.registeredAt ASC, r.id ASC", Registration.class)
+                                + "AND r.id > :afterId ORDER BY r.id ASC", Registration.class)
                 .setParameter("eventId", eventId)
                 .setParameter("statuses", RegistrationStatus.withConfirmedPlace())
+                .setParameter("afterId", afterId)
+                .setMaxResults(limit)
                 .getResultList();
     }
 
@@ -175,11 +179,11 @@ public class RegistrationJpaDao implements RegistrationDao {
     }
 
     @Override
-    public List<Registration> findNextWaitlisted(final long eventId, final int limit) {
-        // El orden sale de registeredAt: el que llego primero a la lista.
+    public List<Long> findNextWaitlistedIds(final long eventId, final int limit) {
+        // El orden sale de registeredAt: el que llego primero a la lista. Solo el id: no se carga ninguna inscripcion.
         return em.createQuery(
-                        "FROM Registration r WHERE r.event.id = :eventId AND r.status = :status "
-                                + "ORDER BY r.registeredAt, r.id", Registration.class)
+                        "SELECT r.id FROM Registration r WHERE r.event.id = :eventId AND r.status = :status "
+                                + "ORDER BY r.registeredAt, r.id", Long.class)
                 .setParameter("eventId", eventId)
                 .setParameter("status", RegistrationStatus.WAITLISTED)
                 .setMaxResults(limit)
@@ -198,19 +202,22 @@ public class RegistrationJpaDao implements RegistrationDao {
     }
 
     @Override
-    public int updateStatusOfAll(final java.util.Collection<Registration> registrations, final RegistrationStatus status) {
-        // Bulk JPQL a proposito (no em.find + setter por cada una): una sola sentencia para todas. No actualiza las
-        // entidades ya cargadas, asi que se sueltan y se les pone el estado en memoria (ver RegistrationDao).
-        final List<Long> ids = registrations.stream().map(Registration::getId).collect(java.util.stream.Collectors.toList());
-        final int updated = em.createQuery("UPDATE Registration r SET r.status = :status WHERE r.id IN :ids")
+    public int updateStatusOfAll(final Collection<Long> registrationIds, final RegistrationStatus status) {
+        // Bulk JPQL a proposito (no em.find + setter por cada una): una sola sentencia para todas, sin cargarlas.
+        return em.createQuery("UPDATE Registration r SET r.status = :status WHERE r.id IN :ids")
                 .setParameter("status", status)
-                .setParameter("ids", ids)
+                .setParameter("ids", registrationIds)
                 .executeUpdate();
-        for (final Registration registration : registrations) {
-            em.detach(registration);
-            registration.setStatus(status);
+    }
+
+    @Override
+    public List<Registration> findByIds(final Collection<Long> ids) {
+        if (ids.isEmpty()) {
+            return Collections.emptyList();
         }
-        return updated;
+        return em.createQuery("FROM Registration r WHERE r.id IN :ids ORDER BY r.id ASC", Registration.class)
+                .setParameter("ids", ids)
+                .getResultList();
     }
 
     @Override
@@ -237,10 +244,11 @@ public class RegistrationJpaDao implements RegistrationDao {
     }
 
     @Override
-    public List<Registration> findPendingByEvent(final long eventId) {
+    public List<Long> findPendingIdsByEvent(final long eventId) {
+        // Solo el id: no se carga ninguna inscripcion (ver RegistrationDao).
         return em.createQuery(
-                        "FROM Registration r WHERE r.event.id = :eventId AND r.status = :status "
-                                + "ORDER BY r.registeredAt", Registration.class)
+                        "SELECT r.id FROM Registration r WHERE r.event.id = :eventId AND r.status = :status "
+                                + "ORDER BY r.registeredAt, r.id", Long.class)
                 .setParameter("eventId", eventId)
                 .setParameter("status", RegistrationStatus.PENDING)
                 .getResultList();

@@ -127,12 +127,19 @@ public interface RegistrationService {
     Map<Long, RegistrationStatus> findStatusesByEventIds(long userId, Collection<Long> eventIds);
 
     /**
-     * Los que tienen el lugar confirmado en un evento, en orden de llegada: a quienes se les manda el mail
-     * cuando el evento cambia, se cancela o es al dia siguiente. El filtro lo hace la base. Solo lo usan otros
-     * services (no se muestra en ninguna pantalla).
+     * Una tanda de los que tienen el lugar confirmado en un evento: los de id mayor a afterId, de menor a mayor
+     * id, hasta limit. A quienes se les manda el mail cuando el evento cambia, se cancela o es al dia siguiente.
+     * La recorre MassNotifier en segundo plano y despues del commit, de a una tanda por vez (nunca todas juntas).
      */
     @Transactional(readOnly = true)
-    List<Registration> findConfirmedByEventId(long eventId);
+    List<Registration> findConfirmedByEventIdAfter(long eventId, long afterId, int limit);
+
+    /**
+     * Las inscripciones de esos ids, ordenadas por id. Para los avisos masivos en segundo plano (MassNotifier):
+     * cargan de a una tanda de ids por vez las inscripciones que cambiaron de estado.
+     */
+    @Transactional(readOnly = true)
+    List<Registration> findByIds(List<Long> ids);
 
     /**
      * Lo mismo que findByEventId pero de a una pagina, para las pantallas "Ver inscriptos" del
@@ -151,19 +158,11 @@ public interface RegistrationService {
     Optional<EventRegistrants> findRegistrants(long eventId, int page);
 
     /**
-     * Pantalla de "aceptar o rechazar inscriptos" del creador: las pendientes
-     * de este evento, de la que espera hace mas tiempo a la mas reciente.
-     * Que quien lo pide sea el creador NO se valida aca: lo decide @PreAuthorize en el
-     * controller (ver EventSecurity.isOwner).
-     */
-    @Transactional(readOnly = true)
-    List<Registration> findPendingByEvent(long eventId);
-
-    /**
-     * La pantalla de aceptar o rechazar inscriptos: UNA pagina de las pendientes (en el orden de
-     * findPendingByEvent()), el total de pendientes, los lugares libres y si el evento ya esta lleno, en una
-     * sola llamada. Una pagina mayor a la ultima devuelve la ultima, una menor a 1 la primera; sin pendientes,
-     * la pagina 1 vacia. Mismo OJO que findPendingByEvent(): quien llama verifica antes quien pregunta.
+     * La pantalla de aceptar o rechazar inscriptos: UNA pagina de las pendientes (de la que espera hace mas tiempo
+     * a la mas reciente), el total de pendientes, los lugares libres y si el evento ya esta lleno, en una sola
+     * llamada. Una pagina mayor a la ultima devuelve la ultima, una menor a 1 la primera; sin pendientes, la
+     * pagina 1 vacia. Que quien lo pide sea el creador NO se valida aca: lo decide @PreAuthorize en el controller
+     * (ver EventSecurity.isOwner).
      */
     @Transactional(readOnly = true)
     PendingRegistrations findPendingSummary(long eventId, int page);

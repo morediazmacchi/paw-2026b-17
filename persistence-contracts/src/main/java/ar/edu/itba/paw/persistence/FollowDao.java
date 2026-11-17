@@ -13,11 +13,11 @@ public interface FollowDao {
     boolean unfollowOrganizerOf(long followerId, long eventId);
     boolean isFollowing(long followerId, long followedId);
 
-    // Quienes siguen a este usuario, para mandarles el mail cuando publica un evento nuevo (ver
-    // EventServiceImpl.approve(); el aviso de la bandeja sale aparte, con InboxMessageDao.createForFollowersOfCreator).
-    // Solo mail, nombre e idioma (proyeccion): no carga las cuentas enteras. Sin paginar a proposito: el mail
-    // tiene que salir para todos en la misma pasada, no de a paginas.
-    List<FollowerContact> findFollowers(long followedId);
+    // Una tanda de quienes siguen a este usuario, para mandarles el mail cuando publica un evento nuevo (ver
+    // MassNotifier; el aviso de la bandeja sale aparte, con InboxMessageDao.createForFollowersOfCreator): los de id
+    // mayor a "afterId", de menor a mayor id, hasta "limit". Se recorre de a tandas, en segundo plano y despues del
+    // commit, nunca todos de golpe. Solo mail, nombre e idioma (proyeccion): no carga las cuentas enteras.
+    List<FollowerContact> findFollowersAfter(long followedId, long afterId, int limit);
 
     // Cuantos lo siguen (el contador de "Mi perfil"): un COUNT, sin traer las filas.
     long countFollowers(long followedId);

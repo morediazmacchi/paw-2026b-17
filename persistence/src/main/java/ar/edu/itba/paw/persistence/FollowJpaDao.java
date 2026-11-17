@@ -66,13 +66,16 @@ public class FollowJpaDao implements FollowDao {
     }
 
     @Override
-    public List<FollowerContact> findFollowers(final long followedId) {
-        // Proyeccion (SELECT NEW): solo las cuatro columnas que usa el mail, no la cuenta entera.
+    public List<FollowerContact> findFollowersAfter(final long followedId, final long afterId, final int limit) {
+        // Proyeccion (SELECT NEW): solo las cuatro columnas que usa el mail, no la cuenta entera. Paginacion por
+        // "despues de este id" (no OFFSET): cada tanda arranca donde termino la anterior.
         return em.createQuery(
                         "SELECT NEW ar.edu.itba.paw.model.FollowerContact(u.id, u.email, u.name, u.locale) "
                                 + "FROM Follow f JOIN f.follower u WHERE f.followed.id = :followedId "
-                                + "ORDER BY u.id", FollowerContact.class)
+                                + "AND u.id > :afterId ORDER BY u.id", FollowerContact.class)
                 .setParameter("followedId", followedId)
+                .setParameter("afterId", afterId)
+                .setMaxResults(limit)
                 .getResultList();
     }
 

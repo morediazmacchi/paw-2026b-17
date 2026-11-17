@@ -16,6 +16,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -77,6 +78,9 @@ public class RegistrationServiceImplTest {
     // El nombre y el mail de quien se anota salen de su cuenta (la sesion solo lleva el id).
     @Mock
     private UserService userService;
+    // Los anuncios de cambios masivos de estado (RegistrationsMovedEvent) los escucha MassNotifier: aca no escucha nadie.
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     private RegistrationServiceImpl registrationService;
 
@@ -84,7 +88,7 @@ public class RegistrationServiceImplTest {
     public void setUp() {
         registrationService = new RegistrationServiceImpl(
                 mockRegistrationDao, eventService, notificationService, invitationService, inboxService, reviewService,
-                userService);
+                userService, eventPublisher);
         lenient().when(userService.findById(USER_ID)).thenReturn(Optional.of(someUser()));
     }
 
@@ -1070,22 +1074,6 @@ public class RegistrationServiceImplTest {
         assertFalse(result.isPresent());
     }
 
-    // ---- findPendingByEvent() ----
-
-    @Test
-    public void testFindPendingByEventDelegatesToTheDao() {
-        // Arrange
-        final List<Registration> pending = Collections.singletonList(
-                new Registration(ModelFixtures.event(EVENT_ID), null, NORMALIZED_EMAIL, NAME, RegistrationStatus.PENDING));
-        when(mockRegistrationDao.findPendingByEvent(EVENT_ID)).thenReturn(pending);
-
-        // Act
-        final List<Registration> result = registrationService.findPendingByEvent(EVENT_ID);
-
-        // Assert
-        assertEquals(pending, result);
-    }
-
     // Una inscripcion pasada con ese estado a un evento (cancelado o no), y la reseña (o no) del usuario.
     private RegistrationEntry pastEntry(final RegistrationStatus status, final boolean cancelled, final Review review) {
         final Event event = pastEvent(PAST_EVENT_ID);
@@ -1500,8 +1488,7 @@ public class RegistrationServiceImplTest {
         when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(2)));
         // Antes de aceptar quedaba 1 lugar (1 confirmado); despues, 2 de 2.
         when(eventService.occupiedSpots(EVENT_ID)).thenReturn(1L, 2L);
-        final Registration other = pendingRegistration(6, "otro@mail.com");
-        when(mockRegistrationDao.findPendingByEvent(EVENT_ID)).thenReturn(Collections.singletonList(other));
+        when(mockRegistrationDao.findPendingIdsByEvent(EVENT_ID)).thenReturn(Collections.singletonList(6L));
 
         when(mockRegistrationDao.updateStatus(5, RegistrationStatus.CONFIRMED)).thenReturn(true);
         // Act
@@ -1521,8 +1508,7 @@ public class RegistrationServiceImplTest {
         when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(5)));
         when(eventService.occupiedSpots(EVENT_ID)).thenReturn(1L, 2L);
         // Hay otro pedido pendiente: como todavia hay lugar, no debe pasar a la lista de espera.
-        lenient().when(mockRegistrationDao.findPendingByEvent(EVENT_ID))
-                .thenReturn(Collections.singletonList(pendingRegistration(6, "otro@mail.com")));
+        lenient().when(mockRegistrationDao.findPendingIdsByEvent(EVENT_ID)).thenReturn(Collections.singletonList(6L));
 
         when(mockRegistrationDao.updateStatus(5, RegistrationStatus.CONFIRMED)).thenReturn(true);
         // Act
@@ -1689,11 +1675,8 @@ public class RegistrationServiceImplTest {
         // Arrange
         when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(5)));
         when(eventService.occupiedSpots(EVENT_ID)).thenReturn(3L);
-        final Registration first = new Registration(ModelFixtures.event(EVENT_ID), null, "a@mail.com", "A", RegistrationStatus.WAITLISTED);
-        first.setId(1L);
-        final Registration second = new Registration(ModelFixtures.event(EVENT_ID), null, "b@mail.com", "B", RegistrationStatus.WAITLISTED);
-        second.setId(2L);
-        when(mockRegistrationDao.findNextWaitlisted(EVENT_ID, 2)).thenReturn(Arrays.asList(first, second));
+        // Los 2 primeros de la lista de espera (solo sus ids: no se cargan las inscripciones).
+        when(mockRegistrationDao.findNextWaitlistedIds(EVENT_ID, 2)).thenReturn(Arrays.asList(1L, 2L));
 
         // Act
         final int promoted = registrationService.promoteFromWaitlist(EVENT_ID);
@@ -1712,9 +1695,7 @@ public class RegistrationServiceImplTest {
         when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(5)));
         when(eventService.occupiedSpots(EVENT_ID)).thenReturn(4L);
         when(mockRegistrationDao.countPending(EVENT_ID)).thenReturn(0L);
-        final Registration waiting = new Registration(ModelFixtures.event(EVENT_ID), null, "espera@mail.com", "Beto", RegistrationStatus.WAITLISTED);
-        waiting.setId(8L);
-        when(mockRegistrationDao.findNextWaitlisted(EVENT_ID, 1)).thenReturn(Collections.singletonList(waiting));
+        when(mockRegistrationDao.findNextWaitlistedIds(EVENT_ID, 1)).thenReturn(Collections.singletonList(8L));
 
         // Act
         final int promoted = registrationService.promoteFromWaitlist(EVENT_ID);
@@ -1732,9 +1713,8 @@ public class RegistrationServiceImplTest {
         when(eventService.occupiedSpots(EVENT_ID)).thenReturn(4L);
         when(mockRegistrationDao.countPending(EVENT_ID)).thenReturn(1L);
         // Hay alguien esperando: si el service ignorara el pendiente, lo promoveria.
-        lenient().when(mockRegistrationDao.findNextWaitlisted(anyLong(), anyInt()))
-                .thenReturn(Collections.singletonList(
-                        new Registration(ModelFixtures.event(EVENT_ID), null, "espera@mail.com", "Beto", RegistrationStatus.WAITLISTED)));
+        lenient().when(mockRegistrationDao.findNextWaitlistedIds(anyLong(), anyInt()))
+                .thenReturn(Collections.singletonList(8L));
 
         // Act
         final int promoted = registrationService.promoteFromWaitlist(EVENT_ID);
@@ -1749,9 +1729,8 @@ public class RegistrationServiceImplTest {
         when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(5)));
         when(eventService.occupiedSpots(EVENT_ID)).thenReturn(5L);
         // Hay alguien esperando: si el service ignorara las invitaciones, lo promoveria.
-        lenient().when(mockRegistrationDao.findNextWaitlisted(anyLong(), anyInt()))
-                .thenReturn(Collections.singletonList(
-                        new Registration(ModelFixtures.event(EVENT_ID), null, "espera@mail.com", "Beto", RegistrationStatus.WAITLISTED)));
+        lenient().when(mockRegistrationDao.findNextWaitlistedIds(anyLong(), anyInt()))
+                .thenReturn(Collections.singletonList(8L));
 
         // Act
         final int promoted = registrationService.promoteFromWaitlist(EVENT_ID);
@@ -1792,10 +1771,8 @@ public class RegistrationServiceImplTest {
     public void testPromoteConfirmsTheWholeWaitlistWhenTheEventBecomesUnlimited() {
         // Arrange
         when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(null)));
-        final Registration only = new Registration(ModelFixtures.event(EVENT_ID), null, "a@mail.com", "A", RegistrationStatus.WAITLISTED);
-        only.setId(1L);
-        when(mockRegistrationDao.findNextWaitlisted(EVENT_ID, Integer.MAX_VALUE))
-                .thenReturn(Collections.singletonList(only));
+        when(mockRegistrationDao.findNextWaitlistedIds(EVENT_ID, Integer.MAX_VALUE))
+                .thenReturn(Collections.singletonList(1L));
 
         // Act
         final int promoted = registrationService.promoteFromWaitlist(EVENT_ID);

@@ -48,9 +48,10 @@ public class EventServiceImpl implements EventService {
     private final InboxService inboxService;
     private final ImageService imageService;
     private final EventSimilarityService eventSimilarityService;
-    private final FollowService followService;
-    // Para anunciar que un evento cambio o se dio de baja (ver EventUpdatedEvent / EventCancelledEvent): los
-    // inscriptos los avisa RegistrantsEventListener, asi este service no depende de RegistrationService.
+    // Para anunciar que un evento cambio, se dio de baja o se aprobo (ver EventUpdatedEvent, EventCancelledEvent y
+    // EventApprovedEvent): reaccionan RegistrantsEventListener (dentro de esta transaccion: bandeja y lista de
+    // espera) y MassNotifier (los mails masivos, en segundo plano y despues del commit). Asi este service no depende
+    // de RegistrationService ni de quien busca a los destinatarios.
     private final ApplicationEventPublisher eventPublisher;
 
     @Autowired
@@ -59,7 +60,6 @@ public class EventServiceImpl implements EventService {
                             final NotificationService notificationService,
                             final InboxService inboxService, final ImageService imageService,
                             final EventSimilarityService eventSimilarityService,
-                            final FollowService followService,
                             final ApplicationEventPublisher eventPublisher) {
         this.eventDao = eventDao;
         this.userService = userService;
@@ -68,7 +68,6 @@ public class EventServiceImpl implements EventService {
         this.inboxService = inboxService;
         this.imageService = imageService;
         this.eventSimilarityService = eventSimilarityService;
-        this.followService = followService;
         this.eventPublisher = eventPublisher;
     }
 
@@ -252,9 +251,10 @@ public class EventServiceImpl implements EventService {
         if (resubmitted) {
             eventDao.resubmitForReview(eventId);
         }
-        // A los inscriptos les avisa, y a la lista de espera la hace avanzar si subio el cupo, quien escucha este
-        // anuncio (RegistrantsEventListener), dentro de esta misma transaccion.
-        eventPublisher.publishEvent(new EventUpdatedEvent(changes));
+        // Quienes escuchan este anuncio: RegistrantsEventListener, dentro de esta misma transaccion (bandeja de los
+        // confirmados y hacer avanzar la lista de espera si subio el cupo), y MassNotifier, despues del commit y en
+        // segundo plano (el mail a los confirmados, de a tandas).
+        eventPublisher.publishEvent(new EventUpdatedEvent(eventId));
         return new EventUpdateOutcome(changes, resubmitted);
     }
 
@@ -271,7 +271,10 @@ public class EventServiceImpl implements EventService {
             return EventCancelResult.ALREADY_CANCELLED;
         }
         eventDao.cancel(eventId);
-        eventPublisher.publishEvent(new EventCancelledEvent(event));
+        // A los inscriptos les avisan quienes escuchan este anuncio: RegistrantsEventListener (la bandeja, dentro de
+        // esta transaccion) y MassNotifier (el mail a los confirmados, despues del commit, en segundo plano y de a
+        // tandas).
+        eventPublisher.publishEvent(new EventCancelledEvent(eventId));
         return EventCancelResult.CANCELLED;
     }
 
@@ -292,8 +295,9 @@ public class EventServiceImpl implements EventService {
         eventDao.removeByAdmin(eventId, reason);
         // Mismo aviso a quien estaba anotado que una cancelacion comun (para
         // ellos el efecto es el mismo: el evento ya no va). El creador, en
-        // cambio, recibe un aviso aparte y distinto: a el le interesa el motivo.
-        eventPublisher.publishEvent(new EventCancelledEvent(event));
+        // cambio, recibe un aviso aparte y distinto: a el le interesa el motivo. (Quien escucha el anuncio: ver
+        // cancel().)
+        eventPublisher.publishEvent(new EventCancelledEvent(eventId));
         notificationService.notifyEventRemovedByAdmin(event, reason);
         inboxService.add(event.getCreatorEmail(), InboxMessageType.EVENT_REMOVED_BY_ADMIN, eventId, null, reason);
         return EventCancelResult.CANCELLED;
@@ -325,10 +329,11 @@ public class EventServiceImpl implements EventService {
         if (organizerId == null) {
             return;
         }
-        final String organizerName = event.getCreator().getName();
-        // La bandeja, todos juntos en una sola sentencia; los mails, todos en UNA tarea (en otro hilo, despues del commit).
+        // La bandeja, todos juntos en una sola sentencia, dentro de esta transaccion. Los mails, en segundo plano y
+        // despues del commit: MassNotifier escucha el anuncio y busca a los seguidores de a tandas. El nombre del
+        // organizador se lee aca (con la sesion abierta) y viaja en el anuncio: el otro hilo no navega relaciones.
         inboxService.addForFollowersOfCreator(event.getId(), InboxMessageType.FOLLOWED_USER_NEW_EVENT);
-        notificationService.notifyFollowedUserNewEvent(followService.findFollowers(organizerId), event, organizerName);
+        eventPublisher.publishEvent(new EventApprovedEvent(event.getId(), organizerId, event.getCreator().getName()));
     }
 
     @Override

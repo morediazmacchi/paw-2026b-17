@@ -423,10 +423,10 @@ public class RegistrationJpaDaoTest {
         assertEquals(0, count);
     }
 
-    // ---- findConfirmedByEventId() (a quienes se les manda el mail de cambio, cancelacion y recordatorio) ----
+    // ---- findConfirmedByEventIdAfter() (a quienes se les manda el mail de cambio, cancelacion y recordatorio) ----
 
     @Test
-    public void testFindConfirmedByEventIdReturnsOnlyTheConfirmedOnes() {
+    public void testFindConfirmedByEventIdAfterReturnsOnlyTheConfirmedOnes() {
         // Arrange: una confirmada y una de cada estado sin lugar (no tienen que salir).
         final long confirmedId = insertRegistration(eventId, EMAIL, userId, NAME, RegistrationStatus.CONFIRMED);
         insertRegistration(eventId, "espera@mail.com", insertUser("espera@mail.com", "Espera"), "Espera",
@@ -437,7 +437,7 @@ public class RegistrationJpaDaoTest {
                 RegistrationStatus.REJECTED);
 
         // Act
-        final List<Registration> found = registrationDao.findConfirmedByEventId(eventId);
+        final List<Registration> found = registrationDao.findConfirmedByEventIdAfter(eventId, 0, 100);
 
         // Assert
         assertEquals(1, found.size());
@@ -445,7 +445,7 @@ public class RegistrationJpaDaoTest {
     }
 
     @Test
-    public void testFindConfirmedByEventIdDoesNotReturnRegistrationsOfOtherEvents() {
+    public void testFindConfirmedByEventIdAfterDoesNotReturnRegistrationsOfOtherEvents() {
         // Arrange
         final long otherEventId = insertEvent();
         insertRegistration(eventId, EMAIL, userId, NAME, RegistrationStatus.CONFIRMED);
@@ -453,36 +453,54 @@ public class RegistrationJpaDaoTest {
         insertRegistration(otherEventId, "otro@mail.com", otherUserId, "Otro", RegistrationStatus.CONFIRMED);
 
         // Act
-        final List<Registration> found = registrationDao.findConfirmedByEventId(eventId);
+        final List<Registration> found = registrationDao.findConfirmedByEventIdAfter(eventId, 0, 100);
 
         // Assert
         assertEquals(1, found.size());
         assertEquals(EMAIL, found.get(0).getEmail());
     }
 
+    // Tres confirmadas del evento, devuelve sus ids en el orden en que se insertaron (de menor a mayor id).
+    private List<Long> insertThreeConfirmed() {
+        final long first = insertRegistration(eventId, EMAIL, userId, NAME, RegistrationStatus.CONFIRMED);
+        final long second = insertRegistration(eventId, "dos@mail.com", insertUser("dos@mail.com", "Dos"), "Dos",
+                RegistrationStatus.CONFIRMED);
+        final long third = insertRegistration(eventId, "tres@mail.com", insertUser("tres@mail.com", "Tres"), "Tres",
+                RegistrationStatus.CONFIRMED);
+        return Arrays.asList(first, second, third);
+    }
+
     @Test
-    public void testFindConfirmedByEventIdReturnsThemInArrivalOrder() {
-        // Arrange: la segunda se inserta primero, pero se anoto despues.
-        final long otherUserId = insertUser("otro@mail.com", "Otro");
-        final long later = insertRegistrationAt(eventId, "otro@mail.com", otherUserId, "Otro",
-                RegistrationStatus.CONFIRMED, new Timestamp(System.currentTimeMillis() - 1000L));
-        final long earlier = insertRegistrationAt(eventId, EMAIL, userId, NAME,
-                RegistrationStatus.CONFIRMED, new Timestamp(System.currentTimeMillis() - 5000L));
+    public void testFindConfirmedByEventIdAfterReturnsAtMostTheLimitFromTheLowestId() {
+        // Arrange
+        final List<Long> ids = insertThreeConfirmed();
 
         // Act
-        final List<Registration> found = registrationDao.findConfirmedByEventId(eventId);
+        final List<Registration> found = registrationDao.findConfirmedByEventIdAfter(eventId, 0, 2);
 
-        // Assert
-        assertEquals(Arrays.asList(earlier, later),
+        // Assert: la primera tanda, de menor a mayor id.
+        assertEquals(ids.subList(0, 2), found.stream().map(Registration::getId).collect(Collectors.toList()));
+    }
+
+    @Test
+    public void testFindConfirmedByEventIdAfterStartsAfterTheGivenId() {
+        // Arrange
+        final List<Long> ids = insertThreeConfirmed();
+
+        // Act: la tanda siguiente a la que termino en el segundo.
+        final List<Registration> found = registrationDao.findConfirmedByEventIdAfter(eventId, ids.get(1), 2);
+
+        // Assert: solo queda el tercero.
+        assertEquals(Collections.singletonList(ids.get(2)),
                 found.stream().map(Registration::getId).collect(Collectors.toList()));
     }
 
     @Test
-    public void testFindConfirmedByEventIdReturnsEmptyWhenNobodyIsRegistered() {
+    public void testFindConfirmedByEventIdAfterReturnsEmptyWhenNobodyIsRegistered() {
         // Arrange: no se inserta ninguna inscripcion.
 
         // Act
-        final List<Registration> found = registrationDao.findConfirmedByEventId(eventId);
+        final List<Registration> found = registrationDao.findConfirmedByEventIdAfter(eventId, 0, 100);
 
         // Assert
         assertTrue(found.isEmpty());
@@ -674,38 +692,38 @@ public class RegistrationJpaDaoTest {
         assertTrue(counts.isEmpty());
     }
 
-    // ---- findPendingByEvent() ----
+    // ---- findPendingIdsByEvent() ----
 
     @Test
-    public void testFindPendingByEventReturnsEmptyWhenNobodyIsWaitingForReview() {
+    public void testFindPendingIdsByEventReturnsEmptyWhenNobodyIsWaitingForReview() {
         // Arrange: no se inserta ninguna inscripcion.
 
         // Act
-        final List<Registration> pending = registrationDao.findPendingByEvent(eventId);
+        final List<Long> pending = registrationDao.findPendingIdsByEvent(eventId);
 
         // Assert
         assertTrue(pending.isEmpty());
     }
 
     @Test
-    public void testFindPendingByEventReturnsOnlyPendingOrderedByOldestFirst() {
-        // Arrange
+    public void testFindPendingIdsByEventReturnsOnlyPendingOrderedByOldestFirst() {
+        // Arrange: la segunda se inserta primero, pero se anoto despues.
         final long firstUserId = insertUser("primero@mail.com", NAME);
         final long secondUserId = insertUser("segundo@mail.com", NAME);
         final long confirmedUserId = insertUser("confirmado@mail.com", NAME);
         final Timestamp antes = new Timestamp(System.currentTimeMillis() - 2000);
         final Timestamp despues = new Timestamp(System.currentTimeMillis() - 1000);
-        insertRegistrationAt(eventId, "primero@mail.com", firstUserId, NAME, RegistrationStatus.PENDING, antes);
-        insertRegistrationAt(eventId, "segundo@mail.com", secondUserId, NAME, RegistrationStatus.PENDING, despues);
+        final long second = insertRegistrationAt(eventId, "segundo@mail.com", secondUserId, NAME,
+                RegistrationStatus.PENDING, despues);
+        final long first = insertRegistrationAt(eventId, "primero@mail.com", firstUserId, NAME,
+                RegistrationStatus.PENDING, antes);
         insertRegistration(eventId, "confirmado@mail.com", confirmedUserId, NAME, RegistrationStatus.CONFIRMED);
 
         // Act
-        final List<Registration> pending = registrationDao.findPendingByEvent(eventId);
+        final List<Long> pending = registrationDao.findPendingIdsByEvent(eventId);
 
         // Assert
-        assertEquals(2, pending.size());
-        assertEquals("primero@mail.com", pending.get(0).getEmail());
-        assertEquals("segundo@mail.com", pending.get(1).getEmail());
+        assertEquals(Arrays.asList(first, second), pending);
     }
 
     // 3 pendientes con fechas distintas (uno, la mas antigua, dos y tres) y 1 confirmado, para paginar de a 2.
@@ -799,12 +817,6 @@ public class RegistrationJpaDaoTest {
 
     // ---- updateStatusOfAll() ----
 
-    private static Registration withId(final long id) {
-        final Registration registration = new Registration();
-        registration.setId(id);
-        return registration;
-    }
-
     @Test
     public void testUpdateStatusOfAllChangesTheStatusOfThoseRegistrationsAndReturnsHowManyChanged() {
         // Arrange: tres pendientes; se mueven dos.
@@ -815,8 +827,8 @@ public class RegistrationJpaDaoTest {
                 RegistrationStatus.PENDING);
 
         // Act
-        final int changed = registrationDao.updateStatusOfAll(
-                Arrays.asList(withId(first), withId(second)), RegistrationStatus.WAITLISTED);
+        final int changed = registrationDao.updateStatusOfAll(Arrays.asList(first, second),
+                RegistrationStatus.WAITLISTED);
 
         // Assert
         assertEquals(2, changed);
@@ -826,20 +838,38 @@ public class RegistrationJpaDaoTest {
                 "id = " + third + " AND status = 'PENDING'"));
     }
 
+    // ---- findByIds() ----
+
     @Test
-    public void testUpdateStatusOfAllLeavesTheNewStatusInTheGivenObjects() {
-        // Arrange
-        final long id = insertRegistration(eventId, EMAIL, userId, NAME, RegistrationStatus.WAITLISTED);
-        final Registration registration = withId(id);
+    public void testFindByIdsReturnsThoseRegistrationsOrderedById() {
+        // Arrange: tres inscripciones; se piden dos, en desorden.
+        final long first = insertRegistration(eventId, EMAIL, userId, NAME, RegistrationStatus.WAITLISTED);
+        insertRegistration(eventId, "dos@mail.com", insertUser("dos@mail.com", "Dos"), NAME,
+                RegistrationStatus.WAITLISTED);
+        final long third = insertRegistration(eventId, "tres@mail.com", insertUser("tres@mail.com", "Tres"), NAME,
+                RegistrationStatus.CONFIRMED);
 
         // Act
-        registrationDao.updateStatusOfAll(Collections.singletonList(registration), RegistrationStatus.CONFIRMED);
+        final List<Registration> found = registrationDao.findByIds(Arrays.asList(third, first));
 
         // Assert
-        assertEquals(RegistrationStatus.CONFIRMED, registration.getStatus());
+        assertEquals(Arrays.asList(first, third), found.stream().map(Registration::getId).collect(Collectors.toList()));
+        assertEquals(RegistrationStatus.CONFIRMED, found.get(1).getStatus());
     }
 
-    // ---- findNextWaitlisted() ----
+    @Test
+    public void testFindByIdsWithNoIdsIsEmpty() {
+        // Arrange
+        insertRegistration(eventId, EMAIL, userId, NAME, RegistrationStatus.CONFIRMED);
+
+        // Act
+        final List<Registration> found = registrationDao.findByIds(Collections.emptyList());
+
+        // Assert
+        assertTrue(found.isEmpty());
+    }
+
+    // ---- findNextWaitlistedIds() ----
 
     private long insertWaitlistedAt(final long eventId, final String email, final long millisAgo) {
         final long waiterId = insertUser(email, "Espera");
@@ -848,38 +878,35 @@ public class RegistrationJpaDaoTest {
     }
 
     @Test
-    public void testFindNextWaitlistedOrdersByWhoArrivedFirst() {
+    public void testFindNextWaitlistedIdsOrdersByWhoArrivedFirst() {
         // Arrange
         final long last = insertWaitlistedAt(eventId, "tercero@mail.com", 1000);
         final long first = insertWaitlistedAt(eventId, "primero@mail.com", 3000);
         final long second = insertWaitlistedAt(eventId, "segundo@mail.com", 2000);
 
         // Act
-        final List<Registration> found = registrationDao.findNextWaitlisted(eventId, 10);
+        final List<Long> found = registrationDao.findNextWaitlistedIds(eventId, 10);
 
         // Assert
-        assertEquals(first, found.get(0).getId().longValue());
-        assertEquals(second, found.get(1).getId().longValue());
-        assertEquals(last, found.get(2).getId().longValue());
+        assertEquals(Arrays.asList(first, second, last), found);
     }
 
     @Test
-    public void testFindNextWaitlistedReturnsAtMostTheLimit() {
+    public void testFindNextWaitlistedIdsReturnsAtMostTheLimit() {
         // Arrange
         final long first = insertWaitlistedAt(eventId, "primero@mail.com", 3000);
         insertWaitlistedAt(eventId, "segundo@mail.com", 2000);
         insertWaitlistedAt(eventId, "tercero@mail.com", 1000);
 
         // Act
-        final List<Registration> found = registrationDao.findNextWaitlisted(eventId, 1);
+        final List<Long> found = registrationDao.findNextWaitlistedIds(eventId, 1);
 
         // Assert
-        assertEquals(1, found.size());
-        assertEquals(first, found.get(0).getId().longValue());
+        assertEquals(Collections.singletonList(first), found);
     }
 
     @Test
-    public void testFindNextWaitlistedIgnoresOtherStatusesAndOtherEvents() {
+    public void testFindNextWaitlistedIdsIgnoresOtherStatusesAndOtherEvents() {
         // Arrange
         final long waiting = insertWaitlistedAt(eventId, "espera@mail.com", 1000);
         insertRegistration(eventId, EMAIL, userId, NAME, RegistrationStatus.CONFIRMED);
@@ -887,11 +914,10 @@ public class RegistrationJpaDaoTest {
         insertWaitlistedAt(otherEventId, "otro-evento@mail.com", 1000);
 
         // Act
-        final List<Registration> found = registrationDao.findNextWaitlisted(eventId, 10);
+        final List<Long> found = registrationDao.findNextWaitlistedIds(eventId, 10);
 
         // Assert
-        assertEquals(1, found.size());
-        assertEquals(waiting, found.get(0).getId().longValue());
+        assertEquals(Collections.singletonList(waiting), found);
     }
 
     @Test

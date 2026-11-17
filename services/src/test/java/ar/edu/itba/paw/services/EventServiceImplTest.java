@@ -79,9 +79,8 @@ public class EventServiceImplTest {
     private ImageService imageService;
     @Mock
     private EventSimilarityService eventSimilarityService;
-    @Mock
-    private FollowService followService;
-    // Los anuncios (EventUpdatedEvent / EventCancelledEvent) los escucha RegistrantsEventListener: aca no hay nadie que escuche.
+    // Los anuncios (EventUpdatedEvent / EventCancelledEvent / EventApprovedEvent) los escuchan RegistrantsEventListener y
+    // MassNotifier: aca no hay nadie que escuche.
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
@@ -90,7 +89,7 @@ public class EventServiceImplTest {
     @Before
     public void setUp() {
         eventService = new EventServiceImpl(eventDao, userService, categoryService, notificationService,
-                inboxService, imageService, eventSimilarityService, followService, eventPublisher);
+                inboxService, imageService, eventSimilarityService, eventPublisher);
         // El servicio busca las categorias elegidas entre las que existen: por defecto existe CATEGORY_ID.
         final List<Category> existingCategories = Collections.singletonList(ModelFixtures.category(CATEGORY_ID));
         lenient().when(categoryService.findAll()).thenReturn(existingCategories);

@@ -1,19 +1,18 @@
 package ar.edu.itba.paw.services;
 
-import ar.edu.itba.paw.model.Event;
-
 // Hecho de dominio: un evento se dio de baja (lo cancelo su organizador o lo saco un admin). Lo publica EventServiceImpl
-// DENTRO de su transaccion; a quienes estaban anotados les avisa quien lo escucha (ver RegistrantsEventListener).
-// Mismo criterio que EventUpdatedEvent.
+// DENTRO de su transaccion y lo escuchan dos: RegistrantsEventListener (el aviso de la bandeja, en esa misma
+// transaccion) y MassNotifier (el mail a los confirmados, en segundo plano, despues del commit y de a tandas).
+// Mismo criterio que EventUpdatedEvent: lleva solo el id.
 public class EventCancelledEvent {
 
-    private final Event event;
+    private final long eventId;
 
-    public EventCancelledEvent(final Event event) {
-        this.event = event;
+    public EventCancelledEvent(final long eventId) {
+        this.eventId = eventId;
     }
 
-    public Event getEvent() {
-        return event;
+    public long getEventId() {
+        return eventId;
     }
 }

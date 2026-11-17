@@ -15,6 +15,8 @@ import org.springframework.transaction.annotation.Transactional;
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 import javax.sql.DataSource;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -189,10 +191,10 @@ public class FollowJpaDaoTest {
         assertFalse(result);
     }
 
-    // ---- findFollowers() ----
+    // ---- findFollowersAfter() ----
 
     @Test
-    public void testFindFollowersReturnsOnlyTheFollowersOfThatUser() {
+    public void testFindFollowersAfterReturnsOnlyTheFollowersOfThatUser() {
         // Arrange: otro seguidor del mismo organizador, y un seguidor de OTRO organizador (no tiene que salir).
         final long otherFollowerId = insertUser("otro-fan@mail.com", "Otro Fan");
         final long unrelatedFollowedId = insertUser("otro-organizador2@mail.com", "Sin relacion");
@@ -201,7 +203,7 @@ public class FollowJpaDaoTest {
         insertFollow(followerId, unrelatedFollowedId);
 
         // Act
-        final List<FollowerContact> result = followDao.findFollowers(followedId);
+        final List<FollowerContact> result = followDao.findFollowersAfter(followedId, 0, 100);
 
         // Assert
         assertEquals(2, result.size());
@@ -211,13 +213,13 @@ public class FollowJpaDaoTest {
     }
 
     @Test
-    public void testFindFollowersBringsTheEmailNameAndLanguageOfTheFollower() {
+    public void testFindFollowersAfterBringsTheEmailNameAndLanguageOfTheFollower() {
         // Arrange
         jdbcTemplate.update("UPDATE users SET preferred_locale = 'en' WHERE id = ?", followerId);
         insertFollow(followerId, followedId);
 
         // Act
-        final List<FollowerContact> result = followDao.findFollowers(followedId);
+        final List<FollowerContact> result = followDao.findFollowersAfter(followedId, 0, 100);
 
         // Assert
         assertEquals(1, result.size());
@@ -227,9 +229,43 @@ public class FollowJpaDaoTest {
     }
 
     @Test
-    public void testFindFollowersWithNoFollowersIsEmpty() {
+    public void testFindFollowersAfterReturnsAtMostTheLimitFromTheLowestId() {
+        // Arrange: tres seguidores del mismo organizador.
+        final long second = insertUser("fan2@mail.com", "Fan 2");
+        final long third = insertUser("fan3@mail.com", "Fan 3");
+        insertFollow(followerId, followedId);
+        insertFollow(second, followedId);
+        insertFollow(third, followedId);
+
         // Act
-        final List<FollowerContact> result = followDao.findFollowers(followedId);
+        final List<FollowerContact> result = followDao.findFollowersAfter(followedId, 0, 2);
+
+        // Assert: la primera tanda, de menor a mayor id.
+        assertEquals(Arrays.asList(followerId, second),
+                result.stream().map(FollowerContact::getId).collect(Collectors.toList()));
+    }
+
+    @Test
+    public void testFindFollowersAfterStartsAfterTheGivenId() {
+        // Arrange
+        final long second = insertUser("fan2@mail.com", "Fan 2");
+        final long third = insertUser("fan3@mail.com", "Fan 3");
+        insertFollow(followerId, followedId);
+        insertFollow(second, followedId);
+        insertFollow(third, followedId);
+
+        // Act: la tanda siguiente a la que termino en el segundo.
+        final List<FollowerContact> result = followDao.findFollowersAfter(followedId, second, 2);
+
+        // Assert
+        assertEquals(Collections.singletonList(third),
+                result.stream().map(FollowerContact::getId).collect(Collectors.toList()));
+    }
+
+    @Test
+    public void testFindFollowersAfterWithNoFollowersIsEmpty() {
+        // Act
+        final List<FollowerContact> result = followDao.findFollowersAfter(followedId, 0, 100);
 
         // Assert
         assertTrue(result.isEmpty());
