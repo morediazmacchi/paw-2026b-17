@@ -6,6 +6,8 @@ import ar.edu.itba.paw.webapp.auth.AccountStatusAfterPasswordCheck;
 import ar.edu.itba.paw.webapp.auth.AccessDeniedAsNotFoundHandler;
 import ar.edu.itba.paw.services.UserService;
 import ar.edu.itba.paw.webapp.util.SafeRedirect;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
@@ -34,12 +36,20 @@ import javax.servlet.http.HttpServletResponse;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
+import java.util.UUID;
 
 // RootConfig no escanea webapp: el paquete de autenticacion (webapp.auth) se descubre desde aca.
 @ComponentScan("ar.edu.itba.paw.webapp.auth")
 @Configuration
 @EnableWebSecurity
 public class WebAuthConfig {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(WebAuthConfig.class);
+
+    // "Recordarme": la cookie dura 30 dias.
+    private static final int REMEMBER_ME_SECONDS = 60 * 60 * 24 * 30;
+    // Largo minimo de la clave que firma esa cookie: una mas corta se descarta (ver rememberMeKey()).
+    static final int MIN_REMEMBER_ME_KEY_LENGTH = 32;
 
     // Como Spring Security busca las credenciales (patron Strategy): UserDetailsServiceImpl,
     // que esta en webapp.auth y lo encuentra el @ComponentScan de esta clase.
@@ -64,6 +74,26 @@ public class WebAuthConfig {
     // loginSuccessHandler() mas abajo).
     @Autowired
     private LocaleResolver localeResolver;
+
+    // La clave que firma la cookie de "recordarme". Nunca va escrita en el codigo ni en un archivo versionado (quien la
+    // conozca puede fabricar la cookie de cualquier cuenta): sale de la propiedad de sistema app.remember-me-key o de
+    // la variable de entorno APP_REMEMBER_ME_KEY. Si no esta (o es muy corta) se genera una aleatoria al arrancar:
+    // es segura, pero al reiniciar la app las cookies de "recordarme" ya emitidas dejan de valer y hay que volver a
+    // iniciar sesion. En produccion conviene fijarla para que sobreviva a los reinicios.
+    static String rememberMeKey(final String configured) {
+        if (configured != null && configured.trim().length() >= MIN_REMEMBER_ME_KEY_LENGTH) {
+            return configured.trim();
+        }
+        LOGGER.warn("No hay una clave de 'recordarme' valida (app.remember-me-key / APP_REMEMBER_ME_KEY, minimo {} "
+                + "caracteres): se genera una al azar y las cookies emitidas se pierden al reiniciar.",
+                MIN_REMEMBER_ME_KEY_LENGTH);
+        return UUID.randomUUID() + UUID.randomUUID().toString();
+    }
+
+    private static String configuredRememberMeKey() {
+        final String fromProperty = System.getProperty("app.remember-me-key");
+        return fromProperty != null ? fromProperty : System.getenv("APP_REMEMBER_ME_KEY");
+    }
 
     @Bean
     public DaoAuthenticationProvider authenticationProvider() {
@@ -185,6 +215,15 @@ public class WebAuthConfig {
                 // llegar a cualquier controller) una sesion marcada como expirada y manda al login.
                 // Denegacion A NIVEL FILTRO (usuario logueado sin el rol de un antMatcher): la misma respuesta
                 // generica que cualquier otra cosa a la que no se pueda acceder (404), con cualquier verbo.
+                // "Mantener la sesion iniciada" (casilla remember-me del login): una cookie firmada, de 30 dias, que
+                // vuelve a cargar a la persona con UserDetailsServiceImpl. Al volver a entrar por la cookie Spring
+                // aplica los mismos estados de cuenta (suspendida, sin confirmar) y los roles de ahora, y la firma
+                // incluye el hash de la clave: cambiar la contrasena invalida las cookies viejas.
+                .rememberMe(remember -> remember
+                        .key(rememberMeKey(configuredRememberMeKey()))
+                        .rememberMeParameter("remember-me")
+                        .tokenValiditySeconds(REMEMBER_ME_SECONDS)
+                        .userDetailsService(userDetailsService))
                 .exceptionHandling(e -> e.accessDeniedHandler(new AccessDeniedAsNotFoundHandler("/error/404")))
                 .sessionManagement(sm -> sm
                         .maximumSessions(-1)

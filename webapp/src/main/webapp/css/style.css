@@ -2097,6 +2097,16 @@ button.btn-accent {
     margin-top: 18px;
 }
 
+/* "Mantener la sesion iniciada" del login: casilla + texto en una linea, arriba de "olvidaste tu contrasena". */
+.auth-remember {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 8px;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
 .auth-forgot-password {
     text-align: right;
     margin: -8px 0 16px;

@@ -15,9 +15,9 @@ import ar.edu.itba.paw.services.EventCreation;
 import ar.edu.itba.paw.services.EventDetail;
 import ar.edu.itba.paw.services.EventDetailService;
 import ar.edu.itba.paw.services.EventParticipation;
-import ar.edu.itba.paw.services.EventSearchResult;
+import ar.edu.itba.paw.services.EventListing;
+import ar.edu.itba.paw.services.EventListingService;
 import ar.edu.itba.paw.services.EventService;
-import ar.edu.itba.paw.services.FavoriteService;
 import ar.edu.itba.paw.services.FollowService;
 import ar.edu.itba.paw.services.PageResult;
 import ar.edu.itba.paw.services.RegistrationService;
@@ -51,7 +51,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @Controller
 public class EventController {
@@ -61,7 +60,7 @@ public class EventController {
     private final EventService eventService;
     private final CategoryService categoryService;
     private final RegistrationService registrationService;
-    private final FavoriteService favoriteService;
+    private final EventListingService eventListingService;
     private final EventDetailService eventDetailService;
     private final EventAccessService accessChecker;
     private final SavedSearchService savedSearchService;
@@ -71,13 +70,13 @@ public class EventController {
     @Autowired
     public EventController(final EventService eventService, final CategoryService categoryService,
                             final RegistrationService registrationService,
-                            final FavoriteService favoriteService, final EventDetailService eventDetailService,
+                            final EventListingService eventListingService, final EventDetailService eventDetailService,
                             final EventAccessService accessChecker, final SavedSearchService savedSearchService,
                             final MessageSource messageSource, final FollowService followService) {
         this.eventService = eventService;
         this.categoryService = categoryService;
         this.registrationService = registrationService;
-        this.favoriteService = favoriteService;
+        this.eventListingService = eventListingService;
         this.eventDetailService = eventDetailService;
         this.accessChecker = accessChecker;
         this.savedSearchService = savedSearchService;
@@ -136,20 +135,19 @@ public class EventController {
         // y los que se ofrecen los decide el service (ver EventService.search()).
         final EventSearchCriteria criteria = filters.toCriteria();
         criteria.setViewerId(currentUser == null ? null : currentUser.getId());
-        final EventSearchResult searchResult = eventService.search(criteria);
-        final PageResult<Event> result = searchResult.getPage();
-
-        // Banner: los eventos con mas inscriptos en este momento (nadie los elige a mano)
-        final List<Event> featured = eventService.findMostRegistered(FEATURED_COUNT);
+        // UN caso de uso del service arma toda la pantalla (resultados, banner, categorias y, con sesion, favoritos,
+        // inscripciones y si estos filtros ya estan guardados): el controller solo lo pone en el model.
+        final EventListing listing = eventListingService.getListing(criteria, FEATURED_COUNT, filters.hasActiveFilters());
+        final PageResult<Event> result = listing.getPage();
 
         final ModelAndView mav = new ModelAndView("events/list");
         mav.addObject("events", result.getContent());
-        mav.addObject("featuredEvents", featured);
+        mav.addObject("featuredEvents", listing.getFeatured());
         mav.addObject("currentPage", result.getPage());
         mav.addObject("totalPages", result.getTotalPages());
         mav.addObject("pageNumbers", Paging.buildPageNumbers(result.getPage(), result.getTotalPages()));
         mav.addObject("totalElements", result.getTotalElements());
-        mav.addObject("categories", categoryService.findAll());
+        mav.addObject("categories", listing.getCategories());
         mav.addObject("barrios", Barrio.values());
         mav.addObject("selectedCategorias", filters.getSelectedCategoryIds());
         mav.addObject("precioMin", filters.getPrecioMin());
@@ -164,25 +162,15 @@ public class EventController {
         // La barra de busqueda: el texto para volver a mostrarlo, y si de verdad hay algo que buscar.
         mav.addObject("q", filters.getSearchText());
         mav.addObject("hasSearchText", filters.hasSearchText());
-        mav.addObject("sort", searchResult.getEffectiveSort().name());
+        mav.addObject("sort", listing.getEffectiveSort().name());
         mav.addObject("filterQuery", filters.toFilterQuery());
-        mav.addObject("sortOptions", searchResult.getAvailableSorts());
+        mav.addObject("sortOptions", listing.getAvailableSorts());
         mav.addObject("filterErrors", filterErrors);
-        // Anonimo no ve el corazon de favorito ni las etiquetas de estado.
+        // Sin sesion estos tres vienen vacios: la card no muestra corazon ni etiqueta de estado.
+        mav.addObject("favoriteEventIds", listing.getFavoriteEventIds());
+        mav.addObject("registrationStatuses", listing.getRegistrationStatuses());
+        mav.addObject("searchSaved", listing.isSearchSaved());
         if (currentUser != null) {
-            final List<Long> pageEventIds = result.getContent().stream().map(Event::getId).collect(Collectors.toList());
-            // Cuales de los eventos de ESTA pagina son favoritos (no la lista completa de favoritos).
-            mav.addObject("favoriteEventIds", favoriteService.findFavoriteEventIds(currentUser.getId(), pageEventIds));
-            // Estado de la inscripcion propia en cada evento de la pagina: una card sin etiqueta
-            // significa que la persona nunca se inscribio (o se dio de baja).
-            mav.addObject("registrationStatuses",
-                    registrationService.findStatusesByEventIds(currentUser.getId(), pageEventIds));
-            // Boton "Guardar busqueda" (solo despues de filtrar): si estos filtros ya estan guardados, se muestra
-            // que ya lo estan en vez del boton. Una busqueda guardada son los filtros, no el texto de la barra (la
-            // pantalla lo aclara cuando hay texto): isSaved() lo ignora, asi que con o sin texto da lo mismo.
-            if (filters.hasActiveFilters()) {
-                mav.addObject("searchSaved", savedSearchService.isSaved(currentUser.getId(), criteria));
-            }
             mav.addObject("saveSearchResult", parseSaveSearchResult(saveSearchResult));
         }
         return mav;

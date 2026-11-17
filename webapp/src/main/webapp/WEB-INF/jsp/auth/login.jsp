@@ -94,6 +94,12 @@
                     </c:if>
                     <paw:input name="email" maxLength="150" label="${emailLabel}" type="email"/>
                     <paw:input name="password" maxLength="72" label="${passwordLabel}" type="password"/>
+                    <%-- "Recordarme": el nombre del parametro (remember-me) es el que espera rememberMe() de WebAuthConfig. --%>
+                    <spring:message code="auth.login.rememberMe" var="rememberMeLabel"/>
+                    <label class="auth-remember">
+                        <input type="checkbox" name="remember-me" value="true"/>
+                        <span><c:out value="${rememberMeLabel}"/></span>
+                    </label>
                     <p class="auth-forgot-password">
                         <spring:message code="auth.login.forgotPasswordLink" var="forgotPasswordLabel"/>
                         <a href="<c:url value='/login/recuperar'/>"><c:out value="${forgotPasswordLabel}"/></a>
