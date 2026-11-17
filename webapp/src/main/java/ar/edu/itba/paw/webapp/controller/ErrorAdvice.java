@@ -6,6 +6,7 @@ import ar.edu.itba.paw.webapp.auth.PlancitoUserDetails;
 import ar.edu.itba.paw.model.exception.EventCancelledException;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import ar.edu.itba.paw.model.exception.EventRejectedException;
+import ar.edu.itba.paw.model.exception.InvalidImageException;
 import ar.edu.itba.paw.model.exception.UserNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,10 +20,17 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.servlet.ModelAndView;
+import org.springframework.web.servlet.support.RequestContextUtils;
+
+import javax.servlet.http.HttpServletRequest;
 
 import java.security.Principal;
+import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.stream.Collectors;
@@ -34,6 +42,10 @@ import java.util.stream.Collectors;
 public class ErrorAdvice {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ErrorAdvice.class);
+
+    // Las dos pantallas, ademas de publicar, que suben archivos (ver imageTooLarge()).
+    private static final Pattern EDIT_EVENT_PATH = Pattern.compile("/eventos/(\\d+)/editar");
+    private static final String COVER_PATH = "/perfil/portada";
 
     // Corre antes de CUALQUIER metodo de CUALQUIER controller (ControllerAdvice
     // es global) y deja "currentUser" en el Model de cada request. Sale del principal de la sesion
@@ -117,10 +129,32 @@ public class ErrorAdvice {
         return new ModelAndView("errors/404");
     }
 
-    // El archivo supera el limite duro del servidor
-    @ExceptionHandler(MultipartException.class)
-    public ModelAndView imageTooLarge(final MultipartException e) {
+    // El archivo supera el limite duro del servidor (web.xml, multipart-config). Falla antes de llegar a ningun
+    // controller, asi que no sabe de que pantalla vino: el destino se elige por la URL del pedido (editar un evento
+    // vuelve a editarlo, cambiar la portada vuelve al perfil, lo demas es publicar).
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ModelAndView imageTooLarge(final MaxUploadSizeExceededException e, final HttpServletRequest request,
+                                      final Authentication authentication) {
+        final String path = request.getRequestURI().substring(request.getContextPath().length());
+        final Matcher editEvent = EDIT_EVENT_PATH.matcher(path);
+        if (editEvent.matches()) {
+            return new ModelAndView("redirect:/eventos/" + editEvent.group(1) + "/editar?imageError=true");
+        }
+        final Optional<PlancitoUserDetails> user = PlancitoUserDetails.from(authentication);
+        if (COVER_PATH.equals(path) && user.isPresent()) {
+            // El cartel viaja como flash attribute (el pedido ya no llega a ningun controller que lo pida por parametro).
+            RequestContextUtils.getOutputFlashMap(request).put("coverMessage", InvalidImageException.Reason.TOO_LARGE.name());
+            return new ModelAndView("redirect:/usuarios/" + user.get().getId());
+        }
         return new ModelAndView("redirect:/eventos/publicar?imageError=true");
+    }
+
+    // Un pedido que no es multipart (o viene roto) a una pantalla que espera un archivo: no es un archivo grande, es un
+    // pedido mal armado (ver imageTooLarge() para ese caso).
+    @ExceptionHandler(MultipartException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ModelAndView malformedUpload(final MultipartException e) {
+        return new ModelAndView("errors/404");
     }
 
     @ExceptionHandler(Exception.class)

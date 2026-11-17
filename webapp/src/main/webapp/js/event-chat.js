@@ -16,6 +16,7 @@
     var input = document.getElementById('chat-input');
     var errorBox = document.getElementById('chat-error');
     var pollUrl = box.getAttribute('data-poll-url');
+    var readUrl = box.getAttribute('data-read-url');
     var lastId = parseInt(box.getAttribute('data-last-id'), 10) || 0;
     var polling = false;
     var stopped = false;
@@ -50,6 +51,7 @@
             }
         }
         if (added) {
+            markRead();
             if (empty) {
                 empty.hidden = true;
             }
@@ -57,6 +59,19 @@
                 scrollToBottom();
             }
         }
+    }
+
+    // "Ya vi los mensajes": leer (el GET de arriba) no escribe nada, asi que se avisa aparte. Si falla (sin red, o ya
+    // no es miembro) no pasa nada: se reintenta con el proximo mensaje nuevo.
+    function markRead() {
+        if (!readUrl) {
+            return;
+        }
+        fetch(readUrl, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {'X-Requested-With': 'XMLHttpRequest'}
+        }).catch(function () {});
     }
 
     function removedFromGroup() {
@@ -154,6 +169,7 @@
     }
 
     scrollToBottom();
+    markRead();
     window.setInterval(poll, POLL_MS);
     document.addEventListener('visibilitychange', function () {
         if (!document.hidden) {

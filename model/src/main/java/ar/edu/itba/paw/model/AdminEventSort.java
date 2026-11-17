@@ -11,5 +11,15 @@ public enum AdminEventSort {
     // Por la fecha en la que se hace el evento.
     EVENT_DATE_DESC,
     EVENT_DATE_ASC,
-    TITLE_ASC
+    TITLE_ASC;
+
+    // El orden que pide la URL (?sort=): uno que no existe, o ninguno, cae al de por defecto en vez de dar error.
+    public static AdminEventSort fromParam(final String value) {
+        for (final AdminEventSort sort : values()) {
+            if (sort.name().equals(value)) {
+                return sort;
+            }
+        }
+        return CREATED_DESC;
+    }
 }

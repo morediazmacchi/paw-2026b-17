@@ -11,6 +11,11 @@ import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.AuthorityUtils;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
+import org.springframework.web.servlet.DispatcherServlet;
+import org.springframework.web.servlet.FlashMap;
 import org.springframework.web.servlet.ModelAndView;
 
 import java.security.Principal;
@@ -113,5 +118,70 @@ public class ErrorAdviceTest {
 
         // Assert
         assertNull(result);
+    }
+
+    // ---- un archivo que supera el limite del servidor: vuelve a la pantalla de donde vino ----
+
+    private static MockHttpServletRequest postTo(final String path) {
+        final MockHttpServletRequest request = new MockHttpServletRequest("POST", path);
+        // Lo prepara el DispatcherServlet antes de cada pedido.
+        request.setAttribute(DispatcherServlet.OUTPUT_FLASH_MAP_ATTRIBUTE, new FlashMap());
+        return request;
+    }
+
+    @Test
+    public void testAFileTooLargeWhenPublishingGoesBackToPublish() {
+        // Act
+        final ModelAndView result = errorAdvice.imageTooLarge(new MaxUploadSizeExceededException(15_728_640L),
+                postTo("/eventos/publicar"), sessionOf(7, "ana@test.com", Role.USER.getAuthority()));
+
+        // Assert
+        assertEquals("redirect:/eventos/publicar?imageError=true", result.getViewName());
+    }
+
+    @Test
+    public void testAFileTooLargeWhenEditingAnEventGoesBackToEditingThatEvent() {
+        // Act
+        final ModelAndView result = errorAdvice.imageTooLarge(new MaxUploadSizeExceededException(15_728_640L),
+                postTo("/eventos/42/editar"), sessionOf(7, "ana@test.com", Role.USER.getAuthority()));
+
+        // Assert
+        assertEquals("redirect:/eventos/42/editar?imageError=true", result.getViewName());
+    }
+
+    @Test
+    public void testAFileTooLargeAsACoverGoesBackToTheProfileOfWhoUploadedIt() {
+        // Arrange
+        final MockHttpServletRequest request = postTo("/perfil/portada");
+
+        // Act
+        final ModelAndView result = errorAdvice.imageTooLarge(new MaxUploadSizeExceededException(15_728_640L), request,
+                sessionOf(7, "ana@test.com", Role.USER.getAuthority()));
+
+        // Assert
+        assertEquals("redirect:/usuarios/7", result.getViewName());
+    }
+
+    @Test
+    public void testAFileTooLargeAsACoverCarriesTheTooLargeMessageAsAFlashAttribute() {
+        // Arrange
+        final MockHttpServletRequest request = postTo("/perfil/portada");
+
+        // Act
+        errorAdvice.imageTooLarge(new MaxUploadSizeExceededException(15_728_640L), request,
+                sessionOf(7, "ana@test.com", Role.USER.getAuthority()));
+
+        // Assert
+        final FlashMap flash = (FlashMap) request.getAttribute(DispatcherServlet.OUTPUT_FLASH_MAP_ATTRIBUTE);
+        assertEquals("TOO_LARGE", flash.get("coverMessage"));
+    }
+
+    @Test
+    public void testARequestThatIsNotMultipartIsABadRequestNotATooLargeFile() {
+        // Act
+        final ModelAndView result = errorAdvice.malformedUpload(new MultipartException("no es multipart"));
+
+        // Assert
+        assertEquals("errors/404", result.getViewName());
     }
 }

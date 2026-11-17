@@ -9,6 +9,7 @@ import ar.edu.itba.paw.model.ReportStatusFilter;
 import ar.edu.itba.paw.model.ReportTarget;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
+import ar.edu.itba.paw.model.exception.UserNotFoundException;
 import ar.edu.itba.paw.persistence.EventReportDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -47,7 +48,7 @@ public class ModerationServiceImpl implements ModerationService {
 
     @Override
     @Transactional
-    public ReportResult report(final long eventId, final User reporter, final String reason) {
+    public ReportResult report(final long eventId, final long reporterId, final String reason) {
         if (isBlankOrLongerThan(reason, MAX_REPORT_REASON_LENGTH)) {
             return ReportResult.INVALID;
         }
@@ -56,9 +57,11 @@ public class ModerationServiceImpl implements ModerationService {
         // la mapea a 404), no un resultado: los resultados son para conflictos de negocio.
         final Event event = eventService.findById(eventId)
                 .orElseThrow(() -> new EventNotFoundException(eventId));
-        if (eventReportDao.existsPendingByEventAndReporter(eventId, reporter.getId())) {
+        if (eventReportDao.existsPendingByEventAndReporter(eventId, reporterId)) {
             return ReportResult.ALREADY_REPORTED;
         }
+        // La cuenta se lee de la base: la sesion solo lleva lo que hace falta para autorizar (ver PlancitoUserDetails).
+        final User reporter = userService.findById(reporterId).orElseThrow(() -> new UserNotFoundException(reporterId));
         eventReportDao.create(new EventReport(event, reporter, reason));
         return ReportResult.CREATED;
     }

@@ -30,6 +30,15 @@ public class PageResult<T> {
     // resultados si es mayor al total, la 1 si es menor a 1 o si no hay nada.
     // Para quien pagina con SQL (LIMIT/OFFSET): primero cuenta el total
     // (COUNT), despues llama a esto y recien ahi trae las filas de esa pagina.
+    // "Mostrando X-Y de Z": el numero (desde 1) del primer y del ultimo elemento de ESTA pagina. 0 y 0 si esta vacia.
+    public int getFirstItem() {
+        return content.isEmpty() ? 0 : (page - 1) * pageSize + 1;
+    }
+
+    public int getLastItem() {
+        return content.isEmpty() ? 0 : getFirstItem() + content.size() - 1;
+    }
+
     public static int clampPage(final int page, final long totalElements, final int pageSize) {
         final int totalPages = pageSize <= 0 ? 0 : (int) Math.ceil((double) totalElements / pageSize);
         return totalPages == 0 ? 1 : Math.min(Math.max(page, 1), totalPages);

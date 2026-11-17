@@ -50,7 +50,6 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import javax.validation.Valid;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -64,7 +63,7 @@ public class EventController {
     private final RegistrationService registrationService;
     private final EventListingService eventListingService;
     private final EventDetailService eventDetailService;
-    private final EventAccessService accessChecker;
+    private final EventAccessService eventAccessService;
     private final SavedSearchService savedSearchService;
     private final MessageSource messageSource;
     private final FollowService followService;
@@ -73,14 +72,14 @@ public class EventController {
     public EventController(final EventService eventService, final CategoryService categoryService,
                             final RegistrationService registrationService,
                             final EventListingService eventListingService, final EventDetailService eventDetailService,
-                            final EventAccessService accessChecker, final SavedSearchService savedSearchService,
+                            final EventAccessService eventAccessService, final SavedSearchService savedSearchService,
                             final MessageSource messageSource, final FollowService followService) {
         this.eventService = eventService;
         this.categoryService = categoryService;
         this.registrationService = registrationService;
         this.eventListingService = eventListingService;
         this.eventDetailService = eventDetailService;
-        this.accessChecker = accessChecker;
+        this.eventAccessService = eventAccessService;
         this.savedSearchService = savedSearchService;
         this.messageSource = messageSource;
         this.followService = followService;
@@ -107,8 +106,12 @@ public class EventController {
     // los cumplan. Exige sesion (WebAuthConfig: todo lo que no es publico la pide) y llama a UN solo metodo del
     // service (correccion 06). Vuelve al listado con los mismos filtros y el resultado.
     @RequestMapping(value = "/eventos/busquedas", method = RequestMethod.POST)
-    public ModelAndView saveSearch(final EventSearchForm filters,
+    public ModelAndView saveSearch(@Valid final EventSearchForm filters, final BindingResult errors,
                                    @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
+        // Con un rango al reves no se guarda nada: vuelve al listado, que muestra el error en ese filtro.
+        if (errors.hasErrors()) {
+            return new ModelAndView("redirect:/eventos?" + filters.toFilterQuery());
+        }
         final SaveSearchResult result = savedSearchService.save(currentUser.getId(), filters.toCriteria());
         return new ModelAndView("redirect:/eventos?" + filters.toFilterQuery() + "busqueda=" + result.name());
     }
@@ -122,17 +125,9 @@ public class EventController {
     // pagina) y las dos validaciones cruzadas (rango de precio/fecha invertido)
     // viven en EventSearchForm.
     @RequestMapping(value = "/eventos", method = RequestMethod.GET)
-    public ModelAndView list(final EventSearchForm filters,
+    public ModelAndView list(@Valid final EventSearchForm filters, final BindingResult errors,
                               @RequestParam(value = "busqueda", required = false) final String saveSearchResult,
                               @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final Map<String, String> filterErrors = new HashMap<>();
-        if (filters.isPriceRangeInvalid()) {
-            filterErrors.put("precioMax", message("event.list.priceRangeInvalid"));
-        }
-        if (filters.isDateRangeInvalid()) {
-            filterErrors.put("fechaHasta", message("event.list.dateRangeInvalid"));
-        }
-
         // Quien navega: sus propios eventos no se listan (el banner si los muestra). El orden que se aplica
         // y los que se ofrecen los decide el service (ver EventService.search()).
         final EventSearchCriteria criteria = filters.toCriteria();
@@ -167,7 +162,8 @@ public class EventController {
         mav.addObject("sort", listing.getEffectiveSort().name());
         mav.addObject("filterQuery", filters.toFilterQuery());
         mav.addObject("sortOptions", listing.getAvailableSorts());
-        mav.addObject("filterErrors", filterErrors);
+        // Un rango al reves no rechaza la busqueda (ese filtro se ignora): solo se avisa al lado del campo.
+        mav.addObject("filterErrors", FormErrors.of(errors, messageSource));
         // Sin sesion estos tres vienen vacios: la card no muestra corazon ni etiqueta de estado.
         mav.addObject("favoriteEventIds", listing.getFavoriteEventIds());
         mav.addObject("registrationStatuses", listing.getRegistrationStatuses());
@@ -233,14 +229,13 @@ public class EventController {
         if (reputation == null) {
             return;
         }
+        // Sin reseñas todo esto viene vacio o en 0 (la vista mira creatorReviewCount): no se decide aca.
         mav.addObject("creatorReviewCount", reputation.getReviewCount());
-        if (reputation.hasReviews()) {
-            mav.addObject("creatorAverageRating", reputation.getAverageRating());
-            mav.addObject("creatorReviews", reputation.getReviews());
-            mav.addObject("reviewEventsById", reputation.getEventsById());
-            mav.addObject("creatorReviewsPage", reputation.getPage());
-            mav.addObject("creatorReviewsTotalPages", reputation.getTotalPages());
-        }
+        mav.addObject("creatorAverageRating", reputation.getAverageRating());
+        mav.addObject("creatorReviews", reputation.getReviews());
+        mav.addObject("reviewEventsById", reputation.getEventsById());
+        mav.addObject("creatorReviewsPage", reputation.getPage());
+        mav.addObject("creatorReviewsTotalPages", reputation.getTotalPages());
     }
 
     // Seguir al organizador de ESTE evento: el service lo resuelve a partir del evento (no se confia en un id
@@ -392,14 +387,19 @@ public class EventController {
 
     @PreAuthorize("@eventSecurity.isOwner(#id, authentication)")
     @RequestMapping(value = "/eventos/{id}/editar", method = RequestMethod.GET)
-    public ModelAndView editarForm(@PathVariable final long id, @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final Event event = accessChecker.getEditableEvent(id);
+    public ModelAndView editarForm(@PathVariable final long id,
+                                   @RequestParam(value = "imageError", required = false) final String imageError) {
+        final Event event = eventAccessService.getEditableEvent(id);
         final List<Category> categories = categoryService.findAll();
         final ModelAndView mav = new ModelAndView("events/editar");
         mav.addObject("eventId", id);
         mav.addObject("categories", categories);
         mav.addObject("barrios", Barrio.values());
         mav.addObject("eventForm", EventForm.from(event, categories));
+        // Un archivo mas grande que el limite del servidor vuelve aca (ver ErrorAdvice.imageTooLarge()).
+        if (imageError != null) {
+            mav.addObject("imageError", message("event.publish.imageTooLargeError"));
+        }
         return mav;
     }
 

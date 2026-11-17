@@ -95,8 +95,8 @@
         <c:otherwise>
             <p class="reports-caption">
                 <spring:message code="admin.reports.showingCaption">
-                    <spring:argument value="${firstShown}"/>
-                    <spring:argument value="${lastShown}"/>
+                    <spring:argument value="${reportsPage.firstItem}"/>
+                    <spring:argument value="${reportsPage.lastItem}"/>
                     <spring:argument value="${totalElements}"/>
                 </spring:message>
             </p>

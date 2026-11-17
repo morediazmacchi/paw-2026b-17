@@ -16,6 +16,7 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.validation.BeanPropertyBindingResult;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.servlet.ModelAndView;
@@ -29,6 +30,7 @@ import java.util.Optional;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
@@ -176,16 +178,18 @@ public class UserProfileControllerTest {
     }
 
     @Test
-    public void testSavingTheCoverWithoutChoosingAFileIsReportedAsEmpty() throws IOException {
+    public void testACoverFileThatCannotBeReadIsReportedAsUnreadable() throws IOException {
         // Arrange: el service diria OK; si el controller lo llamara igual, el flash diria OK
+        final MultipartFile unreadable = mock(MultipartFile.class);
+        when(unreadable.getBytes()).thenThrow(new IOException("disco lleno"));
         lenient().when(userService.updateCover(VIEWER_ID, new byte[0], null, null)).thenReturn(UpdateCoverResult.OK);
         final RedirectAttributes flash = new RedirectAttributesModelMap();
 
         // Act
-        controller.updateCover(null, viewer(), flash);
+        controller.updateCover(unreadable, viewer(), flash);
 
         // Assert
-        assertEquals("EMPTY", flash.getFlashAttributes().get("coverMessage"));
+        assertEquals("UNREADABLE", flash.getFlashAttributes().get("coverMessage"));
     }
 
     @Test

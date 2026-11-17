@@ -77,7 +77,7 @@ public class EventChatServiceImplTest {
         when(chatDao.addMember(REGISTRATION_ID, EVENT_ID, USER_ID)).thenReturn(true);
 
         // Act
-        final ChatJoinResult result = chatService.join(EVENT_ID, user());
+        final ChatJoinResult result = chatService.join(EVENT_ID, USER_ID);
 
         // Assert
         assertEquals(ChatJoinResult.JOINED, result);
@@ -92,7 +92,7 @@ public class EventChatServiceImplTest {
         when(chatDao.isMember(EVENT_ID, USER_ID)).thenReturn(true);
 
         // Act
-        final ChatJoinResult result = chatService.join(EVENT_ID, user());
+        final ChatJoinResult result = chatService.join(EVENT_ID, USER_ID);
 
         // Assert
         assertEquals(ChatJoinResult.ALREADY_MEMBER, result);
@@ -106,7 +106,7 @@ public class EventChatServiceImplTest {
         when(registrationService.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
 
         // Act
-        chatService.join(EVENT_ID, user());
+        chatService.join(EVENT_ID, USER_ID);
 
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
@@ -117,7 +117,7 @@ public class EventChatServiceImplTest {
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
-        chatService.join(EVENT_ID, user());
+        chatService.join(EVENT_ID, USER_ID);
 
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
@@ -130,7 +130,7 @@ public class EventChatServiceImplTest {
                 .thenReturn(Optional.of(registration(RegistrationStatus.CONFIRMED)));
 
         // Act
-        final ChatJoinResult result = chatService.join(EVENT_ID, user());
+        final ChatJoinResult result = chatService.join(EVENT_ID, USER_ID);
 
         // Assert
         assertEquals(ChatJoinResult.CLOSED, result);
@@ -146,7 +146,7 @@ public class EventChatServiceImplTest {
                 .thenReturn(Optional.of(registration(RegistrationStatus.CONFIRMED)));
 
         // Act
-        final ChatJoinResult result = chatService.join(EVENT_ID, user());
+        final ChatJoinResult result = chatService.join(EVENT_ID, USER_ID);
 
         // Assert
         assertEquals(ChatJoinResult.CLOSED, result);
@@ -181,7 +181,7 @@ public class EventChatServiceImplTest {
         when(chatDao.findLatest(EVENT_ID, EventChatServiceImpl.INITIAL_MESSAGES)).thenReturn(latest);
 
         // Act
-        final List<ChatMessage> result = chatService.findMessages(EVENT_ID, USER_ID, 0);
+        final List<ChatMessage> result = chatService.findMessages(EVENT_ID, 0);
 
         // Assert
         assertEquals(latest, result);
@@ -194,7 +194,7 @@ public class EventChatServiceImplTest {
         when(chatDao.findAfter(EVENT_ID, 40, EventChatServiceImpl.MAX_NEW_MESSAGES)).thenReturn(newer);
 
         // Act
-        final List<ChatMessage> result = chatService.findMessages(EVENT_ID, USER_ID, 40);
+        final List<ChatMessage> result = chatService.findMessages(EVENT_ID, 40);
 
         // Assert
         assertEquals(newer, result);
@@ -221,7 +221,7 @@ public class EventChatServiceImplTest {
         when(chatDao.findLatest(EVENT_ID, EventChatServiceImpl.INITIAL_MESSAGES)).thenReturn(latest);
 
         // Act
-        final ChatRoom room = chatService.openRoom(EVENT_ID, USER_ID);
+        final ChatRoom room = chatService.openRoom(EVENT_ID);
 
         // Assert
         assertSame(event, room.getEvent());
@@ -234,7 +234,7 @@ public class EventChatServiceImplTest {
         when(eventService.findByIdOrThrow(EVENT_ID)).thenReturn(eventInHours(48));
 
         // Act
-        final ChatRoom room = chatService.openRoom(EVENT_ID, USER_ID);
+        final ChatRoom room = chatService.openRoom(EVENT_ID);
 
         // Assert
         assertFalse(room.isClosed());
@@ -246,7 +246,7 @@ public class EventChatServiceImplTest {
         when(eventService.findByIdOrThrow(EVENT_ID)).thenReturn(eventInHours(-48));
 
         // Act
-        final ChatRoom room = chatService.openRoom(EVENT_ID, USER_ID);
+        final ChatRoom room = chatService.openRoom(EVENT_ID);
 
         // Assert
         assertTrue(room.isClosed());
@@ -260,7 +260,7 @@ public class EventChatServiceImplTest {
         when(eventService.findByIdOrThrow(EVENT_ID)).thenReturn(event);
 
         // Act
-        final ChatRoom room = chatService.openRoom(EVENT_ID, USER_ID);
+        final ChatRoom room = chatService.openRoom(EVENT_ID);
 
         // Assert
         assertTrue(room.isClosed());
@@ -275,7 +275,7 @@ public class EventChatServiceImplTest {
         when(chatDao.findLatest(EVENT_ID, EventChatServiceImpl.INITIAL_MESSAGES)).thenReturn(Arrays.asList(first, last));
 
         // Act
-        final ChatRoom room = chatService.openRoom(EVENT_ID, USER_ID);
+        final ChatRoom room = chatService.openRoom(EVENT_ID);
 
         // Assert
         assertEquals(31L, room.getLastId());
@@ -287,7 +287,7 @@ public class EventChatServiceImplTest {
         when(eventService.findByIdOrThrow(EVENT_ID)).thenReturn(eventInHours(48));
 
         // Act
-        final ChatRoom room = chatService.openRoom(EVENT_ID, USER_ID);
+        final ChatRoom room = chatService.openRoom(EVENT_ID);
 
         // Assert
         assertEquals(0L, room.getLastId());
@@ -299,7 +299,7 @@ public class EventChatServiceImplTest {
         when(eventService.findByIdOrThrow(EVENT_ID)).thenThrow(new EventNotFoundException(EVENT_ID));
 
         // Act
-        chatService.openRoom(EVENT_ID, USER_ID);
+        chatService.openRoom(EVENT_ID);
 
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
@@ -312,7 +312,7 @@ public class EventChatServiceImplTest {
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
 
         // Act
-        final ChatSendResult result = chatService.send(EVENT_ID, user(), "  hola grupo  ");
+        final ChatSendResult result = chatService.send(EVENT_ID, USER_ID, "  hola grupo  ");
 
         // Assert
         assertEquals(ChatSendResult.SENT, result);
@@ -324,7 +324,7 @@ public class EventChatServiceImplTest {
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(-1)));
 
         // Act
-        final ChatSendResult result = chatService.send(EVENT_ID, user(), "hola");
+        final ChatSendResult result = chatService.send(EVENT_ID, USER_ID, "hola");
 
         // Assert
         assertEquals(ChatSendResult.CLOSED, result);
@@ -338,7 +338,7 @@ public class EventChatServiceImplTest {
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(cancelled));
 
         // Act
-        final ChatSendResult result = chatService.send(EVENT_ID, user(), "hola");
+        final ChatSendResult result = chatService.send(EVENT_ID, USER_ID, "hola");
 
         // Assert
         assertEquals(ChatSendResult.CLOSED, result);
@@ -350,7 +350,7 @@ public class EventChatServiceImplTest {
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
 
         // Act
-        final ChatSendResult result = chatService.send(EVENT_ID, user(), "   ");
+        final ChatSendResult result = chatService.send(EVENT_ID, USER_ID, "   ");
 
         // Assert
         assertEquals(ChatSendResult.INVALID, result);
@@ -364,7 +364,7 @@ public class EventChatServiceImplTest {
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
 
         // Act
-        final ChatSendResult result = chatService.send(EVENT_ID, user(), new String(chars));
+        final ChatSendResult result = chatService.send(EVENT_ID, USER_ID, new String(chars));
 
         // Assert
         assertEquals(ChatSendResult.INVALID, result);
@@ -376,7 +376,7 @@ public class EventChatServiceImplTest {
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
-        chatService.send(EVENT_ID, user(), "hola");
+        chatService.send(EVENT_ID, USER_ID, "hola");
     }
 
     // ---- findGroupsPage() ----

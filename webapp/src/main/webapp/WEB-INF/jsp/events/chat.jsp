@@ -32,6 +32,7 @@
 
     <div class="chat-box" id="chat-box"
          data-poll-url="<c:url value='/eventos/${event.id}/chat/mensajes'/>"
+         data-read-url="<c:url value='/eventos/${event.id}/chat/leido'/>"
          data-last-id="${lastId}"
          data-error-text="<c:out value='${sendErrorText}'/>"
          data-removed-text="<c:out value='${removedText}'/>">

@@ -230,10 +230,10 @@ public class WebAuthConfig {
                         .sessionRegistry(sessionRegistry())
                         .expiredUrl("/login?expired"))
                 .logout(logout -> logout
-                        // GET en vez del default POST-only: no rompe con un <a href>
-                        // simple en la navbar, y el CSRF que ese default evita ya
-                        // esta desactivado en toda la app (ver mas abajo).
-                        .logoutRequestMatcher(new AntPathRequestMatcher("/logout", "GET"))
+                        // Solo POST (un boton de formulario en la navbar y en la barra de la cuenta): cerrar
+                        // sesion cambia estado, no se hace con un link. Hay que decirlo a mano porque, con el CSRF
+                        // desactivado (ver mas abajo), el default de Spring acepta cualquier verbo.
+                        .logoutRequestMatcher(new AntPathRequestMatcher("/logout", "POST"))
                         .permitAll())
                 // Desactivado a proposito.
                 .csrf().disable();

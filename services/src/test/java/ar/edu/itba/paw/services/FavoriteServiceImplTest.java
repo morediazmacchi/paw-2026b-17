@@ -1,8 +1,6 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
-import ar.edu.itba.paw.model.Role;
-import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.persistence.FavoriteDao;
 import org.junit.Before;
 import org.junit.Test;
@@ -42,21 +40,13 @@ public class FavoriteServiceImplTest {
         favoriteService = new FavoriteServiceImpl(favoriteDao, eventService);
     }
 
-    private static User someUser() {
-        final User user = new User("test@mail.com", "Ana");
-        user.setId(USER_ID);
-        return user;
-    }
-
     @Test
     public void testAddReturnsTrueWhenTheEventWasAdded() {
-        // Arrange: User no tiene equals(), asi que se arma una sola instancia y se
-        // reusa -- dos someUser() serian "distintos" para el stub de Mockito.
-        final User user = someUser();
+        // Arrange
         when(favoriteDao.add(USER_ID, EVENT_ID)).thenReturn(true);
 
         // Act
-        final boolean result = favoriteService.add(user, EVENT_ID);
+        final boolean result = favoriteService.add(USER_ID, EVENT_ID);
 
         // Assert
         assertTrue(result);
@@ -65,11 +55,10 @@ public class FavoriteServiceImplTest {
     @Test
     public void testAddReturnsFalseWhenTheEventWasAlreadyAFavorite() {
         // Arrange
-        final User user = someUser();
         when(favoriteDao.add(USER_ID, EVENT_ID)).thenReturn(false);
 
         // Act
-        final boolean result = favoriteService.add(user, EVENT_ID);
+        final boolean result = favoriteService.add(USER_ID, EVENT_ID);
 
         // Assert
         assertFalse(result);
@@ -157,12 +146,6 @@ public class FavoriteServiceImplTest {
         return event;
     }
 
-    private static User adminUser() {
-        final User admin = someUser();
-        admin.getRoles().add(Role.ADMIN);
-        return admin;
-    }
-
     private static List<Long> idsOf(final PageResult<Event> page) {
         final List<Long> ids = new ArrayList<>();
         for (final Event event : page.getContent()) {
@@ -192,7 +175,7 @@ public class FavoriteServiceImplTest {
         givenViewablePage(2, 12, 11L, 12L);
 
         // Act
-        final PageResult<Event> result = favoriteService.findViewablePage(someUser(), 2);
+        final PageResult<Event> result = favoriteService.findViewablePage(USER_ID, false, 2);
 
         // Assert
         assertEquals(Arrays.asList(11L, 12L), idsOf(result));
@@ -207,7 +190,7 @@ public class FavoriteServiceImplTest {
         givenViewablePage(1, 3, 3L, 1L, 2L);
 
         // Act
-        final PageResult<Event> result = favoriteService.findViewablePage(someUser(), 1);
+        final PageResult<Event> result = favoriteService.findViewablePage(USER_ID, false, 1);
 
         // Assert
         assertEquals(Arrays.asList(3L, 1L, 2L), idsOf(result));
@@ -219,7 +202,7 @@ public class FavoriteServiceImplTest {
         givenViewablePage(2, 12, 11L, 12L);
 
         // Act
-        final PageResult<Event> result = favoriteService.findViewablePage(someUser(), 99);
+        final PageResult<Event> result = favoriteService.findViewablePage(USER_ID, false, 99);
 
         // Assert
         assertEquals(2, result.getPage());
@@ -232,7 +215,7 @@ public class FavoriteServiceImplTest {
         givenViewablePage(1, 12, 1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L);
 
         // Act
-        final PageResult<Event> result = favoriteService.findViewablePage(someUser(), 0);
+        final PageResult<Event> result = favoriteService.findViewablePage(USER_ID, false, 0);
 
         // Assert
         assertEquals(1, result.getPage());
@@ -245,7 +228,7 @@ public class FavoriteServiceImplTest {
         when(favoriteDao.countViewableByUserId(USER_ID)).thenReturn(0L);
 
         // Act
-        final PageResult<Event> result = favoriteService.findViewablePage(someUser(), 4);
+        final PageResult<Event> result = favoriteService.findViewablePage(USER_ID, false, 4);
 
         // Assert
         assertEquals(1, result.getPage());
@@ -262,7 +245,7 @@ public class FavoriteServiceImplTest {
         when(eventService.findByIds(Arrays.asList(1L, 2L))).thenReturn(Collections.singletonList(eventWithId(1)));
 
         // Act
-        final PageResult<Event> result = favoriteService.findViewablePage(someUser(), 1);
+        final PageResult<Event> result = favoriteService.findViewablePage(USER_ID, false, 1);
 
         // Assert
         assertEquals(Collections.singletonList(1L), idsOf(result));
@@ -281,7 +264,7 @@ public class FavoriteServiceImplTest {
                 .thenReturn(Collections.singletonList(5L));
 
         // Act
-        final PageResult<Event> result = favoriteService.findViewablePage(adminUser(), 1);
+        final PageResult<Event> result = favoriteService.findViewablePage(USER_ID, true, 1);
 
         // Assert
         assertEquals(Arrays.asList(5L, 6L, 7L), idsOf(result));

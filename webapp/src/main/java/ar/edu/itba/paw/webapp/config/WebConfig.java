@@ -1,5 +1,6 @@
 package ar.edu.itba.paw.webapp.config;
 
+import ar.edu.itba.paw.services.AccountSummaryService;
 import ar.edu.itba.paw.services.EventAccessService;
 import ar.edu.itba.paw.services.EventChatService;
 import ar.edu.itba.paw.services.EventQuestionService;
@@ -13,6 +14,7 @@ import ar.edu.itba.paw.services.UserService;
 import ar.edu.itba.paw.webapp.security.AdminSecurity;
 import ar.edu.itba.paw.webapp.security.EventSecurity;
 import ar.edu.itba.paw.webapp.security.SavedSearchSecurity;
+import ar.edu.itba.paw.webapp.interceptor.AccountSidebarInterceptor;
 import ar.edu.itba.paw.webapp.interceptor.CurrentLocaleInterceptor;
 import ar.edu.itba.paw.webapp.interceptor.UnreadInboxInterceptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -127,6 +129,10 @@ public class WebConfig implements WebMvcConfigurer {
     // los ve y los inyecta para los interceptores de abajo.
     @Autowired
     private InboxService inboxService;
+    @Autowired
+    private AccountSummaryService accountSummaryService;
+    @Autowired
+    private UserService userService;
 
     // Validador de los forms (@Valid) conectado al messageSource de arriba: asi los
     // mensajes de los validadores propios (webapp/validation), que son claves del
@@ -151,6 +157,9 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(final InterceptorRegistry registry) {
         registry.addInterceptor(new UnreadInboxInterceptor(inboxService));
+        // La barra lateral de la cuenta: solo las paginas de /perfil (ver AccountSidebarInterceptor).
+        registry.addInterceptor(new AccountSidebarInterceptor(accountSummaryService, userService))
+                .addPathPatterns("/perfil/**");
         registry.addInterceptor(new CurrentLocaleInterceptor());
     }
 

@@ -2,7 +2,6 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
-import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.persistence.FavoriteDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -32,9 +31,9 @@ public class FavoriteServiceImpl implements FavoriteService {
 
     @Override
     @Transactional
-    public boolean add(final User user, final long eventId) {
+    public boolean add(final long userId, final long eventId) {
         // Que se pueda ver el evento lo decide @PreAuthorize en el controller (ver EventSecurity).
-        return favoriteDao.add(user.getId(), eventId);
+        return favoriteDao.add(userId, eventId);
     }
 
     @Override
@@ -57,15 +56,15 @@ public class FavoriteServiceImpl implements FavoriteService {
 
     @Override
     @Transactional(readOnly = true)
-    public PageResult<Event> findViewablePage(final User user, final int page) {
+    public PageResult<Event> findViewablePage(final long userId, final boolean isAdmin, final int page) {
         // Todo en la base: el COUNT y la pagina comparten el WHERE de visibilidad, asi el total y las
         // paginas cuentan solo lo que se ve. Primero los ids de la pagina (LIMIT/OFFSET) y despues sus
         // eventos con un unico IN (...): nunca se trae la lista completa de favoritos.
-        final long total = countViewable(user.getId(), user.isAdmin());
+        final long total = countViewable(userId, isAdmin);
         final int effectivePage = PageResult.clampPage(page, total, PAGE_SIZE);
-        final List<Long> pageIds = user.isAdmin()
-                ? favoriteDao.findEventIdsByUser(user.getId(), effectivePage, PAGE_SIZE)
-                : favoriteDao.findViewableEventIdsByUser(user.getId(), effectivePage, PAGE_SIZE);
+        final List<Long> pageIds = isAdmin
+                ? favoriteDao.findEventIdsByUser(userId, effectivePage, PAGE_SIZE)
+                : favoriteDao.findViewableEventIdsByUser(userId, effectivePage, PAGE_SIZE);
         return new PageResult<>(eventsInOrder(pageIds), total, effectivePage, PAGE_SIZE);
     }
 

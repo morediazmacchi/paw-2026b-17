@@ -30,7 +30,7 @@ public class LocaleController {
         this.userService = userService;
     }
 
-    @RequestMapping(value = "/idioma", method = RequestMethod.GET)
+    @RequestMapping(value = "/idioma", method = RequestMethod.POST)
     public ModelAndView changeLocale(@RequestParam("lang") final String lang,
                                      @RequestParam(value = "redirect", required = false) final String redirect,
                                      final HttpServletRequest request, final HttpServletResponse response,

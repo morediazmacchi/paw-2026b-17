@@ -1,8 +1,6 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
-import ar.edu.itba.paw.model.Registration;
-import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.Review;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.persistence.EventDao;
@@ -30,7 +28,7 @@ import static org.junit.Assert.assertThrows;
 import static org.mockito.Mockito.when;
 
 /**
- * Tests unitarios con Mockito: ReviewDao, EventDao y RegistrationService son @Mock
+ * Tests unitarios con Mockito: ReviewDao, EventDao y UserService son @Mock
  * y cada test asierta sobre lo que devuelve el service (sin verify).
  */
 @RunWith(MockitoJUnitRunner.class)
@@ -49,13 +47,13 @@ public class ReviewServiceImplTest {
     @Mock
     private EventDao eventDao;
     @Mock
-    private RegistrationService registrationService;
+    private UserService userService;
 
     private ReviewServiceImpl reviewService;
 
     @Before
     public void setUp() {
-        reviewService = new ReviewServiceImpl(reviewDao, eventDao, registrationService);
+        reviewService = new ReviewServiceImpl(reviewDao, eventDao, userService);
     }
 
     private static User someUser() {
@@ -79,13 +77,6 @@ public class ReviewServiceImplTest {
         event.setCreatorEmail(CREATOR_EMAIL);
         event.setEventDate(new Date(System.currentTimeMillis() + 86_400_000L)); // mañana
         return event;
-    }
-
-    // La inscripcion de someUser() al evento 1: findByEventAndUserId la busca por userId.
-    private static Registration registrationOfTheUser(final RegistrationStatus status) {
-        final Registration registration = new Registration(ModelFixtures.event(EVENT_ID), null, USER_EMAIL, "Ana", status);
-        registration.setUser(ModelFixtures.user(USER_ID));
-        return registration;
     }
 
     // ---- findByEventAndUser() ----
@@ -118,12 +109,11 @@ public class ReviewServiceImplTest {
 
     // ---- create() ----
 
-    // Usuario que puede opinar: no opino todavia, el evento ya paso y estaba confirmado.
+    // Usuario que puede opinar: no opino todavia y el evento ya paso.
     private void eligibleUser() {
         when(reviewDao.findByEventAndUser(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
         when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(pastEvent()));
-        when(registrationService.findByEventAndUserId(EVENT_ID, USER_ID))
-                .thenReturn(Optional.of(registrationOfTheUser(RegistrationStatus.CONFIRMED)));
+        when(userService.findById(USER_ID)).thenReturn(Optional.of(someUser()));
     }
 
     @Test
@@ -133,7 +123,7 @@ public class ReviewServiceImplTest {
         when(reviewDao.create(any(Review.class))).thenReturn(new Review(ModelFixtures.event(EVENT_ID), ModelFixtures.user(USER_ID), RATING, COMMENT));
 
         // Act
-        final ReviewResult result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
+        final ReviewResult result = reviewService.create(EVENT_ID, USER_ID, RATING, COMMENT);
 
         // Assert
         assertEquals(ReviewResult.CREATED, result);
@@ -147,7 +137,7 @@ public class ReviewServiceImplTest {
                 .thenReturn(Optional.of(new Review(ModelFixtures.event(EVENT_ID), ModelFixtures.user(USER_ID), 5, "Ya la mande")));
 
         // Act
-        final ReviewResult result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
+        final ReviewResult result = reviewService.create(EVENT_ID, USER_ID, RATING, COMMENT);
 
         // Assert
         assertEquals(ReviewResult.ALREADY_REVIEWED, result);
@@ -164,7 +154,7 @@ public class ReviewServiceImplTest {
                         new SQLException("duplicado", "23505")));
 
         // Act
-        final ReviewResult result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
+        final ReviewResult result = reviewService.create(EVENT_ID, USER_ID, RATING, COMMENT);
 
         // Assert
         assertEquals(ReviewResult.ALREADY_REVIEWED, result);
@@ -179,7 +169,7 @@ public class ReviewServiceImplTest {
 
         // Act + Assert
         assertThrows(DataIntegrityViolationException.class,
-                () -> reviewService.create(EVENT_ID, someUser(), RATING, COMMENT));
+                () -> reviewService.create(EVENT_ID, USER_ID, RATING, COMMENT));
     }
 
     @Test
@@ -187,12 +177,11 @@ public class ReviewServiceImplTest {
         // Arrange: usuario elegible; si el service guardara la resenia igual, el resultado seria CREATED
         lenient().when(reviewDao.findByEventAndUser(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
         lenient().when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(pastEvent()));
-        lenient().when(registrationService.findByEventAndUserId(EVENT_ID, USER_ID))
-                .thenReturn(Optional.of(registrationOfTheUser(RegistrationStatus.CONFIRMED)));
+        lenient().when(userService.findById(USER_ID)).thenReturn(Optional.of(someUser()));
         lenient().when(reviewDao.create(any(Review.class))).thenReturn(reviewOfEvent(EVENT_ID));
 
         // Act
-        final ReviewResult result = reviewService.create(EVENT_ID, someUser(), ReviewService.MAX_RATING + 1, COMMENT);
+        final ReviewResult result = reviewService.create(EVENT_ID, USER_ID, ReviewService.MAX_RATING + 1, COMMENT);
 
         // Assert
         assertEquals(ReviewResult.INVALID, result);
@@ -201,7 +190,7 @@ public class ReviewServiceImplTest {
     @Test
     public void testCreateWithANegativeRatingReturnsInvalid() {
         // Act
-        final ReviewResult result = reviewService.create(EVENT_ID, someUser(), ReviewService.MIN_RATING - 1, COMMENT);
+        final ReviewResult result = reviewService.create(EVENT_ID, USER_ID, ReviewService.MIN_RATING - 1, COMMENT);
 
         // Assert
         assertEquals(ReviewResult.INVALID, result);
@@ -213,7 +202,7 @@ public class ReviewServiceImplTest {
         final String tooLong = new String(new char[ReviewService.MAX_COMMENT_LENGTH + 1]).replace('\0', 'a');
 
         // Act
-        final ReviewResult result = reviewService.create(EVENT_ID, someUser(), RATING, tooLong);
+        final ReviewResult result = reviewService.create(EVENT_ID, USER_ID, RATING, tooLong);
 
         // Assert
         assertEquals(ReviewResult.INVALID, result);
@@ -226,7 +215,7 @@ public class ReviewServiceImplTest {
         when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
-        final ReviewResult result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
+        final ReviewResult result = reviewService.create(EVENT_ID, USER_ID, RATING, COMMENT);
 
         // Assert
         assertEquals(ReviewResult.NOT_ELIGIBLE, result);
@@ -239,21 +228,7 @@ public class ReviewServiceImplTest {
         when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(futureEvent()));
 
         // Act
-        final ReviewResult result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
-
-        // Assert
-        assertEquals(ReviewResult.NOT_ELIGIBLE, result);
-    }
-
-    @Test
-    public void testCreateFailsWhenTheUserWasNeverRegistered() {
-        // Arrange
-        when(reviewDao.findByEventAndUser(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
-        when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(pastEvent()));
-        when(registrationService.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
-
-        // Act
-        final ReviewResult result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
+        final ReviewResult result = reviewService.create(EVENT_ID, USER_ID, RATING, COMMENT);
 
         // Assert
         assertEquals(ReviewResult.NOT_ELIGIBLE, result);
@@ -266,28 +241,12 @@ public class ReviewServiceImplTest {
         cancelled.setCancelledAt(new Date());
         when(reviewDao.findByEventAndUser(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
         when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(cancelled));
-        // Aunque el usuario si estuvo confirmado, un evento cancelado no se puede opinar: el service
-        // corta antes de mirar la inscripcion, por eso este stub es lenient (no se usa a proposito).
-        lenient().when(registrationService.findByEventAndUserId(EVENT_ID, USER_ID))
-                .thenReturn(Optional.of(registrationOfTheUser(RegistrationStatus.CONFIRMED)));
+        // Un evento cancelado no se puede opinar: el service corta antes de cargar la cuenta, por eso este stub
+        // es lenient (no se usa a proposito).
+        lenient().when(userService.findById(USER_ID)).thenReturn(Optional.of(someUser()));
 
         // Act
-        final ReviewResult result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
-
-        // Assert
-        assertEquals(ReviewResult.NOT_ELIGIBLE, result);
-    }
-
-    @Test
-    public void testCreateFailsWhenTheUserOnlyReachedTheWaitlist() {
-        // Arrange
-        when(reviewDao.findByEventAndUser(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
-        when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(pastEvent()));
-        when(registrationService.findByEventAndUserId(EVENT_ID, USER_ID))
-                .thenReturn(Optional.of(registrationOfTheUser(RegistrationStatus.WAITLISTED)));
-
-        // Act
-        final ReviewResult result = reviewService.create(EVENT_ID, someUser(), RATING, COMMENT);
+        final ReviewResult result = reviewService.create(EVENT_ID, USER_ID, RATING, COMMENT);
 
         // Assert
         assertEquals(ReviewResult.NOT_ELIGIBLE, result);

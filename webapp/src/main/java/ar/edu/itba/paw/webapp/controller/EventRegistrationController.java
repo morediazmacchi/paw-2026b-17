@@ -6,8 +6,11 @@ import ar.edu.itba.paw.services.ModerationService;
 import ar.edu.itba.paw.services.RegistrationResult;
 import ar.edu.itba.paw.services.RegistrationService;
 import ar.edu.itba.paw.services.ReportResult;
+import ar.edu.itba.paw.services.ReviewResult;
+import ar.edu.itba.paw.services.ReviewService;
 import ar.edu.itba.paw.services.UnregisterResult;
 import ar.edu.itba.paw.webapp.form.ReportForm;
+import ar.edu.itba.paw.webapp.form.ReviewForm;
 import ar.edu.itba.paw.webapp.util.SafeRedirect;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -30,13 +33,16 @@ public class EventRegistrationController {
     private final RegistrationService registrationService;
     private final FavoriteService favoriteService;
     private final ModerationService moderationService;
+    private final ReviewService reviewService;
 
     @Autowired
     public EventRegistrationController(final RegistrationService registrationService,
-                                        final FavoriteService favoriteService, final ModerationService moderationService) {
+                                        final FavoriteService favoriteService, final ModerationService moderationService,
+                                        final ReviewService reviewService) {
         this.registrationService = registrationService;
         this.favoriteService = favoriteService;
         this.moderationService = moderationService;
+        this.reviewService = reviewService;
     }
 
     // Quien se puede anotar (evento aprobado y, si es privado, con invitacion; sin excepcion de
@@ -99,10 +105,36 @@ public class EventRegistrationController {
         if (errors.hasErrors()) {
             redirectAttributes.addFlashAttribute("reportMessage", "INVALID");
         } else {
-            final ReportResult result = moderationService.report(id, currentUser, form.getMotivo());
+            final ReportResult result = moderationService.report(id, currentUser.getId(), form.getMotivo());
             redirectAttributes.addFlashAttribute("reportMessage", result.name());
         }
         return new ModelAndView("redirect:/eventos/" + id);
+    }
+
+    // Dejar una reseña del evento (desde "Mis inscripciones"). Solo quien tuvo su lugar CONFIRMADO lo decide
+    // @PreAuthorize antes de entrar (ver EventSecurity.isConfirmedAttendee); que el evento ya haya terminado y que
+    // no la haya dejado antes son reglas de negocio del service (ReviewResult).
+    @PreAuthorize("@eventSecurity.isConfirmedAttendee(#id, authentication)")
+    @RequestMapping(value = "/eventos/{id}/resena", method = RequestMethod.POST)
+    public ModelAndView leaveReview(@PathVariable final long id, @Valid final ReviewForm form,
+                                     final BindingResult errors,
+                                     @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
+                                     final RedirectAttributes redirectAttributes) {
+        final ReviewResult result = errors.hasErrors()
+                ? ReviewResult.INVALID
+                : reviewService.create(id, currentUser.getId(), form.getRating(), form.getComment());
+        redirectAttributes.addFlashAttribute(reviewFlashOf(result), true);
+        return new ModelAndView("redirect:/perfil/inscripciones");
+    }
+
+    // El nombre del cartel que muestra inscripciones.jsp (flash attribute). Switch expression sin default: si se
+    // agrega un valor a ReviewResult, esto deja de compilar hasta decidir que mostrar.
+    private static String reviewFlashOf(final ReviewResult result) {
+        return switch (result) {
+            case CREATED -> "reviewed";
+            case ALREADY_REVIEWED -> "alreadyReviewed";
+            case NOT_ELIGIBLE, INVALID -> "reviewError";
+        };
     }
 
     // Si no podes ver el evento, tampoco podes guardarlo: lo decide @PreAuthorize antes de entrar.
@@ -111,7 +143,7 @@ public class EventRegistrationController {
     public ModelAndView addFavorite(@PathVariable final long id,
                                      @RequestParam(value = "returnTo", required = false) final String returnTo,
                                      @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        favoriteService.add(currentUser, id);
+        favoriteService.add(currentUser.getId(), id);
         return new ModelAndView("redirect:" + safeReturnTo(returnTo, id));
     }
 

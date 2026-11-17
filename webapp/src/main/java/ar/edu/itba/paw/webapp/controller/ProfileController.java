@@ -6,8 +6,7 @@ import ar.edu.itba.paw.model.EventInvitation;
 import ar.edu.itba.paw.model.InboxMessage;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
-import ar.edu.itba.paw.services.AccountCounts;
-import ar.edu.itba.paw.services.AccountSummaryService;
+import ar.edu.itba.paw.model.exception.UserNotFoundException;
 import ar.edu.itba.paw.services.ApprovalResult;
 import ar.edu.itba.paw.services.ChangePasswordResult;
 import ar.edu.itba.paw.services.CreatorReputation;
@@ -27,8 +26,6 @@ import ar.edu.itba.paw.services.PageResult;
 import ar.edu.itba.paw.services.PendingRegistrations;
 import ar.edu.itba.paw.services.PendingRequestsView;
 import ar.edu.itba.paw.services.RegistrationService;
-import ar.edu.itba.paw.services.ReviewResult;
-import ar.edu.itba.paw.services.ReviewService;
 import ar.edu.itba.paw.services.SavedSearchService;
 import ar.edu.itba.paw.services.SavedSearchWithCategoryNames;
 import ar.edu.itba.paw.services.UnregisterResult;
@@ -37,7 +34,6 @@ import ar.edu.itba.paw.services.UserService;
 import ar.edu.itba.paw.webapp.form.ChangePasswordForm;
 import ar.edu.itba.paw.webapp.form.InviteForm;
 import ar.edu.itba.paw.webapp.form.ProfileForm;
-import ar.edu.itba.paw.webapp.form.ReviewForm;
 import ar.edu.itba.paw.webapp.util.FormErrors;
 import ar.edu.itba.paw.webapp.util.Paging;
 import ar.edu.itba.paw.webapp.util.SavedSearchView;
@@ -66,11 +62,9 @@ public class ProfileController {
     private final UserService userService;
     private final RegistrationService registrationService;
     private final FavoriteService favoriteService;
-    private final ReviewService reviewService;
     private final EventInvitationService eventInvitationService;
     private final MessageSource messageSource;
     private final InboxService inboxService;
-    private final AccountSummaryService accountSummaryService;
     private final SavedSearchService savedSearchService;
     private final FollowService followService;
     private final MyAccountService myAccountService;
@@ -78,21 +72,18 @@ public class ProfileController {
     @Autowired
     public ProfileController(final UserService userService,
                               final RegistrationService registrationService,
-                              final FavoriteService favoriteService, final ReviewService reviewService,
+                              final FavoriteService favoriteService,
                               final EventInvitationService eventInvitationService,
                               final MessageSource messageSource, final InboxService inboxService,
-                              final AccountSummaryService accountSummaryService,
                               final SavedSearchService savedSearchService,
                               final FollowService followService,
                               final MyAccountService myAccountService) {
         this.userService = userService;
         this.registrationService = registrationService;
         this.favoriteService = favoriteService;
-        this.reviewService = reviewService;
         this.eventInvitationService = eventInvitationService;
         this.messageSource = messageSource;
         this.inboxService = inboxService;
-        this.accountSummaryService = accountSummaryService;
         this.savedSearchService = savedSearchService;
         this.followService = followService;
         this.myAccountService = myAccountService;
@@ -102,35 +93,20 @@ public class ProfileController {
         return FormErrors.of(errors, messageSource);
     }
 
-    // Los numeritos del menu lateral de la cuenta ("Mis inscripciones", favoritos, eventos, invitaciones):
-    // los necesitan todas las paginas de la cuenta, asi que se piden una sola vez (una llamada al service)
-    // y quedan en el model de cada handler como "accountCounts". Es un objeto y no numeros sueltos a
-    // proposito: un @ModelAttribute tambien va al model de los "redirect:", y Spring agrega los valores
-    // simples como query params (/perfil?registrationsCount=3); un objeto no. Ver UnreadInboxInterceptor.
-    @ModelAttribute("accountCounts")
-    public AccountCounts accountCounts(@ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        return currentUser == null ? null : accountSummaryService.countsFor(currentUser.getId(), currentUser.isAdmin());
-    }
-
-    // La cuenta de quien mira, para la barra lateral y el perfil ("user" en el model de cada handler). Se lee
-    // de la base a proposito: la sesion (PlancitoUserDetails) solo lleva lo que hace falta para autorizar, y
-    // un nombre editado tiene que verse actualizado. Un objeto y no un valor simple, igual que accountCounts.
-    @ModelAttribute("user")
-    public User sidebarUser(@ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        return currentUser == null ? null : userService.findById(currentUser.getId()).orElse(null);
+    // La barra lateral de la cuenta (accountCounts y user) la pone AccountSidebarInterceptor en las paginas de
+    // /perfil/**: aca no se arma. La pantalla de perfil si necesita al usuario para su formulario, asi que lo pide
+    // ella misma (ver accountOf()).
+    private User accountOf(final User currentUser) {
+        return userService.findById(currentUser.getId())
+                .orElseThrow(() -> new UserNotFoundException(currentUser.getId()));
     }
 
     @RequestMapping(value = "/perfil", method = RequestMethod.GET)
     public ModelAndView perfil(@RequestParam(value = "updated", required = false) final String updated,
                                 @RequestParam(value = "passwordChanged", required = false) final String passwordChanged,
-                                @ModelAttribute(value = "user", binding = false) final User user) {
-        final ProfileForm profileForm = new ProfileForm();
-        profileForm.setNombre(user.getName());
-
-        final ModelAndView mav = new ModelAndView("auth/perfil");
-        mav.addObject("followersCount", followService.countFollowers(user.getId()));
-        mav.addObject("profileForm", profileForm);
-        mav.addObject("changePasswordForm", new ChangePasswordForm());
+                                @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
+        final User user = accountOf(currentUser);
+        final ModelAndView mav = profileView(user, nameForm(user), new ChangePasswordForm());
         mav.addObject("profileUpdated", updated != null);
         mav.addObject("passwordChanged", passwordChanged != null);
         return mav;
@@ -139,54 +115,55 @@ public class ProfileController {
     @RequestMapping(value = "/perfil", method = RequestMethod.POST)
     public ModelAndView updateProfile(@Valid final ProfileForm form, final BindingResult errors,
                                        @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        if (errors.hasErrors()) {
-            return profileWithErrors(form, errors, currentUser);
-        }
-
-        final UpdateProfileResult result = userService.updateProfile(currentUser.getId(), form.getNombre());
-        if (result == UpdateProfileResult.INVALID_NAME) {
+        if (!errors.hasErrors()) {
+            final UpdateProfileResult result = userService.updateProfile(currentUser.getId(), form.getNombre());
+            if (result != UpdateProfileResult.INVALID_NAME) {
+                return new ModelAndView("redirect:/perfil?updated");
+            }
             errors.rejectValue("nombre", "Size.profileForm.nombre");
-            return profileWithErrors(form, errors, currentUser);
         }
-        return new ModelAndView("redirect:/perfil?updated");
-    }
-
-    private ModelAndView profileWithErrors(final ProfileForm form, final BindingResult errors, final User currentUser) {
-        final ModelAndView mav = new ModelAndView("auth/perfil");
-        mav.addObject("followersCount", followService.countFollowers(currentUser.getId()));
-        mav.addObject("profileForm", form);
+        final ModelAndView mav = profileView(accountOf(currentUser), form, new ChangePasswordForm());
         mav.addObject("profileFieldErrors", fieldErrorsOf(errors));
-        mav.addObject("changePasswordForm", new ChangePasswordForm());
         return mav;
     }
 
     @RequestMapping(value = "/perfil/contrasena", method = RequestMethod.POST)
     public ModelAndView changePassword(@Valid final ChangePasswordForm form, final BindingResult errors,
-                                        @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
-                                        @ModelAttribute(value = "user", binding = false) final User user) {
+                                        @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         if (!errors.hasErrors()) {
             final ChangePasswordResult result = userService.changePassword(
                     currentUser.getId(), form.getCurrentPassword(), form.getNewPassword());
+            if (result == ChangePasswordResult.OK) {
+                return new ModelAndView("redirect:/perfil?passwordChanged");
+            }
             if (result == ChangePasswordResult.WRONG_CURRENT_PASSWORD) {
                 errors.rejectValue("currentPassword", "wrongCurrentPassword");
-            } else if (result == ChangePasswordResult.WEAK_PASSWORD) {
+            } else {
                 errors.rejectValue("newPassword", "Size.changePasswordForm.newPassword");
             }
         }
+        final User user = accountOf(currentUser);
+        final ModelAndView mav = profileView(user, nameForm(user), form);
+        mav.addObject("passwordFieldErrors", fieldErrorsOf(errors));
+        return mav;
+    }
 
-        if (errors.hasErrors()) {
-            final ProfileForm profileForm = new ProfileForm();
-            profileForm.setNombre(user.getName());
+    // La pantalla de "Mi perfil" con sus dos formularios (nombre y contraseña): la misma para mostrarla, y para
+    // volver a mostrarla con errores de cualquiera de los dos.
+    private ModelAndView profileView(final User user, final ProfileForm profileForm,
+                                     final ChangePasswordForm changePasswordForm) {
+        final ModelAndView mav = new ModelAndView("auth/perfil");
+        mav.addObject("user", user);
+        mav.addObject("followersCount", followService.countFollowers(user.getId()));
+        mav.addObject("profileForm", profileForm);
+        mav.addObject("changePasswordForm", changePasswordForm);
+        return mav;
+    }
 
-            final ModelAndView mav = new ModelAndView("auth/perfil");
-            mav.addObject("followersCount", followService.countFollowers(currentUser.getId()));
-            mav.addObject("profileForm", profileForm);
-            mav.addObject("changePasswordForm", form);
-            mav.addObject("passwordFieldErrors", fieldErrorsOf(errors));
-            return mav;
-        }
-
-        return new ModelAndView("redirect:/perfil?passwordChanged");
+    private static ProfileForm nameForm(final User user) {
+        final ProfileForm form = new ProfileForm();
+        form.setNombre(user.getName());
+        return form;
     }
 
     @RequestMapping(value = "/perfil/inscripciones", method = RequestMethod.GET)
@@ -226,33 +203,10 @@ public class ProfileController {
         };
     }
 
-    @RequestMapping(value = "/perfil/inscripciones/{id}/resena", method = RequestMethod.POST)
-    public ModelAndView leaveReview(@PathVariable final long id, @Valid final ReviewForm form,
-                                     final BindingResult errors,
-                                     @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
-                                     final RedirectAttributes redirectAttributes) {
-        if (errors.hasErrors()) {
-            redirectAttributes.addFlashAttribute("reviewError", true);
-            return new ModelAndView("redirect:/perfil/inscripciones");
-        }
-        final ReviewResult result = reviewService.create(id, currentUser, form.getRating(), form.getComment());
-        switch (result) {
-            case CREATED:
-                redirectAttributes.addFlashAttribute("reviewed", true);
-                return new ModelAndView("redirect:/perfil/inscripciones");
-            case ALREADY_REVIEWED:
-                redirectAttributes.addFlashAttribute("alreadyReviewed", true);
-                return new ModelAndView("redirect:/perfil/inscripciones");
-            default:
-                redirectAttributes.addFlashAttribute("reviewError", true);
-                return new ModelAndView("redirect:/perfil/inscripciones");
-        }
-    }
-
     @RequestMapping(value = "/perfil/favoritos", method = RequestMethod.GET)
     public ModelAndView misFavoritos(@RequestParam(value = "page", required = false) final String page,
                                      @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final PageResult<Event> result = favoriteService.findViewablePage(currentUser, Paging.parsePage(page));
+        final PageResult<Event> result = favoriteService.findViewablePage(currentUser.getId(), currentUser.isAdmin(), Paging.parsePage(page));
 
         final ModelAndView mav = new ModelAndView("auth/favoritos");
         mav.addObject("favoriteEvents", result.getContent());
@@ -384,14 +338,13 @@ public class ProfileController {
         mav.addObject("totalPages", result.getTotalPages());
         // Popup "Ver mis reseñas": lo mismo que EventController.addCreatorReputation (total y
         // promedio en la base, una pagina de reseñas con ?resenasPage=N).
+        // Sin reseñas todo esto viene vacio o en 0 (la vista mira creatorReviewCount): no se decide aca.
         mav.addObject("creatorAverageRating", reputation.getAverageRating());
         mav.addObject("creatorReviewCount", reputation.getReviewCount());
-        if (reputation.hasReviews()) {
-            mav.addObject("myCreatorReviews", reputation.getReviews());
-            mav.addObject("reviewEventsById", reputation.getEventsById());
-            mav.addObject("creatorReviewsPage", reputation.getPage());
-            mav.addObject("creatorReviewsTotalPages", reputation.getTotalPages());
-        }
+        mav.addObject("myCreatorReviews", reputation.getReviews());
+        mav.addObject("reviewEventsById", reputation.getEventsById());
+        mav.addObject("creatorReviewsPage", reputation.getPage());
+        mav.addObject("creatorReviewsTotalPages", reputation.getTotalPages());
         return mav;
     }
 

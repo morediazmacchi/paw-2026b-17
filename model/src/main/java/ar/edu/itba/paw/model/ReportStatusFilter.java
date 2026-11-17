@@ -8,5 +8,15 @@ public enum ReportStatusFilter {
     NEW,
     IN_REVIEW,
     CHANGES_REQUESTED,
-    RESOLVED
+    RESOLVED;
+
+    // La pestaña que pide la URL (?filtro=): una que no existe, o ninguna, cae a "Todos" en vez de dar error.
+    public static ReportStatusFilter fromParam(final String value) {
+        for (final ReportStatusFilter filter : values()) {
+            if (filter.name().equals(value)) {
+                return filter;
+            }
+        }
+        return ALL;
+    }
 }

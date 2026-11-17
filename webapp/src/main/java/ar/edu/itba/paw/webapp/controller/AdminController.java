@@ -20,6 +20,7 @@ import ar.edu.itba.paw.services.RevokeAdminResult;
 import ar.edu.itba.paw.services.UserService;
 import ar.edu.itba.paw.webapp.form.RejectEventForm;
 import ar.edu.itba.paw.webapp.form.RequestChangesForm;
+import ar.edu.itba.paw.webapp.util.PagerParams;
 import ar.edu.itba.paw.webapp.util.Paging;
 import ar.edu.itba.paw.webapp.util.ReportsListLink;
 import ar.edu.itba.paw.webapp.util.UserListLink;
@@ -36,8 +37,6 @@ import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import javax.validation.Valid;
-import java.util.Map;
-import java.util.LinkedHashMap;
 
 // Panel de administracion
 @Controller
@@ -75,44 +74,25 @@ public class AdminController {
                                   @RequestParam(value = "filtro", required = false) final String filtro,
                                   @RequestParam(value = "page", required = false) final String page,
                                   @RequestParam(value = "abierto", required = false) final String abierto) {
-        final ReportStatusFilter effectiveFilter = parseReportFilter(filtro);
-        final String trimmedQuery = q == null ? "" : q.trim();
-        final ReportQueuePage queue =
-                moderationService.searchQueue(trimmedQuery, effectiveFilter, Paging.parsePage(page));
+        final ReportStatusFilter effectiveFilter = ReportStatusFilter.fromParam(filtro);
+        final ReportQueuePage queue = moderationService.searchQueue(q, effectiveFilter, Paging.parsePage(page));
         final ModelAndView mav = new ModelAndView("admin/reportes");
         mav.addObject("reports", queue.getReports().getContent());
+        // La pagina entera (con "mostrando X-Y"): la vista lee de ahi el rango y el total.
+        mav.addObject("reportsPage", queue.getReports());
         mav.addObject("totalElements", queue.getReports().getTotalElements());
         mav.addObject("currentPage", queue.getReports().getPage());
         mav.addObject("totalPages", queue.getReports().getTotalPages());
-        // "Mostrando X-Y de Z": el rango de esta pagina, para el caption sobre la tabla.
-        final int shownCount = queue.getReports().getContent().size();
-        final int firstShown = shownCount == 0 ? 0 : (queue.getReports().getPage() - 1) * queue.getReports().getPageSize() + 1;
-        mav.addObject("firstShown", firstShown);
-        mav.addObject("lastShown", firstShown + shownCount - 1);
         mav.addObject("eventsById", queue.getEventsById());
         mav.addObject("reportersById", queue.getReportersById());
         mav.addObject("requestedByUsersById", queue.getRequestedByUsersById());
         mav.addObject("counts", queue.getCounts());
-        mav.addObject("q", trimmedQuery);
+        mav.addObject("q", q == null ? "" : q);
         mav.addObject("filtro", effectiveFilter.name());
         mav.addObject("abierto", abierto == null ? "" : abierto);
-        mav.addObject("returnTo", ReportsListLink.of(trimmedQuery, effectiveFilter.name(), queue.getReports().getPage()));
-        final Map<String, String> pagerParams = new LinkedHashMap<>();
-        if (!trimmedQuery.isEmpty()) {
-            pagerParams.put("q", trimmedQuery);
-        }
-        pagerParams.put("filtro", effectiveFilter.name());
-        mav.addObject("pagerParams", pagerParams);
+        mav.addObject("returnTo", ReportsListLink.of(q, effectiveFilter.name(), queue.getReports().getPage()));
+        mav.addObject("pagerParams", PagerParams.of(q, "filtro", effectiveFilter.name()));
         return mav;
-    }
-
-    // Una pestaña que no existe (o ninguna) cae a "Todos", en vez de dar error.
-    private static ReportStatusFilter parseReportFilter(final String value) {
-        try {
-            return value == null ? ReportStatusFilter.ALL : ReportStatusFilter.valueOf(value);
-        } catch (final IllegalArgumentException e) {
-            return ReportStatusFilter.ALL;
-        }
     }
 
     // El admin abre el seguimiento de un reporte: si todavia no lo habia abierto nadie, pasa de "Nuevo" a "En
@@ -240,11 +220,7 @@ public class AdminController {
         // Las acciones de cada fila (suspender, promover...) vuelven aca, a la misma busqueda y pagina: ver UserListLink.
         mav.addObject("returnTo", UserListLink.of(q, result.getPage()));
         // Lo que el paginador repite en sus links para que cambiar de pagina conserve la busqueda.
-        final Map<String, String> pagerParams = new LinkedHashMap<>();
-        if (q != null && !q.trim().isEmpty()) {
-            pagerParams.put("q", q.trim());
-        }
-        mav.addObject("pagerParams", pagerParams);
+        mav.addObject("pagerParams", PagerParams.of(q));
         mav.addObject("totalElements", result.getTotalElements());
         mav.addObject("currentPage", result.getPage());
         mav.addObject("totalPages", result.getTotalPages());
@@ -302,34 +278,19 @@ public class AdminController {
     public ModelAndView eventos(@RequestParam(value = "page", required = false) final String page,
                                 @RequestParam(value = "q", required = false) final String query,
                                 @RequestParam(value = "sort", required = false) final String sort) {
-        final AdminEventSort effectiveSort = parseEventSort(sort);
-        final String trimmedQuery = query == null ? "" : query.trim();
+        final AdminEventSort effectiveSort = AdminEventSort.fromParam(sort);
         final PageResult<EventWithRegistrationStats> result =
-                eventService.findAllEventsPage(trimmedQuery, effectiveSort, Paging.parsePage(page));
+                eventService.findAllEventsPage(query, effectiveSort, Paging.parsePage(page));
         final ModelAndView mav = new ModelAndView("admin/eventos");
         mav.addObject("events", result.getContent());
         mav.addObject("currentPage", result.getPage());
         mav.addObject("totalPages", result.getTotalPages());
-        mav.addObject("q", trimmedQuery);
+        mav.addObject("q", query == null ? "" : query);
         mav.addObject("sort", effectiveSort.name());
         mav.addObject("sortOptions", AdminEventSort.values());
         // Lo que el paginador repite en sus links para que cambiar de pagina conserve la busqueda y el orden.
-        final Map<String, String> pagerParams = new LinkedHashMap<>();
-        if (!trimmedQuery.isEmpty()) {
-            pagerParams.put("q", trimmedQuery);
-        }
-        pagerParams.put("sort", effectiveSort.name());
-        mav.addObject("pagerParams", pagerParams);
+        mav.addObject("pagerParams", PagerParams.of(query, "sort", effectiveSort.name()));
         return mav;
-    }
-
-    // Un orden que no existe (o ninguno) cae al de por defecto, en vez de dar error.
-    private static AdminEventSort parseEventSort(final String value) {
-        try {
-            return value == null ? AdminEventSort.CREATED_DESC : AdminEventSort.valueOf(value);
-        } catch (final IllegalArgumentException e) {
-            return AdminEventSort.CREATED_DESC;
-        }
     }
 
     // Inscriptos de un evento cualquiera, de solo lectura: a diferencia de

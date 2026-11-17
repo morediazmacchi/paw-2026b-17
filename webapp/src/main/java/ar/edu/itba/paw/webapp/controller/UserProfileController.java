@@ -31,6 +31,9 @@ import java.io.IOException;
 @Controller
 public class UserProfileController {
 
+    // El mensaje (profile.public.cover.flash.UNREADABLE) cuando el servidor no pudo leer el archivo subido.
+    private static final String COVER_UNREADABLE = "UNREADABLE";
+
     private final UserProfileService userProfileService;
     private final UserService userService;
 
@@ -70,22 +73,24 @@ public class UserProfileController {
     }
 
     // Cambiar la propia foto de portada: igual que la biografia, el id sale de la sesion. Si el archivo no sirve
-    // (vacio, enorme, no es una imagen) no se cambia nada y se avisa por que.
+    // (vacio, enorme, no es una imagen, o no se pudo leer) no se cambia nada y se avisa por que.
     @RequestMapping(value = "/perfil/portada", method = RequestMethod.POST)
-    public ModelAndView updateCover(@RequestParam(value = "cover", required = false) final MultipartFile cover,
+    public ModelAndView updateCover(@RequestParam("cover") final MultipartFile cover,
                                     @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
-                                    final RedirectAttributes redirectAttributes) throws IOException {
-        String result;
-        try {
-            result = cover == null
-                    ? InvalidImageException.Reason.EMPTY.name()
-                    : userService.updateCover(currentUser.getId(), cover.getBytes(), cover.getContentType(),
-                            cover.getOriginalFilename()).name();
-        } catch (final InvalidImageException e) {
-            result = e.getReason().name();
-        }
-        redirectAttributes.addFlashAttribute("coverMessage", result);
+                                    final RedirectAttributes redirectAttributes) {
+        redirectAttributes.addFlashAttribute("coverMessage", coverMessageOf(cover, currentUser.getId()));
         return new ModelAndView("redirect:/usuarios/" + currentUser.getId());
+    }
+
+    private String coverMessageOf(final MultipartFile cover, final long userId) {
+        try {
+            return userService.updateCover(userId, cover.getBytes(), cover.getContentType(),
+                    cover.getOriginalFilename()).name();
+        } catch (final InvalidImageException e) {
+            return e.getReason().name();
+        } catch (final IOException e) {
+            return COVER_UNREADABLE;
+        }
     }
 
     // Quitar la propia portada: el perfil vuelve a la portada por defecto.

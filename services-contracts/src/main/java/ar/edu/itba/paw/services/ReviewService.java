@@ -2,7 +2,6 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Review;
-import ar.edu.itba.paw.model.User;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
@@ -23,11 +22,12 @@ public interface ReviewService {
     Optional<Review> findByEventAndUser(long eventId, long userId);
 
     /**
-     * Deja una reseña de un evento finalizado al que asistio. Si no se puede,
-     * no crea nada y el resultado dice por que (ver ReviewResult).
+     * Deja una reseña de un evento finalizado. Que quien la deja haya tenido su lugar CONFIRMADO lo decide
+     * @PreAuthorize en el controller (ver EventSecurity.isConfirmedAttendee); aca se valida el estado del evento y
+     * que no la haya dejado antes. Si no se puede, no crea nada y el resultado dice por que (ver ReviewResult).
      */
     @Transactional(rollbackFor = Exception.class)
-    ReviewResult create(long eventId, User user, int rating, String comment);
+    ReviewResult create(long eventId, long userId, int rating, String comment);
 
     /**
      * La reputacion del organizador ya armada para el detalle de un evento y "Mis eventos": una

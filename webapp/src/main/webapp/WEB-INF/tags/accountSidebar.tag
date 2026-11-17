@@ -81,7 +81,9 @@
     </nav>
 
     <spring:message code="common.nav.logout" var="logoutLabel"/>
-    <a class="account-sidebar-logout" href="<c:url value='/logout'/>">
-        <paw:icon name="logout"/> <c:out value="${logoutLabel}"/>
-    </a>
+    <form class="account-sidebar-logout-form" action="<c:url value='/logout'/>" method="post">
+        <button type="submit" class="account-sidebar-logout">
+            <paw:icon name="logout"/> <c:out value="${logoutLabel}"/>
+        </button>
+    </form>
 </aside>

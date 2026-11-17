@@ -108,9 +108,10 @@ public class ModerationServiceImplTest {
         // Arrange
         eventExists(someEvent());
         when(reportDao.existsPendingByEventAndReporter(EVENT_ID, REPORTER_ID)).thenReturn(false);
+        when(userService.findById(REPORTER_ID)).thenReturn(Optional.of(someUser(REPORTER_ID)));
 
         // Act
-        final ReportResult result = moderationService.report(EVENT_ID, someUser(REPORTER_ID), REASON);
+        final ReportResult result = moderationService.report(EVENT_ID, REPORTER_ID, REASON);
 
         // Assert
         assertEquals(ReportResult.CREATED, result);
@@ -123,7 +124,7 @@ public class ModerationServiceImplTest {
         lenient().when(reportDao.existsPendingByEventAndReporter(EVENT_ID, REPORTER_ID)).thenReturn(false);
 
         // Act
-        final ReportResult result = moderationService.report(EVENT_ID, someUser(REPORTER_ID), "  ");
+        final ReportResult result = moderationService.report(EVENT_ID, REPORTER_ID, "  ");
 
         // Assert
         assertEquals(ReportResult.INVALID, result);
@@ -136,7 +137,7 @@ public class ModerationServiceImplTest {
         final String tooLong = new String(new char[ModerationService.MAX_REPORT_REASON_LENGTH + 1]).replace('\0', 'a');
 
         // Act
-        final ReportResult result = moderationService.report(EVENT_ID, someUser(REPORTER_ID), tooLong);
+        final ReportResult result = moderationService.report(EVENT_ID, REPORTER_ID, tooLong);
 
         // Assert
         assertEquals(ReportResult.INVALID, result);
@@ -174,7 +175,7 @@ public class ModerationServiceImplTest {
         when(reportDao.existsPendingByEventAndReporter(EVENT_ID, REPORTER_ID)).thenReturn(true);
 
         // Act
-        final ReportResult result = moderationService.report(EVENT_ID, someUser(REPORTER_ID), REASON);
+        final ReportResult result = moderationService.report(EVENT_ID, REPORTER_ID, REASON);
 
         // Assert
         assertEquals(ReportResult.ALREADY_REPORTED, result);
@@ -186,7 +187,7 @@ public class ModerationServiceImplTest {
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
-        moderationService.report(EVENT_ID, someUser(REPORTER_ID), REASON);
+        moderationService.report(EVENT_ID, REPORTER_ID, REASON);
 
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }

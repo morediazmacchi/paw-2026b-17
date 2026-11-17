@@ -6,7 +6,6 @@ import ar.edu.itba.paw.model.ChatMessage;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
-import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.persistence.EventChatDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -41,21 +40,21 @@ public class EventChatServiceImpl implements EventChatService {
 
     @Override
     @Transactional
-    public ChatJoinResult join(final long eventId, final User user) {
+    public ChatJoinResult join(final long eventId, final long userId) {
         // Que la persona pueda unirse (lugar confirmado en el evento) lo decide @PreAuthorize en el
         // controller (ver EventSecurity.isConfirmedAttendee). La inscripcion se busca aca solo
         // porque hace falta su id para agregar al miembro: si no esta (justo se dio de baja entre
         // medio) es lo mismo que un id inexistente.
         final Event event = eventService.findById(eventId).orElseThrow(() -> new EventNotFoundException(eventId));
-        final Registration registration = registrationService.findByEventAndUserId(eventId, user.getId())
+        final Registration registration = registrationService.findByEventAndUserId(eventId, userId)
                 .orElseThrow(() -> new EventNotFoundException(eventId));
-        if (chatDao.isMember(eventId, user.getId())) {
+        if (chatDao.isMember(eventId, userId)) {
             return ChatJoinResult.ALREADY_MEMBER;
         }
         if (isClosed(event)) {
             return ChatJoinResult.CLOSED;
         }
-        if (chatDao.addMember(registration.getId(), eventId, user.getId())) {
+        if (chatDao.addMember(registration.getId(), eventId, userId)) {
             return ChatJoinResult.JOINED;
         }
         // Otro "Unirme" casi simultaneo gano: su insert fallo y dejo esta transaccion marcada
@@ -77,20 +76,16 @@ public class EventChatServiceImpl implements EventChatService {
     }
 
     @Override
-    @Transactional
-    public List<ChatMessage> findMessages(final long eventId, final long userId, final long afterId) {
-        final List<ChatMessage> messages = afterId <= 0
+    @Transactional(readOnly = true)
+    public List<ChatMessage> findMessages(final long eventId, final long afterId) {
+        return afterId <= 0
                 ? chatDao.findLatest(eventId, INITIAL_MESSAGES)
                 : chatDao.findAfter(eventId, afterId, MAX_NEW_MESSAGES);
-        if (afterId <= 0 || !messages.isEmpty()) {
-            chatDao.markRead(eventId, userId);
-        }
-        return messages;
     }
 
     @Override
     @Transactional
-    public ChatSendResult send(final long eventId, final User user, final String text) {
+    public ChatSendResult send(final long eventId, final long userId, final String text) {
         // Que sea miembro del grupo lo decide @PreAuthorize en el controller (ver
         // EventSecurity.isChatMember). Un evento que no existe es lo mismo que un id inexistente.
         final Event event = eventService.findById(eventId).orElseThrow(() -> new EventNotFoundException(eventId));
@@ -101,17 +96,23 @@ public class EventChatServiceImpl implements EventChatService {
         if (body.isEmpty() || body.length() > MAX_MESSAGE_LENGTH) {
             return ChatSendResult.INVALID;
         }
-        chatDao.addMessage(eventId, user.getId(), body);
+        chatDao.addMessage(eventId, userId, body);
         // Lo que uno manda ya lo vio: que no le aparezca como "sin leer" a si mismo.
-        chatDao.markRead(eventId, user.getId());
+        chatDao.markRead(eventId, userId);
         return ChatSendResult.SENT;
     }
 
     @Override
-    @Transactional
-    public ChatRoom openRoom(final long eventId, final long userId) {
+    @Transactional(readOnly = true)
+    public ChatRoom openRoom(final long eventId) {
         final Event event = eventService.findByIdOrThrow(eventId);
-        return new ChatRoom(event, findMessages(eventId, userId, 0), isClosed(event));
+        return new ChatRoom(event, findMessages(eventId, 0), isClosed(event));
+    }
+
+    @Override
+    @Transactional
+    public void markRead(final long eventId, final long userId) {
+        chatDao.markRead(eventId, userId);
     }
 
     @Override

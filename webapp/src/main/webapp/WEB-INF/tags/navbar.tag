@@ -24,14 +24,8 @@
 <c:set var="navRequestUri" value="${fn:substring(navRawRequestUri, fn:length(pageContext.request.contextPath), fn:length(navRawRequestUri))}"/>
 <c:set var="navQueryString" value="${empty requestScope['javax.servlet.forward.query_string'] ? pageContext.request.queryString : requestScope['javax.servlet.forward.query_string']}"/>
 <c:set var="navCurrentUrl" value="${navRequestUri}${empty navQueryString ? '' : '?'}${navQueryString}"/>
-<c:url value="/idioma" var="navLangEsUrl">
-    <c:param name="lang" value="es"/>
-    <c:param name="redirect" value="${navCurrentUrl}"/>
-</c:url>
-<c:url value="/idioma" var="navLangEnUrl">
-    <c:param name="lang" value="en"/>
-    <c:param name="redirect" value="${navCurrentUrl}"/>
-</c:url>
+<%-- Cambiar de idioma guarda la eleccion (cookie y cuenta): es un POST, no un link. --%>
+<c:url value="/idioma" var="navLangUrl"/>
 
 <header class="navbar">
     <a class="logo" href="<c:url value='/eventos'/>">p<span class="logo-dot">.</span> plancito</a>
@@ -71,12 +65,15 @@
                 <paw:icon name="globe"/> <span class="navbar-dropdown-value">${fn:toUpperCase(currentLanguage)}</span> <paw:icon name="chevron-down"/>
             </summary>
             <div class="navbar-dropdown-panel navbar-dropdown-panel-right">
-                <a class="navbar-dropdown-item${currentLanguage == 'es' ? ' is-active' : ''}" href="${navLangEsUrl}">
-                    <c:out value="${switchToSpanishLabel}"/>
-                </a>
-                <a class="navbar-dropdown-item${currentLanguage == 'en' ? ' is-active' : ''}" href="${navLangEnUrl}">
-                    <c:out value="${switchToEnglishLabel}"/>
-                </a>
+                <form action="${navLangUrl}" method="post">
+                    <input type="hidden" name="redirect" value="${fn:escapeXml(navCurrentUrl)}"/>
+                    <button type="submit" name="lang" value="es" class="navbar-dropdown-item${currentLanguage == 'es' ? ' is-active' : ''}">
+                        <c:out value="${switchToSpanishLabel}"/>
+                    </button>
+                    <button type="submit" name="lang" value="en" class="navbar-dropdown-item${currentLanguage == 'en' ? ' is-active' : ''}">
+                        <c:out value="${switchToEnglishLabel}"/>
+                    </button>
+                </form>
             </div>
         </details>
 
@@ -102,7 +99,9 @@
                         <a class="navbar-dropdown-item" href="<c:url value='/admin/reportes'/>"><paw:icon name="shield"/> <c:out value="${adminLabel}"/></a>
                     </sec:authorize>
                     <spring:message code="common.nav.logout" var="logoutLabel"/>
-                    <a class="navbar-dropdown-item" href="<c:url value='/logout'/>"><paw:icon name="logout"/> <c:out value="${logoutLabel}"/></a>
+                    <form action="<c:url value='/logout'/>" method="post">
+                        <button type="submit" class="navbar-dropdown-item"><paw:icon name="logout"/> <c:out value="${logoutLabel}"/></button>
+                    </form>
                 </div>
             </details>
         </sec:authorize>

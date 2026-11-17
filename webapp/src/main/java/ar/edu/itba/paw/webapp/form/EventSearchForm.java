@@ -1,8 +1,9 @@
 // Filtros de /eventos (ver EventController.list()). A diferencia de EventForm,
 // un filtro invalido no rechaza nada: la busqueda sigue mostrando resultados,
-// solo se ignora ese filtro puntual y se avisa (ver isPriceRangeInvalid()/
-// isDateRangeInvalid(), que el controller usa para armar filterErrors). Por
-// eso esto no es @Valid + BindingResult, es un objeto que se parsea a si mismo.
+// solo se ignora ese filtro puntual y se avisa (los rangos al reves los valida
+// @ValidSearchRanges, ver isPriceRangeInvalid()/isDateRangeInvalid(); el
+// controller muestra esos errores y sigue). Se parsea a si mismo: los campos
+// son texto y lo que no se entiende se ignora.
 package ar.edu.itba.paw.webapp.form;
 
 import ar.edu.itba.paw.model.Barrio;
@@ -10,6 +11,8 @@ import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.EventSort;
 import ar.edu.itba.paw.model.SearchTerms;
 import ar.edu.itba.paw.webapp.util.Paging;
+import ar.edu.itba.paw.webapp.validation.FilterRanges;
+import ar.edu.itba.paw.webapp.validation.ValidSearchRanges;
 
 import java.math.BigDecimal;
 import java.net.URLEncoder;
@@ -22,7 +25,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-public class EventSearchForm {
+@ValidSearchRanges
+public class EventSearchForm implements FilterRanges {
 
     // Lo que se escribio en la barra de busqueda (?q=). No es un filtro mas: no cuenta para hasActiveFilters() (que
     // activa "Guardar busqueda": una busqueda guardada son los filtros, no el texto, asi que escribir solo texto no
@@ -122,12 +126,14 @@ public class EventSearchForm {
         }
     }
 
+    @Override
     public boolean isPriceRangeInvalid() {
         final BigDecimal min = parseDecimal(precioMin);
         final BigDecimal max = parseDecimal(precioMax);
         return min != null && max != null && min.compareTo(max) > 0;
     }
 
+    @Override
     public boolean isDateRangeInvalid() {
         final Date from = parseDate(fechaDesde);
         final Date to = parseDate(fechaHasta);

@@ -117,7 +117,7 @@
                                                     <paw:icon name="close"/>
                                                 </button>
                                             </div>
-                                            <form class="review-form" action="<c:url value='/perfil/inscripciones/${event.id}/resena'/>" method="post" novalidate="novalidate">
+                                            <form class="review-form" action="<c:url value='/eventos/${event.id}/resena'/>" method="post" novalidate="novalidate">
                                                 <paw:starPicker fieldId="review-${event.id}"/>
                                                 <div class="form-group">
                                                     <label for="comment-${event.id}"><spring:message code="auth.registrations.commentLabel"/></label>

@@ -8,7 +8,6 @@ import ar.edu.itba.paw.model.EventReport;
 import ar.edu.itba.paw.model.ReportStatusFilter;
 import ar.edu.itba.paw.model.ReportTarget;
 import org.springframework.transaction.annotation.Transactional;
-import ar.edu.itba.paw.model.User;
 import java.util.Optional;
 
 public interface ModerationService {
@@ -24,7 +23,7 @@ public interface ModerationService {
      * tiene sentido duplicar la cola); si no, CREATED. Que quien reporta no sea el
      * organizador lo decide @PreAuthorize en el controller (ver EventSecurity.canInteract).
      */
-    ReportResult report(long eventId, User reporter, String reason);
+    ReportResult report(long eventId, long reporterId, String reason);
 
     /**
      * El panel unificado "Reportes y seguimiento": todos los reportes (cualquier estado), filtrados por texto

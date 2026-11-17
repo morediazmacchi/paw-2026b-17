@@ -2,9 +2,9 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
-import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.Review;
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.model.exception.UserNotFoundException;
 import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.ReviewDao;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,7 +16,6 @@ import java.sql.SQLException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -30,14 +29,13 @@ public class ReviewServiceImpl implements ReviewService {
     // EventDao directo (no EventService): hace falta findByIdForUpdate() para
     // el lock de create(), mismo criterio que RegistrationServiceImpl.register().
     private final EventDao eventDao;
-    private final RegistrationService registrationService;
+    private final UserService userService;
 
     @Autowired
-    public ReviewServiceImpl(final ReviewDao reviewDao, final EventDao eventDao,
-                             final RegistrationService registrationService) {
+    public ReviewServiceImpl(final ReviewDao reviewDao, final EventDao eventDao, final UserService userService) {
         this.reviewDao = reviewDao;
         this.eventDao = eventDao;
-        this.registrationService = registrationService;
+        this.userService = userService;
     }
 
     @Override
@@ -48,8 +46,7 @@ public class ReviewServiceImpl implements ReviewService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public ReviewResult create(final long eventId, final User user, final int rating, final String comment) {
-        Objects.requireNonNull(user, "user");
+    public ReviewResult create(final long eventId, final long userId, final int rating, final String comment) {
         // Se valida ANTES de escribir (y antes del lock). El form ya lo chequea para dar feedback.
         if (rating < MIN_RATING || rating > MAX_RATING
                 || (comment != null && comment.length() > MAX_COMMENT_LENGTH)) {
@@ -60,19 +57,17 @@ public class ReviewServiceImpl implements ReviewService {
         // aca, en vez de pasar los dos el chequeo de "ya la mando" y recien
         // chocar contra el UNIQUE(event_id, user_id) al insertar.
         final Optional<Event> event = eventDao.findByIdForUpdate(eventId);
-        if (reviewDao.findByEventAndUser(eventId, user.getId()).isPresent()) {
+        if (reviewDao.findByEventAndUser(eventId, userId).isPresent()) {
             return ReviewResult.ALREADY_REVIEWED;
         }
         // Tiene que haber pasado y no haberse cancelado (uno cancelado no sucedio): ver Event.isReviewable().
         if (!event.isPresent() || !event.get().isReviewable()) {
             return ReviewResult.NOT_ELIGIBLE;
         }
-        // Solo quien tuvo su lugar confirmado fue al evento. Estar en lista de
-        // espera, pendiente de aprobacion o rechazado no alcanza.
-        final Optional<Registration> registration = registrationService.findByEventAndUserId(eventId, user.getId());
-        if (!registration.isPresent() || !registration.get().isConfirmed()) {
-            return ReviewResult.NOT_ELIGIBLE;
-        }
+        // Que haya tenido su lugar CONFIRMADO (no lista de espera, pendiente ni rechazado) lo decide @PreAuthorize en
+        // el controller (ver EventSecurity.isConfirmedAttendee). La cuenta se lee de la base: la sesion solo lleva lo
+        // que hace falta para autorizar.
+        final User user = userService.findById(userId).orElseThrow(() -> new UserNotFoundException(userId));
         try {
             reviewDao.create(new Review(event.get(), user, rating, comment));
         } catch (final DataIntegrityViolationException e) {
