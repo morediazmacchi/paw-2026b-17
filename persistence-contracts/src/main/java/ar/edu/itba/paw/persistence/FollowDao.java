@@ -6,10 +6,11 @@ import ar.edu.itba.paw.model.FollowerContact;
 import java.util.List;
 
 public interface FollowDao {
-    // true si se agrego; false si ya lo seguia.
-    boolean follow(long followerId, long followedId);
-    // true si estaba y se saco.
-    boolean unfollow(long followerId, long followedId);
+    // Sigue al organizador de ese evento (el organizador sale del evento, no de un id que mande el cliente).
+    // true si se agrego; false si ya lo seguia o si el evento no existe / no tiene organizador cargado (eventos viejos).
+    boolean followOrganizerOf(long followerId, long eventId);
+    // Deja de seguir al organizador de ese evento. true si lo seguia y se saco.
+    boolean unfollowOrganizerOf(long followerId, long eventId);
     boolean isFollowing(long followerId, long followedId);
 
     // Quienes siguen a este usuario, para mandarles el mail cuando publica un evento nuevo (ver

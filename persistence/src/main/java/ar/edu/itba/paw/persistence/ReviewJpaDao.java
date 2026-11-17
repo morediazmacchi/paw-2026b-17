@@ -1,6 +1,7 @@
 // Implementa el contrato ReviewDao (modulo persistence-contracts) con JPA/Hibernate.
 package ar.edu.itba.paw.persistence;
 
+import ar.edu.itba.paw.model.RatingSummary;
 import ar.edu.itba.paw.model.Review;
 import ar.edu.itba.paw.model.User;
 import org.springframework.stereotype.Repository;
@@ -61,30 +62,23 @@ public class ReviewJpaDao implements ReviewDao {
         if (ids.isEmpty()) {
             return Collections.emptyList();
         }
-        return PagedIds.inOrder(ids,
-                em.createQuery("FROM Review r WHERE r.id IN :ids", Review.class)
-                        .setParameter("ids", ids)
-                        .getResultList(),
-                Review::getId);
+        // El ORDER BY es el MISMO de la consulta de ids (el IN no ordena nada).
+        return em.createQuery("FROM Review r WHERE r.id IN :ids ORDER BY r.createdAt DESC, r.id DESC", Review.class)
+                .setParameter("ids", ids)
+                .getResultList();
     }
 
     @Override
-    public long countByCreatorId(final long creatorId) {
-        return em.createQuery("SELECT COUNT(r) FROM Review r WHERE r.event.creator.id = :creatorId", Long.class)
-                .setParameter("creatorId", creatorId)
-                .getSingleResult();
-    }
-
-    @Override
-    public double findAverageRatingByCreatorId(final long creatorId) {
+    public RatingSummary findRatingSummaryByCreatorId(final long creatorId) {
+        // COUNT y AVG juntos: una sola consulta (un agregado sin GROUP BY siempre devuelve exactamente una fila).
         // Sin reseñas, AVG da NULL: COALESCE lo convierte en 0. El CAST es porque rating es
         // INTEGER y HSQLDB (la base de los tests) hace AVG entero: 5 y 4 darian 4 en vez de 4.5.
         // Postgres no lo necesita, pero no le molesta.
-        final Double average = em.createQuery(
-                        "SELECT COALESCE(AVG(CAST(r.rating AS double)), 0.0) FROM Review r "
-                                + "WHERE r.event.creator.id = :creatorId", Double.class)
+        final Object[] row = em.createQuery(
+                        "SELECT COUNT(r), COALESCE(AVG(CAST(r.rating AS double)), 0.0) FROM Review r "
+                                + "WHERE r.event.creator.id = :creatorId", Object[].class)
                 .setParameter("creatorId", creatorId)
                 .getSingleResult();
-        return average == null ? 0 : average;
+        return new RatingSummary(((Number) row[0]).longValue(), ((Number) row[1]).doubleValue());
     }
 }

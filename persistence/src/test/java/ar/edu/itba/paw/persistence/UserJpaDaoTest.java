@@ -1,5 +1,6 @@
 package ar.edu.itba.paw.persistence;
 
+import ar.edu.itba.paw.model.PublicUser;
 import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.UserAccess;
@@ -883,6 +884,92 @@ public class UserJpaDaoTest {
     public void testFindAccessByIdIsEmptyWhenTheUserDoesNotExist() {
         // Act
         final Optional<UserAccess> result = userDao.findAccessById(987654L);
+
+        // Assert
+        assertFalse(result.isPresent());
+    }
+
+    // ---- findActivePublicById() ----
+
+    // Una cuenta activa: con clave (insertUser la deja sin), mail confirmado (por defecto si) y sin suspender (idem).
+    private long insertActiveUser(final String email, final String name) {
+        final long id = insertUser(email, name);
+        jdbcTemplate.update("UPDATE users SET password = 'hash' WHERE id = ?", id);
+        return id;
+    }
+
+    @Test
+    public void testFindActivePublicByIdReturnsTheNameBioAndCoverOfAnActiveAccount() {
+        // Arrange
+        final long id = insertActiveUser("activa@mail.com", "Tomas Rivas");
+        final long imageId = insertImage();
+        jdbcTemplate.update("UPDATE users SET bio = 'Fotografo', cover_image_id = ? WHERE id = ?", imageId, id);
+
+        // Act
+        final Optional<PublicUser> result = userDao.findActivePublicById(id);
+
+        // Assert
+        assertEquals(id, result.get().getId());
+        assertEquals("Tomas Rivas", result.get().getName());
+        assertEquals("Fotografo", result.get().getBio());
+        assertEquals(Long.valueOf(imageId), result.get().getCoverImageId());
+    }
+
+    @Test
+    public void testFindActivePublicByIdOfAnAccountWithoutBioNorCoverHasBothNull() {
+        // Arrange
+        final long id = insertActiveUser("sinextras@mail.com", "Sin extras");
+
+        // Act
+        final Optional<PublicUser> result = userDao.findActivePublicById(id);
+
+        // Assert
+        assertNull(result.get().getBio());
+        assertNull(result.get().getCoverImageId());
+    }
+
+    @Test
+    public void testFindActivePublicByIdIsEmptyForASuspendedAccount() {
+        // Arrange
+        final long id = insertActiveUser("suspendida@mail.com", "Suspendida");
+        jdbcTemplate.update("UPDATE users SET suspended = true WHERE id = ?", id);
+
+        // Act
+        final Optional<PublicUser> result = userDao.findActivePublicById(id);
+
+        // Assert
+        assertFalse(result.isPresent());
+    }
+
+    @Test
+    public void testFindActivePublicByIdIsEmptyForAnAccountThatNeverConfirmedTheMail() {
+        // Arrange
+        final long id = insertActiveUser("sinconfirmar@mail.com", "Sin confirmar");
+        jdbcTemplate.update("UPDATE users SET verified = false WHERE id = ?", id);
+
+        // Act
+        final Optional<PublicUser> result = userDao.findActivePublicById(id);
+
+        // Assert
+        assertFalse(result.isPresent());
+    }
+
+    @Test
+    public void testFindActivePublicByIdIsEmptyForAGhostAccountWithoutPassword() {
+        // Arrange: insertUser deja la cuenta sin clave (la fila "fantasma" de antes del registro)
+        final long id = insertUser("fantasma@mail.com", "Fantasma");
+
+        // Act
+        final Optional<PublicUser> result = userDao.findActivePublicById(id);
+
+        // Assert
+        assertFalse(result.isPresent());
+    }
+
+    @Test
+    public void testFindActivePublicByIdIsEmptyWhenTheAccountDoesNotExist() {
+        // Act
+        final Optional<PublicUser> result = userDao.findActivePublicById(987654L);
 
         // Assert
         assertFalse(result.isPresent());

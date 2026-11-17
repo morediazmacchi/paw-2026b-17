@@ -74,7 +74,7 @@ public class EventReportJpaDao implements EventReportDao {
         params.forEach(idsQuery::setParameter);
         idsQuery.setFirstResult((page - 1) * pageSize);
         idsQuery.setMaxResults(pageSize);
-        return loadInOrder(idsQuery.getResultList());
+        return loadPage(idsQuery.getResultList());
     }
 
     @Override
@@ -160,16 +160,14 @@ public class EventReportJpaDao implements EventReportDao {
                 .executeUpdate() == 1;
     }
 
-    // Paso 2 del 1+1: carga los reportes de "ids" y los devuelve en el mismo orden que los ids.
-    private List<EventReport> loadInOrder(final List<Long> ids) {
+    // Paso 2 del 1+1: carga los reportes de "ids" con el MISMO ORDER BY que la consulta de ids (el IN no ordena nada).
+    private List<EventReport> loadPage(final List<Long> ids) {
         if (ids.isEmpty()) {
             return Collections.emptyList();
         }
-        return PagedIds.inOrder(ids,
-                em.createQuery("FROM EventReport r WHERE r.id IN :ids", EventReport.class)
-                        .setParameter("ids", ids)
-                        .getResultList(),
-                EventReport::getId);
+        return em.createQuery("FROM EventReport r WHERE r.id IN :ids" + SEARCH_ORDER_BY, EventReport.class)
+                .setParameter("ids", ids)
+                .getResultList();
     }
 
     @Override

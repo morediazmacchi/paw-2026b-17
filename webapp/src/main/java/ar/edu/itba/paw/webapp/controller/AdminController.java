@@ -280,7 +280,7 @@ public class AdminController {
                                 @RequestParam(value = "sort", required = false) final String sort) {
         final AdminEventSort effectiveSort = AdminEventSort.fromParam(sort);
         final PageResult<EventWithRegistrationStats> result =
-                eventService.findAllEventsPage(query, effectiveSort, Paging.parsePage(page));
+                moderationService.findAllEventsPage(query, effectiveSort, Paging.parsePage(page));
         final ModelAndView mav = new ModelAndView("admin/eventos");
         mav.addObject("events", result.getContent());
         mav.addObject("currentPage", result.getPage());

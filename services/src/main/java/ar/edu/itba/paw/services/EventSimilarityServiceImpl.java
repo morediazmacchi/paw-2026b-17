@@ -5,7 +5,6 @@ import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.SimilarityParameters;
 import ar.edu.itba.paw.persistence.EventDao;
-import ar.edu.itba.paw.persistence.RegistrationDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,20 +21,16 @@ import java.util.Objects;
 public class EventSimilarityServiceImpl implements EventSimilarityService {
 
     private final EventDao eventDao;
-    private final RegistrationDao registrationDao;
     private final SimilarityParameters parameters;
     private final Clock clock;
 
     @Autowired
-    public EventSimilarityServiceImpl(final EventDao eventDao, final RegistrationDao registrationDao,
-                                      final SimilarityParameters parameters) {
-        this(eventDao, registrationDao, parameters, Clock.systemUTC());
+    public EventSimilarityServiceImpl(final EventDao eventDao, final SimilarityParameters parameters) {
+        this(eventDao, parameters, Clock.systemUTC());
     }
 
-    EventSimilarityServiceImpl(final EventDao eventDao, final RegistrationDao registrationDao,
-                               final SimilarityParameters parameters, final Clock clock) {
+    EventSimilarityServiceImpl(final EventDao eventDao, final SimilarityParameters parameters, final Clock clock) {
         this.eventDao = eventDao;
-        this.registrationDao = registrationDao;
         this.parameters = parameters;
         this.clock = clock;
     }
@@ -61,6 +56,6 @@ public class EventSimilarityServiceImpl implements EventSimilarityService {
     @Override
     @Transactional(readOnly = true)
     public boolean hasAttendanceHistory(final long userId) {
-        return !registrationDao.findAttendedEventIds(userId, Date.from(clock.instant()), 1).isEmpty();
+        return eventDao.hasAttendanceHistory(userId, Date.from(clock.instant()));
     }
 }

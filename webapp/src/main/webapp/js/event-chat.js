@@ -20,6 +20,9 @@
     var lastId = parseInt(box.getAttribute('data-last-id'), 10) || 0;
     var polling = false;
     var stopped = false;
+    // Un envio en curso: mientras no responde el servidor el texto sigue en el cuadro, y un segundo Enter (o
+    // mantener la tecla apretada) mandaria el mismo mensaje dos veces.
+    var sending = false;
 
     function scrollToBottom() {
         box.scrollTop = box.scrollHeight;
@@ -111,9 +114,10 @@
 
     function send() {
         var text = input.value.trim();
-        if (!text) {
+        if (!text || sending) {
             return;
         }
+        sending = true;
         var button = form.querySelector('button[type=submit]');
         button.disabled = true;
         showError('');
@@ -143,6 +147,7 @@
         }).catch(function () {
             showError(box.getAttribute('data-error-text'));
         }).then(function () {
+            sending = false;
             button.disabled = false;
             input.focus();
         });

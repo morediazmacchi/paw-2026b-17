@@ -5,18 +5,16 @@ import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.InboxMessage;
 import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.RegistrationStatus;
-import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.InboxMessageDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @Service
 public class InboxServiceImpl implements InboxService {
@@ -24,15 +22,10 @@ public class InboxServiceImpl implements InboxService {
     static final int PAGE_SIZE = 20;
 
     private final InboxMessageDao inboxMessageDao;
-    private final UserService userService;
-    private final EventDao eventDao;
 
     @Autowired
-    public InboxServiceImpl(final InboxMessageDao inboxMessageDao, final UserService userService,
-                            final EventDao eventDao) {
-        this.eventDao = eventDao;
+    public InboxServiceImpl(final InboxMessageDao inboxMessageDao) {
         this.inboxMessageDao = inboxMessageDao;
-        this.userService = userService;
     }
 
     // Mismo criterio que el resto de la app: en la base los emails van en minuscula.
@@ -44,16 +37,9 @@ public class InboxServiceImpl implements InboxService {
     @Transactional
     public InboxMessage add(final String recipientEmail, final InboxMessageType type, final Long eventId,
                             final String actorName, final String body) {
-        final String normalizedEmail = normalize(recipientEmail);
-        // El aviso se relaciona con el evento (objeto, no solo el numero). Dentro de la misma
-        // transaccion el evento casi siempre ya esta cargado, asi que findById no va a la base.
-        final Event event = eventId == null ? null : eventDao.findById(eventId).orElse(null);
-        final InboxMessage message = new InboxMessage(normalizedEmail, type, event, actorName, body);
-        // Optimista (Grupo B, ver schema.sql): si el destinatario ya tiene
-        // cuenta, se enlaza de una. Si no, queda en null y se reconcilia solo
-        // cuando se registre (ver UserServiceImpl.register()).
-        userService.findByEmail(normalizedEmail).ifPresent(message::setUser);
-        return inboxMessageDao.create(message);
+        // El DAO enlaza el aviso con el evento (por id) y, si el destinatario ya tiene cuenta, con ella; si no, queda
+        // sin cuenta y se reconcilia cuando se registre (ver linkAccount()).
+        return inboxMessageDao.create(normalize(recipientEmail), type, eventId, actorName, body);
     }
 
     @Override
@@ -107,11 +93,20 @@ public class InboxServiceImpl implements InboxService {
     @Transactional(readOnly = true)
     public InboxPage findPageWithEvents(final long userId, final int page) {
         final PageResult<InboxMessage> messages = findPage(userId, page);
-        final List<Long> eventIds = messages.getContent().stream()
-                .map(InboxMessage::getEventId).filter(Objects::nonNull).distinct().collect(Collectors.toList());
-        final Map<Long, Event> eventsById = eventDao.findByIds(eventIds).stream()
-                .collect(Collectors.toMap(Event::getId, event -> event));
+        // El evento de cada aviso ya viene con la pagina (el DAO lo trae en la misma consulta): no se busca aparte.
+        final Map<Long, Event> eventsById = new HashMap<>();
+        for (final InboxMessage message : messages.getContent()) {
+            if (message.getEvent() != null) {
+                eventsById.put(message.getEventId(), message.getEvent());
+            }
+        }
         return new InboxPage(messages, eventsById);
+    }
+
+    @Override
+    @Transactional
+    public int linkAccount(final String email, final long userId) {
+        return inboxMessageDao.linkUserId(normalize(email), userId);
     }
 
     @Override

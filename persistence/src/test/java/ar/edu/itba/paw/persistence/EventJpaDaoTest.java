@@ -2755,4 +2755,132 @@ public class EventJpaDaoTest {
         // Assert
         assertEquals(0, upcoming);
     }
+
+    // ---- countOccupiedSpots() ----
+
+    @Test
+    public void testCountOccupiedSpotsCountsConfirmedRegistrationsAndOutstandingInvitations() {
+        // Arrange: 2 confirmados + 1 invitacion sin usar; senuelos que NO ocupan lugar: pendiente, lista de espera y
+        // una invitacion ya usada (su lugar es la inscripcion, que ya se cuenta)
+        final long eventId = insertEvent();
+        insertRegistration(eventId, "uno@mail.com", "CONFIRMED");
+        insertRegistration(eventId, "dos@mail.com", "CONFIRMED");
+        insertRegistration(eventId, "pendiente@mail.com", "PENDING");
+        insertRegistration(eventId, "espera@mail.com", "WAITLISTED");
+        insertEventInvitation(eventId, "sin-usar@mail.com");
+        insertEventInvitation(eventId, "uno@mail.com");
+
+        // Act
+        final long occupied = eventDao.countOccupiedSpots(eventId);
+
+        // Assert
+        assertEquals(3, occupied);
+    }
+
+    @Test
+    public void testCountOccupiedSpotsDoesNotCountOtherEvents() {
+        // Arrange
+        final long eventId = insertEvent();
+        final long otherEventId = insertEvent();
+        insertRegistration(eventId, "uno@mail.com", "CONFIRMED");
+        insertRegistration(otherEventId, "otro@mail.com", "CONFIRMED");
+        insertEventInvitation(otherEventId, "invitado@mail.com");
+
+        // Act
+        final long occupied = eventDao.countOccupiedSpots(eventId);
+
+        // Assert
+        assertEquals(1, occupied);
+    }
+
+    @Test
+    public void testCountOccupiedSpotsIsZeroForAnEventWithNobody() {
+        // Act
+        final long occupied = eventDao.countOccupiedSpots(insertEvent());
+
+        // Assert
+        assertEquals(0, occupied);
+    }
+
+    // ---- hasAttendanceHistory() ----
+
+    // Inscripcion con cuenta (hasAttendanceHistory mira el user_id, no el mail).
+    private void insertRegistrationOf(final long eventId, final long userId, final String email, final String status) {
+        jdbcTemplate.update("INSERT INTO registration (event_id, user_id, email, status) VALUES (?, ?, ?, ?)",
+                eventId, userId, email, status);
+    }
+
+    private long insertEventAt(final long millisFromNow) {
+        return insertEvent(cols("event_date", fromNow(millisFromNow)));
+    }
+
+    @Test
+    public void testHasAttendanceHistoryIsTrueWithAConfirmedRegistrationToAPastEvent() {
+        // Arrange
+        final long userId = insertUser("asistente@mail.com");
+        insertRegistrationOf(insertEventAt(-DAY), userId, "asistente@mail.com", "CONFIRMED");
+
+        // Act
+        final boolean result = eventDao.hasAttendanceHistory(userId, new Date());
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    public void testHasAttendanceHistoryIsFalseWhenTheEventHasNotHappenedYet() {
+        // Arrange
+        final long userId = insertUser("asistente@mail.com");
+        insertRegistrationOf(insertEventAt(DAY), userId, "asistente@mail.com", "CONFIRMED");
+
+        // Act
+        final boolean result = eventDao.hasAttendanceHistory(userId, new Date());
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    public void testHasAttendanceHistoryIsFalseWhenTheRegistrationIsNotConfirmed() {
+        // Arrange: pendiente, lista de espera y rechazada a eventos pasados
+        final long userId = insertUser("asistente@mail.com");
+        insertRegistrationOf(insertEventAt(-DAY), userId, "a1@mail.com", "PENDING");
+        insertRegistrationOf(insertEventAt(-2 * DAY), userId, "a2@mail.com", "WAITLISTED");
+        insertRegistrationOf(insertEventAt(-3 * DAY), userId, "a3@mail.com", "REJECTED");
+
+        // Act
+        final boolean result = eventDao.hasAttendanceHistory(userId, new Date());
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    public void testHasAttendanceHistoryIsFalseWhenThePastEventWasCancelled() {
+        // Arrange: un evento cancelado (o dado de baja por un admin, mismo cancelled_at) no ocurrio
+        final long userId = insertUser("asistente@mail.com");
+        final long cancelled = insertEventAt(-2 * DAY);
+        insertRegistrationOf(cancelled, userId, "asistente@mail.com", "CONFIRMED");
+        jdbcTemplate.update("UPDATE event SET cancelled_at = ? WHERE id = ?", fromNow(-3 * DAY), cancelled);
+
+        // Act
+        final boolean result = eventDao.hasAttendanceHistory(userId, new Date());
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    public void testHasAttendanceHistoryIgnoresTheAttendanceOfOtherPeople() {
+        // Arrange: senuelo = otra persona que si asistio
+        final long userId = insertUser("yo@mail.com");
+        final long otherUserId = insertUser("otra@mail.com");
+        insertRegistrationOf(insertEventAt(-DAY), otherUserId, "otra@mail.com", "CONFIRMED");
+
+        // Act
+        final boolean result = eventDao.hasAttendanceHistory(userId, new Date());
+
+        // Assert
+        assertFalse(result);
+    }
 }

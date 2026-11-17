@@ -1,6 +1,7 @@
 // Contrato de servicio para inscripciones. Implementacion: RegistrationServiceImpl (modulo services).
 package ar.edu.itba.paw.services;
 
+import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationAccess;
 import ar.edu.itba.paw.model.RegistrationStatus;
@@ -55,19 +56,10 @@ public interface RegistrationService {
 
     /**
      * @return cupos que todavia quedan libres (cupo maximo menos ocupados, ver
-     *         occupiedSpots()), o null si el evento no tiene limite de cupo
+     *         EventService.occupiedSpots()), o null si el evento no tiene limite de cupo
      */
     @Transactional(readOnly = true)
     Integer availableSpots(long eventId);
-
-    /**
-     * Cupos que ya no se le pueden dar a otro: confirmados + invitaciones por
-     * mail a un evento privado cuya persona todavia no se anoto. Ni los pedidos
-     * pendientes de aprobacion ni la lista de espera ocupan cupo. Es la misma
-     * cuenta que usan isFull() y availableSpots().
-     */
-    @Transactional(readOnly = true)
-    long occupiedSpots(long eventId);
 
     /**
      * "Mis inscripciones": las proximas y las pasadas del usuario, cada grupo paginado por su cuenta (con su
@@ -177,15 +169,13 @@ public interface RegistrationService {
     PendingRegistrations findPendingSummary(long eventId, int page);
 
     /**
-     * Cuantos pedidos pendientes tiene cada uno de esos eventos, en una sola consulta (un GROUP BY). Un
-     * evento sin pendientes no aparece en el mapa.
+     * Le agrega a cada evento de la pagina sus conteos de inscripciones ("Mis eventos" y el panel de eventos de admin).
+     * Que se cuenta es regla de negocio: los pendientes solo en un evento que pide aprobacion (si no, vienen en null) y
+     * los confirmados solo en uno no cancelado (si esta cancelado, 0). Son UNA consulta por tipo (un GROUP BY) para toda
+     * la pagina, no una por evento. La pagina (total, numero, tamaño) queda igual.
      */
     @Transactional(readOnly = true)
-    Map<Long, Long> countPendingByEvents(Collection<Long> eventIds);
-
-    /** Igual que countPendingByEvents(), pero de confirmados. */
-    @Transactional(readOnly = true)
-    Map<Long, Long> countConfirmedByEvents(Collection<Long> eventIds);
+    PageResult<EventWithRegistrationStats> withRegistrationStats(PageResult<Event> events);
 
     /**
      * El creador acepta una inscripcion pendiente: pasa a "confirmed" y se le

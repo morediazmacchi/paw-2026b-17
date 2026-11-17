@@ -1,6 +1,7 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.AdminEventSort;
 import ar.edu.itba.paw.model.EventReport;
 import ar.edu.itba.paw.model.ReportStatus;
 import ar.edu.itba.paw.model.ReportStatusCounts;
@@ -58,12 +59,15 @@ public class ModerationServiceImplTest {
     private NotificationService notificationService;
     @Mock
     private InboxService inboxService;
+    @Mock
+    private RegistrationService registrationService;
 
     private ModerationServiceImpl moderationService;
 
     @Before
     public void setUp() {
-        moderationService = new ModerationServiceImpl(reportDao, eventService, userService, notificationService, inboxService);
+        moderationService = new ModerationServiceImpl(reportDao, eventService, userService, notificationService, inboxService,
+                registrationService);
     }
 
     private static User someUser(final long id) {
@@ -610,5 +614,27 @@ public class ModerationServiceImplTest {
 
         // Assert
         assertFalse(result.isPresent());
+    }
+
+    // ---- findAllEventsPage() ----
+
+    @Test
+    public void testFindAllEventsPageAddsTheRegistrationCountsToThePageOfEvents() {
+        // Arrange: el stub de las estadisticas solo responde con LA pagina que da EventService (mismo objeto)
+        final PageResult<Event> events = new PageResult<>(
+                Collections.singletonList(ModelFixtures.event(EVENT_ID)), 1L, 1, 12);
+        final PageResult<EventWithRegistrationStats> withStats = new PageResult<>(
+                Collections.singletonList(new EventWithRegistrationStats(ModelFixtures.event(EVENT_ID), 5L, 3L)),
+                1L, 1, 12);
+        when(eventService.findAllEventsPage("feria", AdminEventSort.TITLE_ASC, 1)).thenReturn(events);
+        when(registrationService.withRegistrationStats(events)).thenReturn(withStats);
+
+        // Act
+        final PageResult<EventWithRegistrationStats> result =
+                moderationService.findAllEventsPage("feria", AdminEventSort.TITLE_ASC, 1);
+
+        // Assert
+        assertEquals(5L, result.getContent().get(0).getConfirmedCount());
+        assertEquals(Long.valueOf(3), result.getContent().get(0).getPendingCount());
     }
 }

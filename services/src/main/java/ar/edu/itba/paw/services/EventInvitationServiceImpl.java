@@ -4,7 +4,6 @@ package ar.edu.itba.paw.services;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventInvitation;
 import ar.edu.itba.paw.model.InboxMessageType;
-import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.EventInvitationDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -18,21 +17,18 @@ public class EventInvitationServiceImpl implements EventInvitationService {
     static final int PAGE_SIZE = 10;
 
     private final EventInvitationDao invitationDao;
-    private final EventDao eventDao;
-    private final RegistrationService registrationService;
+    private final EventService eventService;
     private final NotificationService notificationService;
     private final InboxService inboxService;
     private final UserService userService;
 
     @Autowired
-    public EventInvitationServiceImpl(final EventInvitationDao invitationDao, final EventDao eventDao,
-                                       final RegistrationService registrationService,
+    public EventInvitationServiceImpl(final EventInvitationDao invitationDao, final EventService eventService,
                                        final NotificationService notificationService,
                                        final InboxService inboxService,
                                        final UserService userService) {
         this.invitationDao = invitationDao;
-        this.eventDao = eventDao;
-        this.registrationService = registrationService;
+        this.eventService = eventService;
         this.notificationService = notificationService;
         this.inboxService = inboxService;
         this.userService = userService;
@@ -47,7 +43,7 @@ public class EventInvitationServiceImpl implements EventInvitationService {
         }
         // Con lock: dos invitaciones simultaneas no pueden pasar el cupo (cada una
         // reserva un lugar y se cuenta contra el cupo).
-        final Event event = eventDao.findByIdForUpdate(eventId).orElse(null);
+        final Event event = eventService.findByIdForUpdate(eventId).orElse(null);
         if (event == null || event.isCancelled()) {
             return EventInvitationResult.NOT_ALLOWED;
         }
@@ -81,8 +77,8 @@ public class EventInvitationServiceImpl implements EventInvitationService {
 
         // Cada invitacion reserva un lugar (cuenta como cupo ocupado): si ya no
         // queda ninguno, no se puede invitar a nadie mas. Que es "lleno" lo define
-        // un solo lugar (RegistrationService.isFull: confirmados + invitaciones sin usar).
-        if (registrationService.isFull(eventId)) {
+        // un solo lugar (EventService.occupiedSpots: confirmados + invitaciones sin usar).
+        if (event.isFullWith(eventService.occupiedSpots(eventId))) {
             return EventInvitationResult.FULL;
         }
 
@@ -97,6 +93,12 @@ public class EventInvitationServiceImpl implements EventInvitationService {
         notificationService.notifyEventInvitation(event, invitation);
         inboxService.add(normalizedEmail, InboxMessageType.PRIVATE_INVITE, eventId, null, null);
         return EventInvitationResult.SENT;
+    }
+
+    @Override
+    @Transactional
+    public int linkAccount(final String email, final long userId) {
+        return invitationDao.linkUserId(email.trim().toLowerCase(), userId);
     }
 
     @Override

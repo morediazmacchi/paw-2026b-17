@@ -1,5 +1,6 @@
 package ar.edu.itba.paw.webapp.controller;
 
+import ar.edu.itba.paw.model.ProfileTab;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.exception.InvalidImageException;
 import ar.edu.itba.paw.model.exception.UserNotFoundException;
@@ -43,20 +44,23 @@ public class UserProfileController {
         this.userService = userService;
     }
 
-    // Cada grupo de eventos tiene su propio paginado (proximosPage / realizadosPage). Una cuenta que no existe o que no
-    // se puede mostrar (suspendida, sin confirmar) da el mismo 404 que cualquier otra cosa que no se encuentra.
+    // Los eventos se ven en pestañas (?tab=): se pide y se pagina (?page=) solo la que se muestra; sin elegir ninguna
+    // decide el service. Una cuenta que no existe o que no se puede mostrar (suspendida, sin confirmar) da el mismo 404
+    // que cualquier otra cosa que no se encuentra.
     @RequestMapping(value = "/usuarios/{id:[0-9]+}", method = RequestMethod.GET)
     public ModelAndView profile(@PathVariable final long id,
-                                @RequestParam(value = "proximosPage", required = false) final String upcomingPage,
-                                @RequestParam(value = "realizadosPage", required = false) final String pastPage,
+                                @RequestParam(value = "tab", required = false) final String tab,
+                                @RequestParam(value = "page", required = false) final String page,
                                 @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final Long viewerId = currentUser == null ? null : currentUser.getId();
         final UserProfile profile = userProfileService
-                .findProfile(id, viewerId, Paging.parsePage(upcomingPage), Paging.parsePage(pastPage))
+                .findProfile(id, viewerId, ProfileTab.fromParam(tab), Paging.parsePage(page))
                 .orElseThrow(() -> new UserNotFoundException(id));
 
         final ModelAndView mav = new ModelAndView("users/profile");
         mav.addObject("profile", profile);
+        // El largo maximo de la biografia: lo usa el formulario de editarla (el limite es del service).
+        mav.addObject("maxBioLength", UserService.MAX_BIO_LENGTH);
         return mav;
     }
 

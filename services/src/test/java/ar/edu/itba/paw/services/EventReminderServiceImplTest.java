@@ -2,7 +2,6 @@ package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventApprovalStatus;
-import ar.edu.itba.paw.persistence.EventDao;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -36,7 +35,7 @@ public class EventReminderServiceImplTest {
     private static final String CREATOR_EMAIL = "org@mail.com";
 
     @Mock
-    private EventDao eventDao;
+    private EventService eventService;
     @Mock
     private RegistrationService registrationService;
     @Mock
@@ -48,7 +47,7 @@ public class EventReminderServiceImplTest {
 
     @Before
     public void setUp() {
-        reminderService = new EventReminderServiceImpl(eventDao, registrationService, notificationService, inboxService);
+        reminderService = new EventReminderServiceImpl(eventService, registrationService, notificationService, inboxService);
     }
 
     private static Event eventInHours(final long id, final long hours) {
@@ -66,8 +65,8 @@ public class EventReminderServiceImplTest {
 
     // El evento existe y es el que se reclama: el caso feliz de sendReminder().
     private void claimable(final Event event) {
-        when(eventDao.markReminderSent(eq(EVENT_ID), any(Date.class))).thenReturn(true);
-        when(eventDao.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        when(eventService.markReminderSent(eq(EVENT_ID), any(Date.class))).thenReturn(true);
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event));
     }
 
     // ---- sendReminder() ----
@@ -88,7 +87,7 @@ public class EventReminderServiceImplTest {
     @Test
     public void testSendReminderReturnsFalseWhenTheReminderWasAlreadySent() {
         // Arrange
-        when(eventDao.markReminderSent(eq(EVENT_ID), any(Date.class))).thenReturn(false);
+        when(eventService.markReminderSent(eq(EVENT_ID), any(Date.class))).thenReturn(false);
 
         // Act
         final boolean result = reminderService.sendReminder(EVENT_ID);
@@ -154,8 +153,8 @@ public class EventReminderServiceImplTest {
     @Test
     public void testSendReminderReturnsFalseWhenTheEventDoesNotExist() {
         // Arrange
-        when(eventDao.markReminderSent(eq(EVENT_ID), any(Date.class))).thenReturn(true);
-        when(eventDao.findById(EVENT_ID)).thenReturn(Optional.empty());
+        when(eventService.markReminderSent(eq(EVENT_ID), any(Date.class))).thenReturn(true);
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
         final boolean result = reminderService.sendReminder(EVENT_ID);
@@ -170,7 +169,7 @@ public class EventReminderServiceImplTest {
     @Test
     public void testFindEventsNeedingReminderReturnsEmptyWhenNoEventIsDue() {
         // Arrange
-        when(eventDao.findIdsNeedingReminder(any(Date.class), any(Date.class))).thenReturn(Collections.emptyList());
+        when(eventService.findIdsNeedingReminder(any(Date.class), any(Date.class))).thenReturn(Collections.emptyList());
 
         // Act
         final List<Long> result = reminderService.findEventsNeedingReminder();

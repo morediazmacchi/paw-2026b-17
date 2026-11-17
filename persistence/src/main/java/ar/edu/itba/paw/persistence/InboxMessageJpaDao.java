@@ -1,6 +1,7 @@
 // Implementa el contrato InboxMessageDao (modulo persistence-contracts) con JPA/Hibernate.
 package ar.edu.itba.paw.persistence;
 
+import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.InboxMessage;
 import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.RegistrationStatus;
@@ -23,7 +24,17 @@ public class InboxMessageJpaDao implements InboxMessageDao {
     private EntityManager em;
 
     @Override
-    public InboxMessage create(final InboxMessage message) {
+    public InboxMessage create(final String recipientEmail, final InboxMessageType type, final Long eventId,
+                               final String actorName, final String body) {
+        // El aviso se relaciona con el evento por referencia (no hace falta cargarlo).
+        final InboxMessage message = new InboxMessage(recipientEmail, type,
+                eventId == null ? null : em.getReference(Event.class, eventId), actorName, body);
+        // Optimista (ver schema.sql): si el destinatario ya tiene cuenta, se enlaza de una. Si no, queda en null y
+        // se completa solo cuando se registre (ver linkUserId()).
+        em.createQuery("SELECT u.id FROM User u WHERE u.email = :email", Long.class)
+                .setParameter("email", recipientEmail)
+                .getResultList().stream().findFirst()
+                .ifPresent(userId -> message.setUser(em.getReference(User.class, userId)));
         em.persist(message);
         return message;
     }
@@ -109,11 +120,12 @@ public class InboxMessageJpaDao implements InboxMessageDao {
         if (ids.isEmpty()) {
             return Collections.emptyList();
         }
-        return PagedIds.inOrder(ids,
-                em.createQuery("FROM InboxMessage m WHERE m.id IN :ids", InboxMessage.class)
-                        .setParameter("ids", ids)
-                        .getResultList(),
-                InboxMessage::getId);
+        // Paso 2: las entidades de esos ids, con el MISMO ORDER BY que la consulta de arriba (el IN no ordena nada).
+        // LEFT JOIN FETCH del evento: la bandeja muestra a que evento se refiere cada aviso (no todos tienen uno).
+        return em.createQuery("SELECT m FROM InboxMessage m LEFT JOIN FETCH m.event WHERE m.id IN :ids "
+                                + "ORDER BY m.createdAt DESC, m.id DESC", InboxMessage.class)
+                .setParameter("ids", ids)
+                .getResultList();
     }
 
     @Override

@@ -4,7 +4,6 @@ import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.SimilarityParameters;
 import ar.edu.itba.paw.persistence.EventDao;
-import ar.edu.itba.paw.persistence.RegistrationDao;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -46,16 +45,13 @@ public class EventSimilarityServiceImplTest {
 
     @Mock
     private EventDao eventDao;
-    @Mock
-    private RegistrationDao registrationDao;
 
     private final SimilarityParameters parameters = SimilarityParameters.defaults();
     private EventSimilarityServiceImpl service;
 
     @Before
     public void setUp() {
-        service = new EventSimilarityServiceImpl(eventDao, registrationDao, parameters,
-                Clock.fixed(NOW, ZoneOffset.UTC));
+        service = new EventSimilarityServiceImpl(eventDao, parameters, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     private static EventSearchCriteria criteria(final int page) {
@@ -160,14 +156,14 @@ public class EventSimilarityServiceImplTest {
 
     @Test
     public void testHasAttendanceHistoryWhenThereIsAnAttendedEvent() {
-        when(registrationDao.findAttendedEventIds(VIEWER_ID, NOW_DATE, 1)).thenReturn(Collections.singletonList(100L));
+        when(eventDao.hasAttendanceHistory(VIEWER_ID, NOW_DATE)).thenReturn(true);
 
         assertTrue(service.hasAttendanceHistory(VIEWER_ID));
     }
 
     @Test
     public void testHasNoAttendanceHistoryWhenNothingWasAttended() {
-        when(registrationDao.findAttendedEventIds(VIEWER_ID, NOW_DATE, 1)).thenReturn(Collections.emptyList());
+        when(eventDao.hasAttendanceHistory(VIEWER_ID, NOW_DATE)).thenReturn(false);
 
         assertFalse(service.hasAttendanceHistory(VIEWER_ID));
     }

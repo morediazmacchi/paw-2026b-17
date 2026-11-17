@@ -136,4 +136,19 @@ public interface EventDao {
     // confirmada no entra: puede devolver menos de "limit" eventos, o ninguno. Si dos empatan va primero
     // el que ocurre antes, y despues el de menor id. Se ven siempre, tambien los de quien navega.
     List<Event> findMostRegistered(int limit);
+
+    /**
+     * Cuantos lugares tiene ocupados un evento: las inscripciones CONFIRMADAS mas las invitaciones por mail cuya
+     * persona todavia no se anoto (cada una tiene un lugar reservado; al anotarse pasa a ser su inscripcion y deja de
+     * contarse aparte). Ni los pedidos PENDING ni la lista de espera ocupan cupo. Es la unica definicion de "ocupado":
+     * el cupo (EventService.occupiedSpots), la lista de espera y la edicion del cupo se apoyan en ella.
+     */
+    long countOccupiedSpots(long eventId);
+
+    /**
+     * Si esa persona ya asistio a algo: tiene al menos una inscripcion CONFIRMADA a un evento que ya paso (antes de
+     * "now") y que no se cancelo (uno cancelado, o dado de baja por un admin, no ocurrio). Es lo que habilita el
+     * orden RECOMENDADOS (ver EventSimilarityService).
+     */
+    boolean hasAttendanceHistory(long userId, Date now);
 }

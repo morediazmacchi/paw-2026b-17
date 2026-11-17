@@ -10,12 +10,8 @@ import ar.edu.itba.paw.model.Review;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import ar.edu.itba.paw.model.exception.UserNotFoundException;
-import ar.edu.itba.paw.persistence.EventDao;
-import ar.edu.itba.paw.persistence.EventInvitationDao;
 import ar.edu.itba.paw.persistence.RegistrationDao;
-import ar.edu.itba.paw.persistence.ReviewDao;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,41 +31,25 @@ public class RegistrationServiceImpl implements RegistrationService {
     static final int PAGE_SIZE = 10;
 
     private final RegistrationDao registrationDao;
-    private final EventDao eventDao;
+    private final EventService eventService;
     private final NotificationService notificationService;
-    private final EventInvitationDao invitationDao;
+    private final EventInvitationService invitationService;
     private final InboxService inboxService;
-    private final ReviewDao reviewDao;
+    private final ReviewService reviewService;
     private final UserService userService;
-    // Proxy propio: cancel()/revoke() llaman a promoteFromWaitlist() de esta
-    // misma clase, y ese es un metodo @Transactional del contrato publico (lo
-    // llaman tambien EventServiceImpl y los tests, via el proxy de siempre).
-    // Una llamada directa (this implicito) no pasa por el proxy de Spring, asi
-    // que ignoraria en silencio cualquier semantica de AOP que dependa de el
-    // (otra propagacion, rollbackFor, etc.) si el dia de mañana cambia. Por
-    // inyeccion de campo (no de constructor, a diferencia del resto de esta
-    // clase): un parametro de constructor "me a mi mismo" rompe la construccion
-    // manual en los tests (new RegistrationServiceImpl(...)), que no pasan por
-    // un ApplicationContext. @Lazy rompe el ciclo en produccion: el bean termina
-    // de construirse antes de que este campo se resuelva de verdad. Paquete-visible
-    // (no private) para que el test, en el mismo paquete, lo pueda asignar
-    // directo sin reflection.
-    @Autowired
-    @Lazy
-    RegistrationService self;
 
     @Autowired
-    public RegistrationServiceImpl(final RegistrationDao registrationDao, final EventDao eventDao,
-                                    final NotificationService notificationService,
-                                    final EventInvitationDao invitationDao,
-                                    final InboxService inboxService, final ReviewDao reviewDao,
-                                    final UserService userService) {
+    public RegistrationServiceImpl(final RegistrationDao registrationDao, final EventService eventService,
+                                   final NotificationService notificationService,
+                                   final EventInvitationService invitationService,
+                                   final InboxService inboxService, final ReviewService reviewService,
+                                   final UserService userService) {
         this.registrationDao = registrationDao;
-        this.eventDao = eventDao;
+        this.eventService = eventService;
         this.notificationService = notificationService;
-        this.invitationDao = invitationDao;
+        this.invitationService = invitationService;
         this.inboxService = inboxService;
-        this.reviewDao = reviewDao;
+        this.reviewService = reviewService;
         this.userService = userService;
     }
 
@@ -86,7 +66,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         // Evento inexistente: el 404 ya lo da @PreAuthorize en el controller antes de llegar aca; esto solo
         // se alcanza si desaparece justo en el medio (carrera). Es la excepcion de siempre (ErrorAdvice
         // la mapea a 404), no un resultado: los resultados son para conflictos de negocio.
-        final Event event = eventDao.findByIdForUpdate(eventId)
+        final Event event = eventService.findByIdForUpdate(eventId)
                 .orElseThrow(() -> new EventNotFoundException(eventId));
 
         final Registration existing = registrationDao.findByEventAndUserId(eventId, userId).orElse(null);
@@ -98,7 +78,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         // no tiene excepcion; el organizador no se anota a su propio evento) NO se valida aca: lo
         // decide @PreAuthorize en el controller antes de entrar (ver EventSecurity.canRegister). Aca solo
         // hace falta saber si tiene invitacion, porque eso le reserva el lugar (ver mas abajo).
-        final boolean invited = invitationDao.findByEventAndUserId(eventId, userId).isPresent();
+        final boolean invited = invitationService.isInvited(eventId, userId);
 
         // Un evento que ya paso no admite inscripciones. La pantalla esconde el
         // boton (ver detail.jsp), pero un POST directo no tiene que poder anotar
@@ -211,7 +191,7 @@ public class RegistrationServiceImpl implements RegistrationService {
     @Override
     @Transactional(readOnly = true)
     public boolean isFull(final long eventId) {
-        final Event event = eventDao.findById(eventId)
+        final Event event = eventService.findById(eventId)
                 .orElseThrow(() -> new EventNotFoundException(eventId));
         return isFull(event);
     }
@@ -219,9 +199,9 @@ public class RegistrationServiceImpl implements RegistrationService {
     @Override
     @Transactional(readOnly = true)
     public boolean isFullFor(final long eventId, final long userId) {
-        final Event event = eventDao.findById(eventId)
+        final Event event = eventService.findById(eventId)
                 .orElseThrow(() -> new EventNotFoundException(eventId));
-        final boolean invited = invitationDao.findByEventAndUserId(eventId, userId).isPresent();
+        final boolean invited = invitationService.isInvited(eventId, userId);
         return isFull(event, invited);
     }
 
@@ -232,8 +212,7 @@ public class RegistrationServiceImpl implements RegistrationService {
     // ownInvitationHoldsSpot: la persona que consulta tiene una invitacion sin
     // usar, y esa invitacion es uno de los lugares que occupied() ya cuenta.
     private boolean isFull(final Event event, final boolean ownInvitationHoldsSpot) {
-        return event.getMaxCapacity() != null
-                && occupied(event.getId()) - (ownInvitationHoldsSpot ? 1 : 0) >= event.getMaxCapacity();
+        return event.isFullWith(occupied(event.getId()) - (ownInvitationHoldsSpot ? 1 : 0));
     }
 
     /**
@@ -247,19 +226,13 @@ public class RegistrationServiceImpl implements RegistrationService {
      * ocupan cupo.
      */
     private long occupied(final long eventId) {
-        return registrationDao.countConfirmed(eventId) + invitationDao.countOutstanding(eventId);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public long occupiedSpots(final long eventId) {
-        return occupied(eventId);
+        return eventService.occupiedSpots(eventId);
     }
 
     @Override
     @Transactional(readOnly = true)
     public Integer availableSpots(final long eventId) {
-        final Event event = eventDao.findById(eventId)
+        final Event event = eventService.findById(eventId)
                 .orElseThrow(() -> new EventNotFoundException(eventId));
         if (event.getMaxCapacity() == null) {
             return null;
@@ -307,10 +280,10 @@ public class RegistrationServiceImpl implements RegistrationService {
     private List<RegistrationEntry> toEntries(final List<Registration> registrations, final long userId,
                                               final boolean withReviews) {
         final List<Long> eventIds = registrations.stream().map(Registration::getEventId).collect(Collectors.toList());
-        final Map<Long, Event> eventsById = eventDao.findByIds(eventIds).stream()
+        final Map<Long, Event> eventsById = eventService.findByIds(eventIds).stream()
                 .collect(Collectors.toMap(Event::getId, event -> event));
         final Map<Long, Review> reviewsByEventId = withReviews
-                ? reviewDao.findByEventsAndUser(eventIds, userId).stream()
+                ? reviewService.findByEventsAndUser(eventIds, userId).stream()
                         .collect(Collectors.toMap(Review::getEventId, review -> review))
                 : Collections.emptyMap();
         final List<RegistrationEntry> entries = new ArrayList<>();
@@ -359,7 +332,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         // promote): primero la fila del evento, despues las de registration. Si una
         // operacion agarrara una inscripcion y recien despues pidiera el evento, otra
         // que ya lo tiene y quiere esa misma inscripcion la esperaria: deadlock.
-        final Event event = eventDao.findByIdForUpdate(eventId).orElse(null);
+        final Event event = eventService.findByIdForUpdate(eventId).orElse(null);
         if (event == null) {
             return UnregisterResult.NOT_FOUND;
         }
@@ -397,7 +370,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         // Se libera un lugar si se iba un confirmado, o un pendiente (que en un evento
         // con aprobacion tenia un lugar reservado frente a la lista, ver reject()).
         // Que se vaya alguien de la lista de espera no libera nada.
-        final int promoted = (wasConfirmed || wasPending) ? self.promoteFromWaitlist(eventId) : 0;
+        final int promoted = (wasConfirmed || wasPending) ? promoteFromWaitlist(eventId) : 0;
 
         // Solo se avisa si se libero un lugar de verdad. Que alguien salga de la
         // lista de espera no le cambia nada al organizador: el cupo disponible
@@ -418,12 +391,10 @@ public class RegistrationServiceImpl implements RegistrationService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public UnregisterResult cancelOwnRegistration(final long eventId, final long userId) {
-        eventDao.findById(eventId).orElseThrow(() -> new EventNotFoundException(eventId));
-        // Via self: cancel() es @Transactional, una llamada directa (this
-        // implicito) no pasa por el proxy de Spring (mismo motivo que el
-        // campo self de mas arriba).
+        eventService.findById(eventId).orElseThrow(() -> new EventNotFoundException(eventId));
+        // cancel() tiene los mismos atributos transaccionales que este metodo: la llamada directa se une a esta transaccion.
         return registrationDao.findByEventAndUserId(eventId, userId)
-                .map(r -> self.cancel(r.getId()))
+                .map(r -> cancel(r.getId()))
                 .orElse(UnregisterResult.NOT_FOUND);
     }
 
@@ -469,7 +440,7 @@ public class RegistrationServiceImpl implements RegistrationService {
     @Override
     @Transactional(readOnly = true)
     public Optional<EventRegistrants> findRegistrants(final long eventId, final int page) {
-        return eventDao.findById(eventId).map(event -> new EventRegistrants(event, findPageByEventId(eventId, page)));
+        return eventService.findById(eventId).map(event -> new EventRegistrants(event, findPageByEventId(eventId, page)));
     }
 
     @Override
@@ -490,14 +461,30 @@ public class RegistrationServiceImpl implements RegistrationService {
 
     @Override
     @Transactional(readOnly = true)
-    public Map<Long, Long> countPendingByEvents(final Collection<Long> eventIds) {
-        return registrationDao.countByEventsAndStatus(eventIds, RegistrationStatus.PENDING);
-    }
+    public PageResult<EventWithRegistrationStats> withRegistrationStats(final PageResult<Event> events) {
+        // Se filtran los ids y despues es UNA consulta por tipo para toda la pagina, no una por evento.
+        final List<Long> requiringApprovalIds = new ArrayList<>();
+        final List<Long> activeIds = new ArrayList<>();
+        for (final Event event : events.getContent()) {
+            if (event.isRequiresApproval()) {
+                requiringApprovalIds.add(event.getId());
+            }
+            if (!event.isCancelled()) {
+                activeIds.add(event.getId());
+            }
+        }
+        final Map<Long, Long> pendingByEvent =
+                registrationDao.countByEventsAndStatus(requiringApprovalIds, RegistrationStatus.PENDING);
+        final Map<Long, Long> confirmedByEvent =
+                registrationDao.countByEventsAndStatus(activeIds, RegistrationStatus.CONFIRMED);
 
-    @Override
-    @Transactional(readOnly = true)
-    public Map<Long, Long> countConfirmedByEvents(final Collection<Long> eventIds) {
-        return registrationDao.countByEventsAndStatus(eventIds, RegistrationStatus.CONFIRMED);
+        final List<EventWithRegistrationStats> content = new ArrayList<>();
+        for (final Event event : events.getContent()) {
+            final Long pending = event.isRequiresApproval() ? pendingByEvent.getOrDefault(event.getId(), 0L) : null;
+            final long confirmed = confirmedByEvent.getOrDefault(event.getId(), 0L);
+            content.add(new EventWithRegistrationStats(event, confirmed, pending));
+        }
+        return new PageResult<>(content, events.getTotalElements(), events.getPage(), events.getPageSize());
     }
 
     @Override
@@ -508,7 +495,7 @@ public class RegistrationServiceImpl implements RegistrationService {
             return ApprovalResult.of(ApprovalResult.Status.NOT_FOUND);
         }
         // Bloquea el evento: dos aceptaciones simultaneas no pueden pasarse del cupo.
-        final Event event = eventDao.findByIdForUpdate(unlocked.getEventId()).orElse(null);
+        final Event event = eventService.findByIdForUpdate(unlocked.getEventId()).orElse(null);
         // Un evento cancelado o que ya paso no acepta a nadie: no se confirma el pedido ni
         // sale el mail de "confirmado" de algo que no se va a hacer (o que ya sucedio).
         if (event == null || event.isCancelled() || event.isFinished()) {
@@ -572,7 +559,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         // Evento primero (ver cancel()): ademas serializa esto con una aceptacion
         // simultanea del mismo pedido.
         final long eventId = unlocked.getEventId();
-        final Event event = eventDao.findByIdForUpdate(eventId).orElse(null);
+        final Event event = eventService.findByIdForUpdate(eventId).orElse(null);
         // Idem approve(): con el evento cancelado o ya pasado no se rechaza a nadie ni se manda el mail.
         if (event == null || event.isCancelled() || event.isFinished()) {
             return false;
@@ -592,7 +579,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         // pendientes se descuentan de lo libre). Al rechazarlo, ese lugar vuelve a estar
         // disponible y el primero de la lista de espera pasa a ser pendiente. Sin esto
         // quedaba esperando con un lugar libre, y quien se anotara despues le pasaba por delante.
-        self.promoteFromWaitlist(eventId);
+        promoteFromWaitlist(eventId);
         return true;
     }
 
@@ -608,7 +595,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         // lo tomaran antes de pedir el lock exclusivo (en promoteFromWaitlist), cada
         // una esperaria a la otra: deadlock.
         final long eventId = unlocked.getEventId();
-        final Event event = eventDao.findByIdForUpdate(eventId).orElse(null);
+        final Event event = eventService.findByIdForUpdate(eventId).orElse(null);
         // Idem approve(): con el evento cancelado o ya pasado tampoco se revoca a nadie.
         if (event == null || event.isCancelled() || event.isFinished()) {
             return false;
@@ -625,7 +612,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         notificationService.notifyRegistrationRevoked(event, registration);
         inboxService.add(registration.getEmail(), InboxMessageType.REGISTRATION_REVOKED, eventId, null, null);
         // El lugar que quedo libre se lo lleva el primero de la lista de espera.
-        self.promoteFromWaitlist(eventId);
+        promoteFromWaitlist(eventId);
         return true;
     }
 
@@ -634,7 +621,7 @@ public class RegistrationServiceImpl implements RegistrationService {
     public int promoteFromWaitlist(final long eventId) {
         // FOR UPDATE: dos bajas simultaneas se serializan aca y no le dan el mismo
         // lugar a dos personas.
-        final Event event = eventDao.findByIdForUpdate(eventId).orElse(null);
+        final Event event = eventService.findByIdForUpdate(eventId).orElse(null);
         if (event == null || event.isCancelled()
                 || (event.getEventDate() != null && event.getEventDate().before(new Date()))) {
             return 0;

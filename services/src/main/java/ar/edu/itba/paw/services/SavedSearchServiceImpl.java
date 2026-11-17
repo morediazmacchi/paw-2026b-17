@@ -7,7 +7,6 @@ import ar.edu.itba.paw.model.EventSort;
 import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.SavedSearch;
 import ar.edu.itba.paw.model.User;
-import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.SavedSearchDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -27,15 +26,15 @@ public class SavedSearchServiceImpl implements SavedSearchService {
     static final int PAGE_SIZE = 10;
 
     private final SavedSearchDao savedSearchDao;
-    private final EventDao eventDao;
+    private final EventService eventService;
     private final InboxService inboxService;
     private final NotificationService notificationService;
 
     @Autowired
-    public SavedSearchServiceImpl(final SavedSearchDao savedSearchDao, final EventDao eventDao,
+    public SavedSearchServiceImpl(final SavedSearchDao savedSearchDao, final EventService eventService,
                                   final InboxService inboxService, final NotificationService notificationService) {
         this.savedSearchDao = savedSearchDao;
-        this.eventDao = eventDao;
+        this.eventService = eventService;
         this.inboxService = inboxService;
         this.notificationService = notificationService;
     }
@@ -117,7 +116,7 @@ public class SavedSearchServiceImpl implements SavedSearchService {
         criteria.setViewerId(search.getUserId());
         criteria.setApprovedAfter(search.getLastCheckedAt());
         criteria.setApprovedUntil(until);
-        final long newEvents = eventDao.countSearch(criteria);
+        final long newEvents = eventService.countMatching(criteria);
 
         // La marca se corre siempre, haya o no eventos nuevos. Va en la misma transaccion que el aviso: si algo
         // falla se deshacen las dos cosas y la proxima corrida lo vuelve a intentar con la misma ventana.
@@ -130,7 +129,7 @@ public class SavedSearchServiceImpl implements SavedSearchService {
         criteria.setSort(EventSort.FECHA_ASC);
         criteria.setPage(1);
         criteria.setPageSize(1);
-        final List<Event> example = eventDao.search(criteria);
+        final List<Event> example = eventService.findMatching(criteria);
         if (example.isEmpty()) {
             return false;
         }

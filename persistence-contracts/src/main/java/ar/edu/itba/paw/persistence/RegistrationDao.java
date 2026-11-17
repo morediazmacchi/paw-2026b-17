@@ -14,7 +14,6 @@ import java.util.Optional;
 public interface RegistrationDao {
     Registration create(Registration registration);
     Optional<Registration> findByEventAndUserId(long eventId, long userId);
-    long countConfirmed(long eventId);
 
     Optional<Registration> findById(long id);
 
@@ -70,11 +69,6 @@ public interface RegistrationDao {
     long countByEventId(long eventId);
 
     boolean delete(long id);
-
-    // Los eventos a los que esta persona "asistio": inscripcion CONFIRMED, fecha anterior a "now"
-    // y evento no cancelado (no hay un campo de asistencia: se deriva de eso). Solo los ids, del
-    // mas reciente al mas viejo, como mucho "limit".
-    List<Long> findAttendedEventIds(long userId, Date now, int limit);
 
     // La inscripcion de esta persona (si tiene) en cada uno de esos eventos, en una sola consulta.
     List<Registration> findByUserIdAndEventIds(long userId, Collection<Long> eventIds);

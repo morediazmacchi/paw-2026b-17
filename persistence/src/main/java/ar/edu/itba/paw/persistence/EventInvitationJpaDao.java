@@ -46,27 +46,6 @@ public class EventInvitationJpaDao implements EventInvitationDao {
     }
 
     @Override
-    public Optional<EventInvitation> findByEventAndUserId(final long eventId, final long userId) {
-        return em.createQuery(
-                        "FROM EventInvitation i WHERE i.event.id = :eventId AND i.user.id = :userId", EventInvitation.class)
-                .setParameter("eventId", eventId)
-                .setParameter("userId", userId)
-                .getResultList().stream().findFirst();
-    }
-
-    @Override
-    public long countOutstanding(final long eventId) {
-        // Pendientes = invitaciones cuyo email todavia no tiene una inscripcion en ese evento.
-        // JPQL con subconsulta correlacionada sobre otra entidad (Registration).
-        return em.createQuery(
-                        "SELECT COUNT(i) FROM EventInvitation i WHERE i.event.id = :eventId AND NOT EXISTS ("
-                                + "SELECT r.id FROM Registration r WHERE r.event.id = i.event.id AND r.email = i.email)",
-                        Long.class)
-                .setParameter("eventId", eventId)
-                .getSingleResult();
-    }
-
-    @Override
     public List<EventInvitation> findByEvent(final long eventId, final int page, final int pageSize) {
         // Dos pasos (1+1): primero los ids de la pagina (el id desempata), despues las invitaciones.
         final List<Long> ids = em.createQuery(
@@ -79,11 +58,11 @@ public class EventInvitationJpaDao implements EventInvitationDao {
         if (ids.isEmpty()) {
             return Collections.emptyList();
         }
-        return PagedIds.inOrder(ids,
-                em.createQuery("FROM EventInvitation i WHERE i.id IN :ids", EventInvitation.class)
-                        .setParameter("ids", ids)
-                        .getResultList(),
-                EventInvitation::getId);
+        // El ORDER BY es el MISMO de la consulta de ids (el IN no ordena nada).
+        return em.createQuery("FROM EventInvitation i WHERE i.id IN :ids ORDER BY i.createdAt DESC, i.id DESC",
+                        EventInvitation.class)
+                .setParameter("ids", ids)
+                .getResultList();
     }
 
     @Override
@@ -106,11 +85,12 @@ public class EventInvitationJpaDao implements EventInvitationDao {
         if (ids.isEmpty()) {
             return Collections.emptyList();
         }
-        return PagedIds.inOrder(ids,
-                em.createQuery("FROM Event e WHERE e.id IN :ids", Event.class)
-                        .setParameter("ids", ids)
-                        .getResultList(),
-                Event::getId);
+        // Los eventos de esas invitaciones, con el MISMO ORDER BY (el de la invitacion) que la consulta de ids.
+        return em.createQuery("SELECT e FROM EventInvitation i JOIN i.event e WHERE i.user.id = :userId "
+                                + "AND e.id IN :ids ORDER BY i.createdAt DESC, i.id DESC", Event.class)
+                .setParameter("userId", userId)
+                .setParameter("ids", ids)
+                .getResultList();
     }
 
     @Override

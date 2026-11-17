@@ -10,10 +10,7 @@ import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.Review;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
-import ar.edu.itba.paw.persistence.EventDao;
-import ar.edu.itba.paw.persistence.EventInvitationDao;
 import ar.edu.itba.paw.persistence.RegistrationDao;
-import ar.edu.itba.paw.persistence.ReviewDao;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -23,6 +20,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -59,13 +57,13 @@ public class RegistrationServiceImplTest {
 
     @Mock
     private RegistrationDao mockRegistrationDao;
+    // El evento (con lock) y cuantos lugares tiene ocupados (confirmados + invitaciones sin usar) los da EventService.
+    // Sin stubear la ocupacion, un mock devuelve 0: "nadie ocupa nada".
     @Mock
-    private EventDao mockEventDao;
-    // Idem: RegistrationServiceImpl le pregunta cuantas invitaciones por mail a un
-    // evento privado siguen sin usar (cada una reserva un lugar) y si quien se
-    // anota tiene una. Sin stubear, un mock devuelve 0 / vacio: "nadie invitado".
+    private EventService eventService;
+    // Si quien se anota tiene una invitacion (le reserva el lugar). Sin stubear, un mock devuelve false: "nadie invitado".
     @Mock
-    private EventInvitationDao mockInvitationDao;
+    private EventInvitationService invitationService;
     // Avisos y bandeja: "disparar y olvidar" (void). No se testean aca: verificar
     // que se llamaron seria testear la implementacion de RegistrationServiceImpl,
     // no el contrato de RegistrationService.
@@ -75,7 +73,7 @@ public class RegistrationServiceImplTest {
     private InboxService inboxService;
     // "Mis inscripciones" trae la reseña propia de cada evento ya pasado.
     @Mock
-    private ReviewDao mockReviewDao;
+    private ReviewService reviewService;
     // El nombre y el mail de quien se anota salen de su cuenta (la sesion solo lleva el id).
     @Mock
     private UserService userService;
@@ -85,12 +83,9 @@ public class RegistrationServiceImplTest {
     @Before
     public void setUp() {
         registrationService = new RegistrationServiceImpl(
-                mockRegistrationDao, mockEventDao, notificationService, mockInvitationDao, inboxService, mockReviewDao,
+                mockRegistrationDao, eventService, notificationService, invitationService, inboxService, reviewService,
                 userService);
         lenient().when(userService.findById(USER_ID)).thenReturn(Optional.of(someUser()));
-        // En produccion lo resuelve Spring (@Autowired @Lazy, ver RegistrationServiceImpl):
-        // aca no hay proxy, asi que "el propio proxy" es directamente la instancia real.
-        registrationService.self = registrationService;
     }
 
     private static User someUser() {
@@ -134,7 +129,7 @@ public class RegistrationServiceImplTest {
     @Test
     public void testRegisterReturnsAlreadyRegisteredWhenTheEmailIsAlreadyInThatEvent() {
         // Arrange
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(10)));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(10)));
         final Registration existing = new Registration(ModelFixtures.event(EVENT_ID), null, NORMALIZED_EMAIL, NAME, RegistrationStatus.CONFIRMED);
         when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.of(existing));
 
@@ -148,7 +143,7 @@ public class RegistrationServiceImplTest {
     @Test(expected = EventNotFoundException.class)
     public void testRegisterWithNonexistentEventThrowsEventNotFoundException() {
         // Arrange
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.empty());
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
         registrationService.register(EVENT_ID, USER_ID);
@@ -159,7 +154,7 @@ public class RegistrationServiceImplTest {
     @Test
     public void testRegisterWhenTheEventAlreadyHappenedReturnsFinished() {
         // Arrange
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(finishedEvent()));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(finishedEvent()));
 
         // Act
         final RegistrationResult result = registrationService.register(EVENT_ID, USER_ID);
@@ -173,8 +168,8 @@ public class RegistrationServiceImplTest {
     public void testRegisterWhenTheEventIsFullReturnsWaitlisted() {
         // Arrange
         when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(2)));
-        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(2L);
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(2)));
+        when(eventService.occupiedSpots(EVENT_ID)).thenReturn(2L);
 
         // Act
         final RegistrationResult result = registrationService.register(EVENT_ID, USER_ID);
@@ -188,7 +183,7 @@ public class RegistrationServiceImplTest {
     @Test
     public void testRegisterWhenAlreadyOnTheWaitlistReturnsAlreadyWaitlisted() {
         // Arrange
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(10)));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(10)));
         final Registration existing = new Registration(ModelFixtures.event(EVENT_ID), null, NORMALIZED_EMAIL, NAME, RegistrationStatus.WAITLISTED);
         when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.of(existing));
 
@@ -203,8 +198,8 @@ public class RegistrationServiceImplTest {
     public void testRegisterWithFreeSpotReturnsConfirmed() {
         // Arrange
         when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(2)));
-        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(0L);
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(2)));
+        when(eventService.occupiedSpots(EVENT_ID)).thenReturn(0L);
 
         // Act
         final RegistrationResult result = registrationService.register(EVENT_ID, USER_ID);
@@ -219,10 +214,10 @@ public class RegistrationServiceImplTest {
     public void testRegisterWhenConfirmingFillsTheLastSpotMarksNotificationSent() {
         // Arrange
         when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(2)));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(2)));
         // Antes de esta inscripcion habia 1 de 2 (no esta lleno); despues de
         // crearla, el segundo chequeo (post-insert) ya ve 2 de 2 (lleno).
-        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(1L, 2L);
+        when(eventService.occupiedSpots(EVENT_ID)).thenReturn(1L, 2L);
 
         // Act
         final RegistrationResult result = registrationService.register(EVENT_ID, USER_ID);
@@ -238,7 +233,7 @@ public class RegistrationServiceImplTest {
     public void testRegisterWithUnlimitedCapacityNeverThrowsEvenIfManyAreConfirmed() {
         // Arrange
         when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(null)));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(null)));
 
         // Act
         final RegistrationResult result = registrationService.register(EVENT_ID, USER_ID);
@@ -254,9 +249,8 @@ public class RegistrationServiceImplTest {
         // Arrange
         final Event privateEvent = eventWithCapacity(10);
         privateEvent.setVisibility(EventVisibility.PRIVATE);
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent));
-        when(mockInvitationDao.findByEventAndUserId(EVENT_ID, USER_ID))
-                .thenReturn(Optional.of(new EventInvitation(ModelFixtures.event(EVENT_ID), NORMALIZED_EMAIL, CREATOR_EMAIL)));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent));
+        when(invitationService.isInvited(EVENT_ID, USER_ID)).thenReturn(true);
 
         // Act
         final RegistrationResult result = registrationService.register(EVENT_ID, USER_ID);
@@ -271,8 +265,8 @@ public class RegistrationServiceImplTest {
     public void testRegisterOnEventRequiringApprovalReturnsPending() {
         // Arrange
         when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(10)));
-        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(0L);
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(10)));
+        when(eventService.occupiedSpots(EVENT_ID)).thenReturn(0L);
 
         // Act
         final RegistrationResult result = registrationService.register(EVENT_ID, USER_ID);
@@ -289,8 +283,8 @@ public class RegistrationServiceImplTest {
     public void testRegisterOnFullEventRequiringApprovalReturnsWaitlistedNotPending() {
         // Arrange
         when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(1)));
-        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(1L);
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(1)));
+        when(eventService.occupiedSpots(EVENT_ID)).thenReturn(1L);
 
         // Act
         final RegistrationResult result = registrationService.register(EVENT_ID, USER_ID);
@@ -304,7 +298,7 @@ public class RegistrationServiceImplTest {
     @Test
     public void testRegisterWhenAlreadyPendingReturnsAlreadyPending() {
         // Arrange
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(10)));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(10)));
         final Registration existing = new Registration(ModelFixtures.event(EVENT_ID), null, NORMALIZED_EMAIL, NAME, RegistrationStatus.PENDING);
         when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.of(existing));
 
@@ -318,7 +312,7 @@ public class RegistrationServiceImplTest {
     @Test
     public void testRegisterWhenPreviouslyRejectedReturnsRejected() {
         // Arrange
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(10)));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(10)));
         final Registration existing = new Registration(ModelFixtures.event(EVENT_ID), null, NORMALIZED_EMAIL, NAME, RegistrationStatus.REJECTED);
         when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.of(existing));
 
@@ -337,8 +331,8 @@ public class RegistrationServiceImplTest {
     @Test
     public void testIsFullDoesNotCountPendingApprovals() {
         // Arrange
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(2)));
-        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(1L);
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(2)));
+        when(eventService.occupiedSpots(EVENT_ID)).thenReturn(1L);
         // Hay muchos pendientes: si isFull() los contara, el evento daria "lleno".
         lenient().when(mockRegistrationDao.countPending(EVENT_ID)).thenReturn(5L);
 
@@ -355,8 +349,8 @@ public class RegistrationServiceImplTest {
     public void testRegisterOnApprovalEventWithMorePendingThanSpotsStillCreatesPending() {
         // Arrange
         when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(2)));
-        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(1L);
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(2)));
+        when(eventService.occupiedSpots(EVENT_ID)).thenReturn(1L);
 
         // Act
         final RegistrationResult result = registrationService.register(EVENT_ID, USER_ID);
@@ -381,8 +375,8 @@ public class RegistrationServiceImplTest {
     @Test
     public void testIsFullReturnsTrueWhenConfirmedCountReachesCapacity() {
         // Arrange
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(2)));
-        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(2L);
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(2)));
+        when(eventService.occupiedSpots(EVENT_ID)).thenReturn(2L);
 
         // Act
         final boolean result = registrationService.isFull(EVENT_ID);
@@ -394,8 +388,8 @@ public class RegistrationServiceImplTest {
     @Test
     public void testIsFullReturnsFalseWhenThereIsStillRoom() {
         // Arrange
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(2)));
-        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(1L);
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(2)));
+        when(eventService.occupiedSpots(EVENT_ID)).thenReturn(1L);
 
         // Act
         final boolean result = registrationService.isFull(EVENT_ID);
@@ -413,9 +407,8 @@ public class RegistrationServiceImplTest {
     @Test
     public void testIsFullCountsSpotsHeldByUnusedInvitations() {
         // Arrange
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(2)));
-        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(1L);
-        when(mockInvitationDao.countOutstanding(EVENT_ID)).thenReturn(1L);
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(2)));
+        when(eventService.occupiedSpots(EVENT_ID)).thenReturn(2L);
 
         // Act
         final boolean result = registrationService.isFull(EVENT_ID);
@@ -427,9 +420,8 @@ public class RegistrationServiceImplTest {
     @Test
     public void testAvailableSpotsDiscountsSpotsHeldByUnusedInvitations() {
         // Arrange
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(10)));
-        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(7L);
-        when(mockInvitationDao.countOutstanding(EVENT_ID)).thenReturn(2L);
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(10)));
+        when(eventService.occupiedSpots(EVENT_ID)).thenReturn(9L);
 
         // Act
         final Integer result = registrationService.availableSpots(EVENT_ID);
@@ -444,9 +436,8 @@ public class RegistrationServiceImplTest {
     public void testRegisterGoesToTheWaitlistWhenTheLastSpotIsHeldByAnInvitation() {
         // Arrange
         when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(2)));
-        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(1L);
-        when(mockInvitationDao.countOutstanding(EVENT_ID)).thenReturn(1L);
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(2)));
+        when(eventService.occupiedSpots(EVENT_ID)).thenReturn(2L);
 
         // Act
         final RegistrationResult result = registrationService.register(EVENT_ID, USER_ID);
@@ -463,11 +454,9 @@ public class RegistrationServiceImplTest {
     public void testRegisterWithAnInvitationTakesItsReservedSpotAndIsConfirmed() {
         // Arrange
         when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(2)));
-        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(1L);
-        when(mockInvitationDao.countOutstanding(EVENT_ID)).thenReturn(1L);
-        when(mockInvitationDao.findByEventAndUserId(EVENT_ID, USER_ID))
-                .thenReturn(Optional.of(new EventInvitation(ModelFixtures.event(EVENT_ID), NORMALIZED_EMAIL, CREATOR_EMAIL)));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(2)));
+        when(eventService.occupiedSpots(EVENT_ID)).thenReturn(2L);
+        when(invitationService.isInvited(EVENT_ID, USER_ID)).thenReturn(true);
 
         // Act
         final RegistrationResult result = registrationService.register(EVENT_ID, USER_ID);
@@ -481,9 +470,8 @@ public class RegistrationServiceImplTest {
     public void testRegisterWithAnInvitationSkipsTheApprovalStep() {
         // Arrange
         when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(5)));
-        when(mockInvitationDao.findByEventAndUserId(EVENT_ID, USER_ID))
-                .thenReturn(Optional.of(new EventInvitation(ModelFixtures.event(EVENT_ID), NORMALIZED_EMAIL, CREATOR_EMAIL)));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(5)));
+        when(invitationService.isInvited(EVENT_ID, USER_ID)).thenReturn(true);
 
         // Act
         final RegistrationResult result = registrationService.register(EVENT_ID, USER_ID);
@@ -495,11 +483,9 @@ public class RegistrationServiceImplTest {
     @Test
     public void testIsFullForAnInvitedPersonIgnoresTheirOwnReservedSpot() {
         // Arrange
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(2)));
-        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(1L);
-        when(mockInvitationDao.countOutstanding(EVENT_ID)).thenReturn(1L);
-        when(mockInvitationDao.findByEventAndUserId(EVENT_ID, USER_ID))
-                .thenReturn(Optional.of(new EventInvitation(ModelFixtures.event(EVENT_ID), NORMALIZED_EMAIL, CREATOR_EMAIL)));
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(2)));
+        when(eventService.occupiedSpots(EVENT_ID)).thenReturn(2L);
+        when(invitationService.isInvited(EVENT_ID, USER_ID)).thenReturn(true);
 
         // Act
         final boolean result = registrationService.isFullFor(EVENT_ID, USER_ID);
@@ -511,7 +497,7 @@ public class RegistrationServiceImplTest {
     @Test
     public void testIsFullReturnsFalseWhenCapacityIsUnlimited() {
         // Arrange
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(null)));
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(null)));
 
         // Act
         final boolean result = registrationService.isFull(EVENT_ID);
@@ -523,7 +509,7 @@ public class RegistrationServiceImplTest {
     @Test(expected = EventNotFoundException.class)
     public void testIsFullWithNonexistentEventThrowsEventNotFoundException() {
         // Arrange
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.empty());
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
         registrationService.isFull(EVENT_ID);
@@ -592,14 +578,14 @@ public class RegistrationServiceImplTest {
     private void givenUpcomingPage(final int page, final long eventId) {
         when(mockRegistrationDao.findUpcomingByUserId(eq(USER_ID), any(Date.class), eq(page), eq(RegistrationServiceImpl.PAGE_SIZE)))
                 .thenReturn(Collections.singletonList(registrationAt(eventId)));
-        when(mockEventDao.findByIds(Collections.singletonList(eventId)))
+        when(eventService.findByIds(Collections.singletonList(eventId)))
                 .thenReturn(Collections.singletonList(upcomingEvent(eventId)));
     }
 
     private void givenPastPage(final int page, final long eventId) {
         when(mockRegistrationDao.findPastByUserId(eq(USER_ID), any(Date.class), eq(page), eq(RegistrationServiceImpl.PAGE_SIZE)))
                 .thenReturn(Collections.singletonList(registrationAt(eventId)));
-        when(mockEventDao.findByIds(Collections.singletonList(eventId)))
+        when(eventService.findByIds(Collections.singletonList(eventId)))
                 .thenReturn(Collections.singletonList(pastEvent(eventId)));
     }
 
@@ -730,8 +716,8 @@ public class RegistrationServiceImplTest {
         final Review myReview = new Review(event, ModelFixtures.user(USER_ID), 4, "Muy bueno");
         when(mockRegistrationDao.findPastByUserId(eq(USER_ID), any(Date.class), eq(1), eq(RegistrationServiceImpl.PAGE_SIZE)))
                 .thenReturn(Collections.singletonList(registration));
-        when(mockEventDao.findByIds(Collections.singletonList(PAST_EVENT_ID))).thenReturn(Collections.singletonList(event));
-        when(mockReviewDao.findByEventsAndUser(Collections.singletonList(PAST_EVENT_ID), USER_ID))
+        when(eventService.findByIds(Collections.singletonList(PAST_EVENT_ID))).thenReturn(Collections.singletonList(event));
+        when(reviewService.findByEventsAndUser(Collections.singletonList(PAST_EVENT_ID), USER_ID))
                 .thenReturn(Collections.singletonList(myReview));
 
         // Act
@@ -749,9 +735,9 @@ public class RegistrationServiceImplTest {
         givenTotals(0, 1);
         when(mockRegistrationDao.findPastByUserId(eq(USER_ID), any(Date.class), eq(1), eq(RegistrationServiceImpl.PAGE_SIZE)))
                 .thenReturn(Collections.singletonList(registrationAt(PAST_EVENT_ID)));
-        when(mockEventDao.findByIds(Collections.singletonList(PAST_EVENT_ID)))
+        when(eventService.findByIds(Collections.singletonList(PAST_EVENT_ID)))
                 .thenReturn(Collections.singletonList(pastEvent(PAST_EVENT_ID)));
-        when(mockReviewDao.findByEventsAndUser(Collections.singletonList(PAST_EVENT_ID), USER_ID))
+        when(reviewService.findByEventsAndUser(Collections.singletonList(PAST_EVENT_ID), USER_ID))
                 .thenReturn(Collections.emptyList());
 
         // Act
@@ -768,8 +754,8 @@ public class RegistrationServiceImplTest {
         final Event event = upcomingEvent(UPCOMING_EVENT_ID);
         when(mockRegistrationDao.findUpcomingByUserId(eq(USER_ID), any(Date.class), eq(1), eq(RegistrationServiceImpl.PAGE_SIZE)))
                 .thenReturn(Collections.singletonList(registrationAt(UPCOMING_EVENT_ID)));
-        when(mockEventDao.findByIds(Collections.singletonList(UPCOMING_EVENT_ID))).thenReturn(Collections.singletonList(event));
-        lenient().when(mockReviewDao.findByEventsAndUser(Collections.singletonList(UPCOMING_EVENT_ID), USER_ID))
+        when(eventService.findByIds(Collections.singletonList(UPCOMING_EVENT_ID))).thenReturn(Collections.singletonList(event));
+        lenient().when(reviewService.findByEventsAndUser(Collections.singletonList(UPCOMING_EVENT_ID), USER_ID))
                 .thenReturn(Collections.singletonList(new Review(event, ModelFixtures.user(USER_ID), 5, "Senuelo")));
 
         // Act
@@ -802,7 +788,7 @@ public class RegistrationServiceImplTest {
         registration.setId(5L);
         registration.setUser(ModelFixtures.user(USER_ID));
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(10)));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(10)));
 
         when(mockRegistrationDao.delete(5)).thenReturn(true);
         // Act
@@ -824,7 +810,7 @@ public class RegistrationServiceImplTest {
         registration.setId(5L);
         registration.setUser(ModelFixtures.user(USER_ID));
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(2)));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(2)));
 
         // Act
         final UnregisterResult result = registrationService.cancel(5);
@@ -840,7 +826,7 @@ public class RegistrationServiceImplTest {
         registration.setId(5L);
         registration.setUser(ModelFixtures.user(USER_ID));
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(finishedEvent()));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(finishedEvent()));
 
         // Act
         final UnregisterResult result = registrationService.cancel(5);
@@ -858,7 +844,7 @@ public class RegistrationServiceImplTest {
         final Event cancelled = eventWithCapacity(10);
         cancelled.setCancelledAt(new Date());
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(cancelled));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(cancelled));
 
         // Act
         final UnregisterResult result = registrationService.cancel(5);
@@ -874,7 +860,7 @@ public class RegistrationServiceImplTest {
         registration.setId(5L);
         registration.setUser(ModelFixtures.user(USER_ID));
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(10)));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(10)));
 
         // Act
         final UnregisterResult result = registrationService.cancel(5);
@@ -893,7 +879,7 @@ public class RegistrationServiceImplTest {
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
         final Event finishedEvent = eventWithCreator(10);
         finishedEvent.setEventDate(new Date(System.currentTimeMillis() - 86_400_000L));
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(finishedEvent));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(finishedEvent));
 
         // Act
         final UnregisterResult result = registrationService.cancel(5);
@@ -922,10 +908,10 @@ public class RegistrationServiceImplTest {
         final Registration registration = new Registration(ModelFixtures.event(EVENT_ID), null, NORMALIZED_EMAIL, NAME, RegistrationStatus.CONFIRMED);
         registration.setId(5L);
         registration.setUser(ModelFixtures.user(USER_ID));
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(10)));
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(10)));
         when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.of(registration));
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(10)));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(10)));
 
         // Act
         final UnregisterResult result = registrationService.cancelOwnRegistration(EVENT_ID, USER_ID);
@@ -937,7 +923,7 @@ public class RegistrationServiceImplTest {
     @Test
     public void testCancelOwnRegistrationReturnsNotFoundWhenNotRegistered() {
         // Arrange
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(10)));
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(10)));
         when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
 
         // Act
@@ -950,7 +936,7 @@ public class RegistrationServiceImplTest {
     @Test(expected = EventNotFoundException.class)
     public void testCancelOwnRegistrationThrowsEventNotFoundExceptionWhenTheEventDoesNotExist() {
         // Arrange
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.empty());
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
         registrationService.cancelOwnRegistration(EVENT_ID, USER_ID);
@@ -1060,7 +1046,7 @@ public class RegistrationServiceImplTest {
         final Event event = eventWithCapacity(10);
         final List<Registration> pageOne = Collections.singletonList(
                 new Registration(event, null, NORMALIZED_EMAIL, NAME, RegistrationStatus.CONFIRMED));
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event));
         when(mockRegistrationDao.countByEventId(EVENT_ID)).thenReturn(1L);
         when(mockRegistrationDao.findByEventId(EVENT_ID, 1, RegistrationServiceImpl.PAGE_SIZE)).thenReturn(pageOne);
 
@@ -1075,7 +1061,7 @@ public class RegistrationServiceImplTest {
     @Test
     public void testFindRegistrantsOfAnEventThatDoesNotExistIsEmpty() {
         // Arrange
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.empty());
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
         final Optional<EventRegistrants> result = registrationService.findRegistrants(EVENT_ID, 1);
@@ -1110,8 +1096,8 @@ public class RegistrationServiceImplTest {
         when(mockRegistrationDao.findPastByUserId(eq(USER_ID), any(Date.class), eq(1), eq(RegistrationServiceImpl.PAGE_SIZE)))
                 .thenReturn(Collections.singletonList(
                         new Registration(event, null, NORMALIZED_EMAIL, NAME, status)));
-        when(mockEventDao.findByIds(Collections.singletonList(PAST_EVENT_ID))).thenReturn(Collections.singletonList(event));
-        when(mockReviewDao.findByEventsAndUser(Collections.singletonList(PAST_EVENT_ID), USER_ID))
+        when(eventService.findByIds(Collections.singletonList(PAST_EVENT_ID))).thenReturn(Collections.singletonList(event));
+        when(reviewService.findByEventsAndUser(Collections.singletonList(PAST_EVENT_ID), USER_ID))
                 .thenReturn(review == null ? Collections.<Review>emptyList() : Collections.singletonList(review));
         return registrationService.findMyRegistrations(USER_ID, 1, 1).getPast().getContent().get(0);
     }
@@ -1181,7 +1167,7 @@ public class RegistrationServiceImplTest {
         final Registration rejected = new Registration(ModelFixtures.event(UPCOMING_EVENT_ID), null, NORMALIZED_EMAIL, NAME, RegistrationStatus.REJECTED);
         when(mockRegistrationDao.findUpcomingByUserId(eq(USER_ID), any(Date.class), eq(1), eq(RegistrationServiceImpl.PAGE_SIZE)))
                 .thenReturn(Collections.singletonList(rejected));
-        when(mockEventDao.findByIds(Collections.singletonList(UPCOMING_EVENT_ID)))
+        when(eventService.findByIds(Collections.singletonList(UPCOMING_EVENT_ID)))
                 .thenReturn(Collections.singletonList(upcomingEvent(UPCOMING_EVENT_ID)));
 
         final RegistrationEntry entry = registrationService.findMyRegistrations(USER_ID, 1, 1).getUpcoming().getContent().get(0);
@@ -1197,7 +1183,7 @@ public class RegistrationServiceImplTest {
         cancelled.setCancelledAt(new Date());
         when(mockRegistrationDao.findUpcomingByUserId(eq(USER_ID), any(Date.class), eq(1), eq(RegistrationServiceImpl.PAGE_SIZE)))
                 .thenReturn(Collections.singletonList(registrationAt(UPCOMING_EVENT_ID)));
-        when(mockEventDao.findByIds(Collections.singletonList(UPCOMING_EVENT_ID)))
+        when(eventService.findByIds(Collections.singletonList(UPCOMING_EVENT_ID)))
                 .thenReturn(Collections.singletonList(cancelled));
 
         final RegistrationEntry entry = registrationService.findMyRegistrations(USER_ID, 1, 1).getUpcoming().getContent().get(0);
@@ -1225,8 +1211,8 @@ public class RegistrationServiceImplTest {
                 new Registration(ModelFixtures.event(EVENT_ID), null, NORMALIZED_EMAIL, NAME, RegistrationStatus.PENDING));
         when(mockRegistrationDao.countPending(EVENT_ID)).thenReturn(1L);
         when(mockRegistrationDao.findPendingByEvent(EVENT_ID, 1, RegistrationServiceImpl.PAGE_SIZE)).thenReturn(pending);
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(3)));
-        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(2L);
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(3)));
+        when(eventService.occupiedSpots(EVENT_ID)).thenReturn(2L);
 
         // Act
         final PendingRegistrations result = registrationService.findPendingSummary(EVENT_ID, 1);
@@ -1241,8 +1227,8 @@ public class RegistrationServiceImplTest {
     @Test
     public void testFindPendingSummaryIsFullWhenThereAreNoSpotsLeft() {
         // Arrange
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(2)));
-        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(2L);
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(2)));
+        when(eventService.occupiedSpots(EVENT_ID)).thenReturn(2L);
 
         // Act
         final PendingRegistrations result = registrationService.findPendingSummary(EVENT_ID, 1);
@@ -1255,7 +1241,7 @@ public class RegistrationServiceImplTest {
     @Test
     public void testFindPendingSummaryHasNoLimitWhenTheEventHasNoCapacity() {
         // Arrange
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(null)));
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(null)));
 
         // Act
         final PendingRegistrations result = registrationService.findPendingSummary(EVENT_ID, 1);
@@ -1272,7 +1258,7 @@ public class RegistrationServiceImplTest {
                 new Registration(ModelFixtures.event(EVENT_ID), null, NORMALIZED_EMAIL, NAME, RegistrationStatus.PENDING));
         when(mockRegistrationDao.countPending(EVENT_ID)).thenReturn(25L);
         when(mockRegistrationDao.findPendingByEvent(EVENT_ID, 2, RegistrationServiceImpl.PAGE_SIZE)).thenReturn(pageTwo);
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(null)));
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(null)));
 
         // Act
         final PendingRegistrations result = registrationService.findPendingSummary(EVENT_ID, 2);
@@ -1291,7 +1277,7 @@ public class RegistrationServiceImplTest {
                 new Registration(ModelFixtures.event(EVENT_ID), null, NORMALIZED_EMAIL, NAME, RegistrationStatus.PENDING));
         when(mockRegistrationDao.countPending(EVENT_ID)).thenReturn(25L);
         when(mockRegistrationDao.findPendingByEvent(EVENT_ID, 3, RegistrationServiceImpl.PAGE_SIZE)).thenReturn(lastPage);
-        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(null)));
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCapacity(null)));
 
         // Act
         final PendingRegistrations result = registrationService.findPendingSummary(EVENT_ID, 99);
@@ -1301,34 +1287,95 @@ public class RegistrationServiceImplTest {
         assertEquals(lastPage, result.getRegistrations());
     }
 
-    // ---- countPendingByEvents() / countConfirmedByEvents() ----
+    // ---- withRegistrationStats() ----
 
-    @Test
-    public void testCountPendingByEventsAsksTheDaoForPendingRegistrations() {
-        // Arrange: el dao solo responde con datos si se le pide el estado PENDING
-        final Map<Long, Long> counts = Collections.singletonMap(EVENT_ID, 2L);
-        when(mockRegistrationDao.countByEventsAndStatus(Collections.singletonList(EVENT_ID), RegistrationStatus.PENDING))
-                .thenReturn(counts);
+    private static final long APPROVAL_EVENT_ID = 11;
+    private static final long PLAIN_EVENT_ID = 12;
+    private static final long CANCELLED_APPROVAL_EVENT_ID = 13;
 
-        // Act
-        final Map<Long, Long> result = registrationService.countPendingByEvents(Collections.singletonList(EVENT_ID));
+    private static Event statsEvent(final long id, final boolean requiresApproval, final boolean cancelled) {
+        final Event event = new Event();
+        event.setId(id);
+        event.setRequiresApproval(requiresApproval);
+        event.setEventDate(new Date(System.currentTimeMillis() + ONE_DAY_MILLIS));
+        if (cancelled) {
+            event.setCancelledAt(new Date());
+        }
+        return event;
+    }
 
-        // Assert
-        assertEquals(counts, result);
+    // Tres eventos de la pagina: uno que pide aprobacion, uno comun y uno que pide aprobacion pero esta cancelado. El dao
+    // devuelve los conteos solo para los ids que el service le pide: pendientes de los que piden aprobacion y
+    // confirmados de los que no estan cancelados.
+    private PageResult<Event> statsPage() {
+        final Map<Long, Long> pending = new HashMap<>();
+        pending.put(APPROVAL_EVENT_ID, 4L);
+        pending.put(CANCELLED_APPROVAL_EVENT_ID, 1L);
+        when(mockRegistrationDao.countByEventsAndStatus(
+                Arrays.asList(APPROVAL_EVENT_ID, CANCELLED_APPROVAL_EVENT_ID), RegistrationStatus.PENDING))
+                .thenReturn(pending);
+        final Map<Long, Long> confirmed = new HashMap<>();
+        confirmed.put(APPROVAL_EVENT_ID, 2L);
+        confirmed.put(PLAIN_EVENT_ID, 7L);
+        when(mockRegistrationDao.countByEventsAndStatus(
+                Arrays.asList(APPROVAL_EVENT_ID, PLAIN_EVENT_ID), RegistrationStatus.CONFIRMED))
+                .thenReturn(confirmed);
+        return new PageResult<>(Arrays.asList(statsEvent(APPROVAL_EVENT_ID, true, false),
+                statsEvent(PLAIN_EVENT_ID, false, false), statsEvent(CANCELLED_APPROVAL_EVENT_ID, true, true)),
+                3L, 1, 12);
     }
 
     @Test
-    public void testCountConfirmedByEventsAsksTheDaoForConfirmedRegistrations() {
-        // Arrange: el dao solo responde con datos si se le pide el estado CONFIRMED
-        final Map<Long, Long> counts = Collections.singletonMap(EVENT_ID, 5L);
-        when(mockRegistrationDao.countByEventsAndStatus(Collections.singletonList(EVENT_ID), RegistrationStatus.CONFIRMED))
-                .thenReturn(counts);
+    public void testWithRegistrationStatsCountsPendingOnlyForEventsThatRequireApproval() {
+        // Arrange
+        final PageResult<Event> page = statsPage();
 
         // Act
-        final Map<Long, Long> result = registrationService.countConfirmedByEvents(Collections.singletonList(EVENT_ID));
+        final PageResult<EventWithRegistrationStats> result = registrationService.withRegistrationStats(page);
 
         // Assert
-        assertEquals(counts, result);
+        assertEquals(Long.valueOf(4), result.getContent().get(0).getPendingCount());
+        assertNull(result.getContent().get(1).getPendingCount());
+        assertEquals(Long.valueOf(1), result.getContent().get(2).getPendingCount());
+    }
+
+    @Test
+    public void testWithRegistrationStatsCountsConfirmedOnlyForEventsThatAreNotCancelled() {
+        // Arrange
+        final PageResult<Event> page = statsPage();
+
+        // Act
+        final PageResult<EventWithRegistrationStats> result = registrationService.withRegistrationStats(page);
+
+        // Assert
+        assertEquals(2L, result.getContent().get(0).getConfirmedCount());
+        assertEquals(7L, result.getContent().get(1).getConfirmedCount());
+        assertEquals(0L, result.getContent().get(2).getConfirmedCount());
+    }
+
+    @Test
+    public void testWithRegistrationStatsKeepsTheEventsAndThePageInformation() {
+        // Arrange
+        final PageResult<Event> page = statsPage();
+
+        // Act
+        final PageResult<EventWithRegistrationStats> result = registrationService.withRegistrationStats(page);
+
+        // Assert
+        assertEquals(PLAIN_EVENT_ID, result.getContent().get(1).getEvent().getId().longValue());
+        assertEquals(3L, result.getTotalElements());
+        assertEquals(1, result.getPage());
+    }
+
+    @Test
+    public void testWithRegistrationStatsOfAnEmptyPageIsEmpty() {
+        // Act
+        final PageResult<EventWithRegistrationStats> result =
+                registrationService.withRegistrationStats(new PageResult<>(Collections.emptyList(), 0L, 1, 12));
+
+        // Assert
+        assertTrue(result.getContent().isEmpty());
+        assertEquals(1, result.getPage());
     }
 
     // ---- approve() ----
@@ -1343,7 +1390,7 @@ public class RegistrationServiceImplTest {
     public void testApproveConfirmsAPendingRegistration() {
         // Arrange
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(pendingRegistration(5, NORMALIZED_EMAIL)));
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(null)));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(null)));
 
         when(mockRegistrationDao.updateStatus(5, RegistrationStatus.CONFIRMED)).thenReturn(true);
         // Act
@@ -1362,7 +1409,7 @@ public class RegistrationServiceImplTest {
         final Event cancelled = eventRequiringApproval(null);
         cancelled.setCancelledAt(new Date());
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(pendingRegistration(5, NORMALIZED_EMAIL)));
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(cancelled));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(cancelled));
 
         // Act
         final ApprovalResult result = registrationService.approve(5);
@@ -1378,7 +1425,7 @@ public class RegistrationServiceImplTest {
         final Event past = eventRequiringApproval(null);
         past.setEventDate(new Date(System.currentTimeMillis() - ONE_DAY_MILLIS));
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(pendingRegistration(5, NORMALIZED_EMAIL)));
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(past));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(past));
 
         // Act
         final ApprovalResult result = registrationService.approve(5);
@@ -1418,8 +1465,8 @@ public class RegistrationServiceImplTest {
     public void testApproveReturnsFullAndChangesNothingWhenThereIsNoRoomLeft() {
         // Arrange
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(pendingRegistration(5, NORMALIZED_EMAIL)));
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(2)));
-        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(2L);
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(2)));
+        when(eventService.occupiedSpots(EVENT_ID)).thenReturn(2L);
 
         // Act
         final ApprovalResult result = registrationService.approve(5);
@@ -1434,9 +1481,8 @@ public class RegistrationServiceImplTest {
     public void testApproveReturnsFullWhenTheLastSpotIsHeldByAnInvitation() {
         // Arrange
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(pendingRegistration(5, NORMALIZED_EMAIL)));
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(2)));
-        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(1L);
-        when(mockInvitationDao.countOutstanding(EVENT_ID)).thenReturn(1L);
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(2)));
+        when(eventService.occupiedSpots(EVENT_ID)).thenReturn(2L);
 
         // Act
         final ApprovalResult result = registrationService.approve(5);
@@ -1451,9 +1497,9 @@ public class RegistrationServiceImplTest {
     public void testApproveTakingTheLastSpotMovesTheRemainingPendingToTheWaitlist() {
         // Arrange
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(pendingRegistration(5, NORMALIZED_EMAIL)));
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(2)));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(2)));
         // Antes de aceptar quedaba 1 lugar (1 confirmado); despues, 2 de 2.
-        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(1L, 2L);
+        when(eventService.occupiedSpots(EVENT_ID)).thenReturn(1L, 2L);
         final Registration other = pendingRegistration(6, "otro@mail.com");
         when(mockRegistrationDao.findPendingByEvent(EVENT_ID)).thenReturn(Collections.singletonList(other));
 
@@ -1472,8 +1518,8 @@ public class RegistrationServiceImplTest {
     public void testApproveWithSpotsStillLeftKeepsTheOtherRequestsPending() {
         // Arrange
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(pendingRegistration(5, NORMALIZED_EMAIL)));
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(5)));
-        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(1L, 2L);
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(5)));
+        when(eventService.occupiedSpots(EVENT_ID)).thenReturn(1L, 2L);
         // Hay otro pedido pendiente: como todavia hay lugar, no debe pasar a la lista de espera.
         lenient().when(mockRegistrationDao.findPendingByEvent(EVENT_ID))
                 .thenReturn(Collections.singletonList(pendingRegistration(6, "otro@mail.com")));
@@ -1496,7 +1542,7 @@ public class RegistrationServiceImplTest {
         final Registration registration = new Registration(ModelFixtures.event(EVENT_ID), null, NORMALIZED_EMAIL, NAME, RegistrationStatus.PENDING);
         registration.setId(5L);
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(null)));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(null)));
 
         when(mockRegistrationDao.updateStatus(5, RegistrationStatus.REJECTED)).thenReturn(true);
         // Act
@@ -1516,7 +1562,7 @@ public class RegistrationServiceImplTest {
         final Registration registration = new Registration(ModelFixtures.event(EVENT_ID), null, NORMALIZED_EMAIL, NAME, RegistrationStatus.PENDING);
         registration.setId(5L);
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(2)));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(2)));
         when(mockRegistrationDao.updateStatus(5, RegistrationStatus.REJECTED)).thenReturn(true);
 
         // Act
@@ -1533,7 +1579,7 @@ public class RegistrationServiceImplTest {
         final Event cancelled = eventRequiringApproval(null);
         cancelled.setCancelledAt(new Date());
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(pendingRegistration(5, NORMALIZED_EMAIL)));
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(cancelled));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(cancelled));
 
         // Act
         final boolean result = registrationService.reject(5);
@@ -1548,7 +1594,7 @@ public class RegistrationServiceImplTest {
         final Event past = eventRequiringApproval(null);
         past.setEventDate(new Date(System.currentTimeMillis() - ONE_DAY_MILLIS));
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(pendingRegistration(5, NORMALIZED_EMAIL)));
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(past));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(past));
 
         // Act
         final boolean result = registrationService.reject(5);
@@ -1583,7 +1629,7 @@ public class RegistrationServiceImplTest {
     public void testRevokeMarksAConfirmedRegistrationAsRejectedAndTellsThePerson() {
         // Arrange
         when(mockRegistrationDao.findById(7)).thenReturn(Optional.of(confirmedRegistration(7, NORMALIZED_EMAIL)));
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(10)));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(10)));
 
         when(mockRegistrationDao.updateStatus(7, RegistrationStatus.REJECTED)).thenReturn(true);
         // Act
@@ -1612,7 +1658,7 @@ public class RegistrationServiceImplTest {
         final Event cancelled = eventWithCreator(10);
         cancelled.setCancelledAt(new Date());
         when(mockRegistrationDao.findById(7)).thenReturn(Optional.of(confirmedRegistration(7, NORMALIZED_EMAIL)));
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(cancelled));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(cancelled));
 
         // Act
         final boolean result = registrationService.revoke(7);
@@ -1627,7 +1673,7 @@ public class RegistrationServiceImplTest {
         final Event past = eventWithCreator(10);
         past.setEventDate(new Date(System.currentTimeMillis() - ONE_DAY_MILLIS));
         when(mockRegistrationDao.findById(7)).thenReturn(Optional.of(confirmedRegistration(7, NORMALIZED_EMAIL)));
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(past));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(past));
 
         // Act
         final boolean result = registrationService.revoke(7);
@@ -1641,9 +1687,8 @@ public class RegistrationServiceImplTest {
     @Test
     public void testPromoteConfirmsAsManyWaitlistedPeopleAsFreeSpotsInArrivalOrder() {
         // Arrange
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(5)));
-        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(3L);
-        when(mockInvitationDao.countOutstanding(EVENT_ID)).thenReturn(0L);
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(5)));
+        when(eventService.occupiedSpots(EVENT_ID)).thenReturn(3L);
         final Registration first = new Registration(ModelFixtures.event(EVENT_ID), null, "a@mail.com", "A", RegistrationStatus.WAITLISTED);
         first.setId(1L);
         final Registration second = new Registration(ModelFixtures.event(EVENT_ID), null, "b@mail.com", "B", RegistrationStatus.WAITLISTED);
@@ -1664,8 +1709,8 @@ public class RegistrationServiceImplTest {
     @Test
     public void testPromoteMovesWaitlistedToPendingWhenTheEventRequiresApproval() {
         // Arrange
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(5)));
-        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(4L);
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(5)));
+        when(eventService.occupiedSpots(EVENT_ID)).thenReturn(4L);
         when(mockRegistrationDao.countPending(EVENT_ID)).thenReturn(0L);
         final Registration waiting = new Registration(ModelFixtures.event(EVENT_ID), null, "espera@mail.com", "Beto", RegistrationStatus.WAITLISTED);
         waiting.setId(8L);
@@ -1683,8 +1728,8 @@ public class RegistrationServiceImplTest {
     @Test
     public void testPromoteToPendingDiscountsRequestsAlreadyWaitingForAnAnswer() {
         // Arrange
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(5)));
-        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(4L);
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventRequiringApproval(5)));
+        when(eventService.occupiedSpots(EVENT_ID)).thenReturn(4L);
         when(mockRegistrationDao.countPending(EVENT_ID)).thenReturn(1L);
         // Hay alguien esperando: si el service ignorara el pendiente, lo promoveria.
         lenient().when(mockRegistrationDao.findNextWaitlisted(anyLong(), anyInt()))
@@ -1701,9 +1746,8 @@ public class RegistrationServiceImplTest {
     @Test
     public void testPromoteRespectsSpotsHeldByUnusedInvitations() {
         // Arrange
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(5)));
-        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(3L);
-        when(mockInvitationDao.countOutstanding(EVENT_ID)).thenReturn(2L);
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(5)));
+        when(eventService.occupiedSpots(EVENT_ID)).thenReturn(5L);
         // Hay alguien esperando: si el service ignorara las invitaciones, lo promoveria.
         lenient().when(mockRegistrationDao.findNextWaitlisted(anyLong(), anyInt()))
                 .thenReturn(Collections.singletonList(
@@ -1719,8 +1763,8 @@ public class RegistrationServiceImplTest {
     @Test
     public void testPromoteDoesNothingWhenTheEventIsFull() {
         // Arrange
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(2)));
-        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(2L);
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(2)));
+        when(eventService.occupiedSpots(EVENT_ID)).thenReturn(2L);
 
         // Act
         final int promoted = registrationService.promoteFromWaitlist(EVENT_ID);
@@ -1734,7 +1778,7 @@ public class RegistrationServiceImplTest {
         // Arrange
         final Event cancelled = eventWithCreator(5);
         cancelled.setCancelledAt(new java.util.Date());
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(cancelled));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(cancelled));
 
         // Act
         final int promoted = registrationService.promoteFromWaitlist(EVENT_ID);
@@ -1747,7 +1791,7 @@ public class RegistrationServiceImplTest {
     @Test
     public void testPromoteConfirmsTheWholeWaitlistWhenTheEventBecomesUnlimited() {
         // Arrange
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(null)));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(null)));
         final Registration only = new Registration(ModelFixtures.event(EVENT_ID), null, "a@mail.com", "A", RegistrationStatus.WAITLISTED);
         only.setId(1L);
         when(mockRegistrationDao.findNextWaitlisted(EVENT_ID, Integer.MAX_VALUE))
@@ -1758,20 +1802,5 @@ public class RegistrationServiceImplTest {
 
         // Assert
         assertEquals(1, promoted);
-    }
-
-    // ---- occupiedSpots() ----
-
-    @Test
-    public void testOccupiedSpotsAddsTheConfirmedAndTheUnusedInvitations() {
-        // Arrange
-        when(mockRegistrationDao.countConfirmed(EVENT_ID)).thenReturn(7L);
-        when(mockInvitationDao.countOutstanding(EVENT_ID)).thenReturn(2L);
-
-        // Act
-        final long result = registrationService.occupiedSpots(EVENT_ID);
-
-        // Assert
-        assertEquals(9L, result);
     }
 }

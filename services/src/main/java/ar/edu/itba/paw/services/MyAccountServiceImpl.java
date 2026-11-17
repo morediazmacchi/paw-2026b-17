@@ -51,7 +51,7 @@ public class MyAccountServiceImpl implements MyAccountService {
     @Override
     @Transactional(readOnly = true)
     public MyEventsView findMyEvents(final long userId, final int page, final int reviewsPage) {
-        return new MyEventsView(eventService.findMyEventsPage(userId, page),
+        return new MyEventsView(registrationService.withRegistrationStats(eventService.findPageByCreatorId(userId, page)),
                 reviewService.findCreatorReputation(userId, reviewsPage));
     }
 

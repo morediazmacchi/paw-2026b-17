@@ -5,6 +5,8 @@ package ar.edu.itba.paw.services;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventInvitation;
 
+import org.springframework.transaction.annotation.Transactional;
+
 import java.util.List;
 
 public interface EventInvitationService {
@@ -51,4 +53,11 @@ public interface EventInvitationService {
 
     /** Para el badge de "Mis invitaciones" (ver ProfileController): sin traer las filas. */
     long countByUser(long userId);
+
+    /**
+     * Cuando una persona invitada sin cuenta se registra, le enlaza a su cuenta las invitaciones que le llegaron a su
+     * mail. Lo dispara el registro (ver UserRegisteredEvent). Devuelve cuantas enlazo (0 si no tenia).
+     */
+    @Transactional
+    int linkAccount(String email, long userId);
 }

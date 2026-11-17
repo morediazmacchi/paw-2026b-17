@@ -17,7 +17,6 @@ import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import ar.edu.itba.paw.model.exception.EventRejectedException;
 import ar.edu.itba.paw.model.exception.InvalidImageException;
 import ar.edu.itba.paw.model.exception.InvalidEventException;
-import ar.edu.itba.paw.persistence.CategoryDao;
 import ar.edu.itba.paw.persistence.EventDao;
 import org.junit.Before;
 import org.junit.Test;
@@ -27,6 +26,8 @@ import org.mockito.junit.MockitoJUnitRunner;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.ArrayList;
+import org.springframework.context.ApplicationEventPublisher;
+
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
@@ -69,9 +70,7 @@ public class EventServiceImplTest {
     @Mock
     private UserService userService;
     @Mock
-    private CategoryDao categoryDao;
-    @Mock
-    private RegistrationService registrationService;
+    private CategoryService categoryService;
     @Mock
     private NotificationService notificationService;
     @Mock
@@ -82,16 +81,19 @@ public class EventServiceImplTest {
     private EventSimilarityService eventSimilarityService;
     @Mock
     private FollowService followService;
+    // Los anuncios (EventUpdatedEvent / EventCancelledEvent) los escucha RegistrantsEventListener: aca no hay nadie que escuche.
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     private EventServiceImpl eventService;
 
     @Before
     public void setUp() {
-        eventService = new EventServiceImpl(eventDao, userService, categoryDao, notificationService,
-                registrationService, inboxService, imageService, eventSimilarityService, followService);
+        eventService = new EventServiceImpl(eventDao, userService, categoryService, notificationService,
+                inboxService, imageService, eventSimilarityService, followService, eventPublisher);
         // El servicio busca las categorias elegidas entre las que existen: por defecto existe CATEGORY_ID.
         final List<Category> existingCategories = Collections.singletonList(ModelFixtures.category(CATEGORY_ID));
-        lenient().when(categoryDao.findAll()).thenReturn(existingCategories);
+        lenient().when(categoryService.findAll()).thenReturn(existingCategories);
         // create() busca al creador por su id (de ahi sale el mail del evento): por defecto existe.
         lenient().when(userService.findById(CREATOR_ID)).thenReturn(Optional.of(creatorUser()));
     }
@@ -588,7 +590,7 @@ public class EventServiceImplTest {
     // Caso feliz de update(): el evento es del que llama, sigue activo, y la capacidad nueva alcanza.
     private void updatable(final long occupied) {
         existingForUpdate(someEvent());
-        when(registrationService.occupiedSpots(EVENT_ID)).thenReturn(occupied);
+        when(eventDao.countOccupiedSpots(EVENT_ID)).thenReturn(occupied);
     }
 
     @Test
@@ -787,22 +789,6 @@ public class EventServiceImplTest {
 
         // Assert: se guarda sin cupo (ilimitado).
         assertNull(result.getEvent().getMaxCapacity());
-    }
-
-    // Si el organizador sube el cupo, los primeros de la lista de espera entran ya.
-    @Test
-    public void testUpdatePromotesTheWaitlistSoRaisedCapacityIsFilled() {
-        // Arrange
-        updatable(0);
-        final EventDTO dto = someDto();
-        dto.setMaxCapacity(20);
-        when(registrationService.promoteFromWaitlist(EVENT_ID)).thenReturn(2);
-
-        // Act
-        final EventUpdateOutcome result = eventService.update(EVENT_ID, dto);
-
-        // Assert
-        assertEquals(2, result.getPromotedFromWaitlist());
     }
 
     // ---- cancel() ----
@@ -1361,115 +1347,24 @@ public class EventServiceImplTest {
         assertFalse(result.getAvailableSorts().contains(EventSort.RELEVANCIA));
     }
 
-    // ---- findMyEventsPage() ----
-
-    private static final long APPROVAL_EVENT_ID = 11;
-    private static final long PLAIN_EVENT_ID = 12;
-    private static final long CANCELLED_APPROVAL_EVENT_ID = 13;
-
-    // Tres eventos del creador: uno que pide aprobacion, uno comun y uno que pide aprobacion pero esta cancelado.
-    // El dao devuelve los conteos solo para los ids que el service le pide: pendientes de los que piden aprobacion
-    // y confirmados de los que no estan cancelados.
-    private void myEventsArranged() {
-        final Event withApproval = eventWith(APPROVAL_EVENT_ID, CATEGORY_ID, CREATOR_ID);
-        withApproval.setRequiresApproval(true);
-        final Event plain = eventWith(PLAIN_EVENT_ID, CATEGORY_ID, CREATOR_ID);
-        final Event cancelledWithApproval = eventWith(CANCELLED_APPROVAL_EVENT_ID, CATEGORY_ID, CREATOR_ID);
-        cancelledWithApproval.setRequiresApproval(true);
-        cancelledWithApproval.setCancelledAt(new Date());
-        when(eventDao.countByCreatorId(CREATOR_ID)).thenReturn(3L);
-        when(eventDao.findByCreatorId(CREATOR_ID, 1, EventServiceImpl.PAGE_SIZE))
-                .thenReturn(Arrays.asList(withApproval, plain, cancelledWithApproval));
-        final Map<Long, Long> pending = new HashMap<>();
-        pending.put(APPROVAL_EVENT_ID, 4L);
-        pending.put(CANCELLED_APPROVAL_EVENT_ID, 1L);
-        when(registrationService.countPendingByEvents(Arrays.asList(APPROVAL_EVENT_ID, CANCELLED_APPROVAL_EVENT_ID)))
-                .thenReturn(pending);
-        final Map<Long, Long> confirmed = new HashMap<>();
-        confirmed.put(APPROVAL_EVENT_ID, 2L);
-        confirmed.put(PLAIN_EVENT_ID, 7L);
-        when(registrationService.countConfirmedByEvents(Arrays.asList(APPROVAL_EVENT_ID, PLAIN_EVENT_ID)))
-                .thenReturn(confirmed);
-    }
-
-    @Test
-    public void testFindMyEventsPageCountsPendingOnlyForEventsThatRequireApproval() {
-        // Arrange
-        myEventsArranged();
-
-        // Act
-        final PageResult<EventWithRegistrationStats> result = eventService.findMyEventsPage(CREATOR_ID, 1);
-
-        // Assert
-        assertEquals(Long.valueOf(4), result.getContent().get(0).getPendingCount());
-        assertNull(result.getContent().get(1).getPendingCount());
-        assertEquals(Long.valueOf(1), result.getContent().get(2).getPendingCount());
-    }
-
-    @Test
-    public void testFindMyEventsPageCountsConfirmedOnlyForEventsThatAreNotCancelled() {
-        // Arrange
-        myEventsArranged();
-
-        // Act
-        final PageResult<EventWithRegistrationStats> result = eventService.findMyEventsPage(CREATOR_ID, 1);
-
-        // Assert
-        assertEquals(2L, result.getContent().get(0).getConfirmedCount());
-        assertEquals(7L, result.getContent().get(1).getConfirmedCount());
-        assertEquals(0L, result.getContent().get(2).getConfirmedCount());
-    }
-
-    @Test
-    public void testFindMyEventsPageKeepsTheEventsAndThePageInformation() {
-        // Arrange
-        myEventsArranged();
-
-        // Act
-        final PageResult<EventWithRegistrationStats> result = eventService.findMyEventsPage(CREATOR_ID, 1);
-
-        // Assert
-        assertEquals(PLAIN_EVENT_ID, result.getContent().get(1).getEvent().getId().longValue());
-        assertEquals(3L, result.getTotalElements());
-        assertEquals(1, result.getPage());
-    }
-
-    @Test
-    public void testFindMyEventsPageWithoutEventsIsEmpty() {
-        // Arrange
-        when(eventDao.countByCreatorId(CREATOR_ID)).thenReturn(0L);
-
-        // Act
-        final PageResult<EventWithRegistrationStats> result = eventService.findMyEventsPage(CREATOR_ID, 3);
-
-        // Assert
-        assertTrue(result.getContent().isEmpty());
-        assertEquals(1, result.getPage());
-    }
-
     // ---- findAllEventsPage() (panel de admin: cualquier evento, no solo los del creador) ----
+
+    private static final long FOUND_EVENT_ID = 11;
 
     @Test
     public void testFindAllEventsPageUsesFindAllInsteadOfFindByCreatorId() {
-        // Arrange: un evento de un creador cualquiera que pide aprobacion, sin cancelar.
-        final Event withApproval = eventWith(APPROVAL_EVENT_ID, CATEGORY_ID, CREATOR_ID);
-        withApproval.setRequiresApproval(true);
+        // Arrange: un evento de un creador cualquiera.
+        final Event found = eventWith(FOUND_EVENT_ID, CATEGORY_ID, CREATOR_ID);
         when(eventDao.countAll(null)).thenReturn(1L);
-        when(eventDao.findAll(null, null, 1, EventServiceImpl.PAGE_SIZE)).thenReturn(Collections.singletonList(withApproval));
-        when(registrationService.countPendingByEvents(Collections.singletonList(APPROVAL_EVENT_ID)))
-                .thenReturn(Collections.singletonMap(APPROVAL_EVENT_ID, 3L));
-        when(registrationService.countConfirmedByEvents(Collections.singletonList(APPROVAL_EVENT_ID)))
-                .thenReturn(Collections.singletonMap(APPROVAL_EVENT_ID, 5L));
+        when(eventDao.findAll(null, null, 1, EventServiceImpl.PAGE_SIZE)).thenReturn(Collections.singletonList(found));
 
         // Act
-        final PageResult<EventWithRegistrationStats> result = eventService.findAllEventsPage(null, null, 1);
+        final PageResult<Event> result = eventService.findAllEventsPage(null, null, 1);
 
-        // Assert: trajo el evento y sus conteos (si hubiera llamado a findByCreatorId, estos mocks
-        // no habrian matcheado y el resultado habria quedado vacio).
+        // Assert: trajo el evento (si hubiera llamado a findByCreatorId, estos mocks no habrian matcheado y el
+        // resultado habria quedado vacio).
         assertEquals(1, result.getContent().size());
-        assertEquals(APPROVAL_EVENT_ID, result.getContent().get(0).getEvent().getId().longValue());
-        assertEquals(Long.valueOf(3), result.getContent().get(0).getPendingCount());
-        assertEquals(5L, result.getContent().get(0).getConfirmedCount());
+        assertEquals(FOUND_EVENT_ID, result.getContent().get(0).getId().longValue());
     }
 
     @Test
@@ -1478,7 +1373,7 @@ public class EventServiceImplTest {
         when(eventDao.countAll(null)).thenReturn(0L);
 
         // Act
-        final PageResult<EventWithRegistrationStats> result = eventService.findAllEventsPage(null, null, 3);
+        final PageResult<Event> result = eventService.findAllEventsPage(null, null, 3);
 
         // Assert
         assertTrue(result.getContent().isEmpty());
@@ -1488,32 +1383,138 @@ public class EventServiceImplTest {
     @Test
     public void testFindAllEventsPagePassesTheTrimmedTitleAndTheSortToTheDao() {
         // Arrange: solo con el texto ya recortado y ese orden el dao devuelve el evento
-        final Event found = eventWith(APPROVAL_EVENT_ID, CATEGORY_ID, CREATOR_ID);
+        final Event found = eventWith(FOUND_EVENT_ID, CATEGORY_ID, CREATOR_ID);
         when(eventDao.countAll("feria")).thenReturn(1L);
         when(eventDao.findAll("feria", AdminEventSort.TITLE_ASC, 1, EventServiceImpl.PAGE_SIZE))
                 .thenReturn(Collections.singletonList(found));
 
         // Act
-        final PageResult<EventWithRegistrationStats> result =
-                eventService.findAllEventsPage("  feria  ", AdminEventSort.TITLE_ASC, 1);
+        final PageResult<Event> result = eventService.findAllEventsPage("  feria  ", AdminEventSort.TITLE_ASC, 1);
 
         // Assert
         assertEquals(1, result.getContent().size());
-        assertEquals(APPROVAL_EVENT_ID, result.getContent().get(0).getEvent().getId().longValue());
+        assertEquals(FOUND_EVENT_ID, result.getContent().get(0).getId().longValue());
     }
 
     @Test
     public void testFindAllEventsPageWithABlankTitleDoesNotFilter() {
         // Arrange: sin filtro el dao devuelve 1 evento; con "   " mal pasado como filtro devolveria vacio
-        final Event found = eventWith(APPROVAL_EVENT_ID, CATEGORY_ID, CREATOR_ID);
+        final Event found = eventWith(FOUND_EVENT_ID, CATEGORY_ID, CREATOR_ID);
         when(eventDao.countAll(null)).thenReturn(1L);
         when(eventDao.findAll(null, null, 1, EventServiceImpl.PAGE_SIZE)).thenReturn(Collections.singletonList(found));
         lenient().when(eventDao.countAll("   ")).thenReturn(0L);
 
         // Act
-        final PageResult<EventWithRegistrationStats> result = eventService.findAllEventsPage("   ", null, 1);
+        final PageResult<Event> result = eventService.findAllEventsPage("   ", null, 1);
 
         // Assert
         assertEquals(1, result.getContent().size());
+    }
+
+    // ---- countUpcomingPublicByCreator() / countPastPublicByCreator() ----
+
+    @Test
+    public void testCountUpcomingPublicByCreatorIsTheCountOfUpcomingEventsOfThatOrganizer() {
+        // Arrange: el dao tiene otro numero para "realizados": si el service preguntara por el grupo equivocado, no coincide
+        final Date now = new Date();
+        when(eventDao.countUpcomingPublicByCreatorId(CREATOR_ID, now)).thenReturn(7L);
+        lenient().when(eventDao.countPastPublicByCreatorId(CREATOR_ID, now)).thenReturn(99L);
+
+        // Act
+        final long result = eventService.countUpcomingPublicByCreator(CREATOR_ID, now);
+
+        // Assert
+        assertEquals(7L, result);
+    }
+
+    @Test
+    public void testCountPastPublicByCreatorIsTheCountOfPastEventsOfThatOrganizer() {
+        // Arrange
+        final Date now = new Date();
+        when(eventDao.countPastPublicByCreatorId(CREATOR_ID, now)).thenReturn(4L);
+        lenient().when(eventDao.countUpcomingPublicByCreatorId(CREATOR_ID, now)).thenReturn(99L);
+
+        // Act
+        final long result = eventService.countPastPublicByCreator(CREATOR_ID, now);
+
+        // Assert
+        assertEquals(4L, result);
+    }
+
+    // ---- findUpcomingPublicByCreator() / findPastPublicByCreator() ----
+
+    @Test
+    public void testFindUpcomingPublicByCreatorReturnsThePageAndTheTotalOfThatGroup() {
+        // Arrange: 15 proximos de a 12 = 2 paginas; se pide la 2
+        final Date now = new Date();
+        final Event last = eventWith(FOUND_EVENT_ID, CATEGORY_ID, CREATOR_ID);
+        when(eventDao.findUpcomingPublicByCreatorId(CREATOR_ID, now, 2, 12)).thenReturn(Collections.singletonList(last));
+
+        // Act
+        final PageResult<Event> result = eventService.findUpcomingPublicByCreator(CREATOR_ID, now, 2, 12, 15L);
+
+        // Assert
+        assertEquals(Collections.singletonList(last), result.getContent());
+        assertEquals(15L, result.getTotalElements());
+        assertEquals(2, result.getPage());
+    }
+
+    @Test
+    public void testFindPastPublicByCreatorFallsBackToTheLastPageWhenThePageIsBeyondIt() {
+        // Arrange: 15 realizados de a 12 = 2 paginas; se pide la 99
+        final Date now = new Date();
+        final Event last = eventWith(FOUND_EVENT_ID, CATEGORY_ID, CREATOR_ID);
+        when(eventDao.findPastPublicByCreatorId(CREATOR_ID, now, 2, 12)).thenReturn(Collections.singletonList(last));
+
+        // Act
+        final PageResult<Event> result = eventService.findPastPublicByCreator(CREATOR_ID, now, 99, 12, 15L);
+
+        // Assert
+        assertEquals(2, result.getPage());
+        assertEquals(Collections.singletonList(last), result.getContent());
+    }
+
+    @Test
+    public void testFindPastPublicByCreatorWithoutEventsIsAnEmptyFirstPage() {
+        // Arrange: el dao tiene un evento de senuelo; si el service lo consultara igual con total 0, la pagina no estaria vacia
+        final Date now = new Date();
+        final Event decoy = eventWith(FOUND_EVENT_ID, CATEGORY_ID, CREATOR_ID);
+        lenient().when(eventDao.findPastPublicByCreatorId(CREATOR_ID, now, 1, 12)).thenReturn(Collections.singletonList(decoy));
+
+        // Act
+        final PageResult<Event> result = eventService.findPastPublicByCreator(CREATOR_ID, now, 4, 12, 0L);
+
+        // Assert
+        assertEquals(1, result.getPage());
+        assertTrue(result.getContent().isEmpty());
+    }
+
+    @Test
+    public void testFindUpcomingPublicByCreatorWithoutEventsIsAnEmptyFirstPage() {
+        // Arrange: igual que arriba, para el otro grupo
+        final Date now = new Date();
+        final Event decoy = eventWith(FOUND_EVENT_ID, CATEGORY_ID, CREATOR_ID);
+        lenient().when(eventDao.findUpcomingPublicByCreatorId(CREATOR_ID, now, 1, 12)).thenReturn(Collections.singletonList(decoy));
+
+        // Act
+        final PageResult<Event> result = eventService.findUpcomingPublicByCreator(CREATOR_ID, now, 3, 12, 0L);
+
+        // Assert
+        assertEquals(1, result.getPage());
+        assertTrue(result.getContent().isEmpty());
+    }
+
+    // ---- occupiedSpots() ----
+
+    @Test
+    public void testOccupiedSpotsIsWhatTheDaoCounts() {
+        // Arrange
+        when(eventDao.countOccupiedSpots(EVENT_ID)).thenReturn(9L);
+
+        // Act
+        final long result = eventService.occupiedSpots(EVENT_ID);
+
+        // Assert
+        assertEquals(9L, result);
     }
 }

@@ -1,6 +1,7 @@
 // Contrato de persistencia para User. Implementacion: UserJdbcDao (modulo persistence).
 package ar.edu.itba.paw.persistence;
 
+import ar.edu.itba.paw.model.PublicUser;
 import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.UserAccess;
@@ -18,6 +19,11 @@ public interface UserDao {
     // Lectura acotada para autorizar (ver AdminSecurity): id y roles, sin cargar el User (ni su
     // contrasena). Vacio si el usuario no existe.
     Optional<UserAccess> findAccessById(long id);
+
+    // Lectura acotada para el perfil publico: id, nombre, biografia y portada de la cuenta, sin cargar el User (ni su
+    // mail ni su clave). Vacio si no existe o si la cuenta no esta activa (sin clave, sin confirmar el mail o
+    // suspendida): el mismo criterio que User.isActive(), resuelto en el WHERE.
+    Optional<PublicUser> findActivePublicById(long id);
     Optional<User> findByEmail(String email);
 
     // Una pagina de "Usuarios", con la busqueda por mail. Pagina sobre la tabla users (no sobre las filas del JOIN

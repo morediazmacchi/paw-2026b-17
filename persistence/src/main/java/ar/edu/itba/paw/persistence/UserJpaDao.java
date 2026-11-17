@@ -1,15 +1,16 @@
 // Implementa el contrato UserDao (modulo persistence-contracts) con JPA/Hibernate.
 package ar.edu.itba.paw.persistence;
 
+import ar.edu.itba.paw.model.PublicUser;
 import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.UserAccess;
+import org.hibernate.jpa.QueryHints;
 import org.springframework.stereotype.Repository;
 
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 import javax.persistence.TypedQuery;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -62,6 +63,22 @@ public class UserJpaDao implements UserDao {
     }
 
     @Override
+    public Optional<PublicUser> findActivePublicById(final long id) {
+        // Proyeccion: solo lo que dibuja el perfil publico, sin cargar el User (ni su mail, ni su clave, ni sus roles).
+        // El WHERE es User.isActive() (tiene clave, mail confirmado, no suspendida): si cambia una, cambiar la otra.
+        final List<Object[]> rows = em.createQuery(
+                        "SELECT u.id, u.name, u.bio, u.coverImageId FROM User u WHERE u.id = :id "
+                                + "AND u.password IS NOT NULL AND u.verified = true AND u.suspended = false",
+                        Object[].class)
+                .setParameter("id", id)
+                .getResultList();
+        return rows.stream()
+                .map(row -> new PublicUser(((Number) row[0]).longValue(), (String) row[1], (String) row[2],
+                        row[3] == null ? null : ((Number) row[3]).longValue()))
+                .findFirst();
+    }
+
+    @Override
     public Optional<User> findByEmail(final String email) {
         // LEFT JOIN FETCH + DISTINCT: un usuario sin roles igual tiene que aparecer,
         // y los que tienen varios no se repiten por cada rol.
@@ -81,22 +98,40 @@ public class UserJpaDao implements UserDao {
         // Paginar sobre usuarios y no sobre las filas del JOIN con roles (un usuario con
         // dos roles son dos filas): primero los ids de la pagina, despues los usuarios.
         final TypedQuery<Long> idsQuery;
+        // El ORDER BY de la pagina: la consulta de ids y la de usuarios usan EXACTAMENTE el mismo (el IN no ordena).
+        final String orderBy;
+        final Map<String, Object> orderParams = new HashMap<>();
         if (text.isEmpty()) {
-            idsQuery = em.createQuery("SELECT u.id FROM User u ORDER BY u.id", Long.class);
+            orderBy = "u.id";
+            idsQuery = em.createQuery("SELECT u.id FROM User u ORDER BY " + orderBy, Long.class);
         } else {
             // Mismo WHERE que count(). El orden: el mail igual al texto, despues los que empiezan con el, despues el resto.
             final String escaped = escapeLike(text);
+            orderBy = "CASE WHEN LOWER(u.email) = :exact THEN 0 "
+                    + "WHEN LOWER(u.email) LIKE :prefix ESCAPE '" + LIKE_ESCAPE + "' THEN 1 ELSE 2 END, "
+                    + "u.email, u.id";
             idsQuery = em.createQuery(
                             "SELECT u.id FROM User u WHERE LOWER(u.email) LIKE :contains ESCAPE '" + LIKE_ESCAPE + "' "
-                                    + "ORDER BY CASE WHEN LOWER(u.email) = :exact THEN 0 "
-                                    + "WHEN LOWER(u.email) LIKE :prefix ESCAPE '" + LIKE_ESCAPE + "' THEN 1 ELSE 2 END, "
-                                    + "u.email, u.id", Long.class)
+                                    + "ORDER BY " + orderBy, Long.class)
                     .setParameter("contains", "%" + escaped + "%")
                     .setParameter("prefix", escaped + "%")
                     .setParameter("exact", text);
+            orderParams.put("prefix", escaped + "%");
+            orderParams.put("exact", text);
         }
         final List<Long> ids = idsQuery.setFirstResult(offset).setMaxResults(limit).getResultList();
-        return inOrderOf(ids);
+        if (ids.isEmpty()) {
+            return Collections.emptyList();
+        }
+        final TypedQuery<User> usersQuery = em.createQuery(
+                        "SELECT DISTINCT u FROM User u LEFT JOIN FETCH u.roles WHERE u.id IN :ids ORDER BY " + orderBy,
+                        User.class)
+                .setParameter("ids", ids)
+                // DISTINCT solo en memoria (por el JOIN con roles): el ORDER BY usa una expresion que no esta en el
+                // SELECT, y con el DISTINCT de SQL Postgres la rechaza.
+                .setHint(QueryHints.HINT_PASS_DISTINCT_THROUGH, false);
+        orderParams.forEach(usersQuery::setParameter);
+        return usersQuery.getResultList();
     }
 
     @Override
@@ -122,23 +157,6 @@ public class UserJpaDao implements UserDao {
         return text.replace(LIKE_ESCAPE, LIKE_ESCAPE + LIKE_ESCAPE)
                 .replace("%", LIKE_ESCAPE + "%")
                 .replace("_", LIKE_ESCAPE + "_");
-    }
-
-    // Los usuarios de "ids" en ESE orden: findByIds() los devuelve por id, y aca el orden que importa es el de la
-    // consulta que eligio la pagina (puede ser el de relevancia del mail).
-    private List<User> inOrderOf(final List<Long> ids) {
-        final Map<Long, User> byId = new HashMap<>();
-        for (final User user : findByIds(ids)) {
-            byId.put(user.getId(), user);
-        }
-        final List<User> ordered = new ArrayList<>(ids.size());
-        for (final Long id : ids) {
-            final User user = byId.get(id);
-            if (user != null) {
-                ordered.add(user);
-            }
-        }
-        return ordered;
     }
 
     @Override

@@ -13,68 +13,63 @@ import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.EventSort;
 import ar.edu.itba.paw.model.Image;
 import ar.edu.itba.paw.model.InboxMessageType;
-import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.exception.EventCancelledException;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import ar.edu.itba.paw.model.exception.EventRejectedException;
 import ar.edu.itba.paw.model.exception.InvalidEventException;
 import ar.edu.itba.paw.model.exception.InvalidImageException;
-import ar.edu.itba.paw.persistence.CategoryDao;
 import ar.edu.itba.paw.persistence.EventDao;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.Date;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 
 @Service
 public class EventServiceImpl implements EventService {
 
     static final int PAGE_SIZE = 12;
 
-    // A quienes les llega a la bandeja que el evento se cancelo: todos menos los rechazados (ver
-    // notifyRegistrantsOfCancellation()).
-    private static final Set<RegistrationStatus> CANCELLATION_NOTICE_STATUSES =
-            EnumSet.complementOf(EnumSet.of(RegistrationStatus.REJECTED));
-
     private final EventDao eventDao;
     private final UserService userService;
-    private final CategoryDao categoryDao;
+    private final CategoryService categoryService;
     private final NotificationService notificationService;
-    private final RegistrationService registrationService;
     private final InboxService inboxService;
     private final ImageService imageService;
     private final EventSimilarityService eventSimilarityService;
     private final FollowService followService;
+    // Para anunciar que un evento cambio o se dio de baja (ver EventUpdatedEvent / EventCancelledEvent): los
+    // inscriptos los avisa RegistrantsEventListener, asi este service no depende de RegistrationService.
+    private final ApplicationEventPublisher eventPublisher;
 
     @Autowired
     public EventServiceImpl(final EventDao eventDao, final UserService userService,
-                            final CategoryDao categoryDao,
+                            final CategoryService categoryService,
                             final NotificationService notificationService,
-                            final RegistrationService registrationService,
                             final InboxService inboxService, final ImageService imageService,
                             final EventSimilarityService eventSimilarityService,
-                            final FollowService followService) {
+                            final FollowService followService,
+                            final ApplicationEventPublisher eventPublisher) {
         this.eventDao = eventDao;
         this.userService = userService;
-        this.categoryDao = categoryDao;
+        this.categoryService = categoryService;
         this.notificationService = notificationService;
-        this.registrationService = registrationService;
         this.inboxService = inboxService;
         this.imageService = imageService;
         this.eventSimilarityService = eventSimilarityService;
         this.followService = followService;
+        this.eventPublisher = eventPublisher;
     }
 
     // Sube cada imagen y devuelve sus ids, en el mismo orden en que se cargaron
@@ -147,48 +142,13 @@ public class EventServiceImpl implements EventService {
     }
     @Override
     @Transactional(readOnly = true)
-    public PageResult<EventWithRegistrationStats> findMyEventsPage(final long creatorId, final int page) {
-        return withRegistrationStats(findPageByCreatorId(creatorId, page));
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public PageResult<EventWithRegistrationStats> findAllEventsPage(final String titleQuery,
-                                                                    final AdminEventSort sort, final int page) {
+    public PageResult<Event> findAllEventsPage(final String titleQuery, final AdminEventSort sort, final int page) {
         // Un texto en blanco es "sin filtro": el DAO solo distingue null.
         final String trimmed = titleQuery == null ? "" : titleQuery.trim();
         final String filter = trimmed.isEmpty() ? null : trimmed;
         final long total = eventDao.countAll(filter);
         final int effectivePage = PageResult.clampPage(page, total, PAGE_SIZE);
-        final List<Event> content = eventDao.findAll(filter, sort, effectivePage, PAGE_SIZE);
-        return withRegistrationStats(new PageResult<>(content, total, effectivePage, PAGE_SIZE));
-    }
-
-    // Le agrega a cada evento de la pagina sus conteos de inscripciones (ver findMyEventsPage()/
-    // findAllEventsPage()). Que se cuenta es regla de negocio: pendientes solo si pide aprobacion y
-    // confirmados solo si no esta cancelado (uno cancelado no muestra el boton de cancelar). Se
-    // filtran los ids y despues es UNA consulta por tipo para toda la pagina, no una por evento.
-    private PageResult<EventWithRegistrationStats> withRegistrationStats(final PageResult<Event> events) {
-        final List<Long> requiringApprovalIds = new ArrayList<>();
-        final List<Long> activeIds = new ArrayList<>();
-        for (final Event event : events.getContent()) {
-            if (event.isRequiresApproval()) {
-                requiringApprovalIds.add(event.getId());
-            }
-            if (!event.isCancelled()) {
-                activeIds.add(event.getId());
-            }
-        }
-        final Map<Long, Long> pendingByEvent = registrationService.countPendingByEvents(requiringApprovalIds);
-        final Map<Long, Long> confirmedByEvent = registrationService.countConfirmedByEvents(activeIds);
-
-        final List<EventWithRegistrationStats> content = new ArrayList<>();
-        for (final Event event : events.getContent()) {
-            final Long pending = event.isRequiresApproval() ? pendingByEvent.getOrDefault(event.getId(), 0L) : null;
-            final long confirmed = confirmedByEvent.getOrDefault(event.getId(), 0L);
-            content.add(new EventWithRegistrationStats(event, confirmed, pending));
-        }
-        return new PageResult<>(content, events.getTotalElements(), events.getPage(), events.getPageSize());
+        return new PageResult<>(eventDao.findAll(filter, sort, effectivePage, PAGE_SIZE), total, effectivePage, PAGE_SIZE);
     }
 
     @Override
@@ -269,9 +229,9 @@ public class EventServiceImpl implements EventService {
         }
         validateEventDate(dto);
         validateHasCategories(dto);
-        // No alcanza con los confirmados: una invitacion sin contestar o un
-        // pedido pendiente tambien tienen su lugar guardado (ver occupiedSpots).
-        if (dto.getMaxCapacity() != null && dto.getMaxCapacity() < registrationService.occupiedSpots(eventId)) {
+        // No alcanza con los confirmados: una invitacion sin contestar tambien tiene su lugar guardado (ver
+        // EventDao.countOccupiedSpots).
+        if (dto.getMaxCapacity() != null && dto.getMaxCapacity() < eventDao.countOccupiedSpots(eventId)) {
             throw new InvalidEventException(InvalidEventException.Reason.CAPACITY_BELOW_OCCUPIED, "maxCapacity");
         }
         // Si no se subio ninguna foto nueva, se mantiene la galeria que el
@@ -292,18 +252,10 @@ public class EventServiceImpl implements EventService {
         if (resubmitted) {
             eventDao.resubmitForReview(eventId);
         }
-        // Solo a los confirmados, mismo criterio que cancel(): a alguien
-        // pendiente/rechazado/en lista de espera todavia no tiene un lugar
-        // asegurado en base al cual le importe que cambio el evento. Los mails
-        // salen todos en UNA tarea (en otro hilo, despues del commit); los avisos
-        // de la bandeja, todos juntos en una sola sentencia.
-        notificationService.notifyEventUpdated(changes, registrationService.findConfirmedByEventId(eventId));
-        inboxService.addForRegistrants(eventId, InboxMessageType.EVENT_UPDATED, RegistrationStatus.withConfirmedPlace());
-        // Si subio el cupo (o se lo saco), los primeros de la lista de espera entran.
-        // Despues del aviso de cambios: a los que entran ahora les llega ya el mail
-        // de que estan confirmados, no hace falta ademas contarles que el evento cambio.
-        final int promoted = registrationService.promoteFromWaitlist(eventId);
-        return new EventUpdateOutcome(changes, promoted, resubmitted);
+        // A los inscriptos les avisa, y a la lista de espera la hace avanzar si subio el cupo, quien escucha este
+        // anuncio (RegistrantsEventListener), dentro de esta misma transaccion.
+        eventPublisher.publishEvent(new EventUpdatedEvent(changes));
+        return new EventUpdateOutcome(changes, resubmitted);
     }
 
     @Override
@@ -319,7 +271,7 @@ public class EventServiceImpl implements EventService {
             return EventCancelResult.ALREADY_CANCELLED;
         }
         eventDao.cancel(eventId);
-        notifyRegistrantsOfCancellation(event);
+        eventPublisher.publishEvent(new EventCancelledEvent(event));
         return EventCancelResult.CANCELLED;
     }
 
@@ -341,7 +293,7 @@ public class EventServiceImpl implements EventService {
         // Mismo aviso a quien estaba anotado que una cancelacion comun (para
         // ellos el efecto es el mismo: el evento ya no va). El creador, en
         // cambio, recibe un aviso aparte y distinto: a el le interesa el motivo.
-        notifyRegistrantsOfCancellation(event);
+        eventPublisher.publishEvent(new EventCancelledEvent(event));
         notificationService.notifyEventRemovedByAdmin(event, reason);
         inboxService.add(event.getCreatorEmail(), InboxMessageType.EVENT_REMOVED_BY_ADMIN, eventId, null, reason);
         return EventCancelResult.CANCELLED;
@@ -470,7 +422,7 @@ public class EventServiceImpl implements EventService {
             return;
         }
         final Map<Long, Category> byId = new HashMap<>();
-        for (final Category category : categoryDao.findAll()) {
+        for (final Category category : categoryService.findAll()) {
             byId.put(category.getId(), category);
         }
         for (final EventCategoryInfo info : chosen) {
@@ -488,14 +440,72 @@ public class EventServiceImpl implements EventService {
         return message != null && message.toLowerCase(java.util.Locale.ROOT).contains("event_category");
     }
 
-    // Mail: solo a los confirmados (son los que tenian un lugar que pierden).
-    // Bandeja: tambien a quien estaba en lista de espera o esperando que lo
-    // acepten, que si no se enteraria recien al ver el evento. Al rechazado no:
-    // ese ya no esperaba nada de este evento. Comun a cancel() y removeByAdmin():
-    // para quien esta anotado el motivo (el organizador o un admin) no cambia
-    // el aviso que le corresponde.
-    private void notifyRegistrantsOfCancellation(final Event event) {
-        notificationService.notifyEventCancelled(event, registrationService.findConfirmedByEventId(event.getId()));
-        inboxService.addForRegistrants(event.getId(), InboxMessageType.EVENT_CANCELLED, CANCELLATION_NOTICE_STATUSES);
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Optional<Event> findByIdForUpdate(final long id) {
+        return eventDao.findByIdForUpdate(id);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long occupiedSpots(final long eventId) {
+        return eventDao.countOccupiedSpots(eventId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countUpcomingPublicByCreator(final long creatorId, final Date now) {
+        return eventDao.countUpcomingPublicByCreatorId(creatorId, now);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countPastPublicByCreator(final long creatorId, final Date now) {
+        return eventDao.countPastPublicByCreatorId(creatorId, now);
+    }
+
+    // Sin eventos (total 0) no hay nada que pedirle a la base: ni la consulta de ids ni la de los eventos.
+    @Override
+    @Transactional(readOnly = true)
+    public PageResult<Event> findUpcomingPublicByCreator(final long creatorId, final Date now, final int page,
+                                                         final int pageSize, final long total) {
+        final int effectivePage = PageResult.clampPage(page, total, pageSize);
+        final List<Event> content = total == 0 ? Collections.<Event>emptyList()
+                : eventDao.findUpcomingPublicByCreatorId(creatorId, now, effectivePage, pageSize);
+        return new PageResult<>(content, total, effectivePage, pageSize);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResult<Event> findPastPublicByCreator(final long creatorId, final Date now, final int page,
+                                                     final int pageSize, final long total) {
+        final int effectivePage = PageResult.clampPage(page, total, pageSize);
+        final List<Event> content = total == 0 ? Collections.<Event>emptyList()
+                : eventDao.findPastPublicByCreatorId(creatorId, now, effectivePage, pageSize);
+        return new PageResult<>(content, total, effectivePage, pageSize);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countMatching(final EventSearchCriteria criteria) {
+        return eventDao.countSearch(criteria);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Event> findMatching(final EventSearchCriteria criteria) {
+        return eventDao.search(criteria);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Long> findIdsNeedingReminder(final Date from, final Date until) {
+        return eventDao.findIdsNeedingReminder(from, until);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean markReminderSent(final long eventId, final Date when) {
+        return eventDao.markReminderSent(eventId, when);
     }
 }

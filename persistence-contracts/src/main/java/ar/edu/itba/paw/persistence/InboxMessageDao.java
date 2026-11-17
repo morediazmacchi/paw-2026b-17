@@ -11,7 +11,12 @@ import java.util.List;
 
 public interface InboxMessageDao {
 
-    InboxMessage create(InboxMessage message);
+    /**
+     * Deja un aviso para ese mail (ya normalizado). El evento se enlaza por su id (null en los avisos que no
+     * hablan de uno) y, si ya hay una cuenta con ese mail, el aviso queda enlazado a ella; si no, queda sin
+     * cuenta hasta que esa persona se registre (ver linkUserId()).
+     */
+    InboxMessage create(String recipientEmail, InboxMessageType type, Long eventId, String actorName, String body);
 
     /**
      * El mismo aviso (sin actor ni texto) a cada inscripto de ese evento cuyo estado este en statuses, en UNA

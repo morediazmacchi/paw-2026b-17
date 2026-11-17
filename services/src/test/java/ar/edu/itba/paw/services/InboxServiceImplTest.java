@@ -4,8 +4,6 @@ import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.InboxMessage;
 import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.RegistrationStatus;
-import ar.edu.itba.paw.model.User;
-import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.InboxMessageDao;
 import org.junit.Before;
 import org.junit.Test;
@@ -18,7 +16,6 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
@@ -29,7 +26,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 /**
- * Tests unitarios con Mockito: InboxMessageDao y UserService son @Mock. Los stubs con
+ * Tests unitarios con Mockito: InboxMessageDao es @Mock. Los stubs con
  * argumentos especificos hacen de expectativa (si el service arma mal el mensaje, no
  * matchean y el test falla) y se asierta sobre lo que devuelve el service.
  */
@@ -40,16 +37,12 @@ public class InboxServiceImplTest {
 
     @Mock
     private InboxMessageDao inboxDao;
-    @Mock
-    private UserService userService;
-    @Mock
-    private EventDao eventDao;
 
     private InboxServiceImpl inboxService;
 
     @Before
     public void setUp() {
-        inboxService = new InboxServiceImpl(inboxDao, userService, eventDao);
+        inboxService = new InboxServiceImpl(inboxDao);
     }
 
     private static InboxMessage anyMessage() {
@@ -61,11 +54,9 @@ public class InboxServiceImplTest {
     @Test
     public void testAddNormalizesTheEmail() {
         // Arrange
+        // El stub solo responde con el mail ya normalizado (sin espacios y en minuscula).
         final InboxMessage saved = anyMessage();
-        when(eventDao.findById(7L)).thenReturn(Optional.of(ModelFixtures.event(7L)));
-        when(userService.findByEmail("ana@mail.com")).thenReturn(Optional.empty());
-        when(inboxDao.create(any(InboxMessage.class)))
-                .thenReturn(saved);
+        when(inboxDao.create("ana@mail.com", InboxMessageType.NEW_PENDING, 7L, "Juan", null)).thenReturn(saved);
 
         // Act
         final InboxMessage result = inboxService.add("  Ana@Mail.com ", InboxMessageType.NEW_PENDING, 7L, "Juan", null);
@@ -158,19 +149,32 @@ public class InboxServiceImplTest {
 
     @Test
     public void testFindPageWithEventsIndexesTheReferencedEventsById() {
-        // Arrange: dos avisos del mismo evento y uno sin evento; el evento se busca una sola vez
-        final Event event = ModelFixtures.event(7L);
+        // Arrange: dos avisos del mismo evento y uno sin evento (cada aviso ya trae su evento)
+        final InboxMessage first = messageAbout(7L);
         final InboxMessage withoutEvent = new InboxMessage("ana@mail.com", InboxMessageType.NEW_PENDING, null, "Juan", null);
         when(inboxDao.findByRecipientUserId(USER_ID, 1, InboxServiceImpl.PAGE_SIZE))
-                .thenReturn(Arrays.asList(messageAbout(7L), messageAbout(7L), withoutEvent));
+                .thenReturn(Arrays.asList(first, messageAbout(7L), withoutEvent));
         when(inboxDao.countByUserId(USER_ID)).thenReturn(3L);
-        when(eventDao.findByIds(Collections.singletonList(7L))).thenReturn(Collections.singletonList(event));
 
         // Act
         final InboxPage result = inboxService.findPageWithEvents(USER_ID, 1);
 
         // Assert
-        assertEquals(Collections.singletonMap(7L, event), result.getEventsById());
+        assertEquals(Collections.singleton(7L), result.getEventsById().keySet());
+    }
+
+    // ---- linkAccount() ----
+
+    @Test
+    public void testLinkAccountReturnsHowManyMessagesWereLinked() {
+        // Arrange: el stub solo responde con el mail normalizado y el id de la cuenta.
+        when(inboxDao.linkUserId("ana@mail.com", USER_ID)).thenReturn(2);
+
+        // Act
+        final int result = inboxService.linkAccount("  Ana@Mail.com ", USER_ID);
+
+        // Assert
+        assertEquals(2, result);
     }
 
     // ---- markRead() ----

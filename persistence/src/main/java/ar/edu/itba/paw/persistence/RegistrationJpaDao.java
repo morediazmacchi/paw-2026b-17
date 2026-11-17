@@ -48,11 +48,6 @@ public class RegistrationJpaDao implements RegistrationDao {
     }
 
     @Override
-    public long countConfirmed(final long eventId) {
-        return countByEventAndStatus(eventId, RegistrationStatus.CONFIRMED);
-    }
-
-    @Override
     public Optional<Registration> findById(final long id) {
         return Optional.ofNullable(em.find(Registration.class, id));
     }
@@ -93,7 +88,7 @@ public class RegistrationJpaDao implements RegistrationDao {
                 .setFirstResult((page - 1) * pageSize)
                 .setMaxResults(pageSize)
                 .getResultList();
-        return loadInOrder(ids);
+        return loadPage(ids, "e.eventDate ASC, r.id ASC");
     }
 
     @Override
@@ -117,19 +112,19 @@ public class RegistrationJpaDao implements RegistrationDao {
                 .setFirstResult((page - 1) * pageSize)
                 .setMaxResults(pageSize)
                 .getResultList();
-        return loadInOrder(ids);
+        return loadPage(ids, "e.eventDate DESC, r.id ASC");
     }
 
-    // Paso 2 del 1+1: carga las inscripciones de "ids" y las devuelve en el mismo orden que los ids.
-    private List<Registration> loadInOrder(final List<Long> ids) {
+    // Paso 2 del 1+1: carga las inscripciones de "ids" con el MISMO ORDER BY que la consulta de ids (el IN no
+    // ordena nada). "orderBy" es la cola de la consulta de ids (lo que sigue a ORDER BY).
+    private List<Registration> loadPage(final List<Long> ids, final String orderBy) {
         if (ids.isEmpty()) {
             return Collections.emptyList();
         }
-        return PagedIds.inOrder(ids,
-                em.createQuery("FROM Registration r WHERE r.id IN :ids", Registration.class)
-                        .setParameter("ids", ids)
-                        .getResultList(),
-                Registration::getId);
+        return em.createQuery("SELECT r FROM Registration r JOIN r.event e WHERE r.id IN :ids ORDER BY " + orderBy,
+                        Registration.class)
+                .setParameter("ids", ids)
+                .getResultList();
     }
 
     @Override
@@ -169,7 +164,7 @@ public class RegistrationJpaDao implements RegistrationDao {
                 .setFirstResult((page - 1) * pageSize)
                 .setMaxResults(pageSize)
                 .getResultList();
-        return loadInOrder(ids);
+        return loadPage(ids, "r.registeredAt ASC, r.id ASC");
     }
 
     @Override
@@ -219,22 +214,6 @@ public class RegistrationJpaDao implements RegistrationDao {
     }
 
     @Override
-    public List<Long> findAttendedEventIds(final long userId, final Date now, final int limit) {
-        // "Asistio" = inscripcion confirmada a un evento que ya paso y no se cancelo. Un evento
-        // cancelado (o dado de baja por un admin, que usa el mismo cancelled_at) no ocurrio.
-        return em.createQuery(
-                        "SELECT e.id FROM Registration r JOIN r.event e "
-                                + "WHERE r.user.id = :userId AND r.status = :confirmed "
-                                + "AND e.eventDate < :now AND e.cancelledAt IS NULL "
-                                + "ORDER BY e.eventDate DESC, e.id DESC", Long.class)
-                .setParameter("userId", userId)
-                .setParameter("confirmed", RegistrationStatus.CONFIRMED)
-                .setParameter("now", now, TemporalType.TIMESTAMP)
-                .setMaxResults(limit)
-                .getResultList();
-    }
-
-    @Override
     public List<Registration> findByUserIdAndEventIds(final long userId, final Collection<Long> eventIds) {
         if (eventIds.isEmpty()) {
             return Collections.emptyList();
@@ -278,7 +257,7 @@ public class RegistrationJpaDao implements RegistrationDao {
                 .setFirstResult((page - 1) * pageSize)
                 .setMaxResults(pageSize)
                 .getResultList();
-        return loadInOrder(ids);
+        return loadPage(ids, "r.registeredAt ASC, r.id ASC");
     }
 
     @Override

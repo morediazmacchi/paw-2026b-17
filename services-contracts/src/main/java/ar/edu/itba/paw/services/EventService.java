@@ -9,6 +9,7 @@ import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
@@ -83,15 +84,6 @@ public interface EventService {
     @Transactional(readOnly = true)
     EventSearchResult search(EventSearchCriteria criteria);
 
-    /**
-     * "Mis eventos": una pagina de los eventos del creador (mismo orden y criterio de pagina que
-     * findPageByCreatorId()), cada uno con sus conteos de inscripciones. Los pendientes solo se cuentan en
-     * un evento que pide aprobacion (si no, vienen en null) y los confirmados solo en uno no cancelado (si
-     * esta cancelado, 0). Los conteos son UNA consulta por tipo para toda la pagina, no una por evento.
-     */
-    @Transactional(readOnly = true)
-    PageResult<EventWithRegistrationStats> findMyEventsPage(long creatorId, int page);
-
     // "Mis eventos": los creados por este usuario, de a una pagina. Primero los
     // que todavia no pasaron (el mas proximo primero) y despues los pasados (el
     // mas reciente primero). Una pagina mayor a la ultima devuelve la ultima,
@@ -105,16 +97,15 @@ public interface EventService {
 
     /**
      * Panel de admin "Eventos": una pagina de TODOS los eventos (cualquier estado de aprobacion,
-     * visibilidad o cancelacion, de cualquier creador), mas recientes primero, con sus conteos de
-     * inscripciones (mismo criterio que findMyEventsPage: pendientes solo si pide aprobacion,
-     * confirmados solo si no esta cancelado). Es la unica forma de moderar algo que todavia no es
-     * publico o que ya se dio de baja: search() nunca los muestra.
+     * visibilidad o cancelacion, de cualquier creador), mas recientes primero. Es la unica forma de moderar algo
+     * que todavia no es publico o que ya se dio de baja: search() nunca los muestra. Sus conteos de inscripciones
+     * los agrega ModerationService.findAllEventsPage().
      *
      * {@code titleQuery} filtra por titulo (contiene, sin distinguir mayusculas); null o en blanco = sin filtro.
      * {@code sort} null = el mas recientemente creado primero.
      */
     @Transactional(readOnly = true)
-    PageResult<EventWithRegistrationStats> findAllEventsPage(String titleQuery, AdminEventSort sort, int page);
+    PageResult<Event> findAllEventsPage(String titleQuery, AdminEventSort sort, int page);
 
     /**
      * Edita un evento existente. No cambia quien lo creo ni cuando se creo.
@@ -133,13 +124,17 @@ public interface EventService {
      * @throws InvalidEventException si el cupo nuevo es menor a los lugares ya ocupados, la fecha es pasada o a mas
      *         de {@link #MAX_YEARS_AHEAD} años, o no queda ninguna categoria.
      * @throws InvalidImageException si se suben mas de Event.MAX_IMAGES imagenes o alguna es invalida.
+     *
+     * Avisa que el evento cambio con un {@link EventUpdatedEvent} (dentro de esta misma transaccion): a los
+     * inscriptos les avisa, y a la lista de espera la hace avanzar si subio el cupo, quien escucha ese anuncio
+     * (RegistrantsEventListener). Asi EventService no depende de RegistrationService, que si depende de este.
      */
     @Transactional(rollbackFor = Exception.class)
     EventUpdateOutcome update(long eventId, EventDTO dto);
 
     /**
-     * Cancela (soft-delete) un evento existente y avisa por mail a cada
-     * inscripto confirmado. Que quien lo cancela sea el creador NO se valida aca: lo decide
+     * Cancela (soft-delete) un evento existente y avisa a sus inscriptos (con un {@link EventCancelledEvent}, ver
+     * update()). Que quien lo cancela sea el creador NO se valida aca: lo decide
      * @PreAuthorize en el controller (ver EventSecurity.isOwner).
      *
      * @throws EventNotFoundException si el evento no existe.
@@ -194,4 +189,72 @@ public interface EventService {
      */
     @Transactional(readOnly = true)
     List<Event> findMostRegistered(int limit);
+
+    /**
+     * El evento con la fila bloqueada (SELECT ... FOR UPDATE) hasta que termine la transaccion de quien llama:
+     * mientras se chequea y se cambia algo que depende del cupo, nadie mas se anota. Orden de locks de toda la app:
+     * primero la fila del evento, despues las de registration. Vacio si no existe.
+     */
+    @Transactional(rollbackFor = Exception.class)
+    Optional<Event> findByIdForUpdate(long id);
+
+    /**
+     * Cuantos lugares tiene ocupados el evento: inscripciones CONFIRMADAS mas invitaciones sin usar (ni los pedidos
+     * pendientes ni la lista de espera ocupan cupo). Es la definicion unica de "ocupado": la usan el cupo, la lista
+     * de espera y la edicion del cupo.
+     */
+    @Transactional(readOnly = true)
+    long occupiedSpots(long eventId);
+
+    /**
+     * Cuantos eventos del organizador aparecen en su perfil publico y TODAVIA no pasaron (fecha >= now): publicos,
+     * aprobados y no cancelados. "now" lo fija quien llama para usar el mismo en los dos grupos (proximos /
+     * realizados).
+     */
+    @Transactional(readOnly = true)
+    long countUpcomingPublicByCreator(long creatorId, Date now);
+
+    /** Igual que countUpcomingPublicByCreator(), pero los que ya pasaron (fecha < now). */
+    @Transactional(readOnly = true)
+    long countPastPublicByCreator(long creatorId, Date now);
+
+    /**
+     * Una pagina de los eventos que cuenta countUpcomingPublicByCreator() (el mas proximo primero). {@code total} es
+     * lo que esa cuenta devolvio: lo pasa quien llama porque ya lo necesitaba (el numero de la pestaña) y asi no se
+     * cuenta dos veces. Una pagina fuera de rango cae a la ultima; sin eventos, la 1 vacia (y no consulta nada).
+     */
+    @Transactional(readOnly = true)
+    PageResult<Event> findUpcomingPublicByCreator(long creatorId, Date now, int page, int pageSize, long total);
+
+    /**
+     * Igual que findUpcomingPublicByCreator(), pero los que cuenta countPastPublicByCreator() (el mas reciente
+     * primero).
+     */
+    @Transactional(readOnly = true)
+    PageResult<Event> findPastPublicByCreator(long creatorId, Date now, int page, int pageSize, long total);
+
+    /**
+     * Cuantos eventos cumplen esos filtros (los mismos que veria alguien en /eventos, mismo SQL), sin traerlos.
+     * Es lo que usa la busqueda guardada para saber si hay novedades. No aplica orden ni pagina.
+     */
+    @Transactional(readOnly = true)
+    long countMatching(EventSearchCriteria criteria);
+
+    /**
+     * Una pagina de los eventos que cumplen esos filtros, con el orden y la pagina que traiga criteria (mismo SQL que
+     * /eventos pero sin las reglas de orden de search(): RECOMENDADOS necesita historial y no se resuelve aca).
+     */
+    @Transactional(readOnly = true)
+    List<Event> findMatching(EventSearchCriteria criteria);
+
+    /** Ids de eventos aprobados, no cancelados, que empiezan entre "from" y "until" y a los que todavia no se les mando el recordatorio de 24 hs. */
+    @Transactional(readOnly = true)
+    List<Long> findIdsNeedingReminder(Date from, Date until);
+
+    /**
+     * "Reclama" el recordatorio de ese evento (marca que ya se mando): true si lo reclamo ahora, false si otra
+     * corrida ya lo habia reclamado. Es lo que impide mandarlo dos veces.
+     */
+    @Transactional(rollbackFor = Exception.class)
+    boolean markReminderSent(long eventId, Date when);
 }

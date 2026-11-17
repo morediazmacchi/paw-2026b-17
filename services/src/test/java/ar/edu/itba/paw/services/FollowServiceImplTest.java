@@ -1,7 +1,5 @@
 package ar.edu.itba.paw.services;
 
-import ar.edu.itba.paw.model.EventAccessSummary;
-import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.FollowDao;
 import org.junit.Before;
 import org.junit.Test;
@@ -9,7 +7,6 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
-import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -22,34 +19,25 @@ import static org.mockito.Mockito.when;
 public class FollowServiceImplTest {
 
     private static final long FOLLOWER_ID = 1;
-    // El organizador del evento EVENT_ID.
+    // La persona que es seguida (isFollowing / countFollowers hablan de personas, no de eventos).
     private static final long FOLLOWED_ID = 2;
     private static final long EVENT_ID = 10;
 
     @Mock
     private FollowDao followDao;
-    @Mock
-    private EventDao eventDao;
 
     private FollowServiceImpl followService;
 
     @Before
     public void setUp() {
-        followService = new FollowServiceImpl(followDao, eventDao);
+        followService = new FollowServiceImpl(followDao);
     }
 
-    private void eventOrganizedBy(final Long organizerId) {
-        when(eventDao.findAccessById(EVENT_ID))
-                .thenReturn(Optional.of(new EventAccessSummary(EVENT_ID, organizerId, false, true)));
-    }
-
-    // El dao solo responde true para (seguidor, organizador del evento): si el service siguiera a otra
-    // persona (por ejemplo, al id del evento), el resultado seria false.
+    // El dao solo responde para (seguidor, EVENTO): si el service le pasara otro id, el resultado seria false.
     @Test
     public void testFollowOrganizerOfFollowsTheOrganizerOfTheEvent() {
         // Arrange
-        eventOrganizedBy(FOLLOWED_ID);
-        when(followDao.follow(FOLLOWER_ID, FOLLOWED_ID)).thenReturn(true);
+        when(followDao.followOrganizerOf(FOLLOWER_ID, EVENT_ID)).thenReturn(true);
 
         // Act
         final boolean result = followService.followOrganizerOf(EVENT_ID, FOLLOWER_ID);
@@ -61,21 +49,7 @@ public class FollowServiceImplTest {
     @Test
     public void testFollowOrganizerOfWhenAlreadyFollowingReturnsFalse() {
         // Arrange
-        eventOrganizedBy(FOLLOWED_ID);
-        when(followDao.follow(FOLLOWER_ID, FOLLOWED_ID)).thenReturn(false);
-
-        // Act
-        final boolean result = followService.followOrganizerOf(EVENT_ID, FOLLOWER_ID);
-
-        // Assert
-        assertFalse(result);
-    }
-
-    // Evento viejo sin organizador cargado: no hay a quien seguir.
-    @Test
-    public void testFollowOrganizerOfAnEventWithoutOrganizerReturnsFalse() {
-        // Arrange
-        eventOrganizedBy(null);
+        when(followDao.followOrganizerOf(FOLLOWER_ID, EVENT_ID)).thenReturn(false);
 
         // Act
         final boolean result = followService.followOrganizerOf(EVENT_ID, FOLLOWER_ID);
@@ -87,8 +61,7 @@ public class FollowServiceImplTest {
     @Test
     public void testUnfollowOrganizerOfStopsFollowingTheOrganizerOfTheEvent() {
         // Arrange
-        eventOrganizedBy(FOLLOWED_ID);
-        when(followDao.unfollow(FOLLOWER_ID, FOLLOWED_ID)).thenReturn(true);
+        when(followDao.unfollowOrganizerOf(FOLLOWER_ID, EVENT_ID)).thenReturn(true);
 
         // Act
         final boolean result = followService.unfollowOrganizerOf(EVENT_ID, FOLLOWER_ID);
@@ -100,8 +73,7 @@ public class FollowServiceImplTest {
     @Test
     public void testUnfollowOrganizerOfWhenNotFollowingReturnsFalse() {
         // Arrange
-        eventOrganizedBy(FOLLOWED_ID);
-        when(followDao.unfollow(FOLLOWER_ID, FOLLOWED_ID)).thenReturn(false);
+        when(followDao.unfollowOrganizerOf(FOLLOWER_ID, EVENT_ID)).thenReturn(false);
 
         // Act
         final boolean result = followService.unfollowOrganizerOf(EVENT_ID, FOLLOWER_ID);

@@ -1,5 +1,6 @@
 package ar.edu.itba.paw.persistence;
 
+import ar.edu.itba.paw.model.RatingSummary;
 import ar.edu.itba.paw.model.Review;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.User;
@@ -274,10 +275,10 @@ public class ReviewJpaDaoTest {
         assertTrue(found.isEmpty());
     }
 
-    // ---- countByCreatorId() ----
+    // ---- findRatingSummaryByCreatorId() ----
 
     @Test
-    public void testCountByCreatorIdCountsOnlyTheReviewsOfThatCreatorsEvents() {
+    public void testRatingSummaryCountsOnlyTheReviewsOfThatCreatorsEvents() {
         // Arrange
         final long otherEventId = insertEvent("Torneo", CREATOR_EMAIL, creatorId);
         final long unrelatedEventId = insertEvent("Muestra", "otro@mail.com", null);
@@ -286,28 +287,15 @@ public class ReviewJpaDaoTest {
         insertReview(unrelatedEventId, userId, 1, "No cuenta");
 
         // Act
-        final long count = reviewDao.countByCreatorId(creatorId);
+        final RatingSummary summary = reviewDao.findRatingSummaryByCreatorId(creatorId);
 
         // Assert
-        assertEquals(2, count);
+        assertEquals(2, summary.getCount());
     }
 
     @Test
-    public void testCountByCreatorIdIsZeroWhenNoReviews() {
-        // Arrange: no se inserta ninguna reseña.
-
-        // Act
-        final long count = reviewDao.countByCreatorId(creatorId);
-
-        // Assert
-        assertEquals(0, count);
-    }
-
-    // ---- findAverageRatingByCreatorId() ----
-
-    @Test
-    public void testAverageRatingJoinsAllTheCreatorsEventsAndIgnoresOthers() {
-        // Arrange
+    public void testRatingSummaryAveragesAllTheCreatorsEventsAndIgnoresOthers() {
+        // Arrange: 5 y 4 dan 4,5 (y no 4, como un AVG entero); la de otro organizador (1 estrella) no entra
         final long otherEventId = insertEvent("Torneo", CREATOR_EMAIL, creatorId);
         final long unrelatedEventId = insertEvent("Muestra", "otro@mail.com", null);
         insertReview(eventId, userId, 5, "Buenisimo");
@@ -315,20 +303,22 @@ public class ReviewJpaDaoTest {
         insertReview(unrelatedEventId, userId, 1, "No cuenta");
 
         // Act
-        final double average = reviewDao.findAverageRatingByCreatorId(creatorId);
+        final RatingSummary summary = reviewDao.findRatingSummaryByCreatorId(creatorId);
 
         // Assert
-        assertEquals(4.5, average, 0.0001);
+        assertEquals(4.5, summary.getAverage(), 0.0001);
     }
 
     @Test
-    public void testAverageRatingIsZeroWhenNoReviews() {
+    public void testRatingSummaryWithoutReviewsIsZeroCountAndZeroAverage() {
         // Arrange: no se inserta ninguna reseña.
 
         // Act
-        final double average = reviewDao.findAverageRatingByCreatorId(creatorId);
+        final RatingSummary summary = reviewDao.findRatingSummaryByCreatorId(creatorId);
 
         // Assert
-        assertEquals(0, average, 0.0001);
+        assertEquals(0, summary.getCount());
+        assertEquals(0, summary.getAverage(), 0.0001);
+        assertFalse(summary.hasReviews());
     }
 }

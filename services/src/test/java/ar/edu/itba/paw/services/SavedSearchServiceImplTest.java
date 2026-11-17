@@ -5,7 +5,6 @@ import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.SavedSearch;
 import ar.edu.itba.paw.model.User;
-import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.SavedSearchDao;
 import org.junit.Before;
 import org.junit.Test;
@@ -37,7 +36,7 @@ public class SavedSearchServiceImplTest {
     @Mock
     private SavedSearchDao savedSearchDao;
     @Mock
-    private EventDao eventDao;
+    private EventService eventService;
     @Mock
     private InboxService inboxService;
     @Mock
@@ -47,7 +46,7 @@ public class SavedSearchServiceImplTest {
 
     @Before
     public void setUp() {
-        savedSearchService = new SavedSearchServiceImpl(savedSearchDao, eventDao, inboxService, notificationService);
+        savedSearchService = new SavedSearchServiceImpl(savedSearchDao, eventService, inboxService, notificationService);
     }
 
     private static EventSearchCriteria palermoCriteria() {
@@ -284,7 +283,7 @@ public class SavedSearchServiceImplTest {
     public void testNotifyNewEventsWithoutNewEventsNotifiesNothing() {
         // Arrange
         when(savedSearchDao.findByIdWithFilters(SEARCH_ID)).thenReturn(Optional.of(savedSearchOf(USER_ID)));
-        when(eventDao.countSearch(any(EventSearchCriteria.class))).thenReturn(0L);
+        when(eventService.countMatching(any(EventSearchCriteria.class))).thenReturn(0L);
 
         // Act
         final boolean result = savedSearchService.notifyNewEvents(SEARCH_ID);
@@ -298,8 +297,8 @@ public class SavedSearchServiceImplTest {
         // Arrange
         final Event example = ModelFixtures.event(20L);
         when(savedSearchDao.findByIdWithFilters(SEARCH_ID)).thenReturn(Optional.of(savedSearchOf(USER_ID)));
-        when(eventDao.countSearch(any(EventSearchCriteria.class))).thenReturn(3L);
-        when(eventDao.search(any(EventSearchCriteria.class))).thenReturn(Collections.singletonList(example));
+        when(eventService.countMatching(any(EventSearchCriteria.class))).thenReturn(3L);
+        when(eventService.findMatching(any(EventSearchCriteria.class))).thenReturn(Collections.singletonList(example));
 
         // Act
         final boolean result = savedSearchService.notifyNewEvents(SEARCH_ID);

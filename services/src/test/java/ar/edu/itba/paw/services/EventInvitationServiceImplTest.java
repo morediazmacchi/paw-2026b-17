@@ -6,7 +6,6 @@ import ar.edu.itba.paw.model.EventApprovalStatus;
 import ar.edu.itba.paw.model.EventInvitation;
 import ar.edu.itba.paw.model.EventVisibility;
 import ar.edu.itba.paw.model.User;
-import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.EventInvitationDao;
 import org.junit.Before;
 import org.junit.Test;
@@ -37,9 +36,7 @@ public class EventInvitationServiceImplTest {
     @Mock
     private EventInvitationDao mockInvitationDao;
     @Mock
-    private EventDao mockEventDao;
-    @Mock
-    private RegistrationService mockRegistrationService;
+    private EventService eventService;
     @Mock
     private NotificationService mockNotificationService;
     @Mock
@@ -54,7 +51,7 @@ public class EventInvitationServiceImplTest {
     @Before
     public void setUp() {
         invitationService = new EventInvitationServiceImpl(
-                mockInvitationDao, mockEventDao, mockRegistrationService, mockNotificationService, mockInboxService, mockUserService);
+                mockInvitationDao, eventService, mockNotificationService, mockInboxService, mockUserService);
     }
 
     private static Event privateEvent() {
@@ -84,7 +81,7 @@ public class EventInvitationServiceImplTest {
     @Test
     public void testInviteReturnsSentWhenThePrivateEventsCreatorInvitesAnEmailNotYetInvited() {
         // Arrange
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
         // El email se busca ya normalizado: si invite() no lo normalizara, este stub no matchea.
         when(mockInvitationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
         when(mockUserService.findByEmail(NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
@@ -99,7 +96,7 @@ public class EventInvitationServiceImplTest {
     @Test
     public void testInviteWithABlankEmailReturnsInvalidEmail() {
         // Arrange: el evento privado existe; si el service invitara igual, el resultado seria otro
-        lenient().when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
+        lenient().when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
 
         // Act
         final EventInvitationResult result = invitationService.invite(EVENT_ID, "   ");
@@ -111,7 +108,7 @@ public class EventInvitationServiceImplTest {
     @Test
     public void testInviteWithAnEmailLongerThanTheMaximumReturnsInvalidEmail() {
         // Arrange
-        lenient().when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
+        lenient().when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
         final String tooLong = new String(new char[EventInvitationService.MAX_EMAIL_LENGTH]).replace('\0', 'a') + "@mail.com";
 
         // Act
@@ -126,7 +123,7 @@ public class EventInvitationServiceImplTest {
         // Arrange
         final User invitee = new User(NORMALIZED_INVITEE_EMAIL, "Invitado");
         invitee.setId(42L);
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
         when(mockInvitationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
         when(mockUserService.findByEmail(NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.of(invitee));
 
@@ -140,7 +137,7 @@ public class EventInvitationServiceImplTest {
     @Test
     public void testInviteReturnsAlreadyInvitedWhenThatEmailIsAlreadyInvited() {
         // Arrange
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
         when(mockInvitationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_INVITEE_EMAIL))
                 .thenReturn(Optional.of(new EventInvitation(ModelFixtures.event(EVENT_ID), NORMALIZED_INVITEE_EMAIL, CREATOR_EMAIL)));
 
@@ -154,7 +151,7 @@ public class EventInvitationServiceImplTest {
     @Test
     public void testInviteToAPublicEventReturnsEventPublicAsABusinessResult() {
         // Arrange
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(publicEvent()));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(publicEvent()));
 
         // Act
         final EventInvitationResult result = invitationService.invite(EVENT_ID, INVITEE_EMAIL);
@@ -169,7 +166,7 @@ public class EventInvitationServiceImplTest {
         // Arrange
         final Event pending = privateEvent();
         pending.setApprovalStatus(EventApprovalStatus.PENDING);
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(pending));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(pending));
 
         // Act
         final EventInvitationResult result = invitationService.invite(EVENT_ID, INVITEE_EMAIL);
@@ -184,7 +181,7 @@ public class EventInvitationServiceImplTest {
         // Arrange
         final Event cancelled = privateEvent();
         cancelled.setCancelledAt(new java.util.Date());
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(cancelled));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(cancelled));
 
         // Act
         final EventInvitationResult result = invitationService.invite(EVENT_ID, INVITEE_EMAIL);
@@ -198,7 +195,7 @@ public class EventInvitationServiceImplTest {
         // Arrange
         final Event past = privateEvent();
         past.setEventDate(new java.util.Date(System.currentTimeMillis() - 24L * 60 * 60 * 1000));
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(past));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(past));
 
         // Act
         final EventInvitationResult result = invitationService.invite(EVENT_ID, INVITEE_EMAIL);
@@ -210,7 +207,7 @@ public class EventInvitationServiceImplTest {
     @Test
     public void testInviteReturnsNotAllowedWhenTheEventDoesNotExist() {
         // Arrange
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.empty());
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
         final EventInvitationResult result = invitationService.invite(EVENT_ID, INVITEE_EMAIL);
@@ -299,15 +296,17 @@ public class EventInvitationServiceImplTest {
     }
 
     // ---- cupo: cada invitacion reserva un lugar ----
-    // Que es "lleno" (confirmados + invitaciones sin usar) se testea en RegistrationServiceImplTest (isFull):
-    // aca solo importa que invite() respete esa respuesta.
+    // Cuantos lugares hay ocupados (confirmados + invitaciones sin usar) lo da EventService.occupiedSpots() y se testea
+    // en EventServiceImplTest / EventJpaDaoTest: aca solo importa que invite() lo compare con el cupo del evento.
 
     @Test
     public void testInviteReturnsFullWhenTheEventIsFull() {
         // Arrange
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
+        final Event full = privateEvent();
+        full.setMaxCapacity(10);
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(full));
         when(mockInvitationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
-        when(mockRegistrationService.isFull(EVENT_ID)).thenReturn(true);
+        when(eventService.occupiedSpots(EVENT_ID)).thenReturn(10L);
 
         // Act
         final EventInvitationResult result = invitationService.invite(EVENT_ID, INVITEE_EMAIL);
@@ -319,9 +318,11 @@ public class EventInvitationServiceImplTest {
     @Test
     public void testInviteStillWorksWhileThereIsRoomLeft() {
         // Arrange
-        when(mockEventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(privateEvent()));
+        final Event withRoom = privateEvent();
+        withRoom.setMaxCapacity(10);
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(withRoom));
         when(mockInvitationDao.findByEventAndEmail(EVENT_ID, NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
-        when(mockRegistrationService.isFull(EVENT_ID)).thenReturn(false);
+        when(eventService.occupiedSpots(EVENT_ID)).thenReturn(9L);
         when(mockUserService.findByEmail(NORMALIZED_INVITEE_EMAIL)).thenReturn(Optional.empty());
 
         // Act
@@ -407,5 +408,19 @@ public class EventInvitationServiceImplTest {
 
         // Assert
         assertEquals(1L, result);
+    }
+
+    // ---- linkAccount() ----
+
+    @Test
+    public void testLinkAccountReturnsHowManyInvitationsWereLinked() {
+        // Arrange: el stub solo responde con el mail ya normalizado y el id de la cuenta.
+        when(mockInvitationDao.linkUserId(NORMALIZED_INVITEE_EMAIL, 77L)).thenReturn(2);
+
+        // Act
+        final int result = invitationService.linkAccount(INVITEE_EMAIL, 77L);
+
+        // Assert
+        assertEquals(2, result);
     }
 }

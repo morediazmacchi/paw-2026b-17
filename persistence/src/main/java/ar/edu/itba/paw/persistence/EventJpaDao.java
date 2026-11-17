@@ -11,6 +11,7 @@ import ar.edu.itba.paw.model.EventSort;
 import ar.edu.itba.paw.model.EventVisibility;
 import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.SimilarityParameters;
+import org.hibernate.jpa.QueryHints;
 import org.springframework.stereotype.Repository;
 import ar.edu.itba.paw.model.AdminEventSort;
 
@@ -44,7 +45,8 @@ public class EventJpaDao implements EventDao {
     // calculada con subconsultas, y JPQL/HQL no permite subconsultas dentro del ORDER BY. Para no
     // duplicar la logica en dos lenguajes, TODA la busqueda (filtros + orden + paginado) se
     // resuelve en una sola consulta SQL que trae unicamente los IDS de la pagina; despues
-    // findOrderedByIds() carga los Event con JPQL y los pone en ese mismo orden. Las tablas y
+    // loadPageInOrderOf() carga los Event con JPQL, ordenados POR LA POSICION de cada id en esa lista (ese orden sale
+    // del SQL de arriba y no se puede repetir en JPQL: no se reordena en Java). Las tablas y
     // columnas que usa son las mismas que mapean las entidades (no hay SQL "paralelo" distinto).
 
     private static final String SEARCH_IDS_BASE = "SELECT e.id FROM event e";
@@ -244,8 +246,8 @@ public class EventJpaDao implements EventDao {
         // aprobado. El JOIN con las inscripciones confirmadas deja afuera solo a los eventos sin ninguna.
         // Todo (filtro, cuenta, orden y limite) en la base: nunca se traen las inscripciones a memoria.
         // El desempate por fecha y por id fija el orden cuando dos tienen la misma cantidad.
-        // Dos pasos (ver findOrderedByIds): primero solo los ids, ya ordenados y con el limite;
-        // despues los eventos con sus categorias, que el banner muestra.
+        // Dos pasos: primero solo los ids, ya ordenados y con el limite; despues los eventos con sus categorias, que
+        // el banner muestra, en ese mismo orden (la cantidad de inscriptos no se puede repetir en el ORDER BY de JPQL).
         final List<Long> ids = em.createQuery(
                         "SELECT e.id FROM Registration r JOIN r.event e "
                                 + "WHERE r.status = :confirmed AND e.eventDate >= :now "
@@ -259,7 +261,7 @@ public class EventJpaDao implements EventDao {
                 .setParameter("approvalStatus", EventApprovalStatus.APPROVED)
                 .setMaxResults(limit)
                 .getResultList();
-        return findOrderedByIds(ids);
+        return loadPageInOrderOf(ids);
     }
 
     @Override
@@ -336,24 +338,26 @@ public class EventJpaDao implements EventDao {
                 .getResultList();
     }
 
+    // El orden de "Mis eventos": primero los que todavia no pasaron (el mas proximo primero), despues los pasados (el
+    // mas reciente primero). Cada CASE ordena un solo grupo: en las filas del otro grupo da NULL, y como el primer
+    // criterio ya las separo en dos bloques, ese NULL no cambia el orden dentro de cada bloque. Lo usan la consulta
+    // de ids y la de eventos (el IN no ordena nada).
+    private static final String CREATOR_ORDER_BY = "CASE WHEN e.eventDate >= :now THEN 0 ELSE 1 END ASC, "
+            + "CASE WHEN e.eventDate >= :now THEN e.eventDate END ASC, "
+            + "CASE WHEN e.eventDate < :now THEN e.eventDate END DESC, "
+            + "e.id ASC";
+
     @Override
     public List<Event> findByCreatorId(final long creatorId, final int page, final int pageSize) {
-        // Primero los que todavia no pasaron (el mas proximo primero), despues los
-        // pasados (el mas reciente primero). Cada CASE ordena un solo grupo: en las
-        // filas del otro grupo da NULL, y como el primer criterio ya las separo en
-        // dos bloques, ese NULL no cambia el orden dentro de cada bloque.
+        final Date now = new Date();
         final List<Long> ids = em.createQuery(
-                        "SELECT e.id FROM Event e WHERE e.creator.id = :creatorId ORDER BY "
-                                + "CASE WHEN e.eventDate >= :now THEN 0 ELSE 1 END ASC, "
-                                + "CASE WHEN e.eventDate >= :now THEN e.eventDate END ASC, "
-                                + "CASE WHEN e.eventDate < :now THEN e.eventDate END DESC, "
-                                + "e.id ASC", Long.class)
+                        "SELECT e.id FROM Event e WHERE e.creator.id = :creatorId ORDER BY " + CREATOR_ORDER_BY, Long.class)
                 .setParameter("creatorId", creatorId)
-                .setParameter("now", new Date(), TemporalType.TIMESTAMP)
+                .setParameter("now", now, TemporalType.TIMESTAMP)
                 .setFirstResult((page - 1) * pageSize)
                 .setMaxResults(pageSize)
                 .getResultList();
-        return findOrderedByIds(ids);
+        return loadPage(ids, CREATOR_ORDER_BY, Collections.singletonMap("now", now));
     }
 
     @Override
@@ -372,7 +376,7 @@ public class EventJpaDao implements EventDao {
     @Override
     public List<Event> findUpcomingPublicByCreatorId(final long creatorId, final Date now, final int page,
                                                      final int pageSize) {
-        return findPublicByCreatorId(creatorId, "AND e.eventDate >= :now ORDER BY e.eventDate ASC, e.id ASC", now,
+        return findPublicByCreatorId(creatorId, "AND e.eventDate >= :now", "e.eventDate ASC, e.id ASC", now,
                 page, pageSize);
     }
 
@@ -384,7 +388,7 @@ public class EventJpaDao implements EventDao {
     @Override
     public List<Event> findPastPublicByCreatorId(final long creatorId, final Date now, final int page,
                                                  final int pageSize) {
-        return findPublicByCreatorId(creatorId, "AND e.eventDate < :now ORDER BY e.eventDate DESC, e.id DESC", now,
+        return findPublicByCreatorId(creatorId, "AND e.eventDate < :now", "e.eventDate DESC, e.id DESC", now,
                 page, pageSize);
     }
 
@@ -393,17 +397,18 @@ public class EventJpaDao implements EventDao {
         return countPublicByCreatorId(creatorId, "AND e.eventDate < :now", now);
     }
 
-    // Dos pasos (ver findOrderedByIds): primero solo los ids de la pagina, ya ordenados y con OFFSET/LIMIT;
-    // despues los eventos con sus categorias, que la tarjeta muestra.
-    private List<Event> findPublicByCreatorId(final long creatorId, final String dateAndOrder, final Date now,
-                                              final int page, final int pageSize) {
+    // Dos pasos: primero solo los ids de la pagina, ya ordenados y con OFFSET/LIMIT; despues los eventos con sus
+    // categorias (que la tarjeta muestra), con el MISMO ORDER BY.
+    private List<Event> findPublicByCreatorId(final long creatorId, final String dateFilter, final String orderBy,
+                                              final Date now, final int page, final int pageSize) {
         final List<Long> ids = publicByCreatorParams(
-                        em.createQuery("SELECT e.id FROM Event e " + PUBLIC_BY_CREATOR_WHERE + dateAndOrder, Long.class),
+                        em.createQuery("SELECT e.id FROM Event e " + PUBLIC_BY_CREATOR_WHERE + dateFilter
+                                + " ORDER BY " + orderBy, Long.class),
                         creatorId, now)
                 .setFirstResult((page - 1) * pageSize)
                 .setMaxResults(pageSize)
                 .getResultList();
-        return findOrderedByIds(ids);
+        return loadPage(ids, orderBy, Collections.emptyMap());
     }
 
     private long countPublicByCreatorId(final long creatorId, final String date, final Date now) {
@@ -448,8 +453,8 @@ public class EventJpaDao implements EventDao {
                                final int pageSize) {
         // Sin filtro de estado a proposito (ver el comentario del contrato): el panel de admin tiene que poder
         // ver pendientes, rechazados y dados de baja, no solo lo que search() deja pasar.
-        // Dos pasos (ver findOrderedByIds): primero solo los ids de la pagina, ya filtrados, ordenados y con
-        // OFFSET/LIMIT; despues los eventos con sus categorias.
+        // Dos pasos: primero solo los ids de la pagina, ya filtrados, ordenados y con OFFSET/LIMIT; despues los
+        // eventos con sus categorias, con el MISMO ORDER BY.
         final AdminEventSort effectiveSort = sort == null ? AdminEventSort.CREATED_DESC : sort;
         final boolean filtered = titleQuery != null && !titleQuery.isEmpty();
         final TypedQuery<Long> query = em.createQuery("SELECT e.id FROM Event e" + (filtered ? ADMIN_TITLE_FILTER : "")
@@ -461,7 +466,9 @@ public class EventJpaDao implements EventDao {
             query.setParameter("pending", EventApprovalStatus.PENDING);
         }
         final List<Long> ids = query.setFirstResult((page - 1) * pageSize).setMaxResults(pageSize).getResultList();
-        return findOrderedByIds(ids);
+        // Los eventos de esos ids con el MISMO ORDER BY (y su parametro, si lo usa).
+        return loadPage(ids, ADMIN_ORDER_BY.get(effectiveSort), effectiveSort == AdminEventSort.PENDING_FIRST
+                ? Collections.singletonMap("pending", EventApprovalStatus.PENDING) : Collections.emptyMap());
     }
 
     @Override
@@ -497,7 +504,7 @@ public class EventJpaDao implements EventDao {
         for (final Object id : idsQuery.getResultList()) {
             ids.add(((Number) id).longValue());
         }
-        return findOrderedByIds(ids);
+        return loadPageInOrderOf(ids);
     }
 
     @Override
@@ -513,7 +520,7 @@ public class EventJpaDao implements EventDao {
         final Query idsQuery = recommendationQuery(RecommendationSql.Mode.RECOMMENDED, filter, extra, parameters);
         idsQuery.setFirstResult((criteria.getPage() - 1) * criteria.getPageSize());
         idsQuery.setMaxResults(criteria.getPageSize());
-        return findOrderedByIds(idsOf(idsQuery));
+        return loadPageInOrderOf(idsOf(idsQuery));
     }
 
     @Override
@@ -527,7 +534,7 @@ public class EventJpaDao implements EventDao {
 
         final Query idsQuery = recommendationQuery(RecommendationSql.Mode.SIMILAR, filter, extra, parameters);
         idsQuery.setMaxResults(parameters.getRelatedLimit());
-        return findOrderedByIds(idsOf(idsQuery));
+        return loadPageInOrderOf(idsOf(idsQuery));
     }
 
     // Arma la consulta de RecommendationSql con sus parametros: los del filtro, los de la bolsa y los coeficientes.
@@ -571,21 +578,41 @@ public class EventJpaDao implements EventDao {
         return ((Number) countQuery.getSingleResult()).longValue();
     }
 
-    // Carga los eventos de "ids" (JPQL) y los devuelve en el mismo orden que los ids:
-    // el IN no garantiza ningun orden, el que importa es el que ya decidio la query de ids.
-    private List<Event> findOrderedByIds(final List<Long> ids) {
-        final Map<Long, Event> byId = new HashMap<>();
-        for (final Event event : findByIds(ids)) {
-            byId.put(event.getId(), event);
+    // Segundo paso del 1+1: los eventos de "ids" (con sus categorias) con el MISMO ORDER BY que la consulta que eligio la
+    // pagina (el IN no ordena nada). "orderBy" es lo que sigue a ORDER BY; "params" son los parametros que ese orden usa.
+    private List<Event> loadPage(final List<Long> ids, final String orderBy, final Map<String, ?> params) {
+        if (ids.isEmpty()) {
+            return Collections.emptyList();
         }
-        final List<Event> ordered = new ArrayList<>(ids.size());
-        for (final Long id : ids) {
-            final Event event = byId.get(id);
-            if (event != null) {
-                ordered.add(event);
+        final TypedQuery<Event> query = em.createQuery(
+                        "SELECT DISTINCT e FROM Event e LEFT JOIN FETCH e.categories ec "
+                                + "LEFT JOIN FETCH ec.category WHERE e.id IN :ids ORDER BY " + orderBy, Event.class)
+                .setParameter("ids", ids)
+                // DISTINCT solo en memoria (por el JOIN con las categorias): los ordenes por CASE no estan en el
+                // SELECT, y con el DISTINCT de SQL Postgres los rechaza.
+                .setHint(QueryHints.HINT_PASS_DISTINCT_THROUGH, false);
+        params.forEach((name, value) -> {
+            if (value instanceof Date) {
+                query.setParameter(name, (Date) value, TemporalType.TIMESTAMP);
+            } else {
+                query.setParameter(name, value);
             }
+        });
+        return query.getResultList();
+    }
+
+    // Para los ordenes que NO se pueden escribir en JPQL (el puntaje de la busqueda de texto, los recomendados, la
+    // cantidad de inscriptos: salen de SQL nativo o de un GROUP BY): la consulta de ids ya los resolvio, y aca el
+    // ORDER BY es la posicion de cada id en esa lista, en SQL y no reordenando en Java.
+    private List<Event> loadPageInOrderOf(final List<Long> ids) {
+        final Map<String, Long> positions = new LinkedHashMap<>();
+        final StringBuilder orderBy = new StringBuilder("CASE");
+        for (int i = 0; i < ids.size(); i++) {
+            positions.put("pos" + i, ids.get(i));
+            orderBy.append(" WHEN e.id = :pos").append(i).append(" THEN ").append(i);
         }
-        return ordered;
+        orderBy.append(" ELSE ").append(ids.size()).append(" END");
+        return loadPage(ids, orderBy.toString(), positions);
     }
 
     // Arma el WHERE (y sus parametros) una sola vez, para que search() y countSearch()
@@ -661,7 +688,7 @@ public class EventJpaDao implements EventDao {
         if (criteria.getMinOrganizerRating() != null) {
             // El promedio es de TODAS las reseñas del creador (todos sus eventos),
             // el mismo numero que se muestra en el detalle y en "Mis eventos"
-            // (ver ReviewDao.findAverageRatingByCreatorId, que usa el mismo AVG):
+            // (ver ReviewDao.findRatingSummaryByCreatorId, que usa el mismo AVG):
             // no es el promedio de este evento solo. Si uno cambia, cambiar el otro.
             sql.append(" AND e.creator_id IN ("
                     + "SELECT e2.creator_id FROM review r2 JOIN event e2 ON e2.id = r2.event_id "
@@ -753,5 +780,37 @@ public class EventJpaDao implements EventDao {
                 }
             }
         }
+    }
+
+    @Override
+    public long countOccupiedSpots(final long eventId) {
+        final long confirmed = em.createQuery(
+                        "SELECT COUNT(r) FROM Registration r WHERE r.event.id = :eventId AND r.status = :status",
+                        Long.class)
+                .setParameter("eventId", eventId)
+                .setParameter("status", RegistrationStatus.CONFIRMED)
+                .getSingleResult();
+        // Invitaciones sin usar = cuyo mail todavia no tiene una inscripcion en ese evento.
+        final long outstandingInvitations = em.createQuery(
+                        "SELECT COUNT(i) FROM EventInvitation i WHERE i.event.id = :eventId AND NOT EXISTS ("
+                                + "SELECT r.id FROM Registration r WHERE r.event.id = i.event.id AND r.email = i.email)",
+                        Long.class)
+                .setParameter("eventId", eventId)
+                .getSingleResult();
+        return confirmed + outstandingInvitations;
+    }
+
+    @Override
+    public boolean hasAttendanceHistory(final long userId, final Date now) {
+        // Alcanza con saber si hay UNA: LIMIT 1 y no se cuenta nada.
+        return !em.createQuery(
+                        "SELECT e.id FROM Registration r JOIN r.event e "
+                                + "WHERE r.user.id = :userId AND r.status = :confirmed "
+                                + "AND e.eventDate < :now AND e.cancelledAt IS NULL", Long.class)
+                .setParameter("userId", userId)
+                .setParameter("confirmed", RegistrationStatus.CONFIRMED)
+                .setParameter("now", now, TemporalType.TIMESTAMP)
+                .setMaxResults(1)
+                .getResultList().isEmpty();
     }
 }

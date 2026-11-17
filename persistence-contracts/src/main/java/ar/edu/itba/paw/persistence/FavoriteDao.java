@@ -1,6 +1,8 @@
 // Contrato de persistencia para favoritos. Implementacion: FavoriteJdbcDao (modulo persistence).
 package ar.edu.itba.paw.persistence;
 
+import ar.edu.itba.paw.model.Event;
+
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
@@ -16,15 +18,15 @@ public interface FavoriteDao {
     // favoritos). Es lo que hace falta para marcar el corazon de los eventos de UNA pagina del listado.
     Set<Long> findFavoriteEventIds(long userId, Collection<Long> eventIds);
 
-    // Una pagina (page desde 1) de los ids de sus favoritos, de cualquier evento, mas recientes primero
-    // (LIMIT/OFFSET en la base). Es lo que ve un admin, que puede ver todos los eventos. Mismo orden que
-    // findViewableEventIdsByUser().
-    List<Long> findEventIdsByUser(long userId, int page, int pageSize);
+    // Una pagina (page desde 1) de sus favoritos, de cualquier evento (con sus categorias), mas recientes
+    // primero (LIMIT/OFFSET en la base). Es lo que ve un admin, que puede ver todos los eventos. Mismo orden que
+    // findViewableEventsByUser().
+    List<Event> findEventsByUser(long userId, int page, int pageSize);
 
-    // Una pagina (page desde 1) de los ids de los favoritos que puede ver una persona que NO es admin, mas
-    // recientes primero. El filtro de visibilidad es el WHERE de la misma consulta que cuenta
+    // Una pagina (page desde 1) de los favoritos que puede ver una persona que NO es admin (con sus categorias),
+    // mas recientes primero. El filtro de visibilidad es el WHERE de la misma consulta que cuenta
     // countViewableByUserId(): total y paginas coinciden siempre.
-    List<Long> findViewableEventIdsByUser(long userId, int page, int pageSize);
+    List<Event> findViewableEventsByUser(long userId, int page, int pageSize);
 
     // Cuantos favoritos tiene, de cualquier evento (un COUNT, sin traer las filas). Es lo que ve un admin,
     // que puede ver todos los eventos.

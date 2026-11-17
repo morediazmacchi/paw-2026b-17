@@ -7,6 +7,7 @@ import ar.edu.itba.paw.model.EventVisibility;
 import ar.edu.itba.paw.model.Favorite;
 import ar.edu.itba.paw.model.FavoriteId;
 import ar.edu.itba.paw.model.User;
+import org.hibernate.jpa.QueryHints;
 import org.springframework.stereotype.Repository;
 
 import javax.persistence.EntityManager;
@@ -80,19 +81,50 @@ public class FavoriteJpaDao implements FavoriteDao {
                 .getSingleResult();
     }
 
+    // El orden de las dos listas (el mas reciente primero; el id desempata si dos favoritos comparten createdAt).
+    // Lo usan la consulta de ids y la de eventos: el IN de la segunda no ordena nada.
+    private static final String PAGE_ORDER_BY = " ORDER BY f.createdAt DESC, e.id DESC";
+
     @Override
-    public List<Long> findViewableEventIdsByUser(final long userId, final int page, final int pageSize) {
-        // Solo ids: la pagina trae a lo sumo pageSize numeros; los eventos (con sus categorias) los busca
-        // despues quien llama con un unico IN (...). El desempate por id fija el orden si dos favoritos
-        // comparten createdAt.
-        return em.createQuery(
-                        "SELECT e.id FROM Favorite f JOIN f.event e WHERE " + VIEWABLE_WHERE
-                                + " ORDER BY f.createdAt DESC, e.id DESC", Long.class)
+    public List<Event> findViewableEventsByUser(final long userId, final int page, final int pageSize) {
+        // Dos pasos (1+1): los ids de la pagina (ya filtrados, ordenados y con LIMIT/OFFSET) y despues sus eventos
+        // con las categorias que la tarjeta muestra, con el MISMO WHERE de visibilidad y el MISMO ORDER BY.
+        final List<Long> ids = em.createQuery(
+                        "SELECT e.id FROM Favorite f JOIN f.event e WHERE " + VIEWABLE_WHERE + PAGE_ORDER_BY, Long.class)
                 .setParameter("userId", userId)
                 .setParameter("approved", EventApprovalStatus.APPROVED)
                 .setParameter("publicVisibility", EventVisibility.PUBLIC)
                 .setFirstResult((page - 1) * pageSize)
                 .setMaxResults(pageSize)
+                .getResultList();
+        return loadPage(userId, ids);
+    }
+
+    @Override
+    public List<Event> findEventsByUser(final long userId, final int page, final int pageSize) {
+        final List<Long> ids = em.createQuery(
+                        "SELECT e.id FROM Favorite f JOIN f.event e WHERE f.user.id = :userId" + PAGE_ORDER_BY, Long.class)
+                .setParameter("userId", userId)
+                .setFirstResult((page - 1) * pageSize)
+                .setMaxResults(pageSize)
+                .getResultList();
+        return loadPage(userId, ids);
+    }
+
+    // Paso 2: los eventos de esos ids con sus categorias, con el MISMO ORDER BY que la consulta de ids.
+    private List<Event> loadPage(final long userId, final List<Long> ids) {
+        if (ids.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return em.createQuery(
+                        "SELECT DISTINCT e FROM Favorite f JOIN f.event e LEFT JOIN FETCH e.categories ec "
+                                + "LEFT JOIN FETCH ec.category WHERE f.user.id = :userId AND e.id IN :ids"
+                                + PAGE_ORDER_BY, Event.class)
+                .setParameter("userId", userId)
+                .setParameter("ids", ids)
+                // DISTINCT solo en memoria (por el JOIN con las categorias): f.createdAt no esta en el SELECT y con
+                // el DISTINCT de SQL Postgres rechaza el ORDER BY.
+                .setHint(QueryHints.HINT_PASS_DISTINCT_THROUGH, false)
                 .getResultList();
     }
 
@@ -107,16 +139,5 @@ public class FavoriteJpaDao implements FavoriteDao {
                 .setParameter("userId", userId)
                 .setParameter("eventIds", eventIds)
                 .getResultList());
-    }
-
-    @Override
-    public List<Long> findEventIdsByUser(final long userId, final int page, final int pageSize) {
-        return em.createQuery(
-                        "SELECT f.event.id FROM Favorite f WHERE f.user.id = :userId "
-                                + "ORDER BY f.createdAt DESC, f.event.id DESC", Long.class)
-                .setParameter("userId", userId)
-                .setFirstResult((page - 1) * pageSize)
-                .setMaxResults(pageSize)
-                .getResultList();
     }
 }

@@ -185,33 +185,6 @@ public class EventInvitationJpaDaoTest {
         assertFalse(found.isPresent());
     }
 
-    // ---- findByEventAndUserId() ----
-
-    @Test
-    public void testFindByEventAndUserIdReturnsTheInvitation() {
-        // Arrange
-        final long inviteeId = insertUser(INVITEE_EMAIL);
-        insertInvitation(eventId, INVITEE_EMAIL, inviteeId);
-
-        // Act
-        final Optional<EventInvitation> found = invitationDao.findByEventAndUserId(eventId, inviteeId);
-
-        // Assert
-        assertTrue(found.isPresent());
-    }
-
-    @Test
-    public void testFindByEventAndUserIdReturnsEmptyWhenNotLinked() {
-        // Arrange
-        insertInvitation(eventId, INVITEE_EMAIL, null);
-
-        // Act
-        final Optional<EventInvitation> found = invitationDao.findByEventAndUserId(eventId, 999999L);
-
-        // Assert
-        assertFalse(found.isPresent());
-    }
-
     // ---- findByEvent() ----
 
     @Test
@@ -337,54 +310,6 @@ public class EventInvitationJpaDaoTest {
         final Long storedUserId = jdbcTemplate.queryForObject(
                 "SELECT user_id FROM event_invitation WHERE id = ?", Long.class, id);
         assertEquals(Long.valueOf(firstAccountId), storedUserId);
-    }
-
-    // ---- countOutstanding() ----
-
-    private void insertRegistration(final long eventId, final String email) {
-        jdbcTemplate.update("INSERT INTO registration (event_id, email, status) VALUES (?, ?, 'CONFIRMED')",
-                eventId, email);
-    }
-
-    @Test
-    public void testCountOutstandingCountsOnlyTheInvitationsNobodyHasUsedYet() {
-        // Arrange
-        // Una invitacion "usada" es la de quien ya se anoto (tiene registration): deja de
-        // reservar un lugar aparte porque ahora el lugar es su inscripcion.
-        insertInvitation(eventId, "sin-usar@mail.com", null);
-        insertInvitation(eventId, "usada@mail.com", null);
-        insertRegistration(eventId, "usada@mail.com");
-
-        // Act
-        final long count = invitationDao.countOutstanding(eventId);
-
-        // Assert
-        assertEquals(1, count);
-    }
-
-    @Test
-    public void testCountOutstandingDoesNotCountTheInvitationsOfOtherEvents() {
-        // Arrange
-        insertInvitation(eventId, INVITEE_EMAIL, null);
-        final long otherEventId = insertEvent();
-        insertInvitation(otherEventId, "otro@mail.com", null);
-
-        // Act
-        final long count = invitationDao.countOutstanding(otherEventId);
-
-        // Assert
-        assertEquals(1, count);
-    }
-
-    @Test
-    public void testCountOutstandingIsZeroWhenTheEventHasNoInvitations() {
-        // Arrange: el evento del setUp no tiene invitaciones.
-
-        // Act
-        final long count = invitationDao.countOutstanding(eventId);
-
-        // Assert
-        assertEquals(0, count);
     }
 
     // ---- findInvitedEventsByUserId() ----

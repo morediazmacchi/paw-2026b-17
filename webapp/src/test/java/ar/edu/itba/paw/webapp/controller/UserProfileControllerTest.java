@@ -1,5 +1,7 @@
 package ar.edu.itba.paw.webapp.controller;
 
+import ar.edu.itba.paw.model.ProfileTab;
+import ar.edu.itba.paw.model.PublicUser;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.exception.InvalidImageException;
 import ar.edu.itba.paw.model.exception.UserNotFoundException;
@@ -62,8 +64,8 @@ public class UserProfileControllerTest {
     }
 
     private static UserProfile aProfile() {
-        return new UserProfile(new User(), false, new PageResult<>(Collections.emptyList(), 0, 1, 12),
-                new PageResult<>(Collections.emptyList(), 0, 1, 12), 0, 0, false);
+        return new UserProfile(new PublicUser(USER_ID, "Tomas", null, null), false, ProfileTab.UPCOMING,
+                new PageResult<>(Collections.emptyList(), 0, 1, 12), 0, 0, 0, 0, false);
     }
 
     private static BioForm bio(final String text) {
@@ -74,12 +76,12 @@ public class UserProfileControllerTest {
 
     @Test
     public void testTheProfileOfAnExistingUserShowsTheProfileView() {
-        // Arrange: solo con estos argumentos (el que mira y las paginas pedidas) el service devuelve el perfil
+        // Arrange: solo con estos argumentos (el que mira, la pestaña y la pagina pedidas) el service devuelve el perfil
         final UserProfile profile = aProfile();
-        when(userProfileService.findProfile(USER_ID, VIEWER_ID, 2, 3)).thenReturn(Optional.of(profile));
+        when(userProfileService.findProfile(USER_ID, VIEWER_ID, ProfileTab.PAST, 3)).thenReturn(Optional.of(profile));
 
         // Act
-        final ModelAndView result = controller.profile(USER_ID, "2", "3", viewer());
+        final ModelAndView result = controller.profile(USER_ID, "PAST", "3", viewer());
 
         // Assert
         assertEquals("users/profile", result.getViewName());
@@ -88,9 +90,9 @@ public class UserProfileControllerTest {
 
     @Test
     public void testAnAnonymousVisitorCanSeeAProfile() {
-        // Arrange: sin sesion el que mira es null y las paginas por defecto son la 1
+        // Arrange: sin sesion el que mira es null; sin pestaña pedida va null (la elige el service) y la pagina es la 1
         final UserProfile profile = aProfile();
-        when(userProfileService.findProfile(USER_ID, null, 1, 1)).thenReturn(Optional.of(profile));
+        when(userProfileService.findProfile(USER_ID, null, null, 1)).thenReturn(Optional.of(profile));
 
         // Act
         final ModelAndView result = controller.profile(USER_ID, null, null, null);
@@ -99,10 +101,35 @@ public class UserProfileControllerTest {
         assertSame(profile, result.getModel().get("profile"));
     }
 
+    @Test
+    public void testATabThatDoesNotExistIsTreatedAsNoTabAndAMalformedPageAsTheFirst() {
+        // Arrange: el service solo responde si le llega "ninguna pestaña" y la pagina 1
+        final UserProfile profile = aProfile();
+        when(userProfileService.findProfile(USER_ID, null, null, 1)).thenReturn(Optional.of(profile));
+
+        // Act
+        final ModelAndView result = controller.profile(USER_ID, "inventada", "abc", null);
+
+        // Assert
+        assertSame(profile, result.getModel().get("profile"));
+    }
+
+    @Test
+    public void testTheProfileViewGetsTheMaximumBioLengthForTheEditForm() {
+        // Arrange
+        when(userProfileService.findProfile(USER_ID, null, null, 1)).thenReturn(Optional.of(aProfile()));
+
+        // Act
+        final ModelAndView result = controller.profile(USER_ID, null, null, null);
+
+        // Assert
+        assertEquals(UserService.MAX_BIO_LENGTH, result.getModel().get("maxBioLength"));
+    }
+
     @Test(expected = UserNotFoundException.class)
     public void testTheProfileOfAUserThatCannotBeShownIsNotFound() {
         // Arrange
-        when(userProfileService.findProfile(USER_ID, null, 1, 1)).thenReturn(Optional.empty());
+        when(userProfileService.findProfile(USER_ID, null, null, 1)).thenReturn(Optional.empty());
 
         // Act
         controller.profile(USER_ID, null, null, null);

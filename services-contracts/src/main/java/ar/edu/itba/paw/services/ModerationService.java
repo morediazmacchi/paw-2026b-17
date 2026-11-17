@@ -4,6 +4,7 @@
 // cuenta, no sobre un reporte puntual.
 package ar.edu.itba.paw.services;
 
+import ar.edu.itba.paw.model.AdminEventSort;
 import ar.edu.itba.paw.model.EventReport;
 import ar.edu.itba.paw.model.ReportStatusFilter;
 import ar.edu.itba.paw.model.ReportTarget;
@@ -88,4 +89,12 @@ public interface ModerationService {
      */
     @Transactional(readOnly = true)
     Optional<ReportTarget> findReportTarget(long reportId);
+
+    /**
+     * Panel de admin "Eventos": una pagina de TODOS los eventos (ver EventService.findAllEventsPage()), cada uno con sus
+     * conteos de inscripciones (ver RegistrationService.withRegistrationStats(): pendientes solo si pide aprobacion,
+     * confirmados solo si no esta cancelado). {@code titleQuery} filtra por titulo; null o en blanco = sin filtro.
+     */
+    @Transactional(readOnly = true)
+    PageResult<EventWithRegistrationStats> findAllEventsPage(String titleQuery, AdminEventSort sort, int page);
 }

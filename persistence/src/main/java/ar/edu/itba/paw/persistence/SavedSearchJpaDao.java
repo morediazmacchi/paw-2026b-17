@@ -64,13 +64,14 @@ public class SavedSearchJpaDao implements SavedSearchDao {
         if (ids.isEmpty()) {
             return Collections.emptyList();
         }
-        // DISTINCT: el JOIN con las dos colecciones repite la fila de cada busqueda.
-        final List<SavedSearch> loaded = em.createQuery(
+        // DISTINCT: el JOIN con las dos colecciones repite la fila de cada busqueda. El ORDER BY es el MISMO de la
+        // consulta de ids (el IN no ordena nada).
+        return em.createQuery(
                         "SELECT DISTINCT s FROM SavedSearch s LEFT JOIN FETCH s.categoryIds "
-                                + "LEFT JOIN FETCH s.barrios WHERE s.id IN :ids", SavedSearch.class)
+                                + "LEFT JOIN FETCH s.barrios WHERE s.id IN :ids "
+                                + "ORDER BY s.createdAt DESC, s.id DESC", SavedSearch.class)
                 .setParameter("ids", ids)
                 .getResultList();
-        return PagedIds.inOrder(ids, loaded, SavedSearch::getId);
     }
 
     @Override

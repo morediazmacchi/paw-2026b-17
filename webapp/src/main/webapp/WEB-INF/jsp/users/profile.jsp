@@ -61,7 +61,7 @@
                     <p class="super-organizer">
                         <span class="super-organizer-tag"><spring:message code="profile.public.superOrganizer"/></span>
                         <span class="super-organizer-text">
-                            <spring:message code="profile.public.superOrganizer.text" arguments="${profile.organizedCount}"/>
+                            <spring:message code="profile.public.superOrganizer.text" arguments="${profile.pastCount}"/>
                         </span>
                     </p>
                 </c:if>
@@ -98,7 +98,7 @@
                     </c:choose>
                 </div>
                 <div class="public-profile-stat">
-                    <span class="public-profile-stat-value"><c:out value="${profile.organizedCount}"/></span>
+                    <span class="public-profile-stat-value"><c:out value="${profile.pastCount}"/></span>
                     <span class="public-profile-stat-label"><spring:message code="profile.public.stats.organized"/></span>
                 </div>
                 <div class="public-profile-stat">
@@ -109,54 +109,37 @@
         </div>
     </section>
 
-    <%-- Pestañas como las de Instagram: se elige cual grupo ver (?tab=proximos | realizados); sin elegir, abre la que
-         tiene eventos (primero proximos). Solo se dibuja el paginado del grupo visible. --%>
-    <c:choose>
-        <c:when test="${param.tab == 'realizados'}"><c:set var="activeTab" value="realizados"/></c:when>
-        <c:when test="${param.tab == 'proximos'}"><c:set var="activeTab" value="proximos"/></c:when>
-        <c:when test="${profile.upcoming.totalElements == 0 and profile.past.totalElements > 0}"><c:set var="activeTab" value="realizados"/></c:when>
-        <c:otherwise><c:set var="activeTab" value="proximos"/></c:otherwise>
-    </c:choose>
-
+    <%-- Pestañas como las de Instagram: la que se ve (profile.tab) la decide el service, que solo carga los eventos de
+         esa; la otra solo muestra su cantidad. Cada link pide su pestaña (?tab=UPCOMING | PAST). --%>
     <nav class="profile-tabs" aria-label="<spring:message code='profile.public.tabs.label'/>">
-        <a class="profile-tab<c:if test="${activeTab == 'proximos'}"> profile-tab-active</c:if>"
-           href="<c:url value='/usuarios/${profile.user.id}'><c:param name='tab' value='proximos'/></c:url>"
-           <c:if test="${activeTab == 'proximos'}">aria-current="page"</c:if>>
+        <a class="profile-tab<c:if test="${profile.tab == 'UPCOMING'}"> profile-tab-active</c:if>"
+           href="<c:url value='/usuarios/${profile.user.id}'><c:param name='tab' value='UPCOMING'/></c:url>"
+           <c:if test="${profile.tab == 'UPCOMING'}">aria-current="page"</c:if>>
             <paw:icon name="calendar"/>
             <span><spring:message code="profile.public.upcomingHeading"/></span>
-            <span class="profile-tab-count"><c:out value="${profile.upcoming.totalElements}"/></span>
+            <span class="profile-tab-count"><c:out value="${profile.upcomingCount}"/></span>
         </a>
-        <a class="profile-tab<c:if test="${activeTab == 'realizados'}"> profile-tab-active</c:if>"
-           href="<c:url value='/usuarios/${profile.user.id}'><c:param name='tab' value='realizados'/></c:url>"
-           <c:if test="${activeTab == 'realizados'}">aria-current="page"</c:if>>
+        <a class="profile-tab<c:if test="${profile.tab == 'PAST'}"> profile-tab-active</c:if>"
+           href="<c:url value='/usuarios/${profile.user.id}'><c:param name='tab' value='PAST'/></c:url>"
+           <c:if test="${profile.tab == 'PAST'}">aria-current="page"</c:if>>
             <paw:icon name="check-square"/>
             <span><spring:message code="profile.public.pastHeading"/></span>
-            <span class="profile-tab-count"><c:out value="${profile.past.totalElements}"/></span>
+            <span class="profile-tab-count"><c:out value="${profile.pastCount}"/></span>
         </a>
     </nav>
 
     <section class="public-profile-section">
         <c:choose>
-            <c:when test="${activeTab == 'realizados'}">
-                <c:set var="shown" value="${profile.past}"/>
-                <c:set var="emptyKey" value="profile.public.pastEmpty"/>
-                <c:set var="pageName" value="realizadosPage"/>
+            <c:when test="${empty profile.events.content}">
+                <p class="empty-state">
+                    <spring:message code="${profile.tab == 'PAST' ? 'profile.public.pastEmpty' : 'profile.public.upcomingEmpty'}"/>
+                </p>
             </c:when>
             <c:otherwise>
-                <c:set var="shown" value="${profile.upcoming}"/>
-                <c:set var="emptyKey" value="profile.public.upcomingEmpty"/>
-                <c:set var="pageName" value="proximosPage"/>
-            </c:otherwise>
-        </c:choose>
-        <c:choose>
-            <c:when test="${empty shown.content}">
-                <p class="empty-state"><spring:message code="${emptyKey}"/></p>
-            </c:when>
-            <c:otherwise>
-                <c:set var="eventsToShow" value="${shown.content}" scope="request"/>
+                <c:set var="eventsToShow" value="${profile.events.content}" scope="request"/>
                 <jsp:include page="/WEB-INF/jsp/users/_eventCards.jspf"/>
-                <paw:pager baseUrl="/usuarios/${profile.user.id}?tab=${activeTab}" pageParam="${pageName}"
-                           currentPage="${shown.page}" totalPages="${shown.totalPages}"/>
+                <paw:pager baseUrl="/usuarios/${profile.user.id}?tab=${profile.tab}"
+                           currentPage="${profile.events.page}" totalPages="${profile.events.totalPages}"/>
             </c:otherwise>
         </c:choose>
     </section>
@@ -176,7 +159,7 @@
             <form action="<c:url value='/perfil/biografia'/>" method="post" novalidate="novalidate">
                 <div class="form-group">
                     <label for="bio"><spring:message code="profile.public.bio.label"/></label>
-                    <textarea id="bio" name="bio" rows="5" maxlength="500"><c:out value="${profile.user.bio}"/></textarea>
+                    <textarea id="bio" name="bio" rows="5" maxlength="${maxBioLength}"><c:out value="${profile.user.bio}"/></textarea>
                 </div>
                 <paw:button text="${saveBioLabel}" cssClass="btn-accent"/>
             </form>
@@ -196,7 +179,7 @@
             <form action="<c:url value='/perfil/portada'/>" method="post" enctype="multipart/form-data" novalidate="novalidate">
                 <div class="form-group">
                     <label for="cover"><spring:message code="profile.public.cover.label"/></label>
-                    <input type="file" id="cover" name="cover" accept="image/jpeg,image/png,image/gif,image/webp" required="required"/>
+                    <input type="file" id="cover" name="cover" accept="image/*" required="required"/>
                     <p class="public-profile-cover-hint"><spring:message code="profile.public.cover.hint"/></p>
                 </div>
                 <paw:button text="${saveCoverLabel}" cssClass="btn-accent"/>

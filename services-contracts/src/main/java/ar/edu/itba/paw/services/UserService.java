@@ -2,6 +2,7 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.dto.UserRegistrationDTO;
+import ar.edu.itba.paw.model.PublicUser;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.UserAccess;
 
@@ -30,6 +31,13 @@ public interface UserService {
      * Lo usan las reglas de AdminSecurity.
      */
     Optional<UserAccess> findAccessById(long id);
+
+    /**
+     * Lo que muestra el perfil publico de la cuenta (id, nombre, biografia y portada), sin cargar el User: nunca
+     * trae el mail ni la clave. Vacio si la cuenta no existe o no esta activa (sin clave, sin confirmar el mail o
+     * suspendida), igual que {@link User#isActive()}.
+     */
+    Optional<PublicUser> findActivePublicById(long id);
 
     // Una sola consulta para varios ids, para armar un mapa id->User sin un
     // findById() por cada uno (ver AdminController.seguimiento()/reportQueueView()).

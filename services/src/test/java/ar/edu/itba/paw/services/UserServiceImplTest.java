@@ -1,6 +1,7 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.dto.UserRegistrationDTO;
+import ar.edu.itba.paw.model.PublicUser;
 import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.model.TokenPurpose;
 import ar.edu.itba.paw.model.Image;
@@ -8,10 +9,7 @@ import ar.edu.itba.paw.model.exception.InvalidImageException;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.UserAccess;
 import ar.edu.itba.paw.model.VerificationToken;
-import ar.edu.itba.paw.persistence.EventInvitationDao;
-import ar.edu.itba.paw.persistence.InboxMessageDao;
 import ar.edu.itba.paw.persistence.UserDao;
-import ar.edu.itba.paw.persistence.VerificationTokenDao;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -55,15 +53,13 @@ public class UserServiceImplTest {
     @Mock
     private UserDao userDao;
     @Mock
-    private VerificationTokenDao tokenDao;
-    @Mock
-    private EventInvitationDao invitationDao;
-    @Mock
-    private InboxMessageDao inboxMessageDao;
+    private VerificationTokenService tokenService;
     @Mock
     private PasswordEncoder passwordEncoder;
     @Mock
-    private NotificationService notificationService;
+    private AccountNotificationService notificationService;
+    @Mock
+    private InboxService inboxService;
     @Mock
     private ImageService imageService;
 
@@ -71,9 +67,10 @@ public class UserServiceImplTest {
 
     @Before
     public void setUp() {
+        // El publicador es una lambda sin efecto: a quien se registra le enlazan sus invitaciones y avisos quienes escuchan
+        // UserRegisteredEvent (UserRegistrationListener), y eso no es de este service.
         userService = new UserServiceImpl(
-                userDao, tokenDao, passwordEncoder, notificationService, invitationDao, inboxMessageDao,
-                event -> { }, imageService);
+                userDao, tokenService, passwordEncoder, notificationService, inboxService, event -> { }, imageService);
     }
 
     private static User someUser() {
@@ -129,6 +126,32 @@ public class UserServiceImplTest {
         // Assert
         assertTrue(result.get().isAdmin());
         assertFalse(result.get().isSuperadmin());
+    }
+
+    @Test
+    public void testFindActivePublicByIdReturnsTheProjectionTheDaoFound() {
+        // Arrange
+        when(userDao.findActivePublicById(USER_ID)).thenReturn(Optional.of(new PublicUser(USER_ID, "Tomas", "Bio", 5L)));
+
+        // Act
+        final Optional<PublicUser> result = userService.findActivePublicById(USER_ID);
+
+        // Assert
+        assertEquals("Tomas", result.get().getName());
+        assertEquals("Bio", result.get().getBio());
+        assertEquals(Long.valueOf(5L), result.get().getCoverImageId());
+    }
+
+    @Test
+    public void testFindActivePublicByIdIsEmptyWhenTheDaoFoundNothing() {
+        // Arrange
+        when(userDao.findActivePublicById(USER_ID)).thenReturn(Optional.empty());
+
+        // Act
+        final Optional<PublicUser> result = userService.findActivePublicById(USER_ID);
+
+        // Assert
+        assertFalse(result.isPresent());
     }
 
     @Test
@@ -241,34 +264,6 @@ public class UserServiceImplTest {
         assertEquals(UserRegistrationResult.CREATED, result);
     }
 
-    // Reconciliacion Grupo B: invitaciones que la esperaban sin cuenta.
-    @Test
-    public void testRegisterLinksTheInvitationsThatWereWaitingForTheEmail() {
-        // Arrange
-        newUserFlow();
-        when(invitationDao.linkUserId(NORMALIZED_EMAIL, USER_ID)).thenReturn(1);
-
-        // Act
-        final UserRegistrationResult result = userService.register(registrationData());
-
-        // Assert
-        assertEquals(UserRegistrationResult.CREATED, result);
-    }
-
-    // Reconciliacion Grupo B: avisos de la bandeja que la esperaban sin cuenta.
-    @Test
-    public void testRegisterLinksTheInboxMessagesThatWereWaitingForTheEmail() {
-        // Arrange
-        newUserFlow();
-        when(inboxMessageDao.linkUserId(NORMALIZED_EMAIL, USER_ID)).thenReturn(2);
-
-        // Act
-        final UserRegistrationResult result = userService.register(registrationData());
-
-        // Assert
-        assertEquals(UserRegistrationResult.CREATED, result);
-    }
-
     @Test
     public void testRegisterClaimsAGhostUserThatHasNoPassword() {
         // Arrange
@@ -287,7 +282,7 @@ public class UserServiceImplTest {
 
     // El idioma con el que se estaba navegando en el momento de registrarse (cookie de
     // LocaleResolver, ver WebConfig) queda guardado: asi el mail de confirmacion que sigue ya
-    // sale en ese idioma (ver NotificationServiceImpl.notifyAccountVerification()).
+    // sale en ese idioma (ver AccountNotificationServiceImpl.notifyAccountVerification()).
     @Test
     public void testRegisterSavesTheCurrentPageLocaleWhenTheAccountHadNone() {
         // Arrange
@@ -567,7 +562,7 @@ public class UserServiceImplTest {
     @Test
     public void testConfirmEmailVerifiesTheUser() {
         // Arrange
-        when(tokenDao.findByToken("some-token")).thenReturn(Optional.of(tokenOf(TokenPurpose.VERIFY_EMAIL, inOneHour())));
+        when(tokenService.findByToken("some-token")).thenReturn(Optional.of(tokenOf(TokenPurpose.VERIFY_EMAIL, inOneHour())));
         when(userDao.setVerified(USER_ID, true)).thenReturn(true);
         when(userDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
 
@@ -582,8 +577,8 @@ public class UserServiceImplTest {
     @Test
     public void testConfirmEmailConsumesTheToken() {
         // Arrange
-        when(tokenDao.findByToken("some-token")).thenReturn(Optional.of(tokenOf(TokenPurpose.VERIFY_EMAIL, inOneHour())));
-        when(tokenDao.delete("some-token")).thenReturn(true);
+        when(tokenService.findByToken("some-token")).thenReturn(Optional.of(tokenOf(TokenPurpose.VERIFY_EMAIL, inOneHour())));
+        when(tokenService.delete("some-token")).thenReturn(true);
         when(userDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
 
         // Act
@@ -596,7 +591,7 @@ public class UserServiceImplTest {
     @Test
     public void testConfirmEmailFailsWhenTheTokenDoesNotExist() {
         // Arrange
-        when(tokenDao.findByToken("some-token")).thenReturn(Optional.empty());
+        when(tokenService.findByToken("some-token")).thenReturn(Optional.empty());
 
         // Act
         final Optional<User> result = userService.confirmEmail("some-token");
@@ -608,7 +603,7 @@ public class UserServiceImplTest {
     @Test
     public void testConfirmEmailFailsWhenTheTokenExpired() {
         // Arrange
-        when(tokenDao.findByToken("some-token")).thenReturn(Optional.of(tokenOf(TokenPurpose.VERIFY_EMAIL, oneHourAgo())));
+        when(tokenService.findByToken("some-token")).thenReturn(Optional.of(tokenOf(TokenPurpose.VERIFY_EMAIL, oneHourAgo())));
 
         // Act
         final Optional<User> result = userService.confirmEmail("some-token");
@@ -620,7 +615,7 @@ public class UserServiceImplTest {
     @Test
     public void testConfirmEmailFailsWhenTheTokenIsForTheWrongPurpose() {
         // Arrange
-        when(tokenDao.findByToken("some-token")).thenReturn(Optional.of(tokenOf(TokenPurpose.RESET_PASSWORD, inOneHour())));
+        when(tokenService.findByToken("some-token")).thenReturn(Optional.of(tokenOf(TokenPurpose.RESET_PASSWORD, inOneHour())));
 
         // Act
         final Optional<User> result = userService.confirmEmail("some-token");
@@ -647,7 +642,7 @@ public class UserServiceImplTest {
     public void testResendVerificationEmailInvalidatesThePreviousTokens() {
         // Arrange
         when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(unverifiedUser()));
-        when(tokenDao.deleteByUserAndPurpose(USER_ID, TokenPurpose.VERIFY_EMAIL)).thenReturn(1);
+        when(tokenService.deleteByUserAndPurpose(USER_ID, TokenPurpose.VERIFY_EMAIL)).thenReturn(1);
 
         // Act
         final boolean result = userService.resendVerificationEmail(EMAIL);
@@ -714,7 +709,7 @@ public class UserServiceImplTest {
     public void testSendPasswordResetEmailInvalidatesThePreviousTokens() {
         // Arrange
         when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(registeredUser()));
-        when(tokenDao.deleteByUserAndPurpose(USER_ID, TokenPurpose.RESET_PASSWORD)).thenReturn(1);
+        when(tokenService.deleteByUserAndPurpose(USER_ID, TokenPurpose.RESET_PASSWORD)).thenReturn(1);
 
         // Act
         final boolean result = userService.sendPasswordResetEmail(EMAIL);
@@ -752,7 +747,7 @@ public class UserServiceImplTest {
     @Test
     public void testIsResetTokenValidReturnsTrueForAFreshToken() {
         // Arrange
-        when(tokenDao.findByToken("some-token")).thenReturn(Optional.of(tokenOf(TokenPurpose.RESET_PASSWORD, inOneHour())));
+        when(tokenService.findByToken("some-token")).thenReturn(Optional.of(tokenOf(TokenPurpose.RESET_PASSWORD, inOneHour())));
 
         // Act
         final boolean result = userService.isResetTokenValid("some-token");
@@ -764,7 +759,7 @@ public class UserServiceImplTest {
     @Test
     public void testIsResetTokenValidReturnsFalseWhenExpired() {
         // Arrange
-        when(tokenDao.findByToken("some-token")).thenReturn(Optional.of(tokenOf(TokenPurpose.RESET_PASSWORD, oneHourAgo())));
+        when(tokenService.findByToken("some-token")).thenReturn(Optional.of(tokenOf(TokenPurpose.RESET_PASSWORD, oneHourAgo())));
 
         // Act
         final boolean result = userService.isResetTokenValid("some-token");
@@ -776,7 +771,7 @@ public class UserServiceImplTest {
     @Test
     public void testIsResetTokenValidReturnsFalseWhenItDoesNotExist() {
         // Arrange
-        when(tokenDao.findByToken("some-token")).thenReturn(Optional.empty());
+        when(tokenService.findByToken("some-token")).thenReturn(Optional.empty());
 
         // Act
         final boolean result = userService.isResetTokenValid("some-token");
@@ -790,7 +785,7 @@ public class UserServiceImplTest {
     @Test
     public void testResetPasswordChangesThePassword() {
         // Arrange
-        when(tokenDao.findByToken("some-token")).thenReturn(Optional.of(tokenOf(TokenPurpose.RESET_PASSWORD, inOneHour())));
+        when(tokenService.findByToken("some-token")).thenReturn(Optional.of(tokenOf(TokenPurpose.RESET_PASSWORD, inOneHour())));
         when(passwordEncoder.encode(RAW_PASSWORD)).thenReturn(NEW_HASHED_PASSWORD);
         when(userDao.setPassword(USER_ID, NEW_HASHED_PASSWORD)).thenReturn(true);
 
@@ -804,7 +799,7 @@ public class UserServiceImplTest {
     @Test
     public void testResetPasswordRejectsAPasswordShorterThanTheMinimum() {
         // Arrange: el token es valido y el encoder tiene un hash senuelo
-        when(tokenDao.findByToken("some-token")).thenReturn(Optional.of(tokenOf(TokenPurpose.RESET_PASSWORD, inOneHour())));
+        when(tokenService.findByToken("some-token")).thenReturn(Optional.of(tokenOf(TokenPurpose.RESET_PASSWORD, inOneHour())));
         lenient().when(passwordEncoder.encode("1234567")).thenReturn(NEW_HASHED_PASSWORD);
         lenient().when(userDao.setPassword(USER_ID, NEW_HASHED_PASSWORD)).thenReturn(true);
 
@@ -818,8 +813,8 @@ public class UserServiceImplTest {
     @Test
     public void testResetPasswordConsumesTheToken() {
         // Arrange
-        when(tokenDao.findByToken("some-token")).thenReturn(Optional.of(tokenOf(TokenPurpose.RESET_PASSWORD, inOneHour())));
-        when(tokenDao.delete("some-token")).thenReturn(true);
+        when(tokenService.findByToken("some-token")).thenReturn(Optional.of(tokenOf(TokenPurpose.RESET_PASSWORD, inOneHour())));
+        when(tokenService.delete("some-token")).thenReturn(true);
 
         // Act
         final PasswordResetResult result = userService.resetPassword("some-token", RAW_PASSWORD);
@@ -831,7 +826,7 @@ public class UserServiceImplTest {
     @Test
     public void testResetPasswordFailsWhenTheTokenExpired() {
         // Arrange
-        when(tokenDao.findByToken("some-token")).thenReturn(Optional.of(tokenOf(TokenPurpose.RESET_PASSWORD, oneHourAgo())));
+        when(tokenService.findByToken("some-token")).thenReturn(Optional.of(tokenOf(TokenPurpose.RESET_PASSWORD, oneHourAgo())));
 
         // Act
         final PasswordResetResult result = userService.resetPassword("some-token", RAW_PASSWORD);
@@ -843,7 +838,7 @@ public class UserServiceImplTest {
     @Test
     public void testResetPasswordFailsWhenTheTokenIsForTheWrongPurpose() {
         // Arrange
-        when(tokenDao.findByToken("some-token")).thenReturn(Optional.of(tokenOf(TokenPurpose.VERIFY_EMAIL, inOneHour())));
+        when(tokenService.findByToken("some-token")).thenReturn(Optional.of(tokenOf(TokenPurpose.VERIFY_EMAIL, inOneHour())));
 
         // Act
         final PasswordResetResult result = userService.resetPassword("some-token", RAW_PASSWORD);

@@ -61,18 +61,28 @@ public class FollowJpaDaoTest {
         jdbcTemplate.update("INSERT INTO follow (follower_id, followed_id) VALUES (?, ?)", followerId, followedId);
     }
 
+    // Un evento organizado por esa persona (por SQL; creator_id es lo unico que importa aca).
+    private long insertEventOrganizedBy(final Long organizerId) {
+        jdbcTemplate.update(
+                "INSERT INTO event (title, event_date, address, creator_email, creator_id) VALUES (?, ?, ?, ?, ?)",
+                "Evento " + System.nanoTime(), new java.sql.Timestamp(System.currentTimeMillis()), "Corrientes 1234",
+                "organizador@mail.com", organizerId);
+        return jdbcTemplate.queryForObject("SELECT MAX(id) FROM event", Long.class);
+    }
+
     private String followWhere(final long followerId, final long followedId) {
         return "follower_id = " + followerId + " AND followed_id = " + followedId;
     }
 
-    // ---- follow() ----
+    // ---- followOrganizerOf() ----
 
     @Test
     public void testFollowInsertsTheFollowRowAndReturnsTrue() {
-        // Arrange: followerId/followedId ya vienen del setUp, sin seguimiento todavia.
+        // Arrange: un evento del organizador; followerId/followedId ya vienen del setUp, sin seguimiento todavia.
+        final long eventId = insertEventOrganizedBy(followedId);
 
         // Act
-        final boolean result = followDao.follow(followerId, followedId);
+        final boolean result = followDao.followOrganizerOf(followerId, eventId);
         // Hibernate escribe recien al flush: se fuerza para poder leer la fila por JDBC.
         em.flush();
 
@@ -83,13 +93,14 @@ public class FollowJpaDaoTest {
 
     @Test
     public void testFollowWhenAlreadyFollowingKeepsOneRowAndReturnsFalse() {
-        // Arrange: ya lo sigue (insertado por SQL, no con follow()).
+        // Arrange: ya lo sigue (insertado por SQL, no con followOrganizerOf()).
+        final long eventId = insertEventOrganizedBy(followedId);
         insertFollow(followerId, followedId);
 
         // Act
-        // No hay ON CONFLICT (no es portable a HSQLDB): follow() depende de que
+        // No hay ON CONFLICT (no es portable a HSQLDB): followOrganizerOf() depende de que
         // el PRIMARY KEY compuesto absorba el duplicado sin explotar.
-        final boolean result = followDao.follow(followerId, followedId);
+        final boolean result = followDao.followOrganizerOf(followerId, eventId);
         em.flush();
 
         // Assert
@@ -97,15 +108,41 @@ public class FollowJpaDaoTest {
         assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "follow", followWhere(followerId, followedId)));
     }
 
-    // ---- unfollow() ----
+    @Test
+    public void testFollowOrganizerOfAnEventWithoutOrganizerInsertsNothingAndReturnsFalse() {
+        // Arrange: evento viejo, sin organizador cargado
+        final long eventId = insertEventOrganizedBy(null);
+
+        // Act
+        final boolean result = followDao.followOrganizerOf(followerId, eventId);
+        em.flush();
+
+        // Assert
+        assertFalse(result);
+        assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "follow", "follower_id = " + followerId));
+    }
+
+    @Test
+    public void testFollowOrganizerOfAMissingEventInsertsNothingAndReturnsFalse() {
+        // Act
+        final boolean result = followDao.followOrganizerOf(followerId, 999_999L);
+        em.flush();
+
+        // Assert
+        assertFalse(result);
+        assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "follow", "follower_id = " + followerId));
+    }
+
+    // ---- unfollowOrganizerOf() ----
 
     @Test
     public void testUnfollowDeletesTheFollowRowAndReturnsTrue() {
         // Arrange
+        final long eventId = insertEventOrganizedBy(followedId);
         insertFollow(followerId, followedId);
 
         // Act
-        final boolean result = followDao.unfollow(followerId, followedId);
+        final boolean result = followDao.unfollowOrganizerOf(followerId, eventId);
         em.flush();
 
         // Assert
@@ -117,10 +154,11 @@ public class FollowJpaDaoTest {
     public void testUnfollowWhenNeverFollowingDeletesNothingAndReturnsFalse() {
         // Arrange: un seguimiento de la misma persona, pero a otro organizador. Tiene que quedar.
         final long otherFollowedId = insertUser("otro-organizador@mail.com", "Otro");
+        final long eventId = insertEventOrganizedBy(followedId);
         insertFollow(followerId, otherFollowedId);
 
         // Act
-        final boolean result = followDao.unfollow(followerId, followedId);
+        final boolean result = followDao.unfollowOrganizerOf(followerId, eventId);
         em.flush();
 
         // Assert

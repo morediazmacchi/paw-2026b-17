@@ -5,6 +5,8 @@ import ar.edu.itba.paw.model.InboxMessage;
 import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.RegistrationStatus;
 
+import org.springframework.transaction.annotation.Transactional;
+
 import java.util.List;
 import java.util.Set;
 
@@ -62,6 +64,13 @@ public interface InboxService {
     InboxPage findPageWithEvents(long userId, int page);
 
     long countUnread(long userId);
+
+    /**
+     * Cuando una persona que ya tenia avisos a su mail (invitada sin cuenta) se registra, le enlaza esos avisos a
+     * su cuenta. Lo dispara el registro (ver UserRegisteredEvent). Devuelve cuantos enlazo (0 si no tenia).
+     */
+    @Transactional
+    int linkAccount(String email, long userId);
 
     /**
      * Marca como leidos los mensajes que el usuario tenia en pantalla (los ids de la pagina de

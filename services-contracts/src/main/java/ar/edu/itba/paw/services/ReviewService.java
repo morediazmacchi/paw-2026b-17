@@ -1,9 +1,11 @@
 // Contrato de servicio para Review. Implementacion: ReviewServiceImpl (modulo services).
 package ar.edu.itba.paw.services;
 
+import ar.edu.itba.paw.model.RatingSummary;
 import ar.edu.itba.paw.model.Review;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Optional;
 
 // @Transactional aca documenta la garantia que promete cada metodo; el proxy
@@ -37,4 +39,18 @@ public interface ReviewService {
      */
     @Transactional(readOnly = true)
     CreatorReputation findCreatorReputation(long creatorId, int page);
+
+    /**
+     * La reseña propia de esa persona en cada uno de esos eventos (los que no reseño no vienen), en UNA consulta. Es lo
+     * que usa "Mis inscripciones" para mostrar la reseña de cada evento ya pasado.
+     */
+    @Transactional(readOnly = true)
+    List<Review> findByEventsAndUser(List<Long> eventIds, long userId);
+
+    /**
+     * Cuantas reseñas tiene el organizador y su promedio de estrellas (0 si no tiene), en UNA consulta (COUNT + AVG
+     * en la base, sin traerlas): lo que muestra su perfil publico.
+     */
+    @Transactional(readOnly = true)
+    RatingSummary findRatingSummaryByCreator(long creatorId);
 }

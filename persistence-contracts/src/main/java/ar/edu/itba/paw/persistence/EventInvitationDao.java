@@ -15,24 +15,8 @@ public interface EventInvitationDao {
     /** Para no mandarle una invitacion nueva (y un mail nuevo) a quien ya esta invitado. */
     Optional<EventInvitation> findByEventAndEmail(long eventId, String email);
 
-    /**
-     * Igual que findByEventAndEmail, pero para cuando quien pregunta ya esta
-     * logueado: busca por user_id en vez de por email. A diferencia del email
-     * de la invitacion (que puede haber quedado desactualizado si la persona
-     * cambio el suyo despues), el id no cambia nunca.
-     */
-    Optional<EventInvitation> findByEventAndUserId(long eventId, long userId);
-
     // Solo si existe (un COUNT), sin cargar la invitacion: es lo que necesita EventAccessService.canView.
     boolean existsByEventAndUserId(long eventId, long userId);
-
-    /**
-     * Invitaciones de este evento cuya persona todavia no se anoto (no tiene
-     * ninguna inscripcion, del estado que sea): cada una tiene un lugar reservado
-     * y cuenta como cupo ocupado. Cuando la persona se anota, el lugar pasa a ser
-     * su inscripcion y la invitacion deja de contarse (no se cuenta dos veces).
-     */
-    long countOutstanding(long eventId);
 
     // Pantalla "a quien invite" del creador, mas recientes primero, de a una pagina (paginas desde 1);
     // countByEvent() da el total para el paginador.

@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public class FollowJpaDao implements FollowDao {
@@ -17,14 +18,28 @@ public class FollowJpaDao implements FollowDao {
     @PersistenceContext
     private EntityManager em;
 
+    // El organizador del evento: lectura acotada de UNA columna (event.creator_id), sin cargar el Event. Vacio si
+    // el evento no existe o no tiene organizador cargado (eventos viejos).
+    private Optional<Long> organizerOf(final long eventId) {
+        return em.createQuery("SELECT e.creator.id FROM Event e WHERE e.id = :eventId AND e.creator IS NOT NULL",
+                        Long.class)
+                .setParameter("eventId", eventId)
+                .getResultList().stream().findFirst();
+    }
+
     @Override
-    public boolean follow(final long followerId, final long followedId) {
-        // No se puede "intentar el INSERT y atrapar la violacion": una excepcion de Hibernate deja la
-        // transaccion marcada para rollback. Se mira antes (mismo criterio que FavoriteJpaDao.add()).
-        if (em.find(Follow.class, new FollowId(followerId, followedId)) != null) {
+    public boolean followOrganizerOf(final long followerId, final long eventId) {
+        final Optional<Long> organizerId = organizerOf(eventId);
+        if (!organizerId.isPresent()) {
             return false;
         }
-        em.persist(new Follow(em.getReference(User.class, followerId), em.getReference(User.class, followedId)));
+        // No se puede "intentar el INSERT y atrapar la violacion": una excepcion de Hibernate deja la
+        // transaccion marcada para rollback. Se mira antes (mismo criterio que FavoriteJpaDao.add()).
+        if (em.find(Follow.class, new FollowId(followerId, organizerId.get())) != null) {
+            return false;
+        }
+        em.persist(new Follow(em.getReference(User.class, followerId),
+                em.getReference(User.class, organizerId.get())));
         // PK compuesta asignada a mano: persist() no inserta enseguida. flush() para que un id
         // inexistente (FK) falle desde este metodo y no al commit.
         em.flush();
@@ -32,8 +47,12 @@ public class FollowJpaDao implements FollowDao {
     }
 
     @Override
-    public boolean unfollow(final long followerId, final long followedId) {
-        final Follow follow = em.find(Follow.class, new FollowId(followerId, followedId));
+    public boolean unfollowOrganizerOf(final long followerId, final long eventId) {
+        final Optional<Long> organizerId = organizerOf(eventId);
+        if (!organizerId.isPresent()) {
+            return false;
+        }
+        final Follow follow = em.find(Follow.class, new FollowId(followerId, organizerId.get()));
         if (follow == null) {
             return false;
         }

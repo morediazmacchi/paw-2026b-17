@@ -317,6 +317,12 @@ public class Event implements EventAccessData {
     public boolean isRejected() { return approvalStatus == EventApprovalStatus.REJECTED; }
     public boolean isChangesRequested() { return approvalStatus == EventApprovalStatus.CHANGES_REQUESTED; }
 
+    // El cupo ya esta tomado: el evento tiene limite y los lugares ocupados (ver EventService.occupiedSpots()) lo
+    // alcanzan. Sin cupo maximo nunca esta lleno. Una sola regla, la usan el detalle, anotarse e invitar.
+    public boolean isFullWith(final long occupiedSpots) {
+        return maxCapacity != null && occupiedSpots >= maxCapacity;
+    }
+
     // Ya paso: la fecha del evento quedo en el pasado. No mira cancelledAt a
     // proposito -- un evento cancelado antes de su fecha no esta "finalizado"
     // en este sentido, solo cancelado (son carteles distintos en el detalle).

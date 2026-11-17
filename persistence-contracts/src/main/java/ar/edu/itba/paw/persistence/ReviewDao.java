@@ -1,6 +1,7 @@
 // Contrato de persistencia para Review. Implementacion: ReviewJdbcDao (modulo persistence).
 package ar.edu.itba.paw.persistence;
 
+import ar.edu.itba.paw.model.RatingSummary;
 import ar.edu.itba.paw.model.Review;
 
 import java.util.List;
@@ -22,11 +23,8 @@ public interface ReviewDao {
     // vieja. El corte se hace en la base (page empieza en 1).
     List<Review> findByCreatorId(long creatorId, int page, int pageSize);
 
-    // Cuantas reseñas tienen en total los eventos de ese creador: COUNT en la base, sin traer las filas.
-    long countByCreatorId(long creatorId);
-
-    // Promedio de estrellas de todas las reseñas de los eventos de ese creador
-    // (0 si no tiene ninguna). Es el UNICO lugar donde se calcula el promedio que
-    // se muestra; el filtro "puntaje minimo" de EventJdbcDao usa el mismo AVG.
-    double findAverageRatingByCreatorId(long creatorId);
+    // Cuantas reseñas tienen en total los eventos de ese creador y su promedio de estrellas (0 si no tiene ninguna),
+    // en UNA sola consulta (COUNT y AVG sobre las mismas filas, sin traerlas). Es el UNICO lugar donde se calcula el
+    // promedio que se muestra; el filtro "puntaje minimo" de EventJpaDao usa el mismo AVG.
+    RatingSummary findRatingSummaryByCreatorId(long creatorId);
 }

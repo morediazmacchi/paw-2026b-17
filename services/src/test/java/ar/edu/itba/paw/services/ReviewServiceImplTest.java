@@ -1,9 +1,9 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.RatingSummary;
 import ar.edu.itba.paw.model.Review;
 import ar.edu.itba.paw.model.User;
-import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.ReviewDao;
 import org.junit.Before;
 import org.junit.Test;
@@ -14,6 +14,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 
 import java.sql.SQLException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -45,7 +46,7 @@ public class ReviewServiceImplTest {
     @Mock
     private ReviewDao reviewDao;
     @Mock
-    private EventDao eventDao;
+    private EventService eventService;
     @Mock
     private UserService userService;
 
@@ -53,7 +54,7 @@ public class ReviewServiceImplTest {
 
     @Before
     public void setUp() {
-        reviewService = new ReviewServiceImpl(reviewDao, eventDao, userService);
+        reviewService = new ReviewServiceImpl(reviewDao, eventService, userService);
     }
 
     private static User someUser() {
@@ -112,7 +113,7 @@ public class ReviewServiceImplTest {
     // Usuario que puede opinar: no opino todavia y el evento ya paso.
     private void eligibleUser() {
         when(reviewDao.findByEventAndUser(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
-        when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(pastEvent()));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(pastEvent()));
         when(userService.findById(USER_ID)).thenReturn(Optional.of(someUser()));
     }
 
@@ -132,7 +133,7 @@ public class ReviewServiceImplTest {
     @Test
     public void testCreateFailsWhenAlreadyReviewed() {
         // Arrange
-        when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(pastEvent()));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(pastEvent()));
         when(reviewDao.findByEventAndUser(EVENT_ID, USER_ID))
                 .thenReturn(Optional.of(new Review(ModelFixtures.event(EVENT_ID), ModelFixtures.user(USER_ID), 5, "Ya la mande")));
 
@@ -176,7 +177,7 @@ public class ReviewServiceImplTest {
     public void testCreateWithARatingAboveTheMaximumReturnsInvalid() {
         // Arrange: usuario elegible; si el service guardara la resenia igual, el resultado seria CREATED
         lenient().when(reviewDao.findByEventAndUser(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
-        lenient().when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(pastEvent()));
+        lenient().when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(pastEvent()));
         lenient().when(userService.findById(USER_ID)).thenReturn(Optional.of(someUser()));
         lenient().when(reviewDao.create(any(Review.class))).thenReturn(reviewOfEvent(EVENT_ID));
 
@@ -212,7 +213,7 @@ public class ReviewServiceImplTest {
     public void testCreateFailsWhenTheEventDoesNotExist() {
         // Arrange
         when(reviewDao.findByEventAndUser(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
-        when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.empty());
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
         final ReviewResult result = reviewService.create(EVENT_ID, USER_ID, RATING, COMMENT);
@@ -225,7 +226,7 @@ public class ReviewServiceImplTest {
     public void testCreateFailsWhenTheEventHasNotFinishedYet() {
         // Arrange
         when(reviewDao.findByEventAndUser(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
-        when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(futureEvent()));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(futureEvent()));
 
         // Act
         final ReviewResult result = reviewService.create(EVENT_ID, USER_ID, RATING, COMMENT);
@@ -240,7 +241,7 @@ public class ReviewServiceImplTest {
         final Event cancelled = pastEvent();
         cancelled.setCancelledAt(new Date());
         when(reviewDao.findByEventAndUser(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
-        when(eventDao.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(cancelled));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(cancelled));
         // Un evento cancelado no se puede opinar: el service corta antes de cargar la cuenta, por eso este stub
         // es lenient (no se usa a proposito).
         lenient().when(userService.findById(USER_ID)).thenReturn(Optional.of(someUser()));
@@ -261,7 +262,7 @@ public class ReviewServiceImplTest {
     @Test
     public void testFindCreatorReputationWithoutReviewsIsEmpty() {
         // Arrange
-        when(reviewDao.countByCreatorId(CREATOR_ID)).thenReturn(0L);
+        when(reviewDao.findRatingSummaryByCreatorId(CREATOR_ID)).thenReturn(new RatingSummary(0L, 0.0));
 
         // Act
         final CreatorReputation result = reviewService.findCreatorReputation(CREATOR_ID, 1);
@@ -278,10 +279,9 @@ public class ReviewServiceImplTest {
         // Arrange: dos reseñas mas que una pagina, o sea 2 paginas; se pide la primera.
         final long total = ReviewServiceImpl.REVIEWS_PAGE_SIZE + 2;
         final List<Review> firstPage = Arrays.asList(reviewOfEvent(1), reviewOfEvent(2));
-        when(reviewDao.countByCreatorId(CREATOR_ID)).thenReturn(total);
+        when(reviewDao.findRatingSummaryByCreatorId(CREATOR_ID)).thenReturn(new RatingSummary(total, 4.5));
         when(reviewDao.findByCreatorId(CREATOR_ID, 1, ReviewServiceImpl.REVIEWS_PAGE_SIZE)).thenReturn(firstPage);
-        when(reviewDao.findAverageRatingByCreatorId(CREATOR_ID)).thenReturn(4.5);
-        when(eventDao.findByIds(Arrays.asList(1L, 2L)))
+        when(eventService.findByIds(Arrays.asList(1L, 2L)))
                 .thenReturn(Arrays.asList(ModelFixtures.event(1), ModelFixtures.event(2)));
 
         // Act
@@ -300,11 +300,11 @@ public class ReviewServiceImplTest {
     public void testFindCreatorReputationWithAPageOutOfRangeReturnsTheLastOne() {
         // Arrange: 2 paginas en total. Pedir la 9 tiene que pedirle al dao la 2 (si pidiera otra,
         // el stub no coincide y el runner estricto hace fallar el test).
-        when(reviewDao.countByCreatorId(CREATOR_ID)).thenReturn((long) ReviewServiceImpl.REVIEWS_PAGE_SIZE + 2);
+        when(reviewDao.findRatingSummaryByCreatorId(CREATOR_ID))
+                .thenReturn(new RatingSummary((long) ReviewServiceImpl.REVIEWS_PAGE_SIZE + 2, 4.0));
         when(reviewDao.findByCreatorId(CREATOR_ID, 2, ReviewServiceImpl.REVIEWS_PAGE_SIZE))
                 .thenReturn(Arrays.asList(reviewOfEvent(1), reviewOfEvent(2)));
-        when(reviewDao.findAverageRatingByCreatorId(CREATOR_ID)).thenReturn(4.0);
-        when(eventDao.findByIds(Arrays.asList(1L, 2L)))
+        when(eventService.findByIds(Arrays.asList(1L, 2L)))
                 .thenReturn(Arrays.asList(ModelFixtures.event(1), ModelFixtures.event(2)));
 
         // Act
@@ -318,13 +318,12 @@ public class ReviewServiceImplTest {
     public void testFindCreatorReputationAsksOnceForEachReviewedEventAndIndexesThemById() {
         // Arrange: dos reseñas del mismo evento y una de otro. El dao solo responde si se le piden
         // los ids sin repetir (1 y 2), asi que si el service pidiera de mas, el mapa quedaria vacio.
-        when(reviewDao.countByCreatorId(CREATOR_ID)).thenReturn(3L);
+        when(reviewDao.findRatingSummaryByCreatorId(CREATOR_ID)).thenReturn(new RatingSummary(3L, 4.0));
         when(reviewDao.findByCreatorId(CREATOR_ID, 1, ReviewServiceImpl.REVIEWS_PAGE_SIZE))
                 .thenReturn(Arrays.asList(reviewOfEvent(1), reviewOfEvent(2), reviewOfEvent(1)));
-        when(reviewDao.findAverageRatingByCreatorId(CREATOR_ID)).thenReturn(4.0);
         final Event first = ModelFixtures.event(1);
         final Event second = ModelFixtures.event(2);
-        when(eventDao.findByIds(Arrays.asList(1L, 2L))).thenReturn(Arrays.asList(first, second));
+        when(eventService.findByIds(Arrays.asList(1L, 2L))).thenReturn(Arrays.asList(first, second));
 
         // Act
         final CreatorReputation result = reviewService.findCreatorReputation(CREATOR_ID, 1);
@@ -333,5 +332,33 @@ public class ReviewServiceImplTest {
         assertEquals(2, result.getEventsById().size());
         assertSame(first, result.getEventsById().get(1L));
         assertSame(second, result.getEventsById().get(2L));
+    }
+
+    // ---- findByEventsAndUser() / findRatingSummaryByCreator() ----
+
+    @Test
+    public void testFindByEventsAndUserReturnsTheReviewsOfThatPersonInThoseEvents() {
+        // Arrange: el stub solo responde con esos eventos y esa persona
+        final Review mine = new Review(ModelFixtures.event(7L), ModelFixtures.user(USER_ID), 4, "Muy bueno");
+        when(reviewDao.findByEventsAndUser(Arrays.asList(7L, 8L), USER_ID)).thenReturn(Collections.singletonList(mine));
+
+        // Act
+        final List<Review> result = reviewService.findByEventsAndUser(Arrays.asList(7L, 8L), USER_ID);
+
+        // Assert
+        assertEquals(Collections.singletonList(mine), result);
+    }
+
+    @Test
+    public void testFindRatingSummaryByCreatorIsTheCountAndTheAverageOfThatOrganizer() {
+        // Arrange
+        when(reviewDao.findRatingSummaryByCreatorId(CREATOR_ID)).thenReturn(new RatingSummary(6L, 4.5));
+
+        // Act
+        final RatingSummary result = reviewService.findRatingSummaryByCreator(CREATOR_ID);
+
+        // Assert
+        assertEquals(6L, result.getCount());
+        assertEquals(4.5, result.getAverage(), 0.0001);
     }
 }

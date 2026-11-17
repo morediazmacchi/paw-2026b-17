@@ -369,10 +369,8 @@ public class InboxMessageJpaDaoTest {
     @Test
     public void testCreatePersistsAllTheGivenFields() {
         // Arrange
-        final InboxMessage toCreate = new InboxMessage(EMAIL, InboxMessageType.NEW_REGISTRATION, em.getReference(Event.class, eventId), "Juan", "hola");
-
         // Act
-        final InboxMessage created = inboxMessageDao.create(toCreate);
+        final InboxMessage created = inboxMessageDao.create(EMAIL, InboxMessageType.NEW_REGISTRATION, eventId, "Juan", "hola");
 
         // Assert
         assertTrue(created.getId() > 0);
@@ -389,10 +387,8 @@ public class InboxMessageJpaDaoTest {
     @Test
     public void testCreateAllowsNullEventId() {
         // Arrange
-        final InboxMessage toCreate = new InboxMessage(EMAIL, InboxMessageType.PRIVATE_INVITE, null, null, null);
-
         // Act
-        final InboxMessage created = inboxMessageDao.create(toCreate);
+        final InboxMessage created = inboxMessageDao.create(EMAIL, InboxMessageType.PRIVATE_INVITE, null, null, null);
 
         // Assert
         final Long storedEventId = jdbcTemplate.queryForObject(
@@ -403,10 +399,8 @@ public class InboxMessageJpaDaoTest {
     @Test
     public void testCreateSetsCreatedAtAutomatically() {
         // Arrange
-        final InboxMessage toCreate = new InboxMessage(EMAIL, InboxMessageType.NEW_REGISTRATION, em.getReference(Event.class, eventId), "Juan", null);
-
         // Act
-        final InboxMessage created = inboxMessageDao.create(toCreate);
+        final InboxMessage created = inboxMessageDao.create(EMAIL, InboxMessageType.NEW_REGISTRATION, eventId, "Juan", null);
 
         // Assert
         final Timestamp createdAt = jdbcTemplate.queryForObject(
@@ -417,10 +411,8 @@ public class InboxMessageJpaDaoTest {
     @Test
     public void testCreateLeavesReadAtNull() {
         // Arrange
-        final InboxMessage toCreate = new InboxMessage(EMAIL, InboxMessageType.NEW_REGISTRATION, em.getReference(Event.class, eventId), "Juan", null);
-
         // Act
-        final InboxMessage created = inboxMessageDao.create(toCreate);
+        final InboxMessage created = inboxMessageDao.create(EMAIL, InboxMessageType.NEW_REGISTRATION, eventId, "Juan", null);
 
         // Assert
         assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
@@ -428,14 +420,12 @@ public class InboxMessageJpaDaoTest {
     }
 
     @Test
-    public void testCreatePersistsTheLinkedUserId() {
-        // Arrange
+    public void testCreateLinksTheAccountWithThatEmail() {
+        // Arrange: ya hay una cuenta con ese mail (por SQL)
         final long recipientId = insertUser(EMAIL);
-        final InboxMessage toCreate = new InboxMessage(EMAIL, InboxMessageType.NEW_REGISTRATION, em.getReference(Event.class, eventId), "Juan", null);
-        toCreate.setUser(em.getReference(User.class, recipientId));
 
         // Act
-        final InboxMessage created = inboxMessageDao.create(toCreate);
+        final InboxMessage created = inboxMessageDao.create(EMAIL, InboxMessageType.NEW_REGISTRATION, eventId, "Juan", null);
 
         // Assert
         final Long storedUserId = jdbcTemplate.queryForObject(
@@ -446,10 +436,8 @@ public class InboxMessageJpaDaoTest {
     @Test
     public void testCreateLeavesUserIdNullWhenNotLinked() {
         // Arrange
-        final InboxMessage toCreate = new InboxMessage(EMAIL, InboxMessageType.NEW_REGISTRATION, em.getReference(Event.class, eventId), "Juan", null);
-
         // Act
-        final InboxMessage created = inboxMessageDao.create(toCreate);
+        final InboxMessage created = inboxMessageDao.create(EMAIL, InboxMessageType.NEW_REGISTRATION, eventId, "Juan", null);
 
         // Assert
         final Long storedUserId = jdbcTemplate.queryForObject(

@@ -2,10 +2,10 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.RatingSummary;
 import ar.edu.itba.paw.model.Review;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.exception.UserNotFoundException;
-import ar.edu.itba.paw.persistence.EventDao;
 import ar.edu.itba.paw.persistence.ReviewDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -26,15 +26,15 @@ public class ReviewServiceImpl implements ReviewService {
     static final int REVIEWS_PAGE_SIZE = 5;
 
     private final ReviewDao reviewDao;
-    // EventDao directo (no EventService): hace falta findByIdForUpdate() para
-    // el lock de create(), mismo criterio que RegistrationServiceImpl.register().
-    private final EventDao eventDao;
+    // EventService: el lock de create() (findByIdForUpdate), mismo criterio que RegistrationServiceImpl.register().
+    private final EventService eventService;
     private final UserService userService;
 
     @Autowired
-    public ReviewServiceImpl(final ReviewDao reviewDao, final EventDao eventDao, final UserService userService) {
+    public ReviewServiceImpl(final ReviewDao reviewDao, final EventService eventService,
+                             final UserService userService) {
         this.reviewDao = reviewDao;
-        this.eventDao = eventDao;
+        this.eventService = eventService;
         this.userService = userService;
     }
 
@@ -56,7 +56,7 @@ public class ReviewServiceImpl implements ReviewService {
         // register()): dos envios simultaneos del mismo usuario se serializan
         // aca, en vez de pasar los dos el chequeo de "ya la mando" y recien
         // chocar contra el UNIQUE(event_id, user_id) al insertar.
-        final Optional<Event> event = eventDao.findByIdForUpdate(eventId);
+        final Optional<Event> event = eventService.findByIdForUpdate(eventId);
         if (reviewDao.findByEventAndUser(eventId, userId).isPresent()) {
             return ReviewResult.ALREADY_REVIEWED;
         }
@@ -96,8 +96,9 @@ public class ReviewServiceImpl implements ReviewService {
     @Override
     @Transactional(readOnly = true)
     public CreatorReputation findCreatorReputation(final long creatorId, final int page) {
-        // El total sale de un COUNT en la base: no hace falta traer las reseñas para contarlas.
-        final long total = reviewDao.countByCreatorId(creatorId);
+        // El total y el promedio salen de UNA consulta (COUNT + AVG): no hace falta traer las reseñas para contarlas.
+        final RatingSummary summary = reviewDao.findRatingSummaryByCreatorId(creatorId);
+        final long total = summary.getCount();
         if (total == 0) {
             return new CreatorReputation(new PageResult<>(Collections.emptyList(), 0, 1, REVIEWS_PAGE_SIZE),
                     0, Collections.emptyMap());
@@ -107,9 +108,21 @@ public class ReviewServiceImpl implements ReviewService {
         // Una sola consulta para los eventos de las reseñas de esta pagina (findByIds()), en vez de
         // un findById() por cada reseña.
         final List<Long> eventIds = reviews.stream().map(Review::getEventId).distinct().collect(Collectors.toList());
-        final Map<Long, Event> eventsById = eventDao.findByIds(eventIds).stream()
+        final Map<Long, Event> eventsById = eventService.findByIds(eventIds).stream()
                 .collect(Collectors.toMap(Event::getId, event -> event));
         return new CreatorReputation(new PageResult<>(reviews, total, effectivePage, REVIEWS_PAGE_SIZE),
-                reviewDao.findAverageRatingByCreatorId(creatorId), eventsById);
+                summary.getAverage(), eventsById);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Review> findByEventsAndUser(final List<Long> eventIds, final long userId) {
+        return reviewDao.findByEventsAndUser(eventIds, userId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public RatingSummary findRatingSummaryByCreator(final long creatorId) {
+        return reviewDao.findRatingSummaryByCreatorId(creatorId);
     }
 }

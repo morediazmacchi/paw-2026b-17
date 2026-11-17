@@ -75,14 +75,6 @@ public interface NotificationService {
     /** El creador le saco el lugar a alguien ya confirmado -> le avisa a esa persona. */
     void notifyRegistrationRevoked(Event event, Registration registration);
 
-    /**
-     * Alguien se registro (o completo una cuenta fantasma) -> mail con el link para
-     * confirmar el mail. redirectAfterConfirm (puede ser null) viaja en el link.
-     */
-    void notifyAccountVerification(User user, String token, String redirectAfterConfirm);
-
-    /** Alguien pidio "olvide mi contraseña" -> mail con el link para elegir una nueva. */
-    void notifyPasswordReset(User user, String token);
 
     /** Se anoto a un evento con requiresApproval -> le avisa que su pedido queda esperando revision. */
     void notifyRegistrationPending(Event event, Registration registration);
@@ -166,9 +158,5 @@ public interface NotificationService {
      */
     void notifyFollowedUserNewEvent(List<FollowerContact> followers, Event event, String organizerName);
 
-    /** Un admin suspendio la cuenta -> le avisa a esa persona. */
-    void notifyUserSuspended(User user);
-
-    /** Un admin reactivo la cuenta -> le avisa a esa persona. */
-    void notifyUserReactivated(User user);
+    // (Los mails de la cuenta propia -- confirmar, restablecer clave, suspension -- estan en AccountNotificationService.)
 }

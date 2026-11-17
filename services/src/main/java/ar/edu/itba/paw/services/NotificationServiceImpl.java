@@ -6,7 +6,6 @@ import ar.edu.itba.paw.model.EventQuestion;
 import ar.edu.itba.paw.model.FollowerContact;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.User;
-import ar.edu.itba.paw.persistence.UserDao;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,7 +34,7 @@ public class NotificationServiceImpl implements NotificationService {
 
     private final MailService mailService;
     private final MessageSource messageSource;
-    private final UserDao userDao;
+    private final UserService userService;
 
     // Los links de los mails: el service pide cada uno por lo que es y no conoce rutas ni servidor.
     private final MailLinks links;
@@ -43,11 +42,11 @@ public class NotificationServiceImpl implements NotificationService {
     @Autowired
     public NotificationServiceImpl(final MailService mailService,
                                    @Qualifier("mailMessageSource") final MessageSource messageSource,
-                                   final UserDao userDao, final MailLinks links) {
+                                   final UserService userService, final MailLinks links) {
         this.links = links;
         this.mailService = mailService;
         this.messageSource = messageSource;
-        this.userDao = userDao;
+        this.userService = userService;
     }
 
     @Async
@@ -417,48 +416,6 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Async
     @Override
-    public void notifyAccountVerification(final User user, final String token, final String redirectAfterConfirm) {
-        try {
-            final Locale locale = localeFor(user);
-            final Map<String, Object> variables = new HashMap<>();
-            variables.put("personName", displayName(user.getName(), user.getEmail()));
-            // Si venia de algun lado (una invitacion a un evento privado), el link lo lleva: al confirmar y
-            // loguearse vuelve ahi en vez de al home. Como viaja eso en la URL lo sabe MailLinks, no el service.
-            variables.put("confirmUrl", links.confirmAccount(token, redirectAfterConfirm));
-
-            mailService.send(user.getEmail(),
-                    "account-verification",
-                    "mail.accountVerification.subject",
-                    null,
-                    variables,
-                    locale);
-        } catch (final RuntimeException e) {
-            LOGGER.error("Fallo el mail de confirmacion de cuenta, usuario {}", user.getId(), e);
-        }
-    }
-
-    @Async
-    @Override
-    public void notifyPasswordReset(final User user, final String token) {
-        try {
-            final Locale locale = localeFor(user);
-            final Map<String, Object> variables = new HashMap<>();
-            variables.put("personName", displayName(user.getName(), user.getEmail()));
-            variables.put("resetUrl", links.resetPassword(token));
-
-            mailService.send(user.getEmail(),
-                    "password-reset",
-                    "mail.passwordReset.subject",
-                    null,
-                    variables,
-                    locale);
-        } catch (final RuntimeException e) {
-            LOGGER.error("Fallo el mail de restablecer contraseña, usuario {}", user.getId(), e);
-        }
-    }
-
-    @Async
-    @Override
     public void notifyEventCancelled(final Event event, final List<Registration> registrations) {
         notifyRegistrants(event, registrations, "event-cancelled", "mail.eventCancelled.subject", variables -> variables.put("eventsUrl", links.events()), "Fallo el aviso de evento cancelado");
     }
@@ -681,45 +638,6 @@ public class NotificationServiceImpl implements NotificationService {
         }
     }
 
-    @Async
-    @Override
-    public void notifyUserSuspended(final User user) {
-        try {
-            final Locale locale = localeFor(user);
-            final Map<String, Object> variables = new HashMap<>();
-            variables.put("personName", displayName(user.getName(), user.getEmail()));
-
-            mailService.send(user.getEmail(),
-                    "account-suspended",
-                    "mail.accountSuspended.subject",
-                    null,
-                    variables,
-                    locale);
-        } catch (final RuntimeException e) {
-            LOGGER.error("Fallo el aviso de cuenta suspendida, usuario {}", user.getId(), e);
-        }
-    }
-
-    @Async
-    @Override
-    public void notifyUserReactivated(final User user) {
-        try {
-            final Locale locale = localeFor(user);
-            final Map<String, Object> variables = new HashMap<>();
-            variables.put("personName", displayName(user.getName(), user.getEmail()));
-            variables.put("loginUrl", links.login());
-
-            mailService.send(user.getEmail(),
-                    "account-reactivated",
-                    "mail.accountReactivated.subject",
-                    null,
-                    variables,
-                    locale);
-        } catch (final RuntimeException e) {
-            LOGGER.error("Fallo el aviso de cuenta reactivada, usuario {}", user.getId(), e);
-        }
-    }
-
     /**
      * Un mismo mail a cada inscripto de la lista, todo en UNA tarea asincronica (la del metodo publico que
      * llama): el pool de mails ve una sola tarea en vez de una por persona, asi un evento con cientos de
@@ -769,7 +687,7 @@ public class NotificationServiceImpl implements NotificationService {
                 .distinct()
                 .collect(Collectors.toList());
         final Map<Long, User> byId = new HashMap<>();
-        for (final User user : userDao.findByIds(ids)) {
+        for (final User user : userService.findByIds(ids)) {
             byId.put(user.getId(), user);
         }
         return byId;
@@ -835,7 +753,7 @@ public class NotificationServiceImpl implements NotificationService {
         if (email == null) {
             return "";
         }
-        final String accountName = userDao.findByEmail(email)
+        final String accountName = userService.findByEmail(email)
                 .map(User::getName)
                 .filter(n -> !n.trim().isEmpty())
                 .map(String::trim)
@@ -873,7 +791,7 @@ public class NotificationServiceImpl implements NotificationService {
         if (userId == null) {
             return new Recipient(null, DEFAULT_LOCALE);
         }
-        return userDao.findById(userId)
+        return userService.findById(userId)
                 .map(u -> new Recipient(u.getName(), localeFor(u)))
                 .orElse(new Recipient(null, DEFAULT_LOCALE));
     }

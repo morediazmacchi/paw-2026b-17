@@ -4,7 +4,6 @@ package ar.edu.itba.paw.services;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.RegistrationStatus;
-import ar.edu.itba.paw.persistence.EventDao;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,16 +20,16 @@ public class EventReminderServiceImpl implements EventReminderService {
 
     static final long ONE_DAY_MILLIS = 24L * 60 * 60 * 1000;
 
-    private final EventDao eventDao;
+    private final EventService eventService;
     private final RegistrationService registrationService;
     private final NotificationService notificationService;
     private final InboxService inboxService;
 
     @Autowired
-    public EventReminderServiceImpl(final EventDao eventDao, final RegistrationService registrationService,
+    public EventReminderServiceImpl(final EventService eventService, final RegistrationService registrationService,
                                     final NotificationService notificationService,
                                     final InboxService inboxService) {
-        this.eventDao = eventDao;
+        this.eventService = eventService;
         this.registrationService = registrationService;
         this.notificationService = notificationService;
         this.inboxService = inboxService;
@@ -40,7 +39,7 @@ public class EventReminderServiceImpl implements EventReminderService {
     @Transactional(readOnly = true)
     public List<Long> findEventsNeedingReminder() {
         final Date now = new Date();
-        return eventDao.findIdsNeedingReminder(now, new Date(now.getTime() + ONE_DAY_MILLIS));
+        return eventService.findIdsNeedingReminder(now, new Date(now.getTime() + ONE_DAY_MILLIS));
     }
 
     @Override
@@ -51,10 +50,10 @@ public class EventReminderServiceImpl implements EventReminderService {
         // esta mandando), esto devuelve false y no se manda nada: nunca dos veces.
         // Va en la misma transaccion que los avisos: si algo falla, se deshace la
         // marca tambien y la proxima corrida lo vuelve a intentar.
-        if (!eventDao.markReminderSent(eventId, now)) {
+        if (!eventService.markReminderSent(eventId, now)) {
             return false;
         }
-        final Event event = eventDao.findById(eventId).orElse(null);
+        final Event event = eventService.findById(eventId).orElse(null);
         // isApproved(): mismo motivo que isCancelled() -- aunque findIdsNeedingReminder()
         // ya filtra por aprobado, esto cubre la ventana entre esa consulta y este punto
         // (si justo en el medio un admin lo rechaza, no se manda nada).

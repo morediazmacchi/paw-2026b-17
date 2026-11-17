@@ -1,5 +1,6 @@
 package ar.edu.itba.paw.persistence;
 
+import ar.edu.itba.paw.model.Event;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -19,6 +20,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -337,12 +339,16 @@ public class FavoriteJpaDaoTest {
         assertEquals(0, count);
     }
 
-    // ---- findViewableEventIdsByUser() / findEventIdsByUser(userId, page, pageSize) (paginado en SQL) ----
+    // ---- findViewableEventsByUser() / findEventsByUser(userId, page, pageSize) (paginado en SQL) ----
 
     // `minutesAgo` fija el orden de forma explicita: sin esto los INSERT de un mismo test comparten el now().
     private void insertFavoriteMinutesAgo(final long userId, final long eventId, final int minutesAgo) {
         jdbcTemplate.update("INSERT INTO favorite (user_id, event_id, created_at) VALUES (?, ?, ?)",
                 userId, eventId, new Timestamp(System.currentTimeMillis() - minutesAgo * 60_000L));
+    }
+
+    private static List<Long> idsOf(final List<Event> events) {
+        return events.stream().map(Event::getId).collect(Collectors.toList());
     }
 
     @Test
@@ -356,7 +362,7 @@ public class FavoriteJpaDaoTest {
         insertFavoriteMinutesAgo(userId, c, 10);
 
         // Act
-        final List<Long> secondPage = favoriteDao.findViewableEventIdsByUser(userId, 2, 2);
+        final List<Long> secondPage = idsOf(favoriteDao.findViewableEventsByUser(userId, 2, 2));
 
         // Assert: pagina 1 = [c, b]; la 2 trae solo lo que queda
         assertEquals(Collections.singletonList(a), secondPage);
@@ -373,7 +379,7 @@ public class FavoriteJpaDaoTest {
         insertFavoriteMinutesAgo(userId, c, 10);
 
         // Act
-        final List<Long> firstPage = favoriteDao.findViewableEventIdsByUser(userId, 1, 2);
+        final List<Long> firstPage = idsOf(favoriteDao.findViewableEventsByUser(userId, 1, 2));
 
         // Assert
         assertEquals(Arrays.asList(c, b), firstPage);
@@ -389,7 +395,7 @@ public class FavoriteJpaDaoTest {
         insertFavoriteMinutesAgo(userId, hidden, 10);
 
         // Act
-        final List<Long> found = favoriteDao.findViewableEventIdsByUser(userId, 1, 1);
+        final List<Long> found = idsOf(favoriteDao.findViewableEventsByUser(userId, 1, 1));
 
         // Assert
         assertEquals(Collections.singletonList(visible), found);
@@ -408,7 +414,7 @@ public class FavoriteJpaDaoTest {
                 invited, "fan@mail.com", "creador@mail.com", userId);
 
         // Act
-        final List<Long> found = favoriteDao.findViewableEventIdsByUser(userId, 1, 10);
+        final List<Long> found = idsOf(favoriteDao.findViewableEventsByUser(userId, 1, 10));
 
         // Assert
         assertEquals(Arrays.asList(invited, own), found);
@@ -424,7 +430,7 @@ public class FavoriteJpaDaoTest {
         insertFavoriteMinutesAgo(otherUserId, theirs, 10);
 
         // Act
-        final List<Long> found = favoriteDao.findViewableEventIdsByUser(userId, 1, 10);
+        final List<Long> found = idsOf(favoriteDao.findViewableEventsByUser(userId, 1, 10));
 
         // Assert
         assertEquals(Collections.singletonList(mine), found);
@@ -436,7 +442,7 @@ public class FavoriteJpaDaoTest {
         insertFavoriteMinutesAgo(userId, insertEventWith("A", "PUBLIC", "APPROVED", null), 10);
 
         // Act
-        final List<Long> found = favoriteDao.findViewableEventIdsByUser(userId, 2, 10);
+        final List<Long> found = idsOf(favoriteDao.findViewableEventsByUser(userId, 2, 10));
 
         // Assert
         assertTrue(found.isEmpty());
@@ -453,7 +459,7 @@ public class FavoriteJpaDaoTest {
         insertFavoriteMinutesAgo(userId, c, 10);
 
         // Act
-        final List<Long> secondPage = favoriteDao.findEventIdsByUser(userId, 2, 2);
+        final List<Long> secondPage = idsOf(favoriteDao.findEventsByUser(userId, 2, 2));
 
         // Assert: pagina 1 = [c, b]
         assertEquals(Collections.singletonList(a), secondPage);
@@ -467,7 +473,7 @@ public class FavoriteJpaDaoTest {
         insertFavoriteMinutesAgo(otherUserId, otherEventId, 10);
 
         // Act
-        final List<Long> found = favoriteDao.findEventIdsByUser(userId, 1, 10);
+        final List<Long> found = idsOf(favoriteDao.findEventsByUser(userId, 1, 10));
 
         // Assert
         assertEquals(Collections.singletonList(eventId), found);

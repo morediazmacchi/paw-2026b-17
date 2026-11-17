@@ -54,12 +54,11 @@ public class EventQuestionJpaDao implements EventQuestionDao {
         }
         // JOIN FETCH q.user: cada pregunta viene con quien la hizo en la misma consulta (sin una
         // consulta extra por pregunta).
-        return PagedIds.inOrder(ids,
-                em.createQuery("SELECT q FROM EventQuestion q JOIN FETCH q.user WHERE q.id IN :ids",
-                                EventQuestion.class)
-                        .setParameter("ids", ids)
-                        .getResultList(),
-                EventQuestion::getId);
+        // El ORDER BY es el MISMO de la consulta de ids (el IN no ordena nada).
+        return em.createQuery("SELECT q FROM EventQuestion q JOIN FETCH q.user WHERE q.id IN :ids "
+                                + "ORDER BY q.createdAt DESC, q.id DESC", EventQuestion.class)
+                .setParameter("ids", ids)
+                .getResultList();
     }
 
     @Override

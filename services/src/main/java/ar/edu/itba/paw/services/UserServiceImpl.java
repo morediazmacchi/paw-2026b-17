@@ -2,8 +2,8 @@
 package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.dto.UserRegistrationDTO;
-import ar.edu.itba.paw.model.InboxMessage;
 import ar.edu.itba.paw.model.InboxMessageType;
+import ar.edu.itba.paw.model.PublicUser;
 import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.model.SupportedLocale;
 import ar.edu.itba.paw.model.TokenPurpose;
@@ -11,10 +11,7 @@ import ar.edu.itba.paw.model.Image;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.UserAccess;
 import ar.edu.itba.paw.model.VerificationToken;
-import ar.edu.itba.paw.persistence.EventInvitationDao;
-import ar.edu.itba.paw.persistence.InboxMessageDao;
 import ar.edu.itba.paw.persistence.UserDao;
-import ar.edu.itba.paw.persistence.VerificationTokenDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.i18n.LocaleContextHolder;
@@ -38,31 +35,29 @@ public class UserServiceImpl implements UserService {
     private static final long RESET_TOKEN_TTL_MILLIS = 60 * 60 * 1000L;       // 1h
 
     private final UserDao userDao;
-    private final VerificationTokenDao tokenDao;
+    private final VerificationTokenService tokenService;
     private final PasswordEncoder passwordEncoder;
-    private final NotificationService notificationService;
-    // Reconciliacion del Grupo B (ver schema.sql): habla directo con los DAOs,
-    // no con EventInvitationService/InboxService, para no depender de la capa
-    // de servicios (evita un ciclo y esto no necesita nada de su logica de
-    // negocio, es un simple UPDATE por email).
-    private final EventInvitationDao invitationDao;
-    private final InboxMessageDao inboxMessageDao;
-    // Para anunciar que a alguien se le quito acceso (ver UserAccessRevokedEvent).
+    // Los mails de la cuenta (confirmar, restablecer clave, suspension): reciben la cuenta ya cargada, no consultan
+    // nada. NotificationService (los avisos de eventos) si busca cuentas, asi que depende de este service y no al reves.
+    private final AccountNotificationService notificationService;
+    // Los avisos de la bandeja de la cuenta (suspendida / reactivada).
+    private final InboxService inboxService;
+    // Para anunciar lo que le paso a una cuenta (ver UserAccessRevokedEvent y UserRegisteredEvent): quienes lo
+    // escuchan dependen de este service, asi que este no puede depender de ellos.
     private final ApplicationEventPublisher eventPublisher;
     // Para guardar (y validar) la foto de portada del perfil.
     private final ImageService imageService;
 
     @Autowired
-    public UserServiceImpl(final UserDao userDao, final VerificationTokenDao tokenDao,
-                           final PasswordEncoder passwordEncoder, final NotificationService notificationService,
-                           final EventInvitationDao invitationDao, final InboxMessageDao inboxMessageDao,
+    public UserServiceImpl(final UserDao userDao, final VerificationTokenService tokenService,
+                           final PasswordEncoder passwordEncoder,
+                           final AccountNotificationService notificationService, final InboxService inboxService,
                            final ApplicationEventPublisher eventPublisher, final ImageService imageService) {
         this.userDao = userDao;
-        this.tokenDao = tokenDao;
+        this.tokenService = tokenService;
         this.passwordEncoder = passwordEncoder;
         this.notificationService = notificationService;
-        this.invitationDao = invitationDao;
-        this.inboxMessageDao = inboxMessageDao;
+        this.inboxService = inboxService;
         this.eventPublisher = eventPublisher;
         this.imageService = imageService;
     }
@@ -77,6 +72,12 @@ public class UserServiceImpl implements UserService {
     @Transactional(readOnly = true)
     public Optional<UserAccess> findAccessById(final long id) {
         return userDao.findAccessById(id);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<PublicUser> findActivePublicById(final long id) {
+        return userDao.findActivePublicById(id);
     }
 
     @Override
@@ -143,9 +144,9 @@ public class UserServiceImpl implements UserService {
         // Reconciliacion del Grupo B: si esta persona ya venia con invitaciones
         // o avisos de bandeja sin resolver (invitada sin cuenta, ver
         // EventInvitationServiceImpl.invite()/InboxServiceImpl.add()), ahora
-        // que tiene un id se los enlazamos. No hace nada si no tenia ninguno.
-        invitationDao.linkUserId(normalizedEmail, userId);
-        inboxMessageDao.linkUserId(normalizedEmail, userId);
+        // que tiene un id se los enlazamos. Lo hace UserRegistrationListener al escuchar este anuncio (en esta misma
+        // transaccion); no hace nada si no tenia ninguno.
+        eventPublisher.publishEvent(new UserRegisteredEvent(normalizedEmail, userId));
         // El hash recien aca, despues del chequeo de EMAIL_TAKEN: BCrypt es lento
         // a proposito y no tiene sentido pagarlo si el registro se rechaza.
         userDao.setPassword(userId, passwordEncoder.encode(data.getRawPassword()));
@@ -175,7 +176,7 @@ public class UserServiceImpl implements UserService {
         }
         final long userId = found.get().getUserId();
         userDao.setVerified(userId, true);
-        tokenDao.delete(token);
+        tokenService.delete(token);
         return userDao.findById(userId);
     }
 
@@ -198,7 +199,7 @@ public class UserServiceImpl implements UserService {
         return userDao.findByEmail(email.trim().toLowerCase())
                 .filter(user -> user.getPassword() != null)
                 .map(user -> {
-                    tokenDao.deleteByUserAndPurpose(user.getId(), TokenPurpose.RESET_PASSWORD);
+                    tokenService.deleteByUserAndPurpose(user.getId(), TokenPurpose.RESET_PASSWORD);
                     final String token = newToken(user, TokenPurpose.RESET_PASSWORD, RESET_TOKEN_TTL_MILLIS);
                     notificationService.notifyPasswordReset(user, token);
                     return true;
@@ -224,7 +225,7 @@ public class UserServiceImpl implements UserService {
         }
         final long userId = found.get().getUserId();
         userDao.setPassword(userId, passwordEncoder.encode(newPassword));
-        tokenDao.delete(token);
+        tokenService.delete(token);
         // Cualquier sesion que ya tuviera esa cuenta deja de valer (por eso se pidio restablecer la clave).
         eventPublisher.publishEvent(new UserCredentialsChangedEvent(userId, false));
         return PasswordResetResult.OK;
@@ -236,7 +237,7 @@ public class UserServiceImpl implements UserService {
     }
 
     private void sendVerificationEmail(final User user, final String redirectAfterConfirm) {
-        tokenDao.deleteByUserAndPurpose(user.getId(), TokenPurpose.VERIFY_EMAIL);
+        tokenService.deleteByUserAndPurpose(user.getId(), TokenPurpose.VERIFY_EMAIL);
         final String token = newToken(user, TokenPurpose.VERIFY_EMAIL, VERIFY_TOKEN_TTL_MILLIS);
         notificationService.notifyAccountVerification(user, token, redirectAfterConfirm);
     }
@@ -244,12 +245,12 @@ public class UserServiceImpl implements UserService {
     private String newToken(final User user, final TokenPurpose purpose, final long ttlMillis) {
         final String token = UUID.randomUUID().toString();
         final Date expiresAt = new Date(System.currentTimeMillis() + ttlMillis);
-        tokenDao.create(token, user, purpose, expiresAt);
+        tokenService.create(token, user, purpose, expiresAt);
         return token;
     }
 
     private Optional<VerificationToken> validToken(final String token, final TokenPurpose purpose) {
-        return tokenDao.findByToken(token)
+        return tokenService.findByToken(token)
                 .filter(t -> t.getPurpose() == purpose)
                 .filter(t -> t.getExpiresAt().after(new Date()));
     }
@@ -390,13 +391,8 @@ public class UserServiceImpl implements UserService {
         return RevokeAdminResult.OK;
     }
 
-    // Igual que InboxServiceImpl.add(), pero sin pasar por ese service (evitaria
-    // una dependencia circular: InboxServiceImpl ya depende de UserService para
-    // resolver el userId por email, algo que aca ni hace falta -- ya tenemos el
-    // User entero). eventId siempre null: son avisos de cuenta, no de un evento.
+    // Aviso de cuenta en la bandeja de esa persona. eventId siempre null: son avisos de cuenta, no de un evento.
     private void addInboxMessage(final User user, final InboxMessageType type, final String body) {
-        final InboxMessage message = new InboxMessage(user.getEmail(), type, null, null, body);
-        message.setUser(user);
-        inboxMessageDao.create(message);
+        inboxService.add(user.getEmail(), type, null, null, body);
     }
 }

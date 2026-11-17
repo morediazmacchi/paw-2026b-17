@@ -1,6 +1,7 @@
 // Implementa el contrato ModerationService (modulo services-contracts).
 package ar.edu.itba.paw.services;
 
+import ar.edu.itba.paw.model.AdminEventSort;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventReport;
 import ar.edu.itba.paw.model.InboxMessageType;
@@ -30,16 +31,18 @@ public class ModerationServiceImpl implements ModerationService {
     private final UserService userService;
     private final NotificationService notificationService;
     private final InboxService inboxService;
+    private final RegistrationService registrationService;
 
     @Autowired
     public ModerationServiceImpl(final EventReportDao eventReportDao, final EventService eventService,
                                   final UserService userService, final NotificationService notificationService,
-                                  final InboxService inboxService) {
+                                  final InboxService inboxService, final RegistrationService registrationService) {
         this.eventReportDao = eventReportDao;
         this.eventService = eventService;
         this.userService = userService;
         this.notificationService = notificationService;
         this.inboxService = inboxService;
+        this.registrationService = registrationService;
     }
 
     private static boolean isBlankOrLongerThan(final String text, final int max) {
@@ -182,5 +185,12 @@ public class ModerationServiceImpl implements ModerationService {
             userService.suspend(event.get().getCreatorId());
         }
         return ReportResolutionResult.RESOLVED;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResult<EventWithRegistrationStats> findAllEventsPage(final String titleQuery, final AdminEventSort sort,
+                                                                    final int page) {
+        return registrationService.withRegistrationStats(eventService.findAllEventsPage(titleQuery, sort, page));
     }
 }

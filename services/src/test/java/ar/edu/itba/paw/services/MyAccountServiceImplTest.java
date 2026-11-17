@@ -4,6 +4,7 @@ import ar.edu.itba.paw.model.ChatGroup;
 import ar.edu.itba.paw.model.EventInvitation;
 import ar.edu.itba.paw.model.InboxMessage;
 import ar.edu.itba.paw.model.Registration;
+import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.Review;
 import ar.edu.itba.paw.model.SavedSearch;
 import org.junit.Before;
@@ -90,7 +91,11 @@ public class MyAccountServiceImplTest {
     @Test
     public void testFindMyEventsUsesEachIndexForItsOwnList() {
         // Arrange
-        when(eventService.findMyEventsPage(USER_ID, 2))
+        // Cada paso solo responde con lo que le da el anterior (mismo objeto): la pagina de eventos del creador pasa
+        // por withRegistrationStats().
+        final PageResult<Event> eventsPage = MyAccountServiceImplTest.<Event>pageNumber(2);
+        when(eventService.findPageByCreatorId(USER_ID, 2)).thenReturn(eventsPage);
+        when(registrationService.withRegistrationStats(eventsPage))
                 .thenReturn(MyAccountServiceImplTest.<EventWithRegistrationStats>pageNumber(2));
         when(reviewService.findCreatorReputation(USER_ID, 5))
                 .thenReturn(new CreatorReputation(MyAccountServiceImplTest.<Review>pageNumber(5), 4.5, Collections.emptyMap()));
