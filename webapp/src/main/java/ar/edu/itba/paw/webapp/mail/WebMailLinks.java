@@ -76,4 +76,9 @@ public class WebMailLinks implements MailLinks {
     public String resetPassword(final String token) {
         return baseUrl + "/login/restablecer?token=" + token;
     }
+
+    @Override
+    public String forgotPassword() {
+        return baseUrl + "/login/recuperar";
+    }
 }

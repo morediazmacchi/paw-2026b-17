@@ -1,7 +1,9 @@
 // Implementa el contrato SavedSearchDao (modulo persistence-contracts) con JPA/Hibernate.
 package ar.edu.itba.paw.persistence;
 
+import java.util.stream.Collectors;
 import ar.edu.itba.paw.model.Barrio;
+import ar.edu.itba.paw.model.Category;
 import ar.edu.itba.paw.model.SavedSearch;
 import ar.edu.itba.paw.model.User;
 import org.springframework.stereotype.Repository;
@@ -22,15 +24,20 @@ public class SavedSearchJpaDao implements SavedSearchDao {
     private EntityManager em;
 
     @Override
-    public SavedSearch create(final long userId, final Collection<Long> categoryIds, final Collection<Barrio> barrios,
-                              final BigDecimal minPrice, final BigDecimal maxPrice,
-                              final Date fromDate, final Date toDate) {
-        final User user = em.find(User.class, userId);
-        if (user == null) {
-            throw new IllegalArgumentException("No existe el usuario " + userId);
-        }
-        final SavedSearch search = new SavedSearch(user, categoryIds, barrios, minPrice, maxPrice, fromDate, toDate);
+    public SavedSearch create(final long userId, final Collection<Long> categoryIds,
+                              final Collection<Barrio> barrios, final BigDecimal minPrice,
+                              final BigDecimal maxPrice, final Date fromDate, final Date toDate) {
+        // De la duenia solo hace falta el id (la FK): getReference no consulta ni carga al usuario.
+        final User user = em.getReference(User.class, userId);
+        // De cada categoria alcanza con una referencia (con su id): una que no existe viola la clave foranea de
+        // saved_search_category al guardar.
+        final List<Category> categories = categoryIds == null ? Collections.<Category>emptyList()
+                : categoryIds.stream().map(id -> em.getReference(Category.class, id)).collect(Collectors.toList());
+        final SavedSearch search = new SavedSearch(user, categories, barrios, minPrice, maxPrice, fromDate, toDate);
         em.persist(search);
+        // flush: que los INSERT (la busqueda y sus filtros) salgan ahora, asi un UNIQUE violado (otro pedido casi
+        // simultaneo con los mismos filtros se nos adelanto) sale de este metodo y no de un flush posterior.
+        em.flush();
         return search;
     }
 
@@ -67,7 +74,7 @@ public class SavedSearchJpaDao implements SavedSearchDao {
         // DISTINCT: el JOIN con las dos colecciones repite la fila de cada busqueda. El ORDER BY es el MISMO de la
         // consulta de ids (el IN no ordena nada).
         return em.createQuery(
-                        "SELECT DISTINCT s FROM SavedSearch s LEFT JOIN FETCH s.categoryIds "
+                        "SELECT DISTINCT s FROM SavedSearch s LEFT JOIN FETCH s.categories "
                                 + "LEFT JOIN FETCH s.barrios WHERE s.id IN :ids "
                                 + "ORDER BY s.createdAt DESC, s.id DESC", SavedSearch.class)
                 .setParameter("ids", ids)
@@ -101,10 +108,17 @@ public class SavedSearchJpaDao implements SavedSearchDao {
     }
 
     @Override
+    public Optional<Date> findOldestLastCheckedAt() {
+        // MIN sobre una tabla vacia devuelve NULL (una fila con null): Optional.ofNullable lo vuelve "vacio".
+        return Optional.ofNullable(em.createQuery("SELECT MIN(s.lastCheckedAt) FROM SavedSearch s", Date.class)
+                .getSingleResult());
+    }
+
+    @Override
     public Optional<SavedSearch> findByIdWithFilters(final long id) {
         // DISTINCT: el JOIN con las dos colecciones repite la fila; asi vuelve una sola busqueda.
         return em.createQuery("SELECT DISTINCT s FROM SavedSearch s JOIN FETCH s.user "
-                        + "LEFT JOIN FETCH s.categoryIds LEFT JOIN FETCH s.barrios WHERE s.id = :id",
+                        + "LEFT JOIN FETCH s.categories LEFT JOIN FETCH s.barrios WHERE s.id = :id",
                         SavedSearch.class)
                 .setParameter("id", id)
                 .getResultList().stream().findFirst();

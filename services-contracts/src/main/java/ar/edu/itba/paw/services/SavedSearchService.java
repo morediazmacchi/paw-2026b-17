@@ -47,6 +47,13 @@ public interface SavedSearchService {
     List<Long> findIdsAfter(long afterId, int limit);
 
     /**
+     * Chequeo barato antes de recorrer todas las busquedas: false si desde la marca de "ultimo aviso" MAS VIEJA no se
+     * aprobo ningun evento (entonces ninguna busqueda tiene nada que avisar y no hace falta mirarlas una por una), o si
+     * no hay busquedas guardadas. true no asegura que alguna coincida: solo que vale la pena recorrerlas.
+     */
+    boolean mayHaveNewEvents();
+
+    /**
      * Si desde el ultimo aviso se aprobaron eventos que cumplen la busqueda, le avisa a su duenio (bandeja + mail
      * despues del commit) y corre la marca de "ultimo aviso". Una transaccion por busqueda. true si hubo aviso.
      */

@@ -478,6 +478,19 @@ public class UserJpaDaoTest {
         assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "users", "id = " + id + " AND suspended = false"));
     }
 
+    @Test
+    public void testSetSuspendedToTheValueItAlreadyHasChangesNothingAndReturnsFalse() {
+        // Arrange: ya esta suspendida
+        final long id = insertUser(EMAIL, NAME);
+        jdbcTemplate.update("UPDATE users SET suspended = true WHERE id = ?", id);
+
+        // Act
+        final boolean result = userDao.setSuspended(id, true);
+
+        // Assert
+        assertFalse(result);
+    }
+
     // ---- count() / findPage(): sin texto ----
 
     @Test

@@ -1,5 +1,4 @@
-// Contrato de persistencia para VerificationToken. Implementacion:
-// VerificationTokenJdbcDao (modulo persistence).
+// Contrato de persistencia para VerificationToken. Implementacion: VerificationTokenJpaDao (modulo persistence).
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.TokenPurpose;

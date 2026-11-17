@@ -149,6 +149,9 @@ public class MailConfig {
      * mail lo mande el hilo que pidio (o sea, se vuelve bloqueante) en vez de
      * descartarlo. Preferimos que el usuario espere antes que perder un mail.
      *
+     * Al bajar o redesplegar la app, el pool espera (hasta 30 segundos) a que terminen los mails que
+     * ya estaban en marcha o en la cola, en vez de descartarlos.
+     *
      * El pool va envuelto en AfterCommitTaskExecutor: los mails que se piden
      * adentro de una transaccion salen recien despues del COMMIT.
      */
@@ -159,6 +162,8 @@ public class MailConfig {
         executor.setMaxPoolSize(5);
         executor.setQueueCapacity(50);
         executor.setThreadNamePrefix("mail-");
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(30);
         executor.setRejectedExecutionHandler(new java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy());
         executor.initialize();
         return new AfterCommitTaskExecutor(executor);

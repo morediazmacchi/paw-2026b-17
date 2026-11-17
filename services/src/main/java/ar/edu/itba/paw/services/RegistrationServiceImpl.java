@@ -65,9 +65,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         // simultaneos del mismo usuario ahora se serializan en este lock (el
         // segundo espera a que el primero termine su transaccion), en vez de
         // pasar los dos el chequeo de "existing" y recien chocar contra el
-        // UNIQUE(event_id, email) al insertar -- que era lo que obligaba al
-        // controller a reintentar en una segunda transaccion (ver
-        // EventRegistrationController.registerRetryingOnConflict()).
+        // UNIQUE(event_id, email) al insertar.
         // Evento inexistente: el 404 ya lo da @PreAuthorize en el controller antes de llegar aca; esto solo
         // se alcanza si desaparece justo en el medio (carrera). Es la excepcion de siempre (ErrorAdvice
         // la mapea a 404), no un resultado: los resultados son para conflictos de negocio.
@@ -123,8 +121,8 @@ public class RegistrationServiceImpl implements RegistrationService {
         // Quien se anota siempre esta logueado (el endpoint lo exige, ver
         // EventRegistrationController.rsvp()): no hace falta userService.findOrCreate() para garantizar
         // una fila en users, el Principal autenticado ya la implica.
-        final Registration registration = new Registration(event, user, normalizedEmail, user.getName(), status);
-        registrationDao.create(registration);
+        final Registration registration =
+                registrationDao.create(eventId, userId, normalizedEmail, user.getName(), status);
 
         // Tres avisos posibles, siempre en otro hilo: uno a la persona y otro al
         // dueno del evento. Lo que cambia es el texto, no la logica. Sin este if,
@@ -280,23 +278,18 @@ public class RegistrationServiceImpl implements RegistrationService {
         }
     }
 
-    // Cada inscripcion con su evento (una sola consulta para todos) y, en las de eventos pasados, la
-    // reseña propia (otra sola consulta).
+    // Cada inscripcion con su evento (ya viene cargado con la inscripcion) y, en las de eventos pasados, la
+    // reseña propia (una sola consulta para todas).
     private List<RegistrationEntry> toEntries(final List<Registration> registrations, final long userId,
                                               final boolean withReviews) {
         final List<Long> eventIds = registrations.stream().map(Registration::getEventId).collect(Collectors.toList());
-        final Map<Long, Event> eventsById = eventService.findByIds(eventIds).stream()
-                .collect(Collectors.toMap(Event::getId, event -> event));
         final Map<Long, Review> reviewsByEventId = withReviews
                 ? reviewService.findByEventsAndUser(eventIds, userId).stream()
                         .collect(Collectors.toMap(Review::getEventId, review -> review))
                 : Collections.emptyMap();
         final List<RegistrationEntry> entries = new ArrayList<>();
         for (final Registration registration : registrations) {
-            final Event event = eventsById.get(registration.getEventId());
-            if (event == null) {
-                continue;
-            }
+            final Event event = registration.getEvent();
             final Review myReview = reviewsByEventId.get(registration.getEventId());
             // Solo en las pasadas: se puede reseñar si el evento es reseñable, tuvo su lugar confirmado y no la
             // dejo todavia (misma regla que ReviewService.create()); si no fue, se dice por que.
@@ -396,7 +389,8 @@ public class RegistrationServiceImpl implements RegistrationService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public UnregisterResult cancelOwnRegistration(final long eventId, final long userId) {
-        eventService.findById(eventId).orElseThrow(() -> new EventNotFoundException(eventId));
+        // Sin inscripcion de esta persona en ese evento, NOT_FOUND: sea porque no se anoto o porque el evento no existe
+        // (no se distingue: quien pide no tiene por que enterarse de que un evento existe si no puede verlo).
         // cancel() tiene los mismos atributos transaccionales que este metodo: la llamada directa se une a esta transaccion.
         return registrationDao.findByEventAndUserId(eventId, userId)
                 .map(r -> cancel(r.getId()))
@@ -441,17 +435,15 @@ public class RegistrationServiceImpl implements RegistrationService {
 
     @Override
     @Transactional(readOnly = true)
-    public PageResult<Registration> findPageByEventId(final long eventId, final int page) {
+    public Optional<EventRegistrants> findRegistrants(final long eventId, final int page) {
+        return eventService.findById(eventId).map(event -> new EventRegistrants(event, registrantsPage(eventId, page)));
+    }
+
+    private PageResult<Registration> registrantsPage(final long eventId, final int page) {
         final long total = registrationDao.countByEventId(eventId);
         final int effectivePage = PageResult.clampPage(page, total, PAGE_SIZE);
         return new PageResult<>(registrationDao.findByEventId(eventId, effectivePage, PAGE_SIZE),
                 total, effectivePage, PAGE_SIZE);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public Optional<EventRegistrants> findRegistrants(final long eventId, final int page) {
-        return eventService.findById(eventId).map(event -> new EventRegistrants(event, findPageByEventId(eventId, page)));
     }
 
     @Override

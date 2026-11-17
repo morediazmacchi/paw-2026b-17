@@ -21,7 +21,7 @@ import ar.edu.itba.paw.model.Barrio;
  *
  *   barrio, bsim : los 48 centroides (VALUES generado desde el enum Barrio; no hay tabla de barrios) y la
  *                  similitud de barrio de cada par de barrios (48 x 48, haversine)
- *   cand, att    : los candidatos (el mismo WHERE del listado, buildSearchFilter) y la bolsa, con sus datos
+ *   cand, att    : los candidatos (el mismo WHERE del listado, EventSearchSql.filterFor) y la bolsa, con sus datos
  *                  derivados (hora, dia, cantidad de categorias), calculados UNA vez por evento
  *   pop, pct     : la distribucion de precios y el percentil de cada precio que aparece en cand/att
  *   inter        : categorias en comun de cada par (candidato, bolsa) que comparten alguna

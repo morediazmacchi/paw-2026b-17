@@ -67,8 +67,6 @@ public class TestConfig {
         // se cargan de a tandas de hasta 16 con un solo SELECT ... IN (...), en vez de una consulta
         // por cada fila (el problema "N+1").
         props.setProperty("hibernate.default_batch_fetch_size", "16");
-        props.setProperty("hibernate.show_sql", "true");
-        props.setProperty("format_sql", "true");
         factory.setJpaProperties(props);
         return factory;
     }

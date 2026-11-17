@@ -1,8 +1,6 @@
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.EventQuestion;
-import ar.edu.itba.paw.model.Event;
-import ar.edu.itba.paw.model.User;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -96,11 +94,8 @@ public class EventQuestionJpaDaoTest {
 
     @Test
     public void testCreateInsertsTheQuestionRow() {
-        // Arrange
-        final EventQuestion toCreate = new EventQuestion(em.getReference(Event.class, eventId), em.getReference(User.class, userId), "Hay estacionamiento?");
-
         // Act
-        final EventQuestion created = questionDao.create(toCreate);
+        final EventQuestion created = questionDao.create(eventId, userId, "Hay estacionamiento?");
 
         // Assert
         final Map<String, Object> row = jdbcTemplate.queryForMap(
@@ -112,11 +107,8 @@ public class EventQuestionJpaDaoTest {
 
     @Test
     public void testCreateLeavesTheQuestionUnanswered() {
-        // Arrange
-        final EventQuestion toCreate = new EventQuestion(em.getReference(Event.class, eventId), em.getReference(User.class, userId), "Hay estacionamiento?");
-
         // Act
-        final EventQuestion created = questionDao.create(toCreate);
+        final EventQuestion created = questionDao.create(eventId, userId, "Hay estacionamiento?");
 
         // Assert
         assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
@@ -125,11 +117,8 @@ public class EventQuestionJpaDaoTest {
 
     @Test
     public void testCreateSetsCreatedAtAutomatically() {
-        // Arrange
-        final EventQuestion toCreate = new EventQuestion(em.getReference(Event.class, eventId), em.getReference(User.class, userId), "Hay estacionamiento?");
-
         // Act
-        final EventQuestion created = questionDao.create(toCreate);
+        final EventQuestion created = questionDao.create(eventId, userId, "Hay estacionamiento?");
 
         // Assert
         final Timestamp createdAt = jdbcTemplate.queryForObject(
@@ -232,22 +221,6 @@ public class EventQuestionJpaDaoTest {
     }
 
     // ---- countByEvent() ----
-
-    @Test
-    public void testCreateWithAnAskerBuiltFromTheSessionStoresItsId() {
-        // Arrange
-        final User fromSession = new User("pregunta@mail.com", "Ana");
-        fromSession.setId(userId);
-        final EventQuestion toCreate = new EventQuestion(em.getReference(Event.class, eventId), fromSession, "Hay lugar?");
-
-        // Act
-        final EventQuestion created = questionDao.create(toCreate);
-
-        // Assert
-        final Long storedUserId = jdbcTemplate.queryForObject(
-                "SELECT user_id FROM event_question WHERE id = ?", Long.class, created.getId());
-        assertEquals(userId, storedUserId.longValue());
-    }
 
     @Test
     public void testCountByEventCountsOnlyThatEventsQuestions() {

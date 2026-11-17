@@ -32,12 +32,10 @@ public class ImageJpaDao implements ImageDao {
 
     @Override
     public boolean delete(final long id) {
-        final Image image = em.find(Image.class, id);
-        if (image == null) {
-            return false;
-        }
-        em.remove(image);
-        return true;
+        // Un DELETE directo: no hace falta cargar la imagen (con sus bytes) solo para borrarla.
+        return em.createQuery("DELETE FROM Image i WHERE i.id = :id")
+                .setParameter("id", id)
+                .executeUpdate() > 0;
     }
 
     @Override

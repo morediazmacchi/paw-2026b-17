@@ -1,7 +1,7 @@
 package ar.edu.itba.paw.model;
 
 /**
- * Los roles que puede tener un usuario (correccion 13). Antes eran Strings sueltos
+ * Los roles que puede tener un usuario. Antes eran Strings sueltos
  * ("ROLE_ADMIN", ...): aceptaban cualquier valor y el literal se repetia por todo el codigo.
  *
  * En la base (tabla user_role) se guarda el nombre tal cual: USER, ADMIN, SUPERADMIN.

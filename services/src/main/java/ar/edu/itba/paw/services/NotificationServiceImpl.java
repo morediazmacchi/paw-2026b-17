@@ -14,8 +14,6 @@ import org.springframework.context.MessageSource;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
-import java.text.DateFormat;
-import java.text.NumberFormat;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -52,153 +50,222 @@ public class NotificationServiceImpl implements NotificationService {
     @Async
     @Override
     public void notifyEventPendingApproval(final Event event, final String creatorName) {
-        try {
+        attempt("Fallo la notificacion de evento pendiente de aprobacion", event, () -> {
             final Locale locale = localeForUserId(event.getCreatorId());
-            final Map<String, Object> variables = eventVariables(event, locale);
-            variables.put("personName", displayName(creatorName, event.getCreatorEmail()));
-
-            mailService.send(event.getCreatorEmail(),
-                    "event-pending-approval",
-                    "mail.eventPendingApproval.subject",
-                    new Object[]{ event.getTitle() },
-                    variables,
-                    locale);
-        } catch (final RuntimeException e) {
-            LOGGER.error("Fallo la notificacion de evento pendiente de aprobacion, evento {}", event.getId(), e);
-        }
+            sendEventMail(event.getCreatorEmail(), "event-pending-approval", "mail.eventPendingApproval.subject",
+                    event, locale, MailFormats.displayName(creatorName, event.getCreatorEmail()), variables -> { });
+        });
     }
+
+    // ---- A quien se anoto ----
 
     @Async
     @Override
     public void notifyRegistrationConfirmed(final Event event, final Registration registration) {
-        try {
-            final Locale locale = localeForUserId(registration.getUserId());
-            final Map<String, Object> variables = eventVariables(event, locale);
-            variables.put("personName", displayName(registration.getName(), registration.getEmail()));
-            // El CTA manda a "Mis inscripciones", no al evento: quien se anoto ya
-            // esta viendo estos datos en este mismo mail, lo util es llevarlo a
-            // donde puede gestionar (o mas adelante reseñar) sus inscripciones.
-            variables.put("registrationsUrl", links.registrations());
-
-            mailService.send(registration.getEmail(),
-                    "registration-confirmed",
-                    "mail.registrationConfirmed.subject",
-                    new Object[]{ event.getTitle() },
-                    variables,
-                    locale);
-        } catch (final RuntimeException e) {
-            LOGGER.error("Fallo la notificacion de inscripcion confirmada, evento {}", event.getId(), e);
-        }
-    }
-
-    @Async
-    @Override
-    public void notifyNewRegistration(final Event event, final Registration registration) {
-        try {
-            final Recipient creator = creatorOf(event);
-            final Locale locale = creator.locale();
-            final Map<String, Object> variables = eventVariables(event, locale);
-            variables.put("personName", displayName(creator.name(), event.getCreatorEmail()));
-            variables.put("registrantName", displayName(registration.getName(), registration.getEmail()));
-            variables.put("registrantEmail", registration.getEmail());
-
-            mailService.send(event.getCreatorEmail(),
-                    "new-registration",
-                    "mail.newRegistration.subject",
-                    new Object[]{ event.getTitle() },
-                    variables,
-                    locale);
-        } catch (final RuntimeException e) {
-            LOGGER.error("Fallo la notificacion de inscripcion nueva, evento {}", event.getId(), e);
-        }
+        // El CTA manda a "Mis inscripciones", no al evento: quien se anoto ya esta viendo estos datos en este mismo
+        // mail, lo util es llevarlo a donde puede gestionar (o mas adelante reseñar) sus inscripciones.
+        toRegistrant(event, registration, "registration-confirmed", "mail.registrationConfirmed.subject",
+                "Fallo la notificacion de inscripcion confirmada", links.registrations(), "registrationsUrl");
     }
 
     @Async
     @Override
     public void notifyRegistrationPending(final Event event, final Registration registration) {
-        try {
-            final Locale locale = localeForUserId(registration.getUserId());
-            final Map<String, Object> variables = eventVariables(event, locale);
-            variables.put("personName", displayName(registration.getName(), registration.getEmail()));
-            variables.put("registrationsUrl", links.registrations());
-
-            mailService.send(registration.getEmail(),
-                    "registration-pending",
-                    "mail.registrationPending.subject",
-                    new Object[]{ event.getTitle() },
-                    variables,
-                    locale);
-        } catch (final RuntimeException e) {
-            LOGGER.error("Fallo la notificacion de inscripcion pendiente, evento {}", event.getId(), e);
-        }
-    }
-
-    @Async
-    @Override
-    public void notifyNewPendingRegistration(final Event event, final Registration registration) {
-        try {
-            final Recipient creator = creatorOf(event);
-            final Locale locale = creator.locale();
-            final Map<String, Object> variables = eventVariables(event, locale);
-            variables.put("personName", displayName(creator.name(), event.getCreatorEmail()));
-            variables.put("registrantName", displayName(registration.getName(), registration.getEmail()));
-            variables.put("registrantEmail", registration.getEmail());
-            // Manda directo al evento: ahi vive la pantalla de aceptar/rechazar
-            // (ver ProfileController), no hace falta un link aparte.
-            variables.put("reviewUrl", links.pendingRequests(event.getId()));
-
-            mailService.send(event.getCreatorEmail(),
-                    "new-pending-registration",
-                    "mail.newPendingRegistration.subject",
-                    new Object[]{ event.getTitle() },
-                    variables,
-                    locale);
-        } catch (final RuntimeException e) {
-            LOGGER.error("Fallo el aviso de inscripcion pendiente al creador, evento {}", event.getId(), e);
-        }
+        toRegistrant(event, registration, "registration-pending", "mail.registrationPending.subject",
+                "Fallo la notificacion de inscripcion pendiente", links.registrations(), "registrationsUrl");
     }
 
     @Async
     @Override
     public void notifyRegistrationApproved(final Event event, final Registration registration) {
-        try {
-            final Locale locale = localeForUserId(registration.getUserId());
-            final Map<String, Object> variables = eventVariables(event, locale);
-            variables.put("personName", displayName(registration.getName(), registration.getEmail()));
-            variables.put("registrationsUrl", links.registrations());
-
-            mailService.send(registration.getEmail(),
-                    "registration-approved",
-                    "mail.registrationApproved.subject",
-                    new Object[]{ event.getTitle() },
-                    variables,
-                    locale);
-        } catch (final RuntimeException e) {
-            LOGGER.error("Fallo la notificacion de inscripcion aprobada, evento {}", event.getId(), e);
-        }
+        toRegistrant(event, registration, "registration-approved", "mail.registrationApproved.subject",
+                "Fallo la notificacion de inscripcion aprobada", links.registrations(), "registrationsUrl");
     }
 
     @Async
     @Override
     public void notifyRegistrationRejected(final Event event, final Registration registration) {
-        try {
-            final Locale locale = localeForUserId(registration.getUserId());
-            final Map<String, Object> variables = eventVariables(event, locale);
-            variables.put("personName", displayName(registration.getName(), registration.getEmail()));
-            variables.put("eventsUrl", links.events());
+        toRegistrant(event, registration, "registration-rejected", "mail.registrationRejected.subject",
+                "Fallo la notificacion de inscripcion rechazada", links.events(), "eventsUrl");
+    }
 
-            mailService.send(registration.getEmail(),
-                    "registration-rejected",
-                    "mail.registrationRejected.subject",
-                    new Object[]{ event.getTitle() },
-                    variables,
-                    locale);
+    @Async
+    @Override
+    public void notifyWaitlistJoined(final Event event, final Registration registration) {
+        // Mismo CTA que el mail de inscripcion confirmada: desde "Mis inscripciones" puede salirse de la lista si ya
+        // no le interesa.
+        toRegistrant(event, registration, "waitlist-joined", "mail.waitlistJoined.subject",
+                "Fallo la notificacion de lista de espera", links.registrations(), "registrationsUrl");
+    }
+
+    @Async
+    @Override
+    public void notifyWaitlistPromoted(final Event event, final Registration registration) {
+        toRegistrant(event, registration, "waitlist-promoted", "mail.waitlistPromoted.subject",
+                "Fallo el aviso de lugar de la lista de espera", links.registrations(), "registrationsUrl");
+    }
+
+    @Async
+    @Override
+    public void notifyRegistrationRevoked(final Event event, final Registration registration) {
+        toRegistrant(event, registration, "registration-revoked", "mail.registrationRevoked.subject",
+                "Fallo el aviso de lugar revocado", links.events(), "eventsUrl");
+    }
+
+    // ---- A quien organiza el evento ----
+
+    @Async
+    @Override
+    public void notifyNewRegistration(final Event event, final Registration registration) {
+        toCreator(event, "new-registration", "mail.newRegistration.subject",
+                "Fallo la notificacion de inscripcion nueva", variables -> putRegistrant(variables, registration));
+    }
+
+    @Async
+    @Override
+    public void notifyNewPendingRegistration(final Event event, final Registration registration) {
+        // Manda directo al evento: ahi vive la pantalla de aceptar/rechazar (ver ProfileController), no hace falta un
+        // link aparte.
+        toCreator(event, "new-pending-registration", "mail.newPendingRegistration.subject",
+                "Fallo el aviso de inscripcion pendiente al creador", variables -> {
+                    putRegistrant(variables, registration);
+                    variables.put("reviewUrl", links.pendingRequests(event.getId()));
+                });
+    }
+
+    @Async
+    @Override
+    public void notifyNewWaitlistEntry(final Event event, final Registration registration) {
+        toCreator(event, "waitlist-new-entry", "mail.waitlistNewEntry.subject",
+                "Fallo el aviso de lista de espera al creador", variables -> putRegistrant(variables, registration));
+    }
+
+    @Async
+    @Override
+    public void notifyRegistrationCancelled(final Event event, final Registration registration,
+                                             final boolean offeredToWaitlist) {
+        toCreator(event, "registration-cancelled", "mail.registrationCancelled.subject",
+                "Fallo el aviso de baja al creador", variables -> {
+                    putRegistrant(variables, registration);
+                    // La plantilla elige entre dos parrafos con este booleano, asi los dos textos siguen viviendo en el
+                    // archivo de mensajes y no en el codigo.
+                    variables.put("offeredToWaitlist", offeredToWaitlist);
+                });
+    }
+
+    @Async
+    @Override
+    public void notifyEventFull(final Event event) {
+        toCreator(event, "event-full", "mail.eventFull.subject", "Fallo el aviso de evento completo", variables -> { });
+    }
+
+    @Async
+    @Override
+    public void notifyOrganizerEventReminder(final Event event) {
+        toCreator(event, "event-reminder-organizer", "mail.organizerReminder.subject",
+                "Fallo el recordatorio de 24 hs al organizador",
+                variables -> variables.put("attendeesUrl", links.attendees(event.getId())));
+    }
+
+    @Async
+    @Override
+    public void notifyNewQuestion(final Event event, final EventQuestion question,
+                                  final String askerName, final String askerEmail) {
+        toCreator(event, "new-question", "mail.newQuestion.subject", "Fallo el aviso de pregunta nueva", variables -> {
+            variables.put("askerName", MailFormats.displayName(askerName, askerEmail));
+            variables.put("questionText", question.getText());
+            // Directo a la sección de preguntas del detalle.
+            variables.put("eventUrl", links.eventQuestions(event.getId()));
+        });
+    }
+
+    @Async
+    @Override
+    public void notifyEventRemovedByAdmin(final Event event, final String reason) {
+        toCreator(event, "event-removed-by-admin", "mail.eventRemovedByAdmin.subject",
+                "Fallo el aviso de evento removido por un admin", variables -> {
+                    variables.put("reason", reason);
+                    variables.put("eventsUrl", links.events());
+                });
+    }
+
+    @Async
+    @Override
+    public void notifyEventApproved(final Event event) {
+        toCreator(event, "event-approved", "mail.eventApproved.subject", "Fallo el aviso de evento aprobado",
+                variables -> { });
+    }
+
+    @Async
+    @Override
+    public void notifyEventRejected(final Event event, final String reason) {
+        toCreator(event, "event-rejected", "mail.eventRejected.subject", "Fallo el aviso de evento rechazado",
+                variables -> {
+                    variables.put("reason", reason);
+                    // El evento rechazado nunca llega a ser accesible: el CTA va al listado general, no a eventUrl
+                    // (mismo criterio que notifyEventRemovedByAdmin).
+                    variables.put("eventsUrl", links.events());
+                });
+    }
+
+    @Async
+    @Override
+    public void notifyEventChangesRequested(final Event event, final String message) {
+        toCreator(event, "event-changes-requested", "mail.eventChangesRequested.subject",
+                "Fallo el aviso de cambios pedidos por un admin", variables -> {
+                    variables.put("message", message);
+                    // Al editar directo, no al detalle: es lo que la persona tiene que hacer.
+                    variables.put("editEventUrl", links.editEvent(event.getId()));
+                });
+    }
+
+    // ---- A otras personas ----
+
+    @Async
+    @Override
+    public void notifyEventInvitation(final Event event, final EventInvitation invitation) {
+        attempt("Fallo la invitacion al evento", event, () -> {
+            // invitation.getUserId() es optimista (ver el modelo): si es null todavia no tiene cuenta, y entonces se
+            // usa el idioma de quien lo invita.
+            final Recipient invitee = inviteeOf(event, invitation);
+            // Si tiene cuenta, el nombre sale de la misma lectura que el idioma; si no, solo se conoce el mail.
+            sendEventMail(invitation.getEmail(), "event-invitation", "mail.eventInvitation.subject", event,
+                    invitee.locale(), MailFormats.displayName(invitee.name(), invitation.getEmail()), variables -> { });
+        });
+    }
+
+    @Async
+    @Override
+    public void notifyQuestionAnswered(final Event event, final EventQuestion question,
+                                       final String askerName, final String askerEmail) {
+        attempt("Fallo el aviso de pregunta respondida", event, () ->
+                sendEventMail(askerEmail, "question-answered", "mail.questionAnswered.subject", event,
+                        localeFor(question.getUser()), MailFormats.displayName(askerName, askerEmail), variables -> {
+                            variables.put("questionText", question.getText());
+                            variables.put("answerText", question.getAnswer());
+                            variables.put("eventUrl", links.eventQuestions(event.getId()));
+                        }));
+    }
+
+    @Async
+    @Override
+    public void notifySavedSearchMatches(final User user, final long savedSearchId, final Event example,
+                                         final long newEventsCount) {
+        try {
+            sendMail(user.getEmail(), "saved-search-matches", "mail.savedSearchMatches.subject",
+                    new Object[]{ newEventsCount }, example, localeFor(user), MailFormats.displayName(user.getName(), user.getEmail()),
+                    variables -> {
+                        variables.put("newEventsCount", newEventsCount);
+                        variables.put("unsubscribeUrl", links.unsubscribeSavedSearch(savedSearchId));
+                    });
         } catch (final RuntimeException e) {
-            LOGGER.error("Fallo la notificacion de inscripcion rechazada, evento {}", event.getId(), e);
+            LOGGER.error("Fallo el aviso de busqueda guardada, usuario {}", user.getId(), e);
         }
     }
 
-    // Sin @Async a proposito: la tanda la manda MassNotifier, que ya corre en segundo plano y despues del commit.
+    // ---- Tandas (sin @Async a proposito: la tanda la manda MassNotifier, que ya corre en segundo plano y despues del
+    // commit) ----
+
     @Override
     public void notifyRegistrationPending(final Event event, final List<Registration> registrations) {
         notifyRegistrants(event, registrations, "registration-pending", "mail.registrationPending.subject",
@@ -206,7 +273,6 @@ public class NotificationServiceImpl implements NotificationService {
                 "Fallo la notificacion de inscripcion pendiente");
     }
 
-    // Sin @Async a proposito: la tanda la manda MassNotifier, que ya corre en segundo plano y despues del commit.
     @Override
     public void notifyWaitlistPromoted(final Event event, final List<Registration> registrations) {
         notifyRegistrants(event, registrations, "waitlist-promoted", "mail.waitlistPromoted.subject",
@@ -214,9 +280,33 @@ public class NotificationServiceImpl implements NotificationService {
                 "Fallo el aviso de lugar de la lista de espera");
     }
 
+    @Override
+    public void notifyWaitlistJoined(final Event event, final List<Registration> registrations) {
+        notifyRegistrants(event, registrations, "waitlist-joined", "mail.waitlistJoined.subject",
+                variables -> variables.put("registrationsUrl", links.registrations()),
+                "Fallo la notificacion de lista de espera");
+    }
+
+    @Override
+    public void notifyEventCancelled(final Event event, final List<Registration> registrations) {
+        notifyRegistrants(event, registrations, "event-cancelled", "mail.eventCancelled.subject",
+                variables -> variables.put("eventsUrl", links.events()), "Fallo el aviso de evento cancelado");
+    }
+
+    @Override
+    public void notifyEventUpdated(final Event event, final List<Registration> registrations) {
+        notifyRegistrants(event, registrations, "event-updated", "mail.eventUpdated.subject", variables -> { },
+                "Fallo el aviso de evento editado");
+    }
+
+    @Override
+    public void notifyEventReminder(final Event event, final List<Registration> registrations) {
+        notifyRegistrants(event, registrations, "event-reminder", "mail.eventReminder.subject", variables -> { },
+                "Fallo el recordatorio de 24 hs");
+    }
+
     // Un mail al organizador por cada pedido de la lista, pero el organizador (nombre e idioma) se busca UNA sola
     // vez y no una por pedido. Si el de uno falla, se sigue con los demas.
-    // Sin @Async a proposito: la tanda la manda MassNotifier, que ya corre en segundo plano y despues del commit.
     @Override
     public void notifyNewPendingRegistration(final Event event, final List<Registration> registrations) {
         if (registrations.isEmpty()) {
@@ -227,25 +317,18 @@ public class NotificationServiceImpl implements NotificationService {
         try {
             final Recipient creator = creatorOf(event);
             locale = creator.locale();
-            creatorName = displayName(creator.name(), event.getCreatorEmail());
+            creatorName = MailFormats.displayName(creator.name(), event.getCreatorEmail());
         } catch (final RuntimeException e) {
             LOGGER.error("Fallo el aviso de inscripcion pendiente al creador, evento {}", event.getId(), e);
             return;
         }
         for (final Registration registration : registrations) {
             try {
-                final Map<String, Object> variables = eventVariables(event, locale);
-                variables.put("personName", creatorName);
-                variables.put("registrantName", displayName(registration.getName(), registration.getEmail()));
-                variables.put("registrantEmail", registration.getEmail());
-                variables.put("reviewUrl", links.pendingRequests(event.getId()));
-
-                mailService.send(event.getCreatorEmail(),
-                        "new-pending-registration",
-                        "mail.newPendingRegistration.subject",
-                        new Object[]{ event.getTitle() },
-                        variables,
-                        locale);
+                sendEventMail(event.getCreatorEmail(), "new-pending-registration",
+                        "mail.newPendingRegistration.subject", event, locale, creatorName, variables -> {
+                            putRegistrant(variables, registration);
+                            variables.put("reviewUrl", links.pendingRequests(event.getId()));
+                        });
             } catch (final RuntimeException e) {
                 LOGGER.error("Fallo el aviso de inscripcion pendiente al creador, evento {}, inscripcion {}",
                         event.getId(), registration.getId(), e);
@@ -253,344 +336,6 @@ public class NotificationServiceImpl implements NotificationService {
         }
     }
 
-    @Async
-    @Override
-    public void notifyEventInvitation(final Event event, final EventInvitation invitation) {
-        try {
-            // invitation.getUserId() es optimista (ver el modelo): si es null todavia
-            // no tiene cuenta, y entonces se usa el idioma de quien lo invita.
-            final Recipient invitee = inviteeOf(event, invitation);
-            final Locale locale = invitee.locale();
-            final Map<String, Object> variables = eventVariables(event, locale);
-            // Si tiene cuenta, el nombre sale de la misma lectura que el idioma; si no, solo se conoce el mail.
-            variables.put("personName", displayName(invitee.name(), invitation.getEmail()));
-
-            mailService.send(invitation.getEmail(),
-                    "event-invitation",
-                    "mail.eventInvitation.subject",
-                    new Object[]{ event.getTitle() },
-                    variables,
-                    locale);
-        } catch (final RuntimeException e) {
-            LOGGER.error("Fallo la invitacion al evento, evento {}", event.getId(), e);
-        }
-    }
-
-    @Async
-    @Override
-    public void notifyWaitlistJoined(final Event event, final Registration registration) {
-        try {
-            final Locale locale = localeForUserId(registration.getUserId());
-            final Map<String, Object> variables = eventVariables(event, locale);
-            variables.put("personName", displayName(registration.getName(), registration.getEmail()));
-            // Mismo CTA que el mail de inscripcion confirmada: desde "Mis
-            // inscripciones" puede salirse de la lista si ya no le interesa.
-            variables.put("registrationsUrl", links.registrations());
-
-            mailService.send(registration.getEmail(),
-                    "waitlist-joined",
-                    "mail.waitlistJoined.subject",
-                    new Object[]{ event.getTitle() },
-                    variables,
-                    locale);
-        } catch (final RuntimeException e) {
-            LOGGER.error("Fallo la notificacion de lista de espera, evento {}", event.getId(), e);
-        }
-    }
-
-    // Sin @Async a proposito: la tanda la manda MassNotifier, que ya corre en segundo plano y despues del commit.
-    @Override
-    public void notifyWaitlistJoined(final Event event, final List<Registration> registrations) {
-        notifyRegistrants(event, registrations, "waitlist-joined", "mail.waitlistJoined.subject",
-                variables -> variables.put("registrationsUrl", links.registrations()),
-                "Fallo la notificacion de lista de espera");
-    }
-
-    @Async
-    @Override
-    public void notifyNewWaitlistEntry(final Event event, final Registration registration) {
-        try {
-            final Recipient creator = creatorOf(event);
-            final Locale locale = creator.locale();
-            final Map<String, Object> variables = eventVariables(event, locale);
-            variables.put("personName", displayName(creator.name(), event.getCreatorEmail()));
-            variables.put("registrantName", displayName(registration.getName(), registration.getEmail()));
-            variables.put("registrantEmail", registration.getEmail());
-
-            mailService.send(event.getCreatorEmail(),
-                    "waitlist-new-entry",
-                    "mail.waitlistNewEntry.subject",
-                    new Object[]{ event.getTitle() },
-                    variables,
-                    locale);
-        } catch (final RuntimeException e) {
-            LOGGER.error("Fallo el aviso de lista de espera al creador, evento {}", event.getId(), e);
-        }
-    }
-
-    @Async
-    @Override
-    public void notifyWaitlistPromoted(final Event event, final Registration registration) {
-        try {
-            final Locale locale = localeForUserId(registration.getUserId());
-            final Map<String, Object> variables = eventVariables(event, locale);
-            variables.put("personName", displayName(registration.getName(), registration.getEmail()));
-            variables.put("registrationsUrl", links.registrations());
-
-            mailService.send(registration.getEmail(),
-                    "waitlist-promoted",
-                    "mail.waitlistPromoted.subject",
-                    new Object[]{ event.getTitle() },
-                    variables,
-                    locale);
-        } catch (final RuntimeException e) {
-            LOGGER.error("Fallo el aviso de lugar de la lista de espera, evento {}", event.getId(), e);
-        }
-    }
-
-    @Async
-    @Override
-    public void notifyRegistrationRevoked(final Event event, final Registration registration) {
-        try {
-            final Locale locale = localeForUserId(registration.getUserId());
-            final Map<String, Object> variables = eventVariables(event, locale);
-            variables.put("personName", displayName(registration.getName(), registration.getEmail()));
-            variables.put("eventsUrl", links.events());
-
-            mailService.send(registration.getEmail(),
-                    "registration-revoked",
-                    "mail.registrationRevoked.subject",
-                    new Object[]{ event.getTitle() },
-                    variables,
-                    locale);
-        } catch (final RuntimeException e) {
-            LOGGER.error("Fallo el aviso de lugar revocado, evento {}", event.getId(), e);
-        }
-    }
-
-    @Async
-    @Override
-    public void notifyEventFull(final Event event) {
-        try {
-            final Recipient creator = creatorOf(event);
-            final Locale locale = creator.locale();
-            final Map<String, Object> variables = eventVariables(event, locale);
-            variables.put("personName", displayName(creator.name(), event.getCreatorEmail()));
-
-            mailService.send(event.getCreatorEmail(),
-                    "event-full",
-                    "mail.eventFull.subject",
-                    new Object[]{ event.getTitle() },
-                    variables,
-                    locale);
-        } catch (final RuntimeException e) {
-            LOGGER.error("Fallo el aviso de evento completo, evento {}", event.getId(), e);
-        }
-    }
-
-    @Async
-    @Override
-    public void notifyRegistrationCancelled(final Event event, final Registration registration,
-                                             final boolean offeredToWaitlist) {
-        try {
-            final Recipient creator = creatorOf(event);
-            final Locale locale = creator.locale();
-            final Map<String, Object> variables = eventVariables(event, locale);
-            variables.put("personName", displayName(creator.name(), event.getCreatorEmail()));
-            variables.put("registrantName", displayName(registration.getName(), registration.getEmail()));
-            variables.put("registrantEmail", registration.getEmail());
-            // La plantilla elige entre dos parrafos con este booleano, asi los dos
-            // textos siguen viviendo en el archivo de mensajes y no en el codigo.
-            variables.put("offeredToWaitlist", offeredToWaitlist);
-
-            mailService.send(event.getCreatorEmail(),
-                    "registration-cancelled",
-                    "mail.registrationCancelled.subject",
-                    new Object[]{ event.getTitle() },
-                    variables,
-                    locale);
-        } catch (final RuntimeException e) {
-            LOGGER.error("Fallo el aviso de baja al creador, evento {}", event.getId(), e);
-        }
-    }
-
-    // Sin @Async a proposito: la tanda la manda MassNotifier, que ya corre en segundo plano y despues del commit.
-    @Override
-    public void notifyEventCancelled(final Event event, final List<Registration> registrations) {
-        notifyRegistrants(event, registrations, "event-cancelled", "mail.eventCancelled.subject", variables -> variables.put("eventsUrl", links.events()), "Fallo el aviso de evento cancelado");
-    }
-
-    // Sin @Async a proposito: la tanda la manda MassNotifier, que ya corre en segundo plano y despues del commit.
-    @Override
-    public void notifyEventUpdated(final Event event, final List<Registration> registrations) {
-        notifyRegistrants(event, registrations, "event-updated", "mail.eventUpdated.subject", variables -> { }, "Fallo el aviso de evento editado");
-    }
-
-    // Sin @Async a proposito: la tanda la manda MassNotifier, que ya corre en segundo plano y despues del commit.
-    @Override
-    public void notifyEventReminder(final Event event, final List<Registration> registrations) {
-        notifyRegistrants(event, registrations, "event-reminder", "mail.eventReminder.subject", variables -> { }, "Fallo el recordatorio de 24 hs");
-    }
-
-    @Async
-    @Override
-    public void notifyOrganizerEventReminder(final Event event) {
-        try {
-            final Recipient creator = creatorOf(event);
-            final Locale locale = creator.locale();
-            final Map<String, Object> variables = eventVariables(event, locale);
-            variables.put("personName", displayName(creator.name(), event.getCreatorEmail()));
-            variables.put("attendeesUrl", links.attendees(event.getId()));
-
-            mailService.send(event.getCreatorEmail(),
-                    "event-reminder-organizer",
-                    "mail.organizerReminder.subject",
-                    new Object[]{ event.getTitle() },
-                    variables,
-                    locale);
-        } catch (final RuntimeException e) {
-            LOGGER.error("Fallo el recordatorio de 24 hs al organizador, evento {}", event.getId(), e);
-        }
-    }
-
-    @Async
-    @Override
-    public void notifyNewQuestion(final Event event, final EventQuestion question,
-                                  final String askerName, final String askerEmail) {
-        try {
-            final Recipient creator = creatorOf(event);
-            final Locale locale = creator.locale();
-            final Map<String, Object> variables = eventVariables(event, locale);
-            variables.put("personName", displayName(creator.name(), event.getCreatorEmail()));
-            variables.put("askerName", displayName(askerName, askerEmail));
-            variables.put("questionText", question.getText());
-            // Directo a la sección de preguntas del detalle.
-            variables.put("eventUrl", links.eventQuestions(event.getId()));
-
-            mailService.send(event.getCreatorEmail(),
-                    "new-question",
-                    "mail.newQuestion.subject",
-                    new Object[]{ event.getTitle() },
-                    variables,
-                    locale);
-        } catch (final RuntimeException e) {
-            LOGGER.error("Fallo el aviso de pregunta nueva, evento {}", event.getId(), e);
-        }
-    }
-
-    @Async
-    @Override
-    public void notifyQuestionAnswered(final Event event, final EventQuestion question,
-                                       final String askerName, final String askerEmail) {
-        try {
-            final Locale locale = localeFor(question.getUser());
-            final Map<String, Object> variables = eventVariables(event, locale);
-            variables.put("personName", displayName(askerName, askerEmail));
-            variables.put("questionText", question.getText());
-            variables.put("answerText", question.getAnswer());
-            variables.put("eventUrl", links.eventQuestions(event.getId()));
-
-            mailService.send(askerEmail,
-                    "question-answered",
-                    "mail.questionAnswered.subject",
-                    new Object[]{ event.getTitle() },
-                    variables,
-                    locale);
-        } catch (final RuntimeException e) {
-            LOGGER.error("Fallo el aviso de pregunta respondida, evento {}", event.getId(), e);
-        }
-    }
-
-    @Async
-    @Override
-    public void notifyEventRemovedByAdmin(final Event event, final String reason) {
-        try {
-            final Recipient creator = creatorOf(event);
-            final Locale locale = creator.locale();
-            final Map<String, Object> variables = eventVariables(event, locale);
-            variables.put("personName", displayName(creator.name(), event.getCreatorEmail()));
-            variables.put("reason", reason);
-            variables.put("eventsUrl", links.events());
-
-            mailService.send(event.getCreatorEmail(),
-                    "event-removed-by-admin",
-                    "mail.eventRemovedByAdmin.subject",
-                    new Object[]{ event.getTitle() },
-                    variables,
-                    locale);
-        } catch (final RuntimeException e) {
-            LOGGER.error("Fallo el aviso de evento removido por un admin, evento {}", event.getId(), e);
-        }
-    }
-
-    @Async
-    @Override
-    public void notifyEventApproved(final Event event) {
-        try {
-            final Recipient creator = creatorOf(event);
-            final Locale locale = creator.locale();
-            final Map<String, Object> variables = eventVariables(event, locale);
-            variables.put("personName", displayName(creator.name(), event.getCreatorEmail()));
-
-            mailService.send(event.getCreatorEmail(),
-                    "event-approved",
-                    "mail.eventApproved.subject",
-                    new Object[]{ event.getTitle() },
-                    variables,
-                    locale);
-        } catch (final RuntimeException e) {
-            LOGGER.error("Fallo el aviso de evento aprobado, evento {}", event.getId(), e);
-        }
-    }
-
-    @Async
-    @Override
-    public void notifySavedSearchMatches(final User user, final long savedSearchId, final Event example,
-                                         final long newEventsCount) {
-        try {
-            final Locale locale = localeFor(user);
-            final Map<String, Object> variables = eventVariables(example, locale);
-            variables.put("personName", displayName(user.getName(), user.getEmail()));
-            variables.put("newEventsCount", newEventsCount);
-            variables.put("unsubscribeUrl", links.unsubscribeSavedSearch(savedSearchId));
-
-            mailService.send(user.getEmail(),
-                    "saved-search-matches",
-                    "mail.savedSearchMatches.subject",
-                    new Object[]{ newEventsCount },
-                    variables,
-                    locale);
-        } catch (final RuntimeException e) {
-            LOGGER.error("Fallo el aviso de busqueda guardada, usuario {}", user.getId(), e);
-        }
-    }
-
-    @Async
-    @Override
-    public void notifyEventRejected(final Event event, final String reason) {
-        try {
-            final Recipient creator = creatorOf(event);
-            final Locale locale = creator.locale();
-            final Map<String, Object> variables = eventVariables(event, locale);
-            variables.put("personName", displayName(creator.name(), event.getCreatorEmail()));
-            variables.put("reason", reason);
-            // El evento rechazado nunca llega a ser accesible: el CTA va al
-            // listado general, no a eventUrl (mismo criterio que
-            // notifyEventRemovedByAdmin).
-            variables.put("eventsUrl", links.events());
-
-            mailService.send(event.getCreatorEmail(),
-                    "event-rejected",
-                    "mail.eventRejected.subject",
-                    new Object[]{ event.getTitle() },
-                    variables,
-                    locale);
-        } catch (final RuntimeException e) {
-            LOGGER.error("Fallo el aviso de evento rechazado, evento {}", event.getId(), e);
-        }
-    }
-
-    // Sin @Async a proposito: la tanda la manda MassNotifier, que ya corre en segundo plano y despues del commit.
     @Override
     public void notifyFollowedUserNewEvent(final List<FollowerContact> followers, final Event event,
                                            final String organizerName) {
@@ -598,44 +343,73 @@ public class NotificationServiceImpl implements NotificationService {
         // proyeccion: no se vuelve a la base por cada seguidor. Si el mail de uno falla, se sigue con los demas.
         for (final FollowerContact follower : followers) {
             try {
-                final Locale locale = toLocale(follower.getLocale());
-                final Map<String, Object> variables = eventVariables(event, locale);
-                variables.put("personName", displayName(follower.getName(), follower.getEmail()));
-                variables.put("organizerName", organizerName);
-
-                mailService.send(follower.getEmail(),
-                        "followed-user-new-event",
-                        "mail.followedUserNewEvent.subject",
-                        new Object[]{ organizerName },
-                        variables,
-                        locale);
+                sendMail(follower.getEmail(), "followed-user-new-event", "mail.followedUserNewEvent.subject",
+                        new Object[]{ organizerName }, event, toLocale(follower.getLocale()),
+                        MailFormats.displayName(follower.getName(), follower.getEmail()),
+                        variables -> variables.put("organizerName", organizerName));
             } catch (final RuntimeException e) {
                 LOGGER.error("Fallo el aviso de evento nuevo de un organizador seguido, usuario {}", follower.getId(), e);
             }
         }
     }
 
-    @Async
-    @Override
-    public void notifyEventChangesRequested(final Event event, final String message) {
-        try {
-            final Recipient creator = creatorOf(event);
-            final Locale locale = creator.locale();
-            final Map<String, Object> variables = eventVariables(event, locale);
-            variables.put("personName", displayName(creator.name(), event.getCreatorEmail()));
-            variables.put("message", message);
-            // Al editar directo, no al detalle: es lo que la persona tiene que hacer.
-            variables.put("editEventUrl", links.editEvent(event.getId()));
+    // ---- Lo que comparten todos ----
 
-            mailService.send(event.getCreatorEmail(),
-                    "event-changes-requested",
-                    "mail.eventChangesRequested.subject",
-                    new Object[]{ event.getTitle() },
-                    variables,
-                    locale);
+    // Un mail a UNA persona que se anoto: su mail y su nombre salen de la inscripcion, el idioma de su cuenta.
+    // extraName/extraValue: el unico dato propio de ese mail (el link al que lleva).
+    private void toRegistrant(final Event event, final Registration registration, final String template,
+                              final String subjectKey, final String errorMessage, final String extraValue,
+                              final String extraName) {
+        attempt(errorMessage, event, () -> {
+            final Locale locale = localeForUserId(registration.getUserId());
+            sendEventMail(registration.getEmail(), template, subjectKey, event, locale,
+                    MailFormats.displayName(registration.getName(), registration.getEmail()),
+                    variables -> variables.put(extraName, extraValue));
+        });
+    }
+
+    // Un mail a quien organiza el evento: su nombre e idioma salen de su cuenta (se leen una sola vez).
+    private void toCreator(final Event event, final String template, final String subjectKey,
+                           final String errorMessage, final Consumer<Map<String, Object>> extraVariables) {
+        attempt(errorMessage, event, () -> {
+            final Recipient creator = creatorOf(event);
+            sendEventMail(event.getCreatorEmail(), template, subjectKey, event, creator.locale(),
+                    MailFormats.displayName(creator.name(), event.getCreatorEmail()), extraVariables);
+        });
+    }
+
+    // Quien se anoto, como lo ve el organizador en el mail.
+    private void putRegistrant(final Map<String, Object> variables, final Registration registration) {
+        variables.put("registrantName", MailFormats.displayName(registration.getName(), registration.getEmail()));
+        variables.put("registrantEmail", registration.getEmail());
+    }
+
+    // El armado y el envio de UN mail pueden fallar (la base, la plantilla, el servidor de correo): son avisos en
+    // segundo plano y no hay nadie esperando, asi que se registra y no se propaga.
+    private void attempt(final String errorMessage, final Event event, final Runnable sending) {
+        try {
+            sending.run();
         } catch (final RuntimeException e) {
-            LOGGER.error("Fallo el aviso de cambios pedidos por un admin, evento {}", event.getId(), e);
+            LOGGER.error("{}, evento {}", errorMessage, event.getId(), e);
         }
+    }
+
+    // El mail de un evento: el asunto lleva el titulo, y las variables son las del evento mas el nombre de quien lo
+    // recibe y los datos propios de ese mail.
+    private void sendEventMail(final String to, final String template, final String subjectKey, final Event event,
+                               final Locale locale, final String personName,
+                               final Consumer<Map<String, Object>> extraVariables) {
+        sendMail(to, template, subjectKey, new Object[]{ event.getTitle() }, event, locale, personName,
+                extraVariables);
+    }
+
+    private void sendMail(final String to, final String template, final String subjectKey, final Object[] subjectArgs,
+                          final Event event, final Locale locale, final String personName,
+                          final Consumer<Map<String, Object>> extraVariables) {
+        final Map<String, Object> variables = eventVariables(event, locale);
+        variables.put("personName", personName);
+        extraVariables.accept(variables);
+        mailService.send(to, template, subjectKey, subjectArgs, variables, locale);
     }
 
     /**
@@ -662,16 +436,8 @@ public class NotificationServiceImpl implements NotificationService {
                 final User user = registration.getUserId() == null ? null : users.get(registration.getUserId());
                 // Sin cuenta o sin fila: idioma por defecto, igual que localeForUserId().
                 final Locale locale = user == null ? DEFAULT_LOCALE : localeFor(user);
-                final Map<String, Object> variables = eventVariables(event, locale);
-                variables.put("personName", displayName(registration.getName(), registration.getEmail()));
-                extraVariables.accept(variables);
-
-                mailService.send(registration.getEmail(),
-                        template,
-                        subjectKey,
-                        new Object[]{ event.getTitle() },
-                        variables,
-                        locale);
+                sendEventMail(registration.getEmail(), template, subjectKey, event, locale,
+                        MailFormats.displayName(registration.getName(), registration.getEmail()), extraVariables);
             } catch (final RuntimeException e) {
                 LOGGER.error("{}, evento {}, inscripcion {}", errorMessage, event.getId(), registration.getId(), e);
             }
@@ -701,68 +467,14 @@ public class NotificationServiceImpl implements NotificationService {
     private Map<String, Object> eventVariables(final Event event, final Locale locale) {
         final Map<String, Object> variables = new HashMap<>();
         variables.put("eventTitle", event.getTitle());
-        variables.put("eventDate", formatDate(event, locale));
-        variables.put("eventPlace", formatPlace(event));
-        variables.put("eventPrice", formatPrice(event, locale));
+        variables.put("eventDate", MailFormats.date(event, locale));
+        variables.put("eventPlace", MailFormats.place(event));
+        variables.put("eventPrice", MailFormats.price(event, locale, messageSource));
         // El link tiene que ser absoluto: el mail se abre en Gmail, no en la app.
         variables.put("eventUrl", links.event(event.getId()));
         return variables;
     }
 
-    private String formatDate(final Event event, final Locale locale) {
-        if (event.getEventDate() == null) {
-            return "";
-        }
-        // FULL para la fecha ("sabado, 12 de septiembre de 2026") y SHORT para
-        // la hora ("21:00"). El formato lo elige Java segun el idioma.
-        return DateFormat.getDateTimeInstance(DateFormat.FULL, DateFormat.SHORT, locale)
-                .format(event.getEventDate());
-    }
-
-    private String formatPlace(final Event event) {
-        if (event.getNeighborhood() == null) {
-            return event.getAddress();
-        }
-        return event.getAddress() + ", " + event.getNeighborhood().getDisplayName();
-    }
-
-    private String formatPrice(final Event event, final Locale locale) {
-        if (event.isFree()) {
-            // "Gratis" / "Free" sale del archivo de textos, como todo lo demas.
-            return messageSource.getMessage("mail.event.free", null, locale);
-        }
-        // Igual que la web (paw:price): el numero lo escribe cada idioma (1.500 / 1,500),
-        // sin centavos, y donde va el simbolo lo dice el archivo de textos.
-        final NumberFormat number = NumberFormat.getNumberInstance(locale);
-        number.setMaximumFractionDigits(0);
-        return messageSource.getMessage("mail.event.priceFormat",
-                new Object[]{ number.format(event.getPrice()) }, locale);
-    }
-
-    /**
-     * Con que nombre saludamos. Primero el que nos pasan; si no hay, el nombre
-     * de la cuenta con ese email (el que eligio al registrarse); y recien si
-     * tampoco existe (invitado sin cuenta), lo que va antes del arroba: es
-     * mejor "Hola sol," que "Hola null,".
-     */
-    private String displayName(final String name, final String email) {
-        if (name != null && !name.trim().isEmpty()) {
-            return name.trim();
-        }
-        if (email == null) {
-            return "";
-        }
-        final String accountName = userService.findByEmail(email)
-                .map(User::getName)
-                .filter(n -> !n.trim().isEmpty())
-                .map(String::trim)
-                .orElse(null);
-        if (accountName != null) {
-            return accountName;
-        }
-        final int at = email.indexOf('@');
-        return at > 0 ? email.substring(0, at) : email;
-    }
 
     /**
      * El idioma guardado de un destinatario que YA tenemos cargado (no hace
@@ -784,7 +496,7 @@ public class NotificationServiceImpl implements NotificationService {
      * corresponder a nadie con cuenta todavia: userId null (invitado sin
      * cuenta, ver EventInvitation.userId) o sin fila (no deberia pasar, pero
      * no vale la pena reventar un mail por eso) caen los dos en DEFAULT_LOCALE
-     * y sin nombre (displayName() sabe armar uno a partir del mail).
+     * y sin nombre (MailFormats.displayName() sabe armar uno a partir del mail).
      */
     private Recipient recipientOf(final Long userId) {
         if (userId == null) {

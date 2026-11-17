@@ -1,7 +1,6 @@
 package ar.edu.itba.paw.webapp.controller;
 
 import ar.edu.itba.paw.model.AdminEventSort;
-import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.ReportStatusFilter;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.Registration;
@@ -21,7 +20,6 @@ import ar.edu.itba.paw.services.UserService;
 import ar.edu.itba.paw.webapp.form.RejectEventForm;
 import ar.edu.itba.paw.webapp.form.RequestChangesForm;
 import ar.edu.itba.paw.webapp.util.PagerParams;
-import ar.edu.itba.paw.webapp.util.Paging;
 import ar.edu.itba.paw.webapp.util.ReportsListLink;
 import ar.edu.itba.paw.webapp.util.UserListLink;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -72,10 +70,10 @@ public class AdminController {
     @RequestMapping(value = "/reportes", method = RequestMethod.GET)
     public ModelAndView reportes(@RequestParam(value = "q", required = false) final String q,
                                   @RequestParam(value = "filtro", required = false) final String filtro,
-                                  @RequestParam(value = "page", required = false) final String page,
+                                  @RequestParam(value = "page", defaultValue = "1") final int page,
                                   @RequestParam(value = "abierto", required = false) final String abierto) {
         final ReportStatusFilter effectiveFilter = ReportStatusFilter.fromParam(filtro);
-        final ReportQueuePage queue = moderationService.searchQueue(q, effectiveFilter, Paging.parsePage(page));
+        final ReportQueuePage queue = moderationService.searchQueue(q, effectiveFilter, page);
         final ModelAndView mav = new ModelAndView("admin/reportes");
         mav.addObject("reports", queue.getReports().getContent());
         // La pagina entera (con "mostrando X-Y"): la vista lee de ahi el rango y el total.
@@ -83,9 +81,6 @@ public class AdminController {
         mav.addObject("totalElements", queue.getReports().getTotalElements());
         mav.addObject("currentPage", queue.getReports().getPage());
         mav.addObject("totalPages", queue.getReports().getTotalPages());
-        mav.addObject("eventsById", queue.getEventsById());
-        mav.addObject("reportersById", queue.getReportersById());
-        mav.addObject("requestedByUsersById", queue.getRequestedByUsersById());
         mav.addObject("counts", queue.getCounts());
         mav.addObject("q", q == null ? "" : q);
         mav.addObject("filtro", effectiveFilter.name());
@@ -209,9 +204,9 @@ public class AdminController {
 
     @RequestMapping(value = "/usuarios", method = RequestMethod.GET)
     public ModelAndView usuarios(@RequestParam(value = "q", required = false) final String q,
-                                  @RequestParam(value = "page", required = false) final String page,
+                                  @RequestParam(value = "page", defaultValue = "1") final int page,
                                   @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final PageResult<User> result = userService.findPage(q, Paging.parsePage(page));
+        final PageResult<User> result = userService.findPage(q, page);
 
         final ModelAndView mav = new ModelAndView("admin/usuarios");
         mav.addObject("users", result.getContent());
@@ -239,6 +234,7 @@ public class AdminController {
         return new ModelAndView("redirect:" + UserListLink.safeReturnTo(returnTo));
     }
 
+    @PreAuthorize("@adminSecurity.canReactivate(#id, authentication)")
     @RequestMapping(value = "/usuarios/{id}/reactivar", method = RequestMethod.POST)
     public ModelAndView reactivar(@PathVariable final long id,
                                   @RequestParam(value = "returnTo", required = false) final String returnTo) {
@@ -275,12 +271,12 @@ public class AdminController {
     // se aprueban o rechazan ahi mismo. Es el panel completo para auditar la plataforma. Nadie mas lo necesita: isOwner (ver EventController.inscriptos) sigue siendo la
     // regla para el organizador, esta ruta es exclusiva de /admin/** (role ADMIN en WebAuthConfig).
     @RequestMapping(value = "/eventos", method = RequestMethod.GET)
-    public ModelAndView eventos(@RequestParam(value = "page", required = false) final String page,
+    public ModelAndView eventos(@RequestParam(value = "page", defaultValue = "1") final int page,
                                 @RequestParam(value = "q", required = false) final String query,
                                 @RequestParam(value = "sort", required = false) final String sort) {
         final AdminEventSort effectiveSort = AdminEventSort.fromParam(sort);
         final PageResult<EventWithRegistrationStats> result =
-                moderationService.findAllEventsPage(query, effectiveSort, Paging.parsePage(page));
+                moderationService.findAllEventsPage(query, effectiveSort, page);
         final ModelAndView mav = new ModelAndView("admin/eventos");
         mav.addObject("events", result.getContent());
         mav.addObject("currentPage", result.getPage());
@@ -298,8 +294,8 @@ public class AdminController {
     // mirar y moderar, no para administrar inscripciones ajenas.
     @RequestMapping(value = "/eventos/{id}/inscriptos", method = RequestMethod.GET)
     public ModelAndView inscriptos(@PathVariable final long id,
-                                   @RequestParam(value = "page", required = false) final String page) {
-        final EventRegistrants registrants = registrationService.findRegistrants(id, Paging.parsePage(page))
+                                   @RequestParam(value = "page", defaultValue = "1") final int page) {
+        final EventRegistrants registrants = registrationService.findRegistrants(id, page)
                 .orElseThrow(() -> new EventNotFoundException(id));
         final PageResult<Registration> result = registrants.getRegistrations();
         final ModelAndView mav = new ModelAndView("admin/eventoInscriptos");

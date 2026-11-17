@@ -11,9 +11,6 @@
   <artifactId>services</artifactId>
 
   <name>services</name>
-  <!-- FIXME change it to the project's website -->
-  <url>http://www.example.com</url>
-
   <dependencies>
     <dependency>
       <groupId>ar.edu.itba.paw</groupId>
@@ -62,7 +59,7 @@
       <groupId>org.springframework.security</groupId>
       <artifactId>spring-security-core</artifactId>
     </dependency>
-    <!-- Testing (lo agrego Lucas) -->
+    <!-- Testing -->
     <dependency>
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>

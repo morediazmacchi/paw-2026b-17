@@ -147,7 +147,7 @@
             </div>
             <div class="modal-body">
                 <c:forEach var="review" items="${myCreatorReviews}">
-                    <c:set var="reviewedEvent" value="${reviewEventsById[review.eventId]}"/>
+                    <c:set var="reviewedEvent" value="${review.event}"/>
                     <div class="creator-review-item">
                         <c:if test="${not empty reviewedEvent}">
                             <div class="creator-review-event">

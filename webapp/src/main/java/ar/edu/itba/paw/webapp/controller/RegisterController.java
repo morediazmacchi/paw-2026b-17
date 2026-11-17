@@ -60,10 +60,6 @@ public class RegisterController {
         }
 
         final UserRegistrationResult result = userService.register(form.toDTO(safeRedirect));
-        if (result == UserRegistrationResult.EMAIL_TAKEN) {
-            errors.rejectValue("email", "email.taken");
-            return registerFormWithErrors(form, errors, safeRedirect);
-        }
         if (result == UserRegistrationResult.WEAK_PASSWORD) {
             errors.rejectValue("password", "Size.userForm.password");
             return registerFormWithErrors(form, errors, safeRedirect);

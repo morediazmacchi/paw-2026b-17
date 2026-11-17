@@ -132,8 +132,8 @@
                     </thead>
                     <tbody>
                     <c:forEach var="report" items="${reports}">
-                        <c:set var="reportedEvent" value="${eventsById[report.eventId]}"/>
-                        <c:set var="reporter" value="${reportersById[report.reporterUserId]}"/>
+                        <c:set var="reportedEvent" value="${report.event}"/>
+                        <c:set var="reporter" value="${report.reporter}"/>
                         <tr>
                             <td data-label="${eventHeaderLabel}">
                                 <c:choose>
@@ -179,9 +179,9 @@
             <paw:pager baseUrl="/admin/reportes" currentPage="${currentPage}" totalPages="${totalPages}" extraParams="${pagerParams}"/>
 
             <c:forEach var="report" items="${reports}">
-                <c:set var="reportedEvent" value="${eventsById[report.eventId]}"/>
-                <c:set var="reporter" value="${reportersById[report.reporterUserId]}"/>
-                <c:set var="requestedBy" value="${requestedByUsersById[report.changesRequestedByUserId]}"/>
+                <c:set var="reportedEvent" value="${report.event}"/>
+                <c:set var="reporter" value="${report.reporter}"/>
+                <c:set var="requestedBy" value="${report.changesRequestedBy}"/>
                 <%-- Seguimiento: historial de solo lectura, nunca escondido (mirar el historial no es una
                      decision de moderacion, ver AdminController.verReporte()). Abrirlo es un POST (marca
                      "visto"): nunca un GET con efecto de escritura. --%>

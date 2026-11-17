@@ -251,7 +251,7 @@ public class UserJpaDao implements UserDao {
     @Override
     public boolean setSuspended(final long userId, final boolean suspended) {
         final User user = em.find(User.class, userId);
-        if (user == null) {
+        if (user == null || user.isSuspended() == suspended) {
             return false;
         }
         user.setSuspended(suspended);

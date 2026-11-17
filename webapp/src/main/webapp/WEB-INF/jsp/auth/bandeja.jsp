@@ -74,7 +74,7 @@
                 </c:if>
                 <ul class="inbox-list">
                     <c:forEach var="message" items="${messages}">
-                        <c:set var="event" value="${eventsById[message.eventId]}"/>
+                        <c:set var="event" value="${message.event}"/>
                         <%-- Que pantalla abre cada aviso lo decide su tipo (InboxMessageType.getTarget()); aca solo
                              se traduce esa pantalla a su ruta. --%>
                         <c:choose>

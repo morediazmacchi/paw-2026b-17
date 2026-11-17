@@ -2,8 +2,6 @@ package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.RatingSummary;
 import ar.edu.itba.paw.model.Review;
-import ar.edu.itba.paw.model.Event;
-import ar.edu.itba.paw.model.User;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -86,45 +84,25 @@ public class ReviewJpaDaoTest {
 
     @Test
     public void testCreateInsertsTheReviewRowAndReturnsItWithItsId() {
-        // Arrange
-        final Review toCreate = new Review(em.getReference(Event.class, eventId), em.getReference(User.class, userId), 4, "Muy bueno");
-
         // Act
-        final Review created = reviewDao.create(toCreate);
+        final Review created = reviewDao.create(eventId, userId, 4, "Muy bueno");
 
         // Assert
         assertTrue(created.getId() > 0);
         final java.util.Map<String, Object> row = jdbcTemplate.queryForMap(
-                "SELECT rating, comment FROM review WHERE id = ?", created.getId());
+                "SELECT event_id, user_id, rating, comment FROM review WHERE id = ?", created.getId());
+        assertEquals(eventId, ((Number) row.get("event_id")).longValue());
+        assertEquals(userId, ((Number) row.get("user_id")).longValue());
         assertEquals(4, row.get("rating"));
         assertEquals("Muy bueno", row.get("comment"));
     }
 
-    // El User que llega de la web es uno armado desde la sesion (solo id, email, nombre): no esta cargado.
-    @Test
-    public void testCreateWithAUserBuiltFromTheSessionStoresItsId() {
-        // Arrange
-        final User fromSession = new User("asistente@mail.com", "Ana");
-        fromSession.setId(userId);
-        final Review toCreate = new Review(em.getReference(Event.class, eventId), fromSession, 4, "Muy bueno");
-
-        // Act
-        final Review created = reviewDao.create(toCreate);
-
-        // Assert
-        final Long storedUserId = jdbcTemplate.queryForObject(
-                "SELECT user_id FROM review WHERE id = ?", Long.class, created.getId());
-        assertEquals(userId, storedUserId.longValue());
-    }
-
     @Test
     public void testCreateAllowsZeroRating() {
-        // Arrange
         // "de 0 a 5 estrellas": 0 es un valor valido, no "sin calificar".
-        final Review toCreate = new Review(em.getReference(Event.class, eventId), em.getReference(User.class, userId), 0, "Malisimo");
 
         // Act
-        final Review created = reviewDao.create(toCreate);
+        final Review created = reviewDao.create(eventId, userId, 0, "Malisimo");
 
         // Assert
         assertTrue(created.getId() > 0);
@@ -140,7 +118,7 @@ public class ReviewJpaDaoTest {
         insertReview(eventId, userId, 5, "Genial");
 
         // Act
-        reviewDao.create(new Review(em.getReference(Event.class, eventId), em.getReference(User.class, userId), 1, "Cambie de opinion"));
+        reviewDao.create(eventId, userId, 1, "Cambie de opinion");
 
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }

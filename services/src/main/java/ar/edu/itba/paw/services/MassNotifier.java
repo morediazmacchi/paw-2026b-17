@@ -121,9 +121,10 @@ public class MassNotifier {
                 break;
             }
             final List<FollowerContact> current = batch;
-            sendSafely(() -> notificationService.notifyFollowedUserNewEvent(current, event.get(), organizerName),
-                    "evento nuevo de un organizador seguido", eventId);
-            notified += batch.size();
+            if (sendSafely(() -> notificationService.notifyFollowedUserNewEvent(current, event.get(), organizerName),
+                    "evento nuevo de un organizador seguido", eventId)) {
+                notified += batch.size();
+            }
             lastId = batch.get(batch.size() - 1).getId();
         } while (batch.size() == BATCH_SIZE);
         return notified;
@@ -159,8 +160,9 @@ public class MassNotifier {
         for (int from = 0; from < registrationIds.size(); from += BATCH_SIZE) {
             final List<Long> ids = registrationIds.subList(from, Math.min(from + BATCH_SIZE, registrationIds.size()));
             final List<Registration> batch = registrationService.findByIds(ids);
-            sendSafely(() -> send.accept(event.get(), batch), "inscripciones que cambiaron a " + newStatus, eventId);
-            notified += batch.size();
+            if (sendSafely(() -> send.accept(event.get(), batch), "inscripciones que cambiaron a " + newStatus, eventId)) {
+                notified += batch.size();
+            }
         }
         return notified;
     }
@@ -181,8 +183,9 @@ public class MassNotifier {
                 break;
             }
             final List<Registration> current = batch;
-            sendSafely(() -> send.accept(event.get(), current), what, eventId);
-            notified += batch.size();
+            if (sendSafely(() -> send.accept(event.get(), current), what, eventId)) {
+                notified += batch.size();
+            }
             lastId = batch.get(batch.size() - 1).getId();
         } while (batch.size() == BATCH_SIZE);
         return notified;
@@ -191,11 +194,14 @@ public class MassNotifier {
     // Una tanda que falla (por ejemplo, no se pudieron buscar los idiomas) no frena a las demas: es un hilo sin nadie
     // esperando, si no se loguea aca no se ve. (Los mails de cada persona ya tienen su propio try/catch en
     // NotificationServiceImpl.)
-    private static void sendSafely(final Runnable send, final String what, final long eventId) {
+    // Devuelve si la tanda salio: solo esas cuentan en el "a cuantos se les aviso" de quien llama.
+    private static boolean sendSafely(final Runnable send, final String what, final long eventId) {
         try {
             send.run();
+            return true;
         } catch (final RuntimeException e) {
             LOGGER.error("Fallo una tanda del aviso masivo ({}), evento {}", what, eventId, e);
+            return false;
         }
     }
 }

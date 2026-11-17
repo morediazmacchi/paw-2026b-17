@@ -6,7 +6,7 @@ import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.Review;
 import ar.edu.itba.paw.model.EventApprovalStatus;
-import ar.edu.itba.paw.model.exception.EventNotFoundException;
+import ar.edu.itba.paw.services.EventDetail;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -55,8 +55,6 @@ public class EventDetailServiceImplTest {
     @Mock
     private ReviewService reviewService;
     @Mock
-    private EventSimilarityService eventSimilarityService;
-    @Mock
     private EventQuestionService eventQuestionService;
     @Mock
     private EventAccessService eventAccessService;
@@ -71,13 +69,13 @@ public class EventDetailServiceImplTest {
     @Before
     public void setUp() {
         detailService = new EventDetailServiceImpl(eventService, registrationService, favoriteService,
-                eventChatService, reviewService, eventSimilarityService, eventQuestionService, eventAccessService,
+                eventChatService, reviewService, eventQuestionService, eventAccessService,
                 eventInvitationService, followService);
         event = ModelFixtures.event(EVENT_ID);
         event.setCreator(ModelFixtures.user(CREATOR_ID));
         // Un evento que todavia no paso (el estado "finalizado" se prueba aparte).
         event.setEventDate(new Date(System.currentTimeMillis() + ONE_DAY_MILLIS));
-        when(eventService.findByIdOrThrow(EVENT_ID)).thenReturn(event);
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event));
         // Lo que el detalle siempre pide, sea quien sea que mire.
         lenient().when(eventQuestionService.findPage(EVENT_ID, QUESTIONS_PAGE)).thenReturn(emptyQuestions());
     }
@@ -87,8 +85,7 @@ public class EventDetailServiceImplTest {
     }
 
     private static CreatorReputation reputation() {
-        return new CreatorReputation(new PageResult<>(Collections.<Review>emptyList(), 0, 1, 10), 0,
-                Collections.<Long, Event>emptyMap());
+        return new CreatorReputation(new PageResult<>(Collections.<Review>emptyList(), 0, 1, 10), 0);
     }
 
     @Test
@@ -99,7 +96,7 @@ public class EventDetailServiceImplTest {
         when(registrationService.availableSpots(EVENT_ID)).thenReturn(7);
 
         // Act
-        final EventDetail result = detailService.getDetail(EVENT_ID, null, QUESTIONS_PAGE, REVIEWS_PAGE);
+        final EventDetail result = detailService.getDetail(EVENT_ID, null, QUESTIONS_PAGE, REVIEWS_PAGE).get();
 
         // Assert
         assertSame(event, result.getEvent());
@@ -114,7 +111,7 @@ public class EventDetailServiceImplTest {
         lenient().when(registrationService.isFullFor(anyLong(), anyLong())).thenReturn(false);
 
         // Act
-        final EventDetail result = detailService.getDetail(EVENT_ID, null, QUESTIONS_PAGE, REVIEWS_PAGE);
+        final EventDetail result = detailService.getDetail(EVENT_ID, null, QUESTIONS_PAGE, REVIEWS_PAGE).get();
 
         // Assert
         assertTrue(result.isFull());
@@ -129,7 +126,7 @@ public class EventDetailServiceImplTest {
         lenient().when(eventChatService.isMember(anyLong(), anyLong())).thenReturn(true);
 
         // Act
-        final EventDetail result = detailService.getDetail(EVENT_ID, null, QUESTIONS_PAGE, REVIEWS_PAGE);
+        final EventDetail result = detailService.getDetail(EVENT_ID, null, QUESTIONS_PAGE, REVIEWS_PAGE).get();
 
         // Assert
         assertNull(result.getParticipation());
@@ -144,7 +141,7 @@ public class EventDetailServiceImplTest {
         when(registrationService.isFullFor(EVENT_ID, VIEWER_ID)).thenReturn(false);
 
         // Act
-        final EventDetail result = detailService.getDetail(EVENT_ID, VIEWER_ID, QUESTIONS_PAGE, REVIEWS_PAGE);
+        final EventDetail result = detailService.getDetail(EVENT_ID, VIEWER_ID, QUESTIONS_PAGE, REVIEWS_PAGE).get();
 
         // Assert
         assertFalse(result.isFull());
@@ -158,7 +155,7 @@ public class EventDetailServiceImplTest {
         when(eventChatService.isMember(EVENT_ID, VIEWER_ID)).thenReturn(true);
 
         // Act
-        final EventDetail result = detailService.getDetail(EVENT_ID, VIEWER_ID, QUESTIONS_PAGE, REVIEWS_PAGE);
+        final EventDetail result = detailService.getDetail(EVENT_ID, VIEWER_ID, QUESTIONS_PAGE, REVIEWS_PAGE).get();
 
         // Assert
         assertTrue(result.getParticipation().isRegistered());
@@ -174,7 +171,7 @@ public class EventDetailServiceImplTest {
         when(reviewService.findCreatorReputation(CREATOR_ID, REVIEWS_PAGE)).thenReturn(reputation);
 
         // Act
-        final EventDetail result = detailService.getDetail(EVENT_ID, null, QUESTIONS_PAGE, REVIEWS_PAGE);
+        final EventDetail result = detailService.getDetail(EVENT_ID, null, QUESTIONS_PAGE, REVIEWS_PAGE).get();
 
         // Assert
         assertSame(reputation, result.getCreatorReputation());
@@ -187,7 +184,7 @@ public class EventDetailServiceImplTest {
         lenient().when(reviewService.findCreatorReputation(anyLong(), anyInt())).thenReturn(reputation());
 
         // Act
-        final EventDetail result = detailService.getDetail(EVENT_ID, null, QUESTIONS_PAGE, REVIEWS_PAGE);
+        final EventDetail result = detailService.getDetail(EVENT_ID, null, QUESTIONS_PAGE, REVIEWS_PAGE).get();
 
         // Assert
         assertNull(result.getCreatorReputation());
@@ -198,11 +195,11 @@ public class EventDetailServiceImplTest {
         // Arrange
         final Event related = ModelFixtures.event(11L);
         final Map<Long, RegistrationStatus> statuses = Collections.singletonMap(11L, RegistrationStatus.CONFIRMED);
-        when(eventSimilarityService.findSimilar(EVENT_ID, VIEWER_ID)).thenReturn(Collections.singletonList(related));
+        when(eventService.findSimilar(EVENT_ID, VIEWER_ID)).thenReturn(Collections.singletonList(related));
         when(registrationService.findStatusesByEventIds(VIEWER_ID, Collections.singletonList(11L))).thenReturn(statuses);
 
         // Act
-        final EventDetail result = detailService.getDetail(EVENT_ID, VIEWER_ID, QUESTIONS_PAGE, REVIEWS_PAGE);
+        final EventDetail result = detailService.getDetail(EVENT_ID, VIEWER_ID, QUESTIONS_PAGE, REVIEWS_PAGE).get();
 
         // Assert
         assertEquals(Collections.singletonList(related), result.getRelatedEvents());
@@ -214,11 +211,11 @@ public class EventDetailServiceImplTest {
         // Arrange
         final Event related = ModelFixtures.event(11L);
         final Set<Long> favorites = Collections.singleton(11L);
-        when(eventSimilarityService.findSimilar(EVENT_ID, VIEWER_ID)).thenReturn(Collections.singletonList(related));
+        when(eventService.findSimilar(EVENT_ID, VIEWER_ID)).thenReturn(Collections.singletonList(related));
         when(favoriteService.findFavoriteEventIds(VIEWER_ID, Collections.singletonList(11L))).thenReturn(favorites);
 
         // Act
-        final EventDetail result = detailService.getDetail(EVENT_ID, VIEWER_ID, QUESTIONS_PAGE, REVIEWS_PAGE);
+        final EventDetail result = detailService.getDetail(EVENT_ID, VIEWER_ID, QUESTIONS_PAGE, REVIEWS_PAGE).get();
 
         // Assert
         assertEquals(favorites, result.getRelatedFavoriteIds());
@@ -228,12 +225,12 @@ public class EventDetailServiceImplTest {
     public void testGetDetailForAnAnonymousVisitorHasNoFavoritesAmongTheRelatedEvents() {
         // Arrange: el senuelo solo aparece si se buscan favoritos sin haber una persona con sesion
         final Event related = ModelFixtures.event(11L);
-        when(eventSimilarityService.findSimilar(EVENT_ID, null)).thenReturn(Collections.singletonList(related));
+        when(eventService.findSimilar(EVENT_ID, null)).thenReturn(Collections.singletonList(related));
         lenient().when(favoriteService.findFavoriteEventIds(anyLong(), org.mockito.ArgumentMatchers.anyCollection()))
                 .thenReturn(Collections.singleton(11L));
 
         // Act
-        final EventDetail result = detailService.getDetail(EVENT_ID, null, QUESTIONS_PAGE, REVIEWS_PAGE);
+        final EventDetail result = detailService.getDetail(EVENT_ID, null, QUESTIONS_PAGE, REVIEWS_PAGE).get();
 
         // Assert
         assertTrue(result.getRelatedFavoriteIds().isEmpty());
@@ -243,12 +240,12 @@ public class EventDetailServiceImplTest {
     public void testGetDetailForAnAnonymousVisitorHasNoStatusesForTheRelatedEvents() {
         // Arrange: el senuelo solo aparece si se buscan estados sin haber una persona con sesion
         final Event related = ModelFixtures.event(11L);
-        when(eventSimilarityService.findSimilar(EVENT_ID, null)).thenReturn(Collections.singletonList(related));
+        when(eventService.findSimilar(EVENT_ID, null)).thenReturn(Collections.singletonList(related));
         lenient().when(registrationService.findStatusesByEventIds(anyLong(), org.mockito.ArgumentMatchers.anyCollection()))
                 .thenReturn(Collections.singletonMap(11L, RegistrationStatus.CONFIRMED));
 
         // Act
-        final EventDetail result = detailService.getDetail(EVENT_ID, null, QUESTIONS_PAGE, REVIEWS_PAGE);
+        final EventDetail result = detailService.getDetail(EVENT_ID, null, QUESTIONS_PAGE, REVIEWS_PAGE).get();
 
         // Assert
         assertEquals(Collections.singletonList(related), result.getRelatedEvents());
@@ -258,27 +255,28 @@ public class EventDetailServiceImplTest {
     @Test
     public void testGetDetailWithoutRelatedEventsHasNoStatuses() {
         // Arrange: findSimilar devuelve vacio (evento privado o no aprobado); el senuelo no deberia mostrarse
-        when(eventSimilarityService.findSimilar(EVENT_ID, VIEWER_ID)).thenReturn(Collections.<Event>emptyList());
+        when(eventService.findSimilar(EVENT_ID, VIEWER_ID)).thenReturn(Collections.<Event>emptyList());
         lenient().when(registrationService.findStatusesByEventIds(anyLong(), org.mockito.ArgumentMatchers.anyCollection()))
                 .thenReturn(Collections.singletonMap(11L, RegistrationStatus.CONFIRMED));
 
         // Act
-        final EventDetail result = detailService.getDetail(EVENT_ID, VIEWER_ID, QUESTIONS_PAGE, REVIEWS_PAGE);
+        final EventDetail result = detailService.getDetail(EVENT_ID, VIEWER_ID, QUESTIONS_PAGE, REVIEWS_PAGE).get();
 
         // Assert
         assertTrue(result.getRelatedEvents().isEmpty());
         assertTrue(result.getRelatedStatuses().isEmpty());
     }
 
-    @Test(expected = EventNotFoundException.class)
-    public void testGetDetailOfAMissingEventThrowsEventNotFoundException() {
+    @Test
+    public void testGetDetailOfAMissingEventIsEmpty() {
         // Arrange
-        when(eventService.findByIdOrThrow(EVENT_ID)).thenThrow(new EventNotFoundException(EVENT_ID));
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
-        detailService.getDetail(EVENT_ID, null, QUESTIONS_PAGE, REVIEWS_PAGE);
+        final Optional<EventDetail> result = detailService.getDetail(EVENT_ID, null, QUESTIONS_PAGE, REVIEWS_PAGE);
 
-        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
+        // Assert
+        assertFalse(result.isPresent());
     }
 
     // ---- accion disponible (EventAction), acceso al chat y darse de baja ----
@@ -299,7 +297,7 @@ public class EventDetailServiceImplTest {
     }
 
     private EventAction actionFor(final Long viewerId) {
-        return detailService.getDetail(EVENT_ID, viewerId, QUESTIONS_PAGE, REVIEWS_PAGE).getAction();
+        return detailService.getDetail(EVENT_ID, viewerId, QUESTIONS_PAGE, REVIEWS_PAGE).get().getAction();
     }
 
     @Test
@@ -482,7 +480,7 @@ public class EventDetailServiceImplTest {
     public void testAViewerCanAskAndReportButCannotAnswerOnSomeoneElsesOpenEvent() {
         viewer(null, true);
 
-        final EventDetail result = detailService.getDetail(EVENT_ID, VIEWER_ID, QUESTIONS_PAGE, REVIEWS_PAGE);
+        final EventDetail result = detailService.getDetail(EVENT_ID, VIEWER_ID, QUESTIONS_PAGE, REVIEWS_PAGE).get();
 
         assertTrue(result.isCanAsk());
         assertTrue(result.isCanReport());
@@ -491,7 +489,7 @@ public class EventDetailServiceImplTest {
 
     @Test
     public void testTheOrganizerCanAnswerButCannotAskNorReportOnTheirOwnEvent() {
-        final EventDetail result = detailService.getDetail(EVENT_ID, CREATOR_ID, QUESTIONS_PAGE, REVIEWS_PAGE);
+        final EventDetail result = detailService.getDetail(EVENT_ID, CREATOR_ID, QUESTIONS_PAGE, REVIEWS_PAGE).get();
 
         assertTrue(result.isCanAnswer());
         assertFalse(result.isCanAsk());
@@ -503,14 +501,14 @@ public class EventDetailServiceImplTest {
         event.setEventDate(new Date(System.currentTimeMillis() - ONE_DAY_MILLIS));
         viewer(null, true);
 
-        final EventDetail result = detailService.getDetail(EVENT_ID, VIEWER_ID, QUESTIONS_PAGE, REVIEWS_PAGE);
+        final EventDetail result = detailService.getDetail(EVENT_ID, VIEWER_ID, QUESTIONS_PAGE, REVIEWS_PAGE).get();
 
         assertFalse(result.isCanAsk());
     }
 
     @Test
     public void testAnAnonymousVisitorCanAskAndReport() {
-        final EventDetail result = detailService.getDetail(EVENT_ID, null, QUESTIONS_PAGE, REVIEWS_PAGE);
+        final EventDetail result = detailService.getDetail(EVENT_ID, null, QUESTIONS_PAGE, REVIEWS_PAGE).get();
 
         assertTrue(result.isCanAsk());
         assertTrue(result.isCanReport());
@@ -523,7 +521,7 @@ public class EventDetailServiceImplTest {
         viewerRegistered(RegistrationStatus.CONFIRMED);
         when(eventChatService.isMember(EVENT_ID, VIEWER_ID)).thenReturn(true);
 
-        final EventDetail result = detailService.getDetail(EVENT_ID, VIEWER_ID, QUESTIONS_PAGE, REVIEWS_PAGE);
+        final EventDetail result = detailService.getDetail(EVENT_ID, VIEWER_ID, QUESTIONS_PAGE, REVIEWS_PAGE).get();
 
         assertEquals(ChatAccess.OPEN, result.getChatAccess());
     }
@@ -532,7 +530,7 @@ public class EventDetailServiceImplTest {
     public void testChatAccessIsJoinForAConfirmedNonMemberWhileTheEventIsActive() {
         viewerRegistered(RegistrationStatus.CONFIRMED);
 
-        final EventDetail result = detailService.getDetail(EVENT_ID, VIEWER_ID, QUESTIONS_PAGE, REVIEWS_PAGE);
+        final EventDetail result = detailService.getDetail(EVENT_ID, VIEWER_ID, QUESTIONS_PAGE, REVIEWS_PAGE).get();
 
         assertEquals(ChatAccess.JOIN, result.getChatAccess());
     }
@@ -542,7 +540,7 @@ public class EventDetailServiceImplTest {
         event.setEventDate(new Date(System.currentTimeMillis() - ONE_DAY_MILLIS));
         viewerRegistered(RegistrationStatus.CONFIRMED);
 
-        final EventDetail result = detailService.getDetail(EVENT_ID, VIEWER_ID, QUESTIONS_PAGE, REVIEWS_PAGE);
+        final EventDetail result = detailService.getDetail(EVENT_ID, VIEWER_ID, QUESTIONS_PAGE, REVIEWS_PAGE).get();
 
         assertEquals(ChatAccess.NONE, result.getChatAccess());
     }
@@ -551,14 +549,14 @@ public class EventDetailServiceImplTest {
     public void testChatAccessIsNoneForSomeoneWhoseRegistrationIsNotConfirmed() {
         viewerRegistered(RegistrationStatus.WAITLISTED);
 
-        final EventDetail result = detailService.getDetail(EVENT_ID, VIEWER_ID, QUESTIONS_PAGE, REVIEWS_PAGE);
+        final EventDetail result = detailService.getDetail(EVENT_ID, VIEWER_ID, QUESTIONS_PAGE, REVIEWS_PAGE).get();
 
         assertEquals(ChatAccess.NONE, result.getChatAccess());
     }
 
     @Test
     public void testChatAccessIsNoneForAnAnonymousVisitor() {
-        final EventDetail result = detailService.getDetail(EVENT_ID, null, QUESTIONS_PAGE, REVIEWS_PAGE);
+        final EventDetail result = detailService.getDetail(EVENT_ID, null, QUESTIONS_PAGE, REVIEWS_PAGE).get();
 
         assertEquals(ChatAccess.NONE, result.getChatAccess());
     }
@@ -567,7 +565,7 @@ public class EventDetailServiceImplTest {
     public void testCanUnregisterIsTrueForARegisteredViewerWhileTheEventIsActive() {
         viewerRegistered(RegistrationStatus.PENDING);
 
-        final EventDetail result = detailService.getDetail(EVENT_ID, VIEWER_ID, QUESTIONS_PAGE, REVIEWS_PAGE);
+        final EventDetail result = detailService.getDetail(EVENT_ID, VIEWER_ID, QUESTIONS_PAGE, REVIEWS_PAGE).get();
 
         assertTrue(result.isCanUnregister());
     }
@@ -577,7 +575,7 @@ public class EventDetailServiceImplTest {
         event.setCancelledAt(new Date());
         viewerRegistered(RegistrationStatus.CONFIRMED);
 
-        final EventDetail result = detailService.getDetail(EVENT_ID, VIEWER_ID, QUESTIONS_PAGE, REVIEWS_PAGE);
+        final EventDetail result = detailService.getDetail(EVENT_ID, VIEWER_ID, QUESTIONS_PAGE, REVIEWS_PAGE).get();
 
         assertFalse(result.isCanUnregister());
     }
@@ -586,7 +584,7 @@ public class EventDetailServiceImplTest {
     public void testCanUnregisterIsFalseForARejectedRegistration() {
         viewerRegistered(RegistrationStatus.REJECTED);
 
-        final EventDetail result = detailService.getDetail(EVENT_ID, VIEWER_ID, QUESTIONS_PAGE, REVIEWS_PAGE);
+        final EventDetail result = detailService.getDetail(EVENT_ID, VIEWER_ID, QUESTIONS_PAGE, REVIEWS_PAGE).get();
 
         assertFalse(result.isCanUnregister());
     }

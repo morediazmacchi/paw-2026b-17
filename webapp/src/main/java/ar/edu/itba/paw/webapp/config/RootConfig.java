@@ -25,7 +25,6 @@ import org.springframework.web.servlet.i18n.CookieLocaleResolver;
 
 import javax.persistence.EntityManagerFactory;
 import javax.sql.DataSource;
-import java.util.Locale;
 import java.util.Properties;
 
 // Contexto RAIZ de Spring (lo carga el ContextLoaderListener del web.xml): todo lo que NO es
@@ -81,7 +80,7 @@ public class RootConfig {
     // tambien lo usa (para recordar el idioma del usuario al loguearse).
     // CookieLocaleResolver (en vez del default, que solo mira el header del navegador) es lo
     // que permite el boton de idioma de la navbar (ver LocaleController) y que la eleccion
-    // sobreviva a cerrar el navegador (PAW20-82).
+    // sobreviva a cerrar el navegador.
     @Bean
     public LocaleResolver localeResolver() {
         return cookieLocaleResolver();
@@ -98,8 +97,8 @@ public class RootConfig {
     // Aparte del @Bean de arriba porque WebConfig (el contexto hijo) tiene que crear el mismo
     // resolver: ver WebConfig.localeResolver().
     static LocaleResolver cookieLocaleResolver() {
-        final CookieLocaleResolver resolver = new CookieLocaleResolver();
-        resolver.setDefaultLocale(new Locale("es"));
+        // Sin cookie, el idioma sale del navegador (Accept-Language), ver la clase.
+        final CookieLocaleResolver resolver = new AcceptLanguageCookieLocaleResolver();
         resolver.setCookieName("paw_locale");
         // 1 anio: no es una cookie de sesion, tiene que sobrevivir a cerrar el navegador.
         resolver.setCookieMaxAge(60 * 60 * 24 * 365);

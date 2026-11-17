@@ -1,7 +1,5 @@
 package ar.edu.itba.paw.webapp.controller;
 
-import ar.edu.itba.paw.model.Role;
-import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.webapp.auth.PlancitoUserDetails;
 import ar.edu.itba.paw.model.exception.EventCancelledException;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
@@ -17,7 +15,7 @@ import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
@@ -26,17 +24,16 @@ import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.support.RequestContextUtils;
 
 import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 
 import java.security.Principal;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.stream.Collectors;
 
 /**
- * Maneja los errores de TODOS los controllers desde un solo lugar.
+ * Maneja los errores de TODOS los controllers desde un solo lugar. (El usuario de la sesion en el Model de cada
+ * pedido no es de esta clase: ver CurrentUserAdvice.)
  */
 @ControllerAdvice
 public class ErrorAdvice {
@@ -46,26 +43,6 @@ public class ErrorAdvice {
     // Las dos pantallas, ademas de publicar, que suben archivos (ver imageTooLarge()).
     private static final Pattern EDIT_EVENT_PATH = Pattern.compile("/eventos/(\\d+)/editar");
     private static final String COVER_PATH = "/perfil/portada";
-
-    // Corre antes de CUALQUIER metodo de CUALQUIER controller (ControllerAdvice
-    // es global) y deja "currentUser" en el Model de cada request. Sale del principal de la sesion
-    // (PlancitoUserDetails: id, email y roles, armado una sola vez en el login), sin ir a la base. Es un
-    // User "de sesion": solo trae esos tres datos, los que sirven para autorizar; NO tiene nombre (no se
-    // autoriza con el y quedaria viejo al editar el perfil): quien lo necesita lo pide al service por id.
-    // Sin sesion es null.
-    @ModelAttribute("currentUser")
-    public User currentUserFromPrincipal(final Authentication authentication) {
-        return PlancitoUserDetails.from(authentication).map(ErrorAdvice::toUser).orElse(null);
-    }
-
-    private static User toUser(final PlancitoUserDetails principal) {
-        final User user = new User(principal.getEmail(), null);
-        user.setId(principal.getId());
-        user.setRoles(Arrays.stream(Role.values())
-                .filter(principal::hasRole)
-                .collect(Collectors.toCollection(HashSet::new)));
-        return user;
-    }
 
     @ExceptionHandler(EventNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
@@ -106,13 +83,15 @@ public class ErrorAdvice {
         return new ModelAndView("redirect:/perfil/eventos");
     }
 
-    // Un @PathVariable numerico (ej. "long id") que llega con algo que no es
-    // un numero -- "/eventos/abc", o un numero mas grande que Long.MAX_VALUE --
-    // hace que Spring falle ANTES de que el controller pueda buscarlo y tirar
-    // el EventNotFoundException de siempre.
+    // Un argumento numerico (ej. "long id", "int page") que llega con algo que no es un numero -- "/eventos/abc", o un
+    // numero mas grande que el tipo -- hace que Spring falle ANTES de que el controller pueda buscarlo y tirar el
+    // EventNotFoundException de siempre. Si es un id de la ruta, ese recurso no existe (404, la misma pagina de
+    // siempre); si es un parametro de la URL (?page=abc), es un pedido mal armado (400).
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
-    @ResponseStatus(HttpStatus.NOT_FOUND)
-    public ModelAndView invalidIdFormat(final MethodArgumentTypeMismatchException e) {
+    public ModelAndView invalidArgumentFormat(final MethodArgumentTypeMismatchException e,
+                                              final HttpServletResponse response) {
+        response.setStatus(e.getParameter().hasParameterAnnotation(PathVariable.class)
+                ? HttpStatus.NOT_FOUND.value() : HttpStatus.BAD_REQUEST.value());
         return new ModelAndView("errors/404");
     }
 

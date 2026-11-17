@@ -1,6 +1,7 @@
 // Implementa el contrato MyAccountService (modulo services-contracts).
 package ar.edu.itba.paw.services;
 
+import java.util.Comparator;
 import ar.edu.itba.paw.model.Category;
 import ar.edu.itba.paw.model.SavedSearch;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -8,8 +9,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -23,14 +22,13 @@ public class MyAccountServiceImpl implements MyAccountService {
     private final RegistrationService registrationService;
     private final EventInvitationService eventInvitationService;
     private final SavedSearchService savedSearchService;
-    private final CategoryService categoryService;
 
     @Autowired
     public MyAccountServiceImpl(final InboxService inboxService, final EventChatService eventChatService,
                                 final EventService eventService, final ReviewService reviewService,
                                 final RegistrationService registrationService,
                                 final EventInvitationService eventInvitationService,
-                                final SavedSearchService savedSearchService, final CategoryService categoryService) {
+                                final SavedSearchService savedSearchService) {
         this.inboxService = inboxService;
         this.eventChatService = eventChatService;
         this.eventService = eventService;
@@ -38,7 +36,6 @@ public class MyAccountServiceImpl implements MyAccountService {
         this.registrationService = registrationService;
         this.eventInvitationService = eventInvitationService;
         this.savedSearchService = savedSearchService;
-        this.categoryService = categoryService;
     }
 
     @Override
@@ -73,9 +70,8 @@ public class MyAccountServiceImpl implements MyAccountService {
     @Transactional(readOnly = true)
     public PageResult<SavedSearchWithCategoryNames> findSavedSearches(final long userId, final int page) {
         final PageResult<SavedSearch> searches = savedSearchService.findPageByUser(userId, page);
-        final Map<Long, String> names = categoryNames();
         return new PageResult<>(searches.getContent().stream()
-                .map(search -> withCategoryNames(search, names))
+                .map(MyAccountServiceImpl::withCategoryNames)
                 .collect(Collectors.toList()),
                 searches.getTotalElements(), searches.getPage(), searches.getPageSize());
     }
@@ -84,21 +80,14 @@ public class MyAccountServiceImpl implements MyAccountService {
     @Transactional(readOnly = true)
     public Optional<SavedSearchWithCategoryNames> findSavedSearch(final long savedSearchId) {
         return savedSearchService.findById(savedSearchId)
-                .map(search -> withCategoryNames(search, categoryNames()));
+                .map(MyAccountServiceImpl::withCategoryNames);
     }
 
-    // Las categorias son pocas y fijas: se traen todas una vez por pantalla, no una consulta por lista.
-    private Map<Long, String> categoryNames() {
-        return categoryService.findAll().stream().collect(Collectors.toMap(Category::getId, Category::getName));
-    }
-
-    // En el orden de sus ids; una categoria que ya no existe (borrada despues de guardar la busqueda) no aparece.
-    private static SavedSearchWithCategoryNames withCategoryNames(final SavedSearch search,
-                                                                  final Map<Long, String> names) {
-        final List<String> categoryNames = search.getCategoryIds().stream()
-                .sorted()
-                .map(names::get)
-                .filter(Objects::nonNull)
+    // En el orden de los ids de las categorias. Los nombres vienen con la busqueda (la relacion con sus categorias).
+    private static SavedSearchWithCategoryNames withCategoryNames(final SavedSearch search) {
+        final List<String> categoryNames = search.getCategories().stream()
+                .sorted(Comparator.comparing(Category::getId))
+                .map(Category::getName)
                 .collect(Collectors.toList());
         return new SavedSearchWithCategoryNames(search, categoryNames);
     }

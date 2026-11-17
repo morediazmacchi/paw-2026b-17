@@ -1,6 +1,7 @@
 // Implementa el contrato EventQuestionDao (modulo persistence-contracts) con JPA/Hibernate.
 package ar.edu.itba.paw.persistence;
 
+import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventQuestion;
 import ar.edu.itba.paw.model.User;
 import org.springframework.stereotype.Repository;
@@ -20,9 +21,10 @@ public class EventQuestionJpaDao implements EventQuestionDao {
     private EntityManager em;
 
     @Override
-    public EventQuestion create(final EventQuestion question) {
-        // Ver RegistrationJpaDao.create(): de quien pregunta solo hace falta el id para la relacion.
-        question.setUser(em.getReference(User.class, question.getUser().getId()));
+    public EventQuestion create(final long eventId, final long askerId, final String text) {
+        // Ver RegistrationJpaDao.create(): del evento y de quien pregunta solo hace falta el id.
+        final EventQuestion question = new EventQuestion(
+                em.getReference(Event.class, eventId), em.getReference(User.class, askerId), text);
         em.persist(question);
         return question;
     }

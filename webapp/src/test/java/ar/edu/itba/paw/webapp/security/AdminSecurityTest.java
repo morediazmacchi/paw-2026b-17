@@ -1,11 +1,9 @@
 package ar.edu.itba.paw.webapp.security;
 
-import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.ReportTarget;
 import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.model.UserAccess;
 import ar.edu.itba.paw.model.EventAccessSummary;
-import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.ModerationService;
 import ar.edu.itba.paw.services.UserService;
@@ -120,6 +118,36 @@ public class AdminSecurityTest {
                 AuthorityUtils.createAuthorityList("ROLE_ANONYMOUS"));
 
         assertFalse(security.canSuspend(TARGET_ID, anonymous));
+    }
+
+    // ---- canReactivate() ----
+
+    @Test
+    public void testAnAdminCanReactivateANormalUser() {
+        when(userService.findAccessById(TARGET_ID)).thenReturn(Optional.of(target(Role.USER)));
+
+        assertTrue(security.canReactivate(TARGET_ID, caller(Role.USER, Role.ADMIN)));
+    }
+
+    @Test
+    public void testAnAdminCannotReactivateAnotherAdmin() {
+        when(userService.findAccessById(TARGET_ID)).thenReturn(Optional.of(target(Role.USER, Role.ADMIN)));
+
+        assertFalse(security.canReactivate(TARGET_ID, caller(Role.USER, Role.ADMIN)));
+    }
+
+    @Test
+    public void testASuperadminCanReactivateAnAdmin() {
+        when(userService.findAccessById(TARGET_ID)).thenReturn(Optional.of(target(Role.USER, Role.ADMIN)));
+
+        assertTrue(security.canReactivate(TARGET_ID, caller(Role.USER, Role.ADMIN, Role.SUPERADMIN)));
+    }
+
+    @Test
+    public void testCannotReactivateAUserWhoDoesNotExist() {
+        when(userService.findAccessById(TARGET_ID)).thenReturn(Optional.empty());
+
+        assertFalse(security.canReactivate(TARGET_ID, caller(Role.USER, Role.ADMIN)));
     }
 
     // ---- canRevokeAdmin() ----

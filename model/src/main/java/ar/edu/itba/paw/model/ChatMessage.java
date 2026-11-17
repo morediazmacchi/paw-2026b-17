@@ -22,15 +22,11 @@ public class ChatMessage {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    @Column(name = "event_id", nullable = false)
-    private long eventId;
-    // Se escribe por esta columna simple (alcanza con el id, sin cargar al usuario)...
-    @Column(name = "user_id", nullable = false)
-    private long userId;
-    // ...y se lee por esta relacion, de solo lectura sobre la misma columna: sirve para traer el
-    // nombre con un JOIN FETCH. Hibernate nunca inserta ni actualiza por aca.
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", insertable = false, updatable = false)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "event_id", nullable = false)
+    private Event event;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "user_id", nullable = false)
     private User sender;
     @Column(name = "body", length = 1000, nullable = false)
     private String body;
@@ -43,24 +39,22 @@ public class ChatMessage {
         // Solo para Hibernate
     }
 
-    public ChatMessage(final long eventId, final long userId, final String body) {
-        this.eventId = eventId;
-        this.userId = userId;
+    public ChatMessage(final Event event, final User sender, final String body) {
+        this.event = event;
+        this.sender = sender;
         this.body = body;
     }
 
     public Long getId() { return id; }
-    public long getEventId() { return eventId; }
-    public long getUserId() { return userId; }
+    public Event getEvent() { return event; }
+    public long getEventId() { return event.getId(); }
+    public User getSender() { return sender; }
+    public long getUserId() { return sender.getId(); }
     public String getBody() { return body; }
     public Date getCreatedAt() { return createdAt; }
 
     // El nombre que eligio al registrarse; si no tiene, lo que va antes del arroba.
-    // Null si el mensaje se armo a mano y todavia no se leyo de la base.
     public String getSenderName() {
-        if (sender == null) {
-            return null;
-        }
         final String name = sender.getName();
         if (name != null && !name.trim().isEmpty()) {
             return name.trim();

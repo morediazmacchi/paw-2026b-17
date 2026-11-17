@@ -1,9 +1,17 @@
 package ar.edu.itba.paw.webapp.form;
 
+import ar.edu.itba.paw.model.Barrio;
+import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.EventSort;
 import ar.edu.itba.paw.model.SearchTerms;
 import org.junit.Test;
+import org.springframework.format.support.DefaultFormattingConversionService;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.ServletRequestDataBinder;
 
+import java.math.BigDecimal;
+import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Collections;
 
@@ -14,33 +22,57 @@ import static org.junit.Assert.assertTrue;
 
 public class EventSearchFormTest {
 
+    // El form tal como lo arma Spring al recibir los parametros de la URL (con la misma conversion de tipos).
+    private static BindingResult bind(final EventSearchForm form, final String... nameValuePairs) {
+        final MockHttpServletRequest request = new MockHttpServletRequest();
+        for (int i = 0; i < nameValuePairs.length; i += 2) {
+            request.addParameter(nameValuePairs[i], nameValuePairs[i + 1]);
+        }
+        final ServletRequestDataBinder binder = new ServletRequestDataBinder(form, "eventSearchForm");
+        binder.setConversionService(new DefaultFormattingConversionService());
+        binder.bind(request);
+        return binder.getBindingResult();
+    }
+
+    // ---- toFilterQuery() ----
+
     @Test
     public void testToFilterQueryWithEmptyFormIsEmpty() {
         assertEquals("", new EventSearchForm().toFilterQuery());
     }
 
     @Test
-    public void testToFilterQuerySkipsBlankValues() {
+    public void testToFilterQuerySkipsTheFiltersThatWereNotSet() {
         final EventSearchForm form = new EventSearchForm();
-        form.setPrecioMin("");
-        form.setPrecioMax("500");
-        form.setFechaDesde("");
-        form.setFechaHasta("");
+        form.setPrecioMax(new BigDecimal("500"));
         assertEquals("precioMax=500&", form.toFilterQuery());
     }
 
     @Test
     public void testToFilterQueryRepeatsEachListValue() {
         final EventSearchForm form = new EventSearchForm();
-        form.setCategoria(Arrays.asList("1", "3"));
-        form.setBarrio(Arrays.asList("PALERMO", ""));
-        assertEquals("categoria=1&categoria=3&barrio=PALERMO&", form.toFilterQuery());
+        form.setCategoria(Arrays.asList(1L, 3L));
+        form.setBarrio(Arrays.asList(Barrio.PALERMO, Barrio.RECOLETA));
+        assertEquals("categoria=1&categoria=3&barrio=PALERMO&barrio=RECOLETA&", form.toFilterQuery());
+    }
+
+    @Test
+    public void testToFilterQueryWritesThePricesWithoutScientificNotation() {
+        final EventSearchForm form = new EventSearchForm();
+        form.setPrecioMin(new BigDecimal("1E+3"));
+        assertEquals("precioMin=1000&", form.toFilterQuery());
+    }
+
+    @Test
+    public void testToFilterQueryWritesTheDatesAsTheFormSendsThem() throws Exception {
+        final EventSearchForm form = new EventSearchForm();
+        form.setFechaDesde(new SimpleDateFormat("yyyy-MM-dd").parse("2030-05-17"));
+        assertEquals("fechaDesde=2030-05-17&", form.toFilterQuery());
     }
 
     @Test
     public void testToFilterQueryOmitsTheSortWhenNoneWasChosen() {
-        final EventSearchForm form = new EventSearchForm();
-        assertEquals("", form.toFilterQuery());
+        assertEquals("", new EventSearchForm().toFilterQuery());
     }
 
     @Test
@@ -48,31 +80,41 @@ public class EventSearchFormTest {
         // Quien elige "Mas proximos" a mano tiene que seguir en ese orden al cambiar de pagina:
         // si se omitiera, volveria el orden por defecto, que para quien tiene historial es RECOMENDADOS.
         final EventSearchForm form = new EventSearchForm();
-        form.setSort("FECHA_ASC");
+        form.setSort(EventSort.FECHA_ASC);
         assertEquals("sort=FECHA_ASC&", form.toFilterQuery());
     }
 
     @Test
     public void testToFilterQueryKeepsNonDefaultSort() {
         final EventSearchForm form = new EventSearchForm();
-        form.setSort("PRECIO_ASC");
+        form.setSort(EventSort.PRECIO_ASC);
         assertEquals("sort=PRECIO_ASC&", form.toFilterQuery());
     }
 
     @Test
     public void testToFilterQueryKeepsTheRecommendedSort() {
         final EventSearchForm form = new EventSearchForm();
-        form.setSort("RECOMENDADOS");
+        form.setSort(EventSort.RECOMENDADOS);
         assertEquals("sort=RECOMENDADOS&", form.toFilterQuery());
     }
 
     @Test
-    public void testToFilterQueryDropsAnInvalidSort() {
-        // Un valor que no existe no es un orden elegido: no debe quedar en la URL.
+    public void testToFilterQueryWritesTheCheckboxesOnlyWhenTheyAreOn() {
         final EventSearchForm form = new EventSearchForm();
-        form.setSort("FECHA");
-        assertEquals("", form.toFilterQuery());
+        form.setPocosCupos(true);
+        form.setAgotados(false);
+        assertEquals("pocosCupos=true&", form.toFilterQuery());
     }
+
+    @Test
+    public void testToFilterQueryNeverIncludesPage() {
+        final EventSearchForm form = new EventSearchForm();
+        form.setPage(4);
+        form.setAgotados(true);
+        assertEquals("agotados=true&", form.toFilterQuery());
+    }
+
+    // ---- orden ----
 
     @Test
     public void testSortIsNotExplicitWhenMissing() {
@@ -80,46 +122,10 @@ public class EventSearchFormTest {
     }
 
     @Test
-    public void testSortIsNotExplicitWhenBlank() {
-        final EventSearchForm form = new EventSearchForm();
-        form.setSort("");
-        assertFalse(form.isSortExplicit());
-    }
-
-    @Test
-    public void testSortIsNotExplicitWhenInvalid() {
-        final EventSearchForm form = new EventSearchForm();
-        form.setSort("FECHA");
-        assertFalse(form.isSortExplicit());
-    }
-
-    @Test
     public void testSortIsExplicitWhenItIsAKnownOption() {
         final EventSearchForm form = new EventSearchForm();
-        form.setSort("CUPOS_ASC");
+        form.setSort(EventSort.CUPOS_ASC);
         assertTrue(form.isSortExplicit());
-    }
-
-    @Test
-    public void testAnInvalidSortParsesToTheDateOrder() {
-        final EventSearchForm form = new EventSearchForm();
-        form.setSort("FECHA");
-        assertEquals(EventSort.FECHA_ASC, form.getParsedSort());
-    }
-
-    @Test
-    public void testToFilterQueryEncodesSpecialCharacters() {
-        final EventSearchForm form = new EventSearchForm();
-        form.setPocosCupos("a b&c");
-        assertEquals("pocosCupos=a+b%26c&", form.toFilterQuery());
-    }
-
-    @Test
-    public void testToFilterQueryNeverIncludesPage() {
-        final EventSearchForm form = new EventSearchForm();
-        form.setPage("4");
-        form.setAgotados("on");
-        assertEquals("agotados=on&", form.toFilterQuery());
     }
 
     @Test
@@ -128,17 +134,97 @@ public class EventSearchFormTest {
     }
 
     @Test
-    public void testToCriteriaLeavesTheSortEmptyWhenTheChosenOneIsInvalid() {
+    public void testToCriteriaKeepsTheChosenSort() {
         final EventSearchForm form = new EventSearchForm();
-        form.setSort("FECHA");
-        assertNull(form.toCriteria().getSort());
+        form.setSort(EventSort.PRECIO_DESC);
+        assertEquals(EventSort.PRECIO_DESC, form.toCriteria().getSort());
+    }
+
+    // ---- toCriteria() ----
+
+    @Test
+    public void testToCriteriaAsksForTheFirstPageWhenNoneWasChosen() {
+        assertEquals(1, new EventSearchForm().toCriteria().getPage());
     }
 
     @Test
-    public void testToCriteriaKeepsTheChosenSort() {
+    public void testToCriteriaAsksForTheChosenPage() {
         final EventSearchForm form = new EventSearchForm();
-        form.setSort("PRECIO_DESC");
-        assertEquals(EventSort.PRECIO_DESC, form.toCriteria().getSort());
+        form.setPage(3);
+        assertEquals(3, form.toCriteria().getPage());
+    }
+
+    @Test
+    public void testToCriteriaIgnoresAPriceRangeThatIsBackwards() {
+        final EventSearchForm form = new EventSearchForm();
+        form.setPrecioMin(new BigDecimal("900"));
+        form.setPrecioMax(new BigDecimal("100"));
+        final EventSearchCriteria criteria = form.toCriteria();
+        assertNull(criteria.getMinPrice());
+        assertNull(criteria.getMaxPrice());
+    }
+
+    @Test
+    public void testToCriteriaKeepsAPriceRangeInOrder() {
+        final EventSearchForm form = new EventSearchForm();
+        form.setPrecioMin(new BigDecimal("100"));
+        form.setPrecioMax(new BigDecimal("900"));
+        final EventSearchCriteria criteria = form.toCriteria();
+        assertEquals(new BigDecimal("100"), criteria.getMinPrice());
+        assertEquals(new BigDecimal("900"), criteria.getMaxPrice());
+    }
+
+    // ---- enlazado desde la URL (lo que convierte Spring) ----
+
+    @Test
+    public void testBindingTurnsEachParameterIntoItsType() throws Exception {
+        final EventSearchForm form = new EventSearchForm();
+        final BindingResult errors = bind(form, "categoria", "2", "categoria", "5", "barrio", "PALERMO",
+                "precioMin", "100.50", "fechaDesde", "2030-05-17", "puntajeMin", "4", "pocosCupos", "true",
+                "page", "3", "sort", "PRECIO_ASC");
+
+        assertFalse(errors.hasErrors());
+        assertEquals(Arrays.asList(2L, 5L), form.getCategoria());
+        assertEquals(Collections.singletonList(Barrio.PALERMO), form.getBarrio());
+        assertEquals(new BigDecimal("100.50"), form.getPrecioMin());
+        assertEquals(new SimpleDateFormat("yyyy-MM-dd").parse("2030-05-17"), form.getFechaDesde());
+        assertEquals(Integer.valueOf(4), form.getPuntajeMin());
+        assertTrue(form.isOnlyFewSpotsLeft());
+        assertEquals(Integer.valueOf(3), form.getPage());
+        assertEquals(EventSort.PRECIO_ASC, form.getSort());
+    }
+
+    @Test
+    public void testBindingAValueThatIsNotUnderstoodLeavesThatFilterEmptyAndReportsTheField() {
+        final EventSearchForm form = new EventSearchForm();
+        final BindingResult errors = bind(form, "precioMin", "abc", "fechaDesde", "no-es-fecha", "page", "xyz",
+                "sort", "FECHA");
+
+        assertEquals(4, errors.getFieldErrorCount());
+        assertNull(form.getPrecioMin());
+        assertNull(form.getFechaDesde());
+        assertNull(form.getPage());
+        assertNull(form.getSort());
+    }
+
+    @Test
+    public void testBindingAValueThatIsNotUnderstoodDoesNotStopTheOtherFilters() {
+        final EventSearchForm form = new EventSearchForm();
+        bind(form, "precioMin", "abc", "precioMax", "800", "puntajeMin", "3");
+
+        final EventSearchCriteria criteria = form.toCriteria();
+        assertNull(criteria.getMinPrice());
+        assertEquals(new BigDecimal("800"), criteria.getMaxPrice());
+        assertEquals(Integer.valueOf(3), criteria.getMinOrganizerRating());
+    }
+
+    @Test
+    public void testBindingAnEmptyValueIsNotAnError() {
+        final EventSearchForm form = new EventSearchForm();
+        final BindingResult errors = bind(form, "precioMin", "", "fechaDesde", "", "puntajeMin", "", "pocosCupos", "");
+
+        assertFalse(errors.hasErrors());
+        assertFalse(form.hasActiveFilters());
     }
 
     // ---- barra de busqueda (q) ----
@@ -208,7 +294,7 @@ public class EventSearchFormTest {
     public void testToFilterQueryKeepsTheSearchTextNextToTheFilters() {
         final EventSearchForm form = new EventSearchForm();
         form.setQ("rock");
-        form.setPrecioMax("500");
+        form.setPrecioMax(new BigDecimal("500"));
         assertEquals("q=rock&precioMax=500&", form.toFilterQuery());
     }
 

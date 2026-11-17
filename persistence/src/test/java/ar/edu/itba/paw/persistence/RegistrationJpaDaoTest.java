@@ -1,10 +1,9 @@
 package ar.edu.itba.paw.persistence;
 
+import java.util.ArrayList;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationAccess;
 import ar.edu.itba.paw.model.RegistrationStatus;
-import ar.edu.itba.paw.model.Event;
-import ar.edu.itba.paw.model.User;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -106,46 +105,31 @@ public class RegistrationJpaDaoTest {
         return insertRegistrationAt(eventId, email, userId, name, status, new Timestamp(System.currentTimeMillis()));
     }
 
-    private Registration someRegistration(final long eventId, final long userId) {
-        final Registration registration = new Registration(em.getReference(Event.class, eventId), em.getReference(User.class, userId), EMAIL, NAME, RegistrationStatus.CONFIRMED);
-        return registration;
-    }
-
     // ---- create() ----
 
     @Test
     public void testCreateInsertsTheRegistrationRowAndReturnsItWithItsId() {
-        // Arrange
-        final Registration toCreate = someRegistration(eventId, userId);
-
         // Act
-        final Registration created = registrationDao.create(toCreate);
+        final Registration created = registrationDao.create(eventId, userId, EMAIL, NAME, RegistrationStatus.CONFIRMED);
 
         // Assert
         assertTrue(created.getId() > 0);
         assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "registration",
-                "id = " + created.getId() + " AND event_id = " + eventId
+                "id = " + created.getId() + " AND event_id = " + eventId + " AND user_id = " + userId
                         + " AND email = '" + EMAIL + "' AND name = '" + NAME + "' AND status = 'CONFIRMED'"));
     }
 
     // Los avisos por mail (@Async, otro hilo y sin sesion) leen el id del usuario de la inscripcion:
     // tiene que poder leerse aunque la relacion sea solo una referencia.
     @Test
-    public void testCreateWithAUserBuiltFromTheSessionStoresItsIdAndItIsReadableOutsideTheSession() {
-        // Arrange
-        final User fromSession = new User(EMAIL, NAME);
-        fromSession.setId(userId);
-        final Registration toCreate = new Registration(em.getReference(Event.class, eventId), fromSession, EMAIL, NAME, RegistrationStatus.CONFIRMED);
-
+    public void testCreateReturnsARegistrationWhoseUserIdIsReadableOutsideTheSession() {
         // Act
-        final Registration created = registrationDao.create(toCreate);
+        final Registration created = registrationDao.create(eventId, userId, EMAIL, NAME, RegistrationStatus.CONFIRMED);
         // Se cierra la sesion de Hibernate: el objeto devuelto queda suelto, como en el hilo del mail.
         em.clear();
 
         // Assert
         assertEquals(Long.valueOf(userId), created.getUserId());
-        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "registration",
-                "id = " + created.getId() + " AND user_id = " + userId));
     }
 
     @Test(expected = DataAccessException.class)
@@ -154,7 +138,7 @@ public class RegistrationJpaDaoTest {
         insertRegistration(eventId, EMAIL, userId, NAME, RegistrationStatus.CONFIRMED);
 
         // Act
-        registrationDao.create(someRegistration(eventId, userId));
+        registrationDao.create(eventId, userId, EMAIL, NAME, RegistrationStatus.CONFIRMED);
 
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
@@ -219,7 +203,7 @@ public class RegistrationJpaDaoTest {
         // representantes ya no puedan ir a la base: leer el id tiene que seguir andando, porque es lo
         // que usan los servicios y los JSP despues de que la transaccion termino.
         final long id = insertRegistration(eventId, EMAIL, userId, NAME, RegistrationStatus.CONFIRMED);
-        final Registration found = registrationDao.findById(id).get();
+        final Registration found = em.find(Registration.class, id);
         em.clear();
 
         // Act
@@ -836,6 +820,26 @@ public class RegistrationJpaDaoTest {
                 "id IN (" + first + ", " + second + ") AND status = 'WAITLISTED'"));
         assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "registration",
                 "id = " + third + " AND status = 'PENDING'"));
+    }
+
+    @Test
+    public void testUpdateStatusOfAllWorksWithMoreIdsThanFitInASingleIn() {
+        // Arrange: una inscripcion de verdad entre muchos ids que no existen (mas que el tope de un IN, repartidos en
+        // varias tandas): igual se cambia, y solo esa.
+        final long real = insertRegistration(eventId, EMAIL, userId, NAME, RegistrationStatus.PENDING);
+        final List<Long> manyIds = new ArrayList<>();
+        for (long id = 1_000_000L; id < 1_000_000L + Chunks.IN_LIST_SIZE * 2 + 5; id++) {
+            manyIds.add(id);
+        }
+        manyIds.add(real);
+
+        // Act
+        final int changed = registrationDao.updateStatusOfAll(manyIds, RegistrationStatus.WAITLISTED);
+
+        // Assert
+        assertEquals(1, changed);
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "registration",
+                "id = " + real + " AND status = 'WAITLISTED'"));
     }
 
     // ---- findByIds() ----

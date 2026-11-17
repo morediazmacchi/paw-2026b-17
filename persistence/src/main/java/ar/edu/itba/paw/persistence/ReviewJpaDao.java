@@ -1,6 +1,7 @@
 // Implementa el contrato ReviewDao (modulo persistence-contracts) con JPA/Hibernate.
 package ar.edu.itba.paw.persistence;
 
+import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.RatingSummary;
 import ar.edu.itba.paw.model.Review;
 import ar.edu.itba.paw.model.User;
@@ -19,11 +20,12 @@ public class ReviewJpaDao implements ReviewDao {
     private EntityManager em;
 
     @Override
-    public Review create(final Review review) {
+    public Review create(final long eventId, final long userId, final int rating, final String comment) {
         // Con IDENTITY el INSERT corre aca mismo: si viola UNIQUE(event_id, user_id) la
         // excepcion sale de este metodo (traducida a DataIntegrityViolationException).
-        // Ver RegistrationJpaDao.create(): de quien reseña solo hace falta el id.
-        review.setUser(em.getReference(User.class, review.getUser().getId()));
+        // Ver RegistrationJpaDao.create(): del evento y de quien reseña solo hace falta el id.
+        final Review review = new Review(
+                em.getReference(Event.class, eventId), em.getReference(User.class, userId), rating, comment);
         em.persist(review);
         return review;
     }
@@ -62,8 +64,10 @@ public class ReviewJpaDao implements ReviewDao {
         if (ids.isEmpty()) {
             return Collections.emptyList();
         }
-        // El ORDER BY es el MISMO de la consulta de ids (el IN no ordena nada).
-        return em.createQuery("FROM Review r WHERE r.id IN :ids ORDER BY r.createdAt DESC, r.id DESC", Review.class)
+        // El ORDER BY es el MISMO de la consulta de ids (el IN no ordena nada). Cada reseña trae su evento: la
+        // pantalla muestra de que evento es cada una, y asi no hace falta ir a buscarlos aparte.
+        return em.createQuery("SELECT r FROM Review r JOIN FETCH r.event WHERE r.id IN :ids "
+                + "ORDER BY r.createdAt DESC, r.id DESC", Review.class)
                 .setParameter("ids", ids)
                 .getResultList();
     }

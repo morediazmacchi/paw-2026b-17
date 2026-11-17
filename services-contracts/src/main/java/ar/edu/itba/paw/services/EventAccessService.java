@@ -1,11 +1,11 @@
 // Contrato de servicio para EventAccessService. Implementacion: EventAccessServiceImpl (modulo services).
 package ar.edu.itba.paw.services;
 
+import java.util.Optional;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventAccessData;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.exception.EventCancelledException;
-import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import ar.edu.itba.paw.model.exception.EventRejectedException;
 
 public interface EventAccessService {
@@ -54,9 +54,10 @@ public interface EventAccessService {
      * Quien es el creador NO se valida aca: eso es autorizacion y lo resuelve @PreAuthorize en el
      * controller (ver EventSecurity). Esto es solo la regla de estado del evento.
      *
-     * @throws EventNotFoundException si no existe.
+     * Vacio si el evento no existe (el 404 lo da la capa web).
+     *
      * @throws EventCancelledException si existe pero esta cancelado.
      * @throws EventRejectedException si existe pero fue rechazado por un admin.
      */
-    Event getEditableEvent(long eventId);
+    Optional<Event> getEditableEvent(long eventId);
 }

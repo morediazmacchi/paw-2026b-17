@@ -1,5 +1,6 @@
 package ar.edu.itba.paw.services;
 
+import ar.edu.itba.paw.model.Category;
 import ar.edu.itba.paw.model.ChatGroup;
 import ar.edu.itba.paw.model.EventInvitation;
 import ar.edu.itba.paw.model.InboxMessage;
@@ -49,15 +50,13 @@ public class MyAccountServiceImplTest {
     private EventInvitationService eventInvitationService;
     @Mock
     private SavedSearchService savedSearchService;
-    @Mock
-    private CategoryService categoryService;
 
     private MyAccountServiceImpl myAccountService;
 
     @Before
     public void setUp() {
         myAccountService = new MyAccountServiceImpl(inboxService, eventChatService, eventService, reviewService,
-                registrationService, eventInvitationService, savedSearchService, categoryService);
+                registrationService, eventInvitationService, savedSearchService);
     }
 
     // Una pagina vacia con ese indice y suficientes elementos para que el indice sea valido.
@@ -65,8 +64,8 @@ public class MyAccountServiceImplTest {
         return new PageResult<>(Collections.<T>emptyList(), 100, page, 10);
     }
 
-    private static SavedSearch searchWithCategories(final Long... categoryIds) {
-        return new SavedSearch(ModelFixtures.user(USER_ID), Arrays.asList(categoryIds), null, null, null, null, null);
+    private static SavedSearch searchWithCategories(final Category... categories) {
+        return new SavedSearch(ModelFixtures.user(USER_ID), Arrays.asList(categories), null, null, null, null, null);
     }
 
     // ---- findInbox() ----
@@ -75,7 +74,7 @@ public class MyAccountServiceImplTest {
     public void testFindInboxUsesEachIndexForItsOwnList() {
         // Arrange
         when(inboxService.findPageWithEvents(USER_ID, 2))
-                .thenReturn(new InboxPage(MyAccountServiceImplTest.<InboxMessage>pageNumber(2), Collections.emptyMap()));
+                .thenReturn(new InboxPage(MyAccountServiceImplTest.<InboxMessage>pageNumber(2)));
         when(eventChatService.findGroupsPage(USER_ID, 3)).thenReturn(MyAccountServiceImplTest.<ChatGroup>pageNumber(3));
 
         // Act
@@ -98,7 +97,7 @@ public class MyAccountServiceImplTest {
         when(registrationService.withRegistrationStats(eventsPage))
                 .thenReturn(MyAccountServiceImplTest.<EventWithRegistrationStats>pageNumber(2));
         when(reviewService.findCreatorReputation(USER_ID, 5))
-                .thenReturn(new CreatorReputation(MyAccountServiceImplTest.<Review>pageNumber(5), 4.5, Collections.emptyMap()));
+                .thenReturn(new CreatorReputation(MyAccountServiceImplTest.<Review>pageNumber(5), 4.5));
 
         // Act
         final MyEventsView result = myAccountService.findMyEvents(USER_ID, 2, 5);
@@ -173,12 +172,11 @@ public class MyAccountServiceImplTest {
     // ---- findSavedSearches() / findSavedSearch() ----
 
     @Test
-    public void testFindSavedSearchesNamesTheCategoriesInIdOrderAndSkipsTheOnesThatNoLongerExist() {
-        // Arrange: la 9 ya no existe.
+    public void testFindSavedSearchesNamesTheCategoriesInIdOrder() {
+        // Arrange
         when(savedSearchService.findPageByUser(USER_ID, 1)).thenReturn(new PageResult<>(
-                Collections.singletonList(searchWithCategories(3L, 9L, 1L)), 1, 1, 10));
-        when(categoryService.findAll()).thenReturn(Arrays.asList(
-                ModelFixtures.category(1L, "Musica"), ModelFixtures.category(3L, "Teatro")));
+                Collections.singletonList(searchWithCategories(
+                        ModelFixtures.category(3L, "Teatro"), ModelFixtures.category(1L, "Musica"))), 1, 1, 10));
 
         // Act
         final PageResult<SavedSearchWithCategoryNames> result = myAccountService.findSavedSearches(USER_ID, 1);
@@ -192,7 +190,6 @@ public class MyAccountServiceImplTest {
         // Arrange
         when(savedSearchService.findPageByUser(USER_ID, 2)).thenReturn(new PageResult<>(
                 Collections.singletonList(searchWithCategories()), 11, 2, 10));
-        when(categoryService.findAll()).thenReturn(Collections.emptyList());
 
         // Act
         final PageResult<SavedSearchWithCategoryNames> result = myAccountService.findSavedSearches(USER_ID, 2);
@@ -205,8 +202,8 @@ public class MyAccountServiceImplTest {
     @Test
     public void testFindSavedSearchNamesItsCategories() {
         // Arrange
-        when(savedSearchService.findById(SEARCH_ID)).thenReturn(Optional.of(searchWithCategories(1L)));
-        when(categoryService.findAll()).thenReturn(Collections.singletonList(ModelFixtures.category(1L, "Musica")));
+        when(savedSearchService.findById(SEARCH_ID))
+                .thenReturn(Optional.of(searchWithCategories(ModelFixtures.category(1L, "Musica"))));
 
         // Act
         final List<String> result = myAccountService.findSavedSearch(SEARCH_ID).get().getCategoryNames();

@@ -104,7 +104,7 @@ public class EventQuestionServiceImplTest {
     public void testAskReturnsCreated() {
         // Arrange
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
-        when(questionDao.create(any(EventQuestion.class))).thenReturn(created());
+        when(questionDao.create(EVENT_ID, ASKER_ID, "Hay estacionamiento?")).thenReturn(created());
 
         // Act
         final QuestionResult result = questionService.ask(EVENT_ID, ASKER_ID, "Hay estacionamiento?");
@@ -117,7 +117,7 @@ public class EventQuestionServiceImplTest {
     public void testAskWithABlankTextReturnsInvalid() {
         // Arrange: el dao tiene un dato senuelo; si el service guardara la pregunta igual, el resultado seria CREATED
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
-        lenient().when(questionDao.create(any(EventQuestion.class))).thenReturn(created());
+        lenient().when(questionDao.create(eq(EVENT_ID), eq(ASKER_ID), anyString())).thenReturn(created());
 
         // Act
         final QuestionResult result = questionService.ask(EVENT_ID, ASKER_ID, "   ");
@@ -130,7 +130,7 @@ public class EventQuestionServiceImplTest {
     public void testAskWithATextLongerThanTheMaximumReturnsInvalid() {
         // Arrange
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
-        lenient().when(questionDao.create(any(EventQuestion.class))).thenReturn(created());
+        lenient().when(questionDao.create(eq(EVENT_ID), eq(ASKER_ID), anyString())).thenReturn(created());
         final String tooLong = new String(new char[EventQuestionService.MAX_QUESTION_LENGTH + 1]).replace('\0', 'a');
 
         // Act
@@ -144,7 +144,7 @@ public class EventQuestionServiceImplTest {
     public void testAskWithATextOfExactlyTheMaximumLengthIsCreated() {
         // Arrange
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
-        when(questionDao.create(any(EventQuestion.class))).thenReturn(created());
+        when(questionDao.create(eq(EVENT_ID), eq(ASKER_ID), anyString())).thenReturn(created());
         final String maximum = new String(new char[EventQuestionService.MAX_QUESTION_LENGTH]).replace('\0', 'a');
 
         // Act

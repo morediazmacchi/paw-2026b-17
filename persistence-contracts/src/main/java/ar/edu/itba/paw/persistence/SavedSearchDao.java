@@ -12,9 +12,12 @@ import java.util.Optional;
 
 public interface SavedSearchDao {
 
-    // Recibe los filtros y es el DAO quien arma la busqueda guardada y la devuelve con su id (correccion 11).
+    // Recibe los filtros y es el DAO quien arma la busqueda guardada y la devuelve con su id. Si esa persona ya tenia
+    // guardada una con exactamente esos filtros, el UNIQUE (user_id, filters_key) de la base lo frena y sale una
+    // DataIntegrityViolationException: es lo que pasa cuando dos pedidos simultaneos pasan el chequeo de existsByKey()
+    // a la vez. Quien llama la traduce y descarta la transaccion (el insert fallido la deja marcada "solo rollback").
     SavedSearch create(long userId, Collection<Long> categoryIds, Collection<Barrio> barrios,
-                       BigDecimal minPrice, BigDecimal maxPrice, Date fromDate, Date toDate);
+                                 BigDecimal minPrice, BigDecimal maxPrice, Date fromDate, Date toDate);
 
     // Si esa persona ya guardo una busqueda con esos filtros (ver SavedSearch.keyOf()).
     boolean existsByKey(long userId, String filtersKey);
@@ -37,6 +40,10 @@ public interface SavedSearchDao {
     // Los ids mayores a afterId, de menor a mayor, a lo sumo limit: para recorrer todas las busquedas guardadas de a
     // tandas sin traerlas juntas a memoria.
     List<Long> findIdsAfter(long afterId, int limit);
+
+    // La fecha de "ultimo aviso" mas vieja entre TODAS las busquedas guardadas (un MIN, sin traer filas). Vacio si no
+    // hay ninguna busqueda guardada. Sirve para saber, con una sola consulta, desde cuando hay que mirar eventos nuevos.
+    Optional<Date> findOldestLastCheckedAt();
 
     // La busqueda con su duenio y sus filtros en UNA consulta (JOIN FETCH): para avisar hacen falta los tres, y
     // como son relaciones lazy, sin esto serian cuatro consultas por busqueda.

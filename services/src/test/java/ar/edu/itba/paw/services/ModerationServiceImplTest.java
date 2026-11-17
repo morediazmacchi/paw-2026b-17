@@ -112,7 +112,6 @@ public class ModerationServiceImplTest {
         // Arrange
         eventExists(someEvent());
         when(reportDao.existsPendingByEventAndReporter(EVENT_ID, REPORTER_ID)).thenReturn(false);
-        when(userService.findById(REPORTER_ID)).thenReturn(Optional.of(someUser(REPORTER_ID)));
 
         // Act
         final ReportResult result = moderationService.report(EVENT_ID, REPORTER_ID, REASON);
@@ -475,34 +474,6 @@ public class ModerationServiceImplTest {
     }
 
     @Test
-    public void testSearchQueueHoldsTheReportedEventsById() {
-        // Arrange
-        final Event event = someEvent();
-        searchQueueOf(somePendingReport());
-        when(eventService.findByIds(Collections.singletonList(EVENT_ID))).thenReturn(Collections.singletonList(event));
-
-        // Act
-        final ReportQueuePage result = moderationService.searchQueue(null, ReportStatusFilter.ALL, 1);
-
-        // Assert
-        assertEquals(Collections.singletonMap(EVENT_ID, event), result.getEventsById());
-    }
-
-    @Test
-    public void testSearchQueueHoldsTheReportersById() {
-        // Arrange
-        final User reporter = someUser(REPORTER_ID);
-        searchQueueOf(somePendingReport());
-        when(userService.findByIds(Collections.singletonList(REPORTER_ID))).thenReturn(Collections.singletonList(reporter));
-
-        // Act
-        final ReportQueuePage result = moderationService.searchQueue(null, ReportStatusFilter.ALL, 1);
-
-        // Assert
-        assertEquals(Collections.singletonMap(REPORTER_ID, reporter), result.getReportersById());
-    }
-
-    @Test
     public void testSearchQueueKeepsThePageOfReports() {
         // Arrange
         final EventReport report = somePendingReport();
@@ -514,25 +485,6 @@ public class ModerationServiceImplTest {
         // Assert
         assertEquals(Collections.singletonList(report), result.getReports().getContent());
         assertEquals(1, result.getReports().getPage());
-    }
-
-    @Test
-    public void testSearchQueueHoldsTheAdminsWhoAskedForChanges() {
-        // Arrange
-        final User admin = someUser(ADMIN_ID);
-        final EventReport report = someChangesRequestedReport();
-        report.setChangesRequestedBy(admin);
-        when(reportDao.countSearch(null, ReportStatusFilter.CHANGES_REQUESTED)).thenReturn(1L);
-        when(reportDao.search(null, ReportStatusFilter.CHANGES_REQUESTED, 1, ModerationServiceImpl.PAGE_SIZE))
-                .thenReturn(Collections.singletonList(report));
-        when(userService.findByIds(Collections.singletonList(ADMIN_ID))).thenReturn(Collections.singletonList(admin));
-        lenient().when(reportDao.countStatuses()).thenReturn(new ReportStatusCounts(1, 0, 0, 1, 0));
-
-        // Act
-        final ReportQueuePage result = moderationService.searchQueue(null, ReportStatusFilter.CHANGES_REQUESTED, 1);
-
-        // Assert
-        assertEquals(Collections.singletonMap(ADMIN_ID, admin), result.getRequestedByUsersById());
     }
 
     @Test
@@ -560,7 +512,6 @@ public class ModerationServiceImplTest {
 
         // Assert
         assertTrue(result.getReports().getContent().isEmpty());
-        assertTrue(result.getEventsById().isEmpty());
     }
 
     // ---- markViewed() ----

@@ -1,6 +1,7 @@
 // Implementa el contrato EventReportDao (modulo persistence-contracts) con JPA/Hibernate.
 package ar.edu.itba.paw.persistence;
 
+import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventReport;
 import ar.edu.itba.paw.model.ReportStatusCounts;
 import ar.edu.itba.paw.model.ReportStatusFilter;
@@ -38,9 +39,10 @@ public class EventReportJpaDao implements EventReportDao {
     private EntityManager em;
 
     @Override
-    public EventReport create(final EventReport report) {
-        // Ver RegistrationJpaDao.create(): de quien reporta solo hace falta el id.
-        report.setReporter(em.getReference(User.class, report.getReporter().getId()));
+    public EventReport create(final long eventId, final long reporterId, final String reason) {
+        // Ver RegistrationJpaDao.create(): del evento y de quien reporta solo hace falta el id.
+        final EventReport report = new EventReport(
+                em.getReference(Event.class, eventId), em.getReference(User.class, reporterId), reason);
         em.persist(report);
         return report;
     }
@@ -165,7 +167,10 @@ public class EventReportJpaDao implements EventReportDao {
         if (ids.isEmpty()) {
             return Collections.emptyList();
         }
-        return em.createQuery("FROM EventReport r WHERE r.id IN :ids" + SEARCH_ORDER_BY, EventReport.class)
+        // El evento, quien reporto y el admin que pidio cambios (si hay) vienen en la misma consulta: la pantalla los
+        // muestra a todos, y asi no hay una consulta por cada fila.
+        return em.createQuery("SELECT r FROM EventReport r JOIN FETCH r.event JOIN FETCH r.reporter "
+                        + "LEFT JOIN FETCH r.changesRequestedBy WHERE r.id IN :ids" + SEARCH_ORDER_BY, EventReport.class)
                 .setParameter("ids", ids)
                 .getResultList();
     }

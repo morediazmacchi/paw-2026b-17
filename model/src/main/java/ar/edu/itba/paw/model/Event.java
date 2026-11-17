@@ -94,7 +94,7 @@ public class Event implements EventAccessData {
     // atributo "event" de EventCategory; cascade + orphanRemoval: guardar/borrar el evento
     // guarda/borra sus categorias, y sacar una de la lista borra su fila. Se agregan y sacan con
     // addCategory()/removeCategory() para mantener los dos lados de la relacion de acuerdo.
-    @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<EventCategory> categories = new ArrayList<>();
     // La completa la base (DEFAULT now()): no se inserta ni se actualiza desde Java.
     @Column(name = "created_at", insertable = false, updatable = false)

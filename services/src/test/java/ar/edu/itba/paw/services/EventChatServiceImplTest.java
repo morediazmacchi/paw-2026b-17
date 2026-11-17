@@ -71,7 +71,7 @@ public class EventChatServiceImplTest {
     @Test
     public void testJoinReturnsJoinedForAConfirmedRegistration() {
         // Arrange
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
         when(registrationService.findByEventAndUserId(EVENT_ID, USER_ID))
                 .thenReturn(Optional.of(registration(RegistrationStatus.CONFIRMED)));
         when(chatDao.addMember(REGISTRATION_ID, EVENT_ID, USER_ID)).thenReturn(true);
@@ -86,7 +86,7 @@ public class EventChatServiceImplTest {
     @Test
     public void testJoinWhenAlreadyAMemberReturnsAlreadyMember() {
         // Arrange
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
         when(registrationService.findByEventAndUserId(EVENT_ID, USER_ID))
                 .thenReturn(Optional.of(registration(RegistrationStatus.CONFIRMED)));
         when(chatDao.isMember(EVENT_ID, USER_ID)).thenReturn(true);
@@ -102,7 +102,7 @@ public class EventChatServiceImplTest {
     public void testJoinWithoutRegistrationThrowsEventNotFoundException() {
         // Arrange: el permiso lo decide @PreAuthorize; si la inscripcion ya no esta (se dio de baja
         // justo entre medio), no hay id con que agregar al miembro.
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
         when(registrationService.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
 
         // Act
@@ -114,7 +114,7 @@ public class EventChatServiceImplTest {
     @Test(expected = EventNotFoundException.class)
     public void testJoinForAMissingEventThrowsEventNotFoundException() {
         // Arrange
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.empty());
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
         chatService.join(EVENT_ID, USER_ID);
@@ -125,7 +125,7 @@ public class EventChatServiceImplTest {
     @Test
     public void testJoinAFinishedEventIsClosed() {
         // Arrange
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(-2)));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventInHours(-2)));
         when(registrationService.findByEventAndUserId(EVENT_ID, USER_ID))
                 .thenReturn(Optional.of(registration(RegistrationStatus.CONFIRMED)));
 
@@ -141,7 +141,7 @@ public class EventChatServiceImplTest {
         // Arrange
         final Event cancelled = eventInHours(48);
         cancelled.setCancelledAt(new Date());
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(cancelled));
+        when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(cancelled));
         when(registrationService.findByEventAndUserId(EVENT_ID, USER_ID))
                 .thenReturn(Optional.of(registration(RegistrationStatus.CONFIRMED)));
 
@@ -155,7 +155,7 @@ public class EventChatServiceImplTest {
     // ---- leave() / isMember() ----
 
     @Test
-    public void testLeaveDelegatesToTheDao() {
+    public void testLeaveIsTrueWhenThePersonWasInTheGroup() {
         // Arrange
         when(chatDao.removeMember(EVENT_ID, USER_ID)).thenReturn(true);
 
@@ -164,7 +164,7 @@ public class EventChatServiceImplTest {
     }
 
     @Test
-    public void testIsMemberDelegatesToTheDao() {
+    public void testIsMemberIsTrueForAnActiveMemberOfTheGroup() {
         // Arrange
         when(chatDao.isMember(EVENT_ID, USER_ID)).thenReturn(true);
 
@@ -177,7 +177,7 @@ public class EventChatServiceImplTest {
     @Test
     public void testFindMessagesWithoutCursorReturnsTheLatest() {
         // Arrange
-        final List<ChatMessage> latest = Arrays.asList(new ChatMessage(EVENT_ID, 5, "hola"));
+        final List<ChatMessage> latest = Arrays.asList(new ChatMessage(ModelFixtures.event(EVENT_ID), ModelFixtures.user(5), "hola"));
         when(chatDao.findLatest(EVENT_ID, EventChatServiceImpl.INITIAL_MESSAGES)).thenReturn(latest);
 
         // Act
@@ -190,7 +190,7 @@ public class EventChatServiceImplTest {
     @Test
     public void testFindMessagesWithCursorReturnsOnlyNewerOnes() {
         // Arrange
-        final List<ChatMessage> newer = Arrays.asList(new ChatMessage(EVENT_ID, 5, "nuevo"));
+        final List<ChatMessage> newer = Arrays.asList(new ChatMessage(ModelFixtures.event(EVENT_ID), ModelFixtures.user(5), "nuevo"));
         when(chatDao.findAfter(EVENT_ID, 40, EventChatServiceImpl.MAX_NEW_MESSAGES)).thenReturn(newer);
 
         // Act
@@ -204,7 +204,7 @@ public class EventChatServiceImplTest {
 
     // El id lo pone la base: para un mensaje "ya guardado" se devuelve ese id desde su getId() publico.
     private static ChatMessage messageWithId(final long id) {
-        return new ChatMessage(EVENT_ID, 5, "mensaje " + id) {
+        return new ChatMessage(ModelFixtures.event(EVENT_ID), ModelFixtures.user(5), "mensaje " + id) {
             @Override
             public Long getId() {
                 return id;
@@ -216,12 +216,12 @@ public class EventChatServiceImplTest {
     public void testOpenRoomHoldsTheEventAndTheLatestMessages() {
         // Arrange
         final Event event = eventInHours(48);
-        final List<ChatMessage> latest = Arrays.asList(new ChatMessage(EVENT_ID, 5, "hola"));
-        when(eventService.findByIdOrThrow(EVENT_ID)).thenReturn(event);
+        final List<ChatMessage> latest = Arrays.asList(new ChatMessage(ModelFixtures.event(EVENT_ID), ModelFixtures.user(5), "hola"));
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event));
         when(chatDao.findLatest(EVENT_ID, EventChatServiceImpl.INITIAL_MESSAGES)).thenReturn(latest);
 
         // Act
-        final ChatRoom room = chatService.openRoom(EVENT_ID);
+        final ChatRoom room = chatService.openRoom(EVENT_ID).get();
 
         // Assert
         assertSame(event, room.getEvent());
@@ -231,10 +231,10 @@ public class EventChatServiceImplTest {
     @Test
     public void testOpenRoomOfAnUpcomingEventIsOpen() {
         // Arrange
-        when(eventService.findByIdOrThrow(EVENT_ID)).thenReturn(eventInHours(48));
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
 
         // Act
-        final ChatRoom room = chatService.openRoom(EVENT_ID);
+        final ChatRoom room = chatService.openRoom(EVENT_ID).get();
 
         // Assert
         assertFalse(room.isClosed());
@@ -243,10 +243,10 @@ public class EventChatServiceImplTest {
     @Test
     public void testOpenRoomOfAnEventThatAlreadyHappenedIsClosed() {
         // Arrange
-        when(eventService.findByIdOrThrow(EVENT_ID)).thenReturn(eventInHours(-48));
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(-48)));
 
         // Act
-        final ChatRoom room = chatService.openRoom(EVENT_ID);
+        final ChatRoom room = chatService.openRoom(EVENT_ID).get();
 
         // Assert
         assertTrue(room.isClosed());
@@ -257,10 +257,10 @@ public class EventChatServiceImplTest {
         // Arrange
         final Event event = eventInHours(48);
         event.setCancelledAt(new Date());
-        when(eventService.findByIdOrThrow(EVENT_ID)).thenReturn(event);
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event));
 
         // Act
-        final ChatRoom room = chatService.openRoom(EVENT_ID);
+        final ChatRoom room = chatService.openRoom(EVENT_ID).get();
 
         // Assert
         assertTrue(room.isClosed());
@@ -271,11 +271,11 @@ public class EventChatServiceImplTest {
         // Arrange
         final ChatMessage first = messageWithId(30L);
         final ChatMessage last = messageWithId(31L);
-        when(eventService.findByIdOrThrow(EVENT_ID)).thenReturn(eventInHours(48));
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
         when(chatDao.findLatest(EVENT_ID, EventChatServiceImpl.INITIAL_MESSAGES)).thenReturn(Arrays.asList(first, last));
 
         // Act
-        final ChatRoom room = chatService.openRoom(EVENT_ID);
+        final ChatRoom room = chatService.openRoom(EVENT_ID).get();
 
         // Assert
         assertEquals(31L, room.getLastId());
@@ -284,24 +284,25 @@ public class EventChatServiceImplTest {
     @Test
     public void testOpenRoomWithoutMessagesHasLastIdZero() {
         // Arrange
-        when(eventService.findByIdOrThrow(EVENT_ID)).thenReturn(eventInHours(48));
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventInHours(48)));
 
         // Act
-        final ChatRoom room = chatService.openRoom(EVENT_ID);
+        final ChatRoom room = chatService.openRoom(EVENT_ID).get();
 
         // Assert
         assertEquals(0L, room.getLastId());
     }
 
-    @Test(expected = EventNotFoundException.class)
-    public void testOpenRoomOfAMissingEventThrowsEventNotFoundException() {
+    @Test
+    public void testOpenRoomOfAMissingEventIsEmpty() {
         // Arrange
-        when(eventService.findByIdOrThrow(EVENT_ID)).thenThrow(new EventNotFoundException(EVENT_ID));
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
-        chatService.openRoom(EVENT_ID);
+        final Optional<ChatRoom> result = chatService.openRoom(EVENT_ID);
 
-        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
+        // Assert
+        assertFalse(result.isPresent());
     }
 
     // ---- send() ----

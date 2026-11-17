@@ -1,6 +1,7 @@
 // Implementa el contrato EventDetailService (modulo services-contracts).
 package ar.edu.itba.paw.services;
 
+import java.util.Optional;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationStatus;
@@ -22,7 +23,6 @@ public class EventDetailServiceImpl implements EventDetailService {
     private final FavoriteService favoriteService;
     private final EventChatService eventChatService;
     private final ReviewService reviewService;
-    private final EventSimilarityService eventSimilarityService;
     private final EventQuestionService eventQuestionService;
     private final EventAccessService eventAccessService;
     private final EventInvitationService eventInvitationService;
@@ -32,7 +32,6 @@ public class EventDetailServiceImpl implements EventDetailService {
     public EventDetailServiceImpl(final EventService eventService, final RegistrationService registrationService,
                                   final FavoriteService favoriteService, final EventChatService eventChatService,
                                   final ReviewService reviewService,
-                                  final EventSimilarityService eventSimilarityService,
                                   final EventQuestionService eventQuestionService,
                                   final EventAccessService eventAccessService,
                                   final EventInvitationService eventInvitationService,
@@ -42,7 +41,6 @@ public class EventDetailServiceImpl implements EventDetailService {
         this.favoriteService = favoriteService;
         this.eventChatService = eventChatService;
         this.reviewService = reviewService;
-        this.eventSimilarityService = eventSimilarityService;
         this.eventQuestionService = eventQuestionService;
         this.eventAccessService = eventAccessService;
         this.eventInvitationService = eventInvitationService;
@@ -51,9 +49,15 @@ public class EventDetailServiceImpl implements EventDetailService {
 
     @Override
     @Transactional(readOnly = true)
-    public EventDetail getDetail(final long eventId, final Long viewerId, final int questionsPage,
+    public Optional<EventDetail> getDetail(final long eventId, final Long viewerId, final int questionsPage,
+                                           final int reviewsPage) {
+        return eventService.findById(eventId)
+                .map(event -> detailOf(event, viewerId, questionsPage, reviewsPage));
+    }
+
+    private EventDetail detailOf(final Event event, final Long viewerId, final int questionsPage,
                                  final int reviewsPage) {
-        final Event event = eventService.findByIdOrThrow(eventId);
+        final long eventId = event.getId();
         // Quien fue invitado a un evento privado tiene su lugar reservado: para esa persona el evento no esta
         // "lleno" aunque el cupo ya este contado entero.
         final boolean full = viewerId != null
@@ -65,7 +69,7 @@ public class EventDetailServiceImpl implements EventDetailService {
 
         // "Eventos que te pueden interesar": findSimilar ya devuelve vacio si el evento es privado o no esta
         // aprobado. Es evento contra evento: no depende de quien mira, salvo que sus propios eventos no se sugieren.
-        final List<Event> related = eventSimilarityService.findSimilar(eventId, viewerId);
+        final List<Event> related = eventService.findSimilar(eventId, viewerId);
         final List<Long> relatedIds = related.stream().map(Event::getId).collect(Collectors.toList());
         final boolean relatedForViewer = viewerId != null && !relatedIds.isEmpty();
         final Map<Long, RegistrationStatus> relatedStatuses = relatedForViewer

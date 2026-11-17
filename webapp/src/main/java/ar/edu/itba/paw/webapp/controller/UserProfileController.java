@@ -9,7 +9,6 @@ import ar.edu.itba.paw.services.UserProfile;
 import ar.edu.itba.paw.services.UserProfileService;
 import ar.edu.itba.paw.services.UserService;
 import ar.edu.itba.paw.webapp.form.BioForm;
-import ar.edu.itba.paw.webapp.util.Paging;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindingResult;
@@ -50,11 +49,11 @@ public class UserProfileController {
     @RequestMapping(value = "/usuarios/{id:[0-9]+}", method = RequestMethod.GET)
     public ModelAndView profile(@PathVariable final long id,
                                 @RequestParam(value = "tab", required = false) final String tab,
-                                @RequestParam(value = "page", required = false) final String page,
+                                @RequestParam(value = "page", defaultValue = "1") final int page,
                                 @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final Long viewerId = currentUser == null ? null : currentUser.getId();
         final UserProfile profile = userProfileService
-                .findProfile(id, viewerId, ProfileTab.fromParam(tab), Paging.parsePage(page))
+                .findProfile(id, viewerId, ProfileTab.fromParam(tab), page)
                 .orElseThrow(() -> new UserNotFoundException(id));
 
         final ModelAndView mav = new ModelAndView("users/profile");

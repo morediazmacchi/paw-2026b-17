@@ -1,4 +1,4 @@
-// Contrato de persistencia para la bandeja. Implementacion: InboxMessageJdbcDao (modulo persistence).
+// Contrato de persistencia para la bandeja. Implementacion: InboxMessageJpaDao (modulo persistence).
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.InboxMessage;

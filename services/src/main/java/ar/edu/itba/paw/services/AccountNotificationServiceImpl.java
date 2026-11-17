@@ -36,7 +36,7 @@ public class AccountNotificationServiceImpl implements AccountNotificationServic
         try {
             final Locale locale = localeFor(user);
             final Map<String, Object> variables = new HashMap<>();
-            variables.put("personName", displayName(user.getName(), user.getEmail()));
+            variables.put("personName", MailFormats.displayName(user.getName(), user.getEmail()));
             // Si venia de algun lado (una invitacion a un evento privado), el link lo lleva: al confirmar y
             // loguearse vuelve ahi en vez de al home. Como viaja eso en la URL lo sabe MailLinks, no el service.
             variables.put("confirmUrl", links.confirmAccount(token, redirectAfterConfirm));
@@ -54,11 +54,32 @@ public class AccountNotificationServiceImpl implements AccountNotificationServic
 
     @Async
     @Override
+    public void notifyAccountAlreadyRegistered(final User user) {
+        try {
+            final Locale locale = localeFor(user);
+            final Map<String, Object> variables = new HashMap<>();
+            variables.put("personName", MailFormats.displayName(user.getName(), user.getEmail()));
+            variables.put("loginUrl", links.login());
+            variables.put("forgotPasswordUrl", links.forgotPassword());
+
+            mailService.send(user.getEmail(),
+                    "account-already-registered",
+                    "mail.accountAlreadyRegistered.subject",
+                    null,
+                    variables,
+                    locale);
+        } catch (final RuntimeException e) {
+            LOGGER.error("Fallo el aviso de cuenta ya registrada, usuario {}", user.getId(), e);
+        }
+    }
+
+    @Async
+    @Override
     public void notifyPasswordReset(final User user, final String token) {
         try {
             final Locale locale = localeFor(user);
             final Map<String, Object> variables = new HashMap<>();
-            variables.put("personName", displayName(user.getName(), user.getEmail()));
+            variables.put("personName", MailFormats.displayName(user.getName(), user.getEmail()));
             variables.put("resetUrl", links.resetPassword(token));
 
             mailService.send(user.getEmail(),
@@ -78,7 +99,7 @@ public class AccountNotificationServiceImpl implements AccountNotificationServic
         try {
             final Locale locale = localeFor(user);
             final Map<String, Object> variables = new HashMap<>();
-            variables.put("personName", displayName(user.getName(), user.getEmail()));
+            variables.put("personName", MailFormats.displayName(user.getName(), user.getEmail()));
 
             mailService.send(user.getEmail(),
                     "account-suspended",
@@ -97,7 +118,7 @@ public class AccountNotificationServiceImpl implements AccountNotificationServic
         try {
             final Locale locale = localeFor(user);
             final Map<String, Object> variables = new HashMap<>();
-            variables.put("personName", displayName(user.getName(), user.getEmail()));
+            variables.put("personName", MailFormats.displayName(user.getName(), user.getEmail()));
             variables.put("loginUrl", links.login());
 
             mailService.send(user.getEmail(),
@@ -115,18 +136,5 @@ public class AccountNotificationServiceImpl implements AccountNotificationServic
     private static Locale localeFor(final User user) {
         final String languageTag = user.getLocale();
         return (languageTag == null || languageTag.isEmpty()) ? DEFAULT_LOCALE : new Locale(languageTag);
-    }
-
-    // Con que nombre saludamos: el de la cuenta; si no tiene, lo que va antes del arroba (es mejor "Hola sol," que
-    // "Hola null,").
-    private static String displayName(final String name, final String email) {
-        if (name != null && !name.trim().isEmpty()) {
-            return name.trim();
-        }
-        if (email == null) {
-            return "";
-        }
-        final int at = email.indexOf('@');
-        return at > 0 ? email.substring(0, at) : email;
     }
 }

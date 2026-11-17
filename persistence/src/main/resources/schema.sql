@@ -180,7 +180,7 @@ ALTER TABLE event ADD COLUMN IF NOT EXISTS requires_approval BOOLEAN NOT NULL DE
 -- de la constante tal cual (PUBLIC/PRIVATE, en mayusculas), mismo criterio
 -- que neighborhood con Barrio: siempre EventVisibility.name()/.valueOf().
 --
--- No aparece en /eventos ni en las busquedas (ver EventJdbcDao.buildWhereClause):
+-- No aparece en /eventos ni en las busquedas (ver EventSearchSql.listingRules()):
 -- solo lo ve su creador, quien ya este anotado, o quien tenga una invitacion
 -- valida (ver event_invitation, mas abajo).
 ALTER TABLE event ADD COLUMN IF NOT EXISTS visibility VARCHAR(20) NOT NULL DEFAULT 'PUBLIC';
@@ -210,8 +210,8 @@ CREATE TABLE IF NOT EXISTS event_invitation (
 -- creador (ver EventDao.cancel()). No se borra la fila (ON DELETE CASCADE de
 -- "registration" arrastraria las inscripciones, y quien ya estaba anotado
 -- tiene que poder seguir viendolo en "Mis inscripciones"/el detalle).
--- EventJdbcDao.search()/findAll()/findByCategory() lo excluyen; findById()/
--- findByCreatorEmail() no, a proposito.
+-- EventJpaDao.search() y los listados publicos lo excluyen; findById()/
+-- findByIdForUpdate() no, a proposito.
 ALTER TABLE event ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP WITH TIME ZONE;
 
 -- Pin en el mapa (Leaflet + OpenStreetMap, ver publish.jsp/editar.jsp): el
@@ -299,7 +299,7 @@ ALTER TABLE event ADD COLUMN IF NOT EXISTS creator_id INTEGER REFERENCES users(i
 ALTER TABLE registration ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id);
 ALTER TABLE event_invitation ADD COLUMN IF NOT EXISTS invited_by_user_id INTEGER REFERENCES users(id);
 
--- Grupo B: a quien invitan a un evento privado (event_invitation.email) o le
+-- Invitados sin cuenta: a quien invitan a un evento privado (event_invitation.email) o le
 -- llega un aviso a la bandeja (inbox_message.recipient_email) puede no tener
 -- cuenta todavia -- a diferencia de creator_id/registration.user_id de arriba,
 -- que siempre tienen un User real detras. Por eso esta FK es la unica fuente
@@ -332,7 +332,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS cover_image_id INTEGER REFERENCES ima
 -- automaticamente tambien excluye a un evento removido por un admin, sin
 -- duplicar esa logica en cada lugar. Estas dos columnas solo agregan el motivo,
 -- para poder avisarle al creador y mostrarle un texto distinto al de "vos lo
--- cancelaste" (ver EventJdbcDao.removeByAdmin()).
+-- cancelaste" (ver EventJpaDao.removeByAdmin()).
 ALTER TABLE event ADD COLUMN IF NOT EXISTS removed_by_admin BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE event ADD COLUMN IF NOT EXISTS removed_reason VARCHAR(500);
 

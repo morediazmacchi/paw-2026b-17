@@ -18,6 +18,9 @@ import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
 import static org.junit.Assert.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 
 /**
@@ -92,6 +95,24 @@ public class MassNotifierTest {
 
         // Assert
         assertEquals(BATCH + 3, notified);
+    }
+
+    @Test
+    public void testABatchThatFailsIsNotCountedAndDoesNotStopTheNextOne() {
+        // Arrange: la primera tanda (completa) falla al mandar; la segunda (3 mas) sale bien
+        eventExists();
+        final List<Registration> firstBatch = registrations(1, BATCH);
+        final List<Registration> secondBatch = registrations(BATCH + 1, BATCH + 3);
+        when(registrationService.findConfirmedByEventIdAfter(EVENT_ID, 0, BATCH)).thenReturn(firstBatch);
+        when(registrationService.findConfirmedByEventIdAfter(EVENT_ID, BATCH, BATCH)).thenReturn(secondBatch);
+        doThrow(new RuntimeException("smtp caido")).when(notificationService)
+                .notifyEventCancelled(any(Event.class), eq(firstBatch));
+
+        // Act
+        final int notified = massNotifier.notifyEventCancelled(EVENT_ID);
+
+        // Assert: solo cuentan los que salieron
+        assertEquals(3, notified);
     }
 
     @Test

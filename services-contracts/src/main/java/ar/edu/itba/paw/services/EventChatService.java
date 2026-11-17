@@ -2,6 +2,7 @@
 // eligen unirse. Implementacion: EventChatServiceImpl (modulo services).
 package ar.edu.itba.paw.services;
 
+import java.util.Optional;
 import ar.edu.itba.paw.model.ChatGroup;
 import ar.edu.itba.paw.model.ChatMessage;
 
@@ -30,8 +31,8 @@ public interface EventChatService {
     // La pantalla del chat: el evento, los ultimos mensajes y si el chat esta cerrado (cancelado o ya pasado: solo
     // lectura, misma regla que send() y join()). Solo lee (ver findMessages()). Que sea miembro lo decide
     // @PreAuthorize en el controller (ver EventSecurity.isChatMember).
-    // Lanza EventNotFoundException si el evento no existe.
-    ChatRoom openRoom(long eventId);
+    // Vacio si el evento no existe (el 404 lo da la capa web).
+    Optional<ChatRoom> openRoom(long eventId);
 
     // Marca el chat como leido para esa persona, hasta el ultimo mensaje que hay. Lo pide el JS del chat despues de
     // mostrar mensajes (POST /eventos/{id}/chat/leido). Que sea miembro lo decide @PreAuthorize en el controller.

@@ -1,4 +1,4 @@
-// Contrato de persistencia para EventReport. Implementacion: EventReportJdbcDao (modulo persistence).
+// Contrato de persistencia para EventReport. Implementacion: EventReportJpaDao (modulo persistence).
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.EventReport;
@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface EventReportDao {
-    EventReport create(EventReport report);
+    EventReport create(long eventId, long reporterId, String reason);
 
     Optional<EventReport> findById(long id);
 

@@ -35,7 +35,6 @@ import ar.edu.itba.paw.webapp.form.ChangePasswordForm;
 import ar.edu.itba.paw.webapp.form.InviteForm;
 import ar.edu.itba.paw.webapp.form.ProfileForm;
 import ar.edu.itba.paw.webapp.util.FormErrors;
-import ar.edu.itba.paw.webapp.util.Paging;
 import ar.edu.itba.paw.webapp.util.SavedSearchView;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
@@ -167,13 +166,13 @@ public class ProfileController {
     }
 
     @RequestMapping(value = "/perfil/inscripciones", method = RequestMethod.GET)
-    public ModelAndView misInscripciones(@RequestParam(value = "proximasPage", required = false) final String upcomingPage,
-                                         @RequestParam(value = "finalizadasPage", required = false) final String pastPage,
+    public ModelAndView misInscripciones(@RequestParam(value = "proximasPage", defaultValue = "1") final int upcomingPage,
+                                         @RequestParam(value = "finalizadasPage", defaultValue = "1") final int pastPage,
                                          @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         // Las proximas y las pasadas (con su evento y la reseña propia) son dos resultados paginados
         // independientes, cada uno con su indice (ver RegistrationService.findMyRegistrations()).
         final MyRegistrationsView result = registrationService.findMyRegistrations(
-                currentUser.getId(), Paging.parsePage(upcomingPage), Paging.parsePage(pastPage));
+                currentUser.getId(), upcomingPage, pastPage);
 
         final ModelAndView mav = new ModelAndView("auth/inscripciones");
         mav.addObject("upcomingRegistrations", result.getUpcoming());
@@ -204,9 +203,9 @@ public class ProfileController {
     }
 
     @RequestMapping(value = "/perfil/favoritos", method = RequestMethod.GET)
-    public ModelAndView misFavoritos(@RequestParam(value = "page", required = false) final String page,
+    public ModelAndView misFavoritos(@RequestParam(value = "page", defaultValue = "1") final int page,
                                      @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final PageResult<Event> result = favoriteService.findViewablePage(currentUser.getId(), currentUser.isAdmin(), Paging.parsePage(page));
+        final PageResult<Event> result = favoriteService.findViewablePage(currentUser.getId(), currentUser.isAdmin(), page);
 
         final ModelAndView mav = new ModelAndView("auth/favoritos");
         mav.addObject("favoriteEvents", result.getContent());
@@ -218,10 +217,10 @@ public class ProfileController {
     // "Mis listas": las busquedas guardadas de /eventos, una debajo de la otra, cada una con "Ver eventos" y
     // "Eliminar lista". Paginadas: no hay maximo de listas por persona.
     @RequestMapping(value = "/perfil/listas", method = RequestMethod.GET)
-    public ModelAndView misListas(@RequestParam(value = "page", required = false) final String page,
+    public ModelAndView misListas(@RequestParam(value = "page", defaultValue = "1") final int page,
                                   @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final PageResult<SavedSearchWithCategoryNames> result =
-                myAccountService.findSavedSearches(currentUser.getId(), Paging.parsePage(page));
+                myAccountService.findSavedSearches(currentUser.getId(), page);
 
         final ModelAndView mav = new ModelAndView("auth/listas");
         mav.addObject("savedSearches", result.getContent().stream()
@@ -238,10 +237,10 @@ public class ProfileController {
     @PreAuthorize("@savedSearchSecurity.isOwner(#id, authentication)")
     @RequestMapping(value = "/perfil/listas/{id}/eliminar", method = RequestMethod.POST)
     public ModelAndView eliminarLista(@PathVariable final long id,
-                                      @RequestParam(value = "page", required = false) final String page,
+                                      @RequestParam(value = "page", defaultValue = "1") final int page,
                                       final RedirectAttributes redirectAttributes) {
         redirectAttributes.addFlashAttribute("listDeleted", savedSearchService.delete(id));
-        return new ModelAndView("redirect:/perfil/listas?page=" + Paging.parsePage(page));
+        return new ModelAndView("redirect:/perfil/listas?page=" + page);
     }
 
     // A donde lleva el boton "Desuscribirme de esta lista" del mail. Pide sesion como todo /perfil (despues de
@@ -271,9 +270,9 @@ public class ProfileController {
     }
 
     @RequestMapping(value = "/perfil/invitaciones", method = RequestMethod.GET)
-    public ModelAndView misInvitaciones(@RequestParam(value = "page", required = false) final String page,
+    public ModelAndView misInvitaciones(@RequestParam(value = "page", defaultValue = "1") final int page,
                                         @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final PageResult<Event> result = eventInvitationService.findInvitedEventsPage(currentUser.getId(), Paging.parsePage(page));
+        final PageResult<Event> result = eventInvitationService.findInvitedEventsPage(currentUser.getId(), page);
 
         final ModelAndView mav = new ModelAndView("auth/invitaciones");
         mav.addObject("invitedEvents", result.getContent());
@@ -286,11 +285,11 @@ public class ProfileController {
     // mensajes son dos paginados independientes (page / gruposPage), cada uno con su indice: ver
     // pager.tag (pageParam/otherParam/otherPage), mismo patron que "Mis inscripciones".
     @RequestMapping(value = "/perfil/bandeja", method = RequestMethod.GET)
-    public ModelAndView bandeja(@RequestParam(value = "page", required = false) final String page,
-                                @RequestParam(value = "gruposPage", required = false) final String groupsPage,
+    public ModelAndView bandeja(@RequestParam(value = "page", defaultValue = "1") final int page,
+                                @RequestParam(value = "gruposPage", defaultValue = "1") final int groupsPage,
                                 @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final MyInboxView view = myAccountService.findInbox(currentUser.getId(), Paging.parsePage(page),
-                Paging.parsePage(groupsPage));
+        final MyInboxView view = myAccountService.findInbox(currentUser.getId(), page,
+                groupsPage);
         final InboxPage inbox = view.getInbox();
         final PageResult<InboxMessage> result = inbox.getMessages();
 
@@ -303,7 +302,6 @@ public class ProfileController {
         mav.addObject("chatGroups", groups.getContent());
         mav.addObject("groupsPage", groups.getPage());
         mav.addObject("groupsTotalPages", groups.getTotalPages());
-        mav.addObject("eventsById", inbox.getEventsById());
         mav.addObject("currentPage", result.getPage());
         mav.addObject("totalPages", result.getTotalPages());
         return mav;
@@ -314,20 +312,20 @@ public class ProfileController {
     // vuelta en el redirect para no resetear el paginador de grupos al marcar mensajes leidos.
     @RequestMapping(value = "/perfil/bandeja/marcar-leidas", method = RequestMethod.POST)
     public ModelAndView markInboxRead(@RequestParam(value = "ids", required = false) final List<Long> ids,
-                                      @RequestParam(value = "page", required = false) final String page,
-                                      @RequestParam(value = "gruposPage", required = false) final String groupsPage,
+                                      @RequestParam(value = "page", defaultValue = "1") final int page,
+                                      @RequestParam(value = "gruposPage", defaultValue = "1") final int groupsPage,
                                       @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         inboxService.markRead(currentUser.getId(), ids);
-        return new ModelAndView("redirect:/perfil/bandeja?page=" + Paging.parsePage(page)
-                + "&gruposPage=" + Paging.parsePage(groupsPage));
+        return new ModelAndView("redirect:/perfil/bandeja?page=" + page
+                + "&gruposPage=" + groupsPage);
     }
 
     @RequestMapping(value = "/perfil/eventos", method = RequestMethod.GET)
-    public ModelAndView misEventos(@RequestParam(value = "page", required = false) final String page,
-                                   @RequestParam(value = "resenasPage", required = false) final String resenasPage,
+    public ModelAndView misEventos(@RequestParam(value = "page", defaultValue = "1") final int page,
+                                   @RequestParam(value = "resenasPage", defaultValue = "1") final int resenasPage,
                                    @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final MyEventsView view = myAccountService.findMyEvents(currentUser.getId(), Paging.parsePage(page),
-                Paging.parsePage(resenasPage));
+        final MyEventsView view = myAccountService.findMyEvents(currentUser.getId(), page,
+                resenasPage);
         final PageResult<EventWithRegistrationStats> result = view.getEvents();
         final CreatorReputation reputation = view.getReputation();
 
@@ -342,7 +340,6 @@ public class ProfileController {
         mav.addObject("creatorAverageRating", reputation.getAverageRating());
         mav.addObject("creatorReviewCount", reputation.getReviewCount());
         mav.addObject("myCreatorReviews", reputation.getReviews());
-        mav.addObject("reviewEventsById", reputation.getEventsById());
         mav.addObject("creatorReviewsPage", reputation.getPage());
         mav.addObject("creatorReviewsTotalPages", reputation.getTotalPages());
         return mav;
@@ -351,11 +348,11 @@ public class ProfileController {
     @PreAuthorize("@eventSecurity.isOwner(#id, authentication)")
     @RequestMapping(value = "/perfil/eventos/{id}/inscriptos", method = RequestMethod.GET)
     public ModelAndView pendingRegistrations(@PathVariable final long id,
-                                              @RequestParam(value = "page", required = false) final String page,
+                                              @RequestParam(value = "page", defaultValue = "1") final int page,
                                               @RequestParam(value = "approved", required = false) final String approvedParam,
                                               @RequestParam(value = "rejected", required = false) final String rejectedParam,
                                               @RequestParam(value = "full", required = false) final String fullParam) {
-        final PendingRequestsView view = myAccountService.findPendingRequests(id, Paging.parsePage(page))
+        final PendingRequestsView view = myAccountService.findPendingRequests(id, page)
                 .orElseThrow(() -> new EventNotFoundException(id));
         final PendingRegistrations pending = view.getPending();
 
@@ -415,9 +412,9 @@ public class ProfileController {
     public ModelAndView inviteForm(@PathVariable final long id,
                                     @RequestParam(value = "sent", required = false) final String sentParam,
                                     @RequestParam(value = "alreadyInvited", required = false) final String alreadyInvitedParam,
-                                    @RequestParam(value = "page", required = false) final String page) {
+                                    @RequestParam(value = "page", defaultValue = "1") final int page) {
         return inviteFormView(id, new InviteForm(), null, sentParam != null,
-                alreadyInvitedParam != null, Paging.parsePage(page));
+                alreadyInvitedParam != null, page);
     }
 
     @PreAuthorize("@eventSecurity.isOwner(#id, authentication)")

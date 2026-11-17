@@ -1,4 +1,4 @@
-// Contrato de persistencia para Review. Implementacion: ReviewJdbcDao (modulo persistence).
+// Contrato de persistencia para Review. Implementacion: ReviewJpaDao (modulo persistence).
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.RatingSummary;
@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface ReviewDao {
-    Review create(Review review);
+    Review create(long eventId, long userId, int rating, String comment);
 
     // Para "Mis inscripciones": este usuario ya reseño este evento?
     Optional<Review> findByEventAndUser(long eventId, long userId);

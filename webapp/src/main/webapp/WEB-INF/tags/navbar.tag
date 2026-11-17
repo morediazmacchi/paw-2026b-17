@@ -9,7 +9,7 @@
 <%-- Barra superior, igual en toda la app. El body (opcional) son los botones
      propios de cada vista (volver, + Añadir evento, etc.), que se dibujan antes
      del pill de login/perfil: ese es siempre el mismo, no cada vista lo repite. --%>
-<%-- Idioma (PAW20-75): a donde volver despues de tocar ES/EN, la misma pagina
+<%-- Idioma: a donde volver despues de tocar ES/EN, la misma pagina
      donde esta parado. OJO: pageContext.request.requestURI da la ruta del
      forward interno (/WEB-INF/jsp/...) cuando el controller llego aca con un
      forward en vez de una vista propia; la URL de verdad, si la hubo, esta en

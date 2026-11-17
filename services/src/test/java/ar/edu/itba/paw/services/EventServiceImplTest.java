@@ -2,7 +2,6 @@ package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.dto.EventDTO;
 import ar.edu.itba.paw.dto.NewImageData;
-import ar.edu.itba.paw.model.Category;
 import ar.edu.itba.paw.model.AdminEventSort;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventAccessSummary;
@@ -11,12 +10,14 @@ import ar.edu.itba.paw.model.EventCategoryInfo;
 import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.EventSort;
 import ar.edu.itba.paw.model.EventVisibility;
+import ar.edu.itba.paw.model.SimilarityParameters;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.exception.EventCancelledException;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import ar.edu.itba.paw.model.exception.EventRejectedException;
 import ar.edu.itba.paw.model.exception.InvalidImageException;
 import ar.edu.itba.paw.model.exception.InvalidEventException;
+import ar.edu.itba.paw.model.exception.UserNotFoundException;
 import ar.edu.itba.paw.persistence.EventDao;
 import org.junit.Before;
 import org.junit.Test;
@@ -25,15 +26,16 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 import org.springframework.dao.DataIntegrityViolationException;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
@@ -43,7 +45,11 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
@@ -70,29 +76,26 @@ public class EventServiceImplTest {
     @Mock
     private UserService userService;
     @Mock
-    private CategoryService categoryService;
-    @Mock
     private NotificationService notificationService;
     @Mock
     private InboxService inboxService;
     @Mock
     private ImageService imageService;
-    @Mock
-    private EventSimilarityService eventSimilarityService;
     // Los anuncios (EventUpdatedEvent / EventCancelledEvent / EventApprovedEvent) los escuchan RegistrantsEventListener y
     // MassNotifier: aca no hay nadie que escuche.
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
+    private static final Instant NOW = Instant.parse("2026-10-19T12:00:00Z");
+    private static final Date NOW_DATE = Date.from(NOW);
+
+    private final SimilarityParameters parameters = SimilarityParameters.defaults();
     private EventServiceImpl eventService;
 
     @Before
     public void setUp() {
-        eventService = new EventServiceImpl(eventDao, userService, categoryService, notificationService,
-                inboxService, imageService, eventSimilarityService, eventPublisher);
-        // El servicio busca las categorias elegidas entre las que existen: por defecto existe CATEGORY_ID.
-        final List<Category> existingCategories = Collections.singletonList(ModelFixtures.category(CATEGORY_ID));
-        lenient().when(categoryService.findAll()).thenReturn(existingCategories);
+        eventService = new EventServiceImpl(eventDao, userService, notificationService,
+                inboxService, imageService, parameters, eventPublisher, Clock.fixed(NOW, ZoneOffset.UTC));
         // create() busca al creador por su id (de ahi sale el mail del evento): por defecto existe.
         lenient().when(userService.findById(CREATOR_ID)).thenReturn(Optional.of(creatorUser()));
     }
@@ -112,6 +115,8 @@ public class EventServiceImplTest {
         event.setId(id);
         event.setCreatorEmail(CREATOR_EMAIL);
         event.setCreator(ModelFixtures.user(creatorId));
+        // Futuro por defecto: un evento sin fecha no tiene sentido (isFinished() la usa).
+        event.setEventDate(new Date(System.currentTimeMillis() + 30L * 24 * 60 * 60 * 1000));
         return event;
     }
 
@@ -150,7 +155,7 @@ public class EventServiceImplTest {
     public void testCreateReturnsTheEventThatTheDaoPersisted() {
         // Arrange
         final Event persisted = someEvent();
-        when(eventDao.create(any(Event.class)))
+        when(eventDao.create(eq(CREATOR_ID), any(EventDTO.class), anyList()))
                 .thenReturn(persisted);
 
         // Act
@@ -163,7 +168,7 @@ public class EventServiceImplTest {
     @Test
     public void testCreateWithInvalidCategoryThrowsInvalidEventExceptionWithCategoryKey() {
         // Arrange
-        when(eventDao.create(any(Event.class)))
+        when(eventDao.create(eq(CREATOR_ID), any(EventDTO.class), anyList()))
                 .thenThrow(new DataIntegrityViolationException("violates foreign key constraint event_category_category_id_fkey"));
 
         // Act
@@ -175,23 +180,9 @@ public class EventServiceImplTest {
     }
 
     @Test
-    public void testCreateWithACategoryThatDoesNotExistThrowsInvalidEventExceptionWithCategoryKey() {
-        // Arrange: el dto pide una categoria que no esta entre las que existen
-        final EventDTO dto = someDto();
-        dto.setCategories(Collections.singletonList(new EventCategoryInfo(CATEGORY_ID + 1)));
-
-        // Act
-        final InvalidEventException thrown = assertThrows(InvalidEventException.class,
-                () -> eventService.create(CREATOR_ID, dto));
-
-        // Assert
-        assertEquals(InvalidEventException.Reason.CATEGORY_NOT_FOUND, thrown.getReason());
-    }
-
-    @Test
     public void testCreateWithAnyOtherConstraintViolationThrowsInvalidEventExceptionWithGenericKey() {
         // Arrange
-        when(eventDao.create(any(Event.class)))
+        when(eventDao.create(eq(CREATOR_ID), any(EventDTO.class), anyList()))
                 .thenThrow(new DataIntegrityViolationException("value too long for column title"));
 
         // Act
@@ -211,7 +202,7 @@ public class EventServiceImplTest {
         // Arrange: el dao tiene un dato senuelo; si el service creara el evento igual, no tiraria nada
         final EventDTO dto = someDto();
         dto.setEventDate(inDays(-1));
-        lenient().when(eventDao.create(any(Event.class))).thenReturn(someEvent());
+        lenient().when(eventDao.create(eq(CREATOR_ID), any(EventDTO.class), anyList())).thenReturn(someEvent());
 
         // Act
         final InvalidEventException thrown = assertThrows(InvalidEventException.class,
@@ -227,7 +218,7 @@ public class EventServiceImplTest {
         // Arrange
         final EventDTO dto = someDto();
         dto.setEventDate(inDays(3 * 365));
-        lenient().when(eventDao.create(any(Event.class))).thenReturn(someEvent());
+        lenient().when(eventDao.create(eq(CREATOR_ID), any(EventDTO.class), anyList())).thenReturn(someEvent());
 
         // Act
         final InvalidEventException thrown = assertThrows(InvalidEventException.class,
@@ -243,7 +234,7 @@ public class EventServiceImplTest {
         final EventDTO dto = someDto();
         dto.setEventDate(inDays(30));
         final Event persisted = someEvent();
-        when(eventDao.create(any(Event.class))).thenReturn(persisted);
+        when(eventDao.create(eq(CREATOR_ID), any(EventDTO.class), anyList())).thenReturn(persisted);
 
         // Act
         final EventCreation result = eventService.create(CREATOR_ID, dto);
@@ -257,7 +248,7 @@ public class EventServiceImplTest {
         // Arrange
         final EventDTO dto = someDto();
         dto.setCategories(Collections.emptyList());
-        lenient().when(eventDao.create(any(Event.class))).thenReturn(someEvent());
+        lenient().when(eventDao.create(eq(CREATOR_ID), any(EventDTO.class), anyList())).thenReturn(someEvent());
 
         // Act
         final InvalidEventException thrown = assertThrows(InvalidEventException.class,
@@ -277,7 +268,7 @@ public class EventServiceImplTest {
             images.add(new NewImageData(new byte[] {1}, "image/png", "foto" + i + ".png"));
         }
         dto.setNewImages(images);
-        lenient().when(eventDao.create(any(Event.class))).thenReturn(someEvent());
+        lenient().when(eventDao.create(eq(CREATOR_ID), any(EventDTO.class), anyList())).thenReturn(someEvent());
 
         // Act
         final InvalidImageException thrown = assertThrows(InvalidImageException.class,
@@ -292,7 +283,7 @@ public class EventServiceImplTest {
         // Arrange
         final Event persisted = someEvent();
         persisted.setVisibility(EventVisibility.PRIVATE);
-        when(eventDao.create(any(Event.class))).thenReturn(persisted);
+        when(eventDao.create(eq(CREATOR_ID), any(EventDTO.class), anyList())).thenReturn(persisted);
 
         // Act
         final EventCreation result = eventService.create(CREATOR_ID, someDto());
@@ -306,7 +297,7 @@ public class EventServiceImplTest {
         // Arrange
         final Event persisted = someEvent();
         persisted.setVisibility(EventVisibility.PUBLIC);
-        when(eventDao.create(any(Event.class))).thenReturn(persisted);
+        when(eventDao.create(eq(CREATOR_ID), any(EventDTO.class), anyList())).thenReturn(persisted);
 
         // Act
         final EventCreation result = eventService.create(CREATOR_ID, someDto());
@@ -345,26 +336,12 @@ public class EventServiceImplTest {
     }
 
     @Test
-    public void testCreateWithAnUnknownCreatorThrowsIllegalArgumentException() {
+    public void testCreateWithAnUnknownCreatorThrowsUserNotFoundException() {
         // Arrange: el mail del evento sale de la cuenta del creador; si esa fila desaparecio no hay con que armarlo
         when(userService.findById(CREATOR_ID)).thenReturn(Optional.empty());
 
         // Act + Assert
-        assertThrows(IllegalArgumentException.class, () -> eventService.create(CREATOR_ID, someDto()));
-    }
-
-    @Test
-    public void testCreateUsesTheEmailOfTheCreatorsAccount() {
-        // Arrange: el dao solo devuelve el evento persistido si le llega con el mail de la cuenta del creador
-        final Event persisted = someEvent();
-        when(eventDao.create(argThat(event -> event != null && CREATOR_EMAIL.equals(event.getCreatorEmail()))))
-                .thenReturn(persisted);
-
-        // Act
-        final EventCreation result = eventService.create(CREATOR_ID, someDto());
-
-        // Assert
-        assertSame(persisted, result.getEvent());
+        assertThrows(UserNotFoundException.class, () -> eventService.create(CREATOR_ID, someDto()));
     }
 
     // ---- findById / findByIds / findAll / findByCategory / findByCreatorId ----
@@ -590,35 +567,65 @@ public class EventServiceImplTest {
     private void updatable(final long occupied) {
         existingForUpdate(someEvent());
         when(eventDao.countOccupiedSpots(EVENT_ID)).thenReturn(occupied);
+        lenient().when(eventDao.update(eq(EVENT_ID), any(EventDTO.class), anyList()))
+                .thenReturn(Optional.of(someEvent()));
+    }
+
+    // El dao guarda los cambios y devuelve el evento ya actualizado.
+    private void daoUpdatesTheEvent() {
+        when(eventDao.update(eq(EVENT_ID), any(EventDTO.class), anyList())).thenReturn(Optional.of(someEvent()));
     }
 
     @Test
-    public void testUpdateReturnsTheEventWithTheNewCapacity() {
+    public void testUpdateReturnsTheEventTheDaoUpdated() {
         // Arrange
-        updatable(5);
-        final EventDTO dto = someDto();
-        dto.setMaxCapacity(20);
-
-        // Act
-        final EventUpdateOutcome result = eventService.update(EVENT_ID, dto);
-
-        // Assert
-        assertEquals(Integer.valueOf(20), result.getEvent().getMaxCapacity());
-    }
-
-    @Test
-    public void testUpdateStoresTheChangesUnderTheEventId() {
-        // Arrange: el Event que arma toEvent() a partir del dto llega sin id,
-        // el service se lo tiene que poner.
         updatable(0);
-        final EventDTO dto = someDto();
-        dto.setMaxCapacity(20);
 
         // Act
-        final EventUpdateOutcome result = eventService.update(EVENT_ID, dto);
+        final EventUpdateOutcome result = eventService.update(EVENT_ID, someDto());
 
         // Assert
         assertEquals(EVENT_ID, result.getEvent().getId().longValue());
+    }
+
+    @Test
+    public void testUpdateWhenTheDaoFindsNoEventThrowsEventNotFoundException() {
+        // Arrange: el evento se borro justo despues del lock (el dao no lo encuentra)
+        existingForUpdate(someEvent());
+        when(eventDao.update(eq(EVENT_ID), any(EventDTO.class), anyList())).thenReturn(Optional.empty());
+
+        // Act + Assert
+        assertThrows(EventNotFoundException.class, () -> eventService.update(EVENT_ID, someDto()));
+    }
+
+    @Test
+    public void testUpdateWithInvalidCategoryThrowsInvalidEventExceptionWithCategoryKey() {
+        // Arrange
+        existingForUpdate(someEvent());
+        when(eventDao.update(eq(EVENT_ID), any(EventDTO.class), anyList()))
+                .thenThrow(new DataIntegrityViolationException("violates foreign key constraint event_category_category_id_fkey"));
+
+        // Act
+        final InvalidEventException thrown = assertThrows(InvalidEventException.class,
+                () -> eventService.update(EVENT_ID, someDto()));
+
+        // Assert
+        assertEquals(InvalidEventException.Reason.CATEGORY_NOT_FOUND, thrown.getReason());
+    }
+
+    @Test
+    public void testUpdateWithAnyOtherConstraintViolationThrowsInvalidEventExceptionWithGenericKey() {
+        // Arrange
+        existingForUpdate(someEvent());
+        when(eventDao.update(eq(EVENT_ID), any(EventDTO.class), anyList()))
+                .thenThrow(new DataIntegrityViolationException("value too long for column title"));
+
+        // Act
+        final InvalidEventException thrown = assertThrows(InvalidEventException.class,
+                () -> eventService.update(EVENT_ID, someDto()));
+
+        // Assert
+        assertEquals(InvalidEventException.Reason.INVALID_DATA, thrown.getReason());
     }
 
     @Test(expected = EventNotFoundException.class)
@@ -696,6 +703,7 @@ public class EventServiceImplTest {
         final Event pending = someEvent();
         pending.setApprovalStatus(EventApprovalStatus.PENDING);
         existingForUpdate(pending);
+        daoUpdatesTheEvent();
 
         // Act
         final EventUpdateOutcome result = eventService.update(EVENT_ID, someDto());
@@ -710,6 +718,7 @@ public class EventServiceImplTest {
         final Event changesRequested = someEvent();
         changesRequested.setApprovalStatus(EventApprovalStatus.CHANGES_REQUESTED);
         existingForUpdate(changesRequested);
+        daoUpdatesTheEvent();
         when(eventDao.resubmitForReview(EVENT_ID)).thenReturn(true);
 
         // Act
@@ -725,6 +734,7 @@ public class EventServiceImplTest {
         final Event pending = someEvent();
         pending.setApprovalStatus(EventApprovalStatus.PENDING);
         existingForUpdate(pending);
+        daoUpdatesTheEvent();
 
         // Act
         final EventUpdateOutcome result = eventService.update(EVENT_ID, someDto());
@@ -770,8 +780,8 @@ public class EventServiceImplTest {
         // Act
         final EventUpdateOutcome result = eventService.update(EVENT_ID, dto);
 
-        // Assert: el limite exacto (cupo == ocupados) es valido y el cupo nuevo queda guardado.
-        assertEquals(Integer.valueOf(5), result.getEvent().getMaxCapacity());
+        // Assert: el limite exacto (cupo == ocupados) es valido, no se rechaza.
+        assertEquals(EVENT_ID, result.getEvent().getId().longValue());
     }
 
     @Test
@@ -780,17 +790,32 @@ public class EventServiceImplTest {
         // Sin cupo (ilimitado) no hay nada que comparar contra lo ocupado: tiene
         // que actualizar igual aunque haya lugares ocupados.
         existingForUpdate(someEvent());
+        daoUpdatesTheEvent();
         final EventDTO dto = someDto();
         dto.setMaxCapacity(null);
 
         // Act
         final EventUpdateOutcome result = eventService.update(EVENT_ID, dto);
 
-        // Assert: se guarda sin cupo (ilimitado).
-        assertNull(result.getEvent().getMaxCapacity());
+        // Assert: no se rechaza: se guarda sin cupo (ilimitado).
+        assertEquals(EVENT_ID, result.getEvent().getId().longValue());
     }
 
     // ---- cancel() ----
+
+    @Test
+    public void testCancelOfAnEventThatAlreadyHappenedReturnsFinished() {
+        // Arrange
+        final Event finished = someEvent();
+        finished.setEventDate(inDays(-1));
+        existingForUpdate(finished);
+
+        // Act
+        final EventCancelResult result = eventService.cancel(EVENT_ID);
+
+        // Assert
+        assertEquals(EventCancelResult.FINISHED, result);
+    }
 
     @Test
     public void testCancelSucceedsAndReturnsCancelled() {
@@ -1060,21 +1085,71 @@ public class EventServiceImplTest {
     // ---- search() con RECOMENDADOS ----
 
     @Test
-    public void testSearchRecommendedWithAViewerIsRankedByTheSimilarityService() {
-        // Arrange
+    public void testSearchRecommendedWithAViewerIsRankedByTheDatabase() {
+        // Arrange: el dao solo devuelve la pagina ya ordenada si le llegan los coeficientes configurados
         final EventSearchCriteria criteria = new EventSearchCriteria();
         criteria.setSort(EventSort.RECOMENDADOS);
         criteria.setViewerId(CREATOR_ID);
-        final PageResult<Event> ranked = new PageResult<>(eventsWithIds(2), 2, 1, EventServiceImpl.PAGE_SIZE);
-        when(eventSimilarityService.hasAttendanceHistory(CREATOR_ID)).thenReturn(true);
-        when(eventSimilarityService.searchRecommended(criteria)).thenReturn(ranked);
+        final List<Event> ranked = eventsWithIds(2);
+        when(eventDao.hasAttendanceHistory(CREATOR_ID, NOW_DATE)).thenReturn(true);
+        when(eventDao.countSearch(criteria)).thenReturn(2L);
+        when(eventDao.findRecommendedPage(criteria, parameters)).thenReturn(ranked);
 
         // Act
         final PageResult<Event> result = eventService.search(criteria).getPage();
 
         // Assert
-        assertSame(ranked, result);
+        assertEquals(ranked, result.getContent());
         assertEquals(EventServiceImpl.PAGE_SIZE, criteria.getPageSize());
+    }
+
+    @Test
+    public void testSearchRecommendedAsksForTheLastPageWhenTheRequestedOneIsBeyondIt() {
+        // Arrange: 25 resultados en paginas de PAGE_SIZE; se pide la 99. El dao solo responde si le piden la ultima.
+        final EventSearchCriteria criteria = new EventSearchCriteria();
+        criteria.setSort(EventSort.RECOMENDADOS);
+        criteria.setViewerId(CREATOR_ID);
+        criteria.setPage(99);
+        final int lastPage = (int) Math.ceil(25.0 / EventServiceImpl.PAGE_SIZE);
+        when(eventDao.hasAttendanceHistory(CREATOR_ID, NOW_DATE)).thenReturn(true);
+        when(eventDao.countSearch(criteria)).thenReturn(25L);
+        when(eventDao.findRecommendedPage(argThat(c -> c != null && c.getPage() == lastPage), same(parameters)))
+                .thenReturn(eventsWithIds(1));
+
+        // Act
+        final PageResult<Event> result = eventService.search(criteria).getPage();
+
+        // Assert
+        assertEquals(lastPage, result.getPage());
+        assertEquals(1, result.getContent().size());
+    }
+
+    // ---- findSimilar() ----
+
+    @Test
+    public void testFindSimilarReturnsWhatTheDatabaseRanked() {
+        // Arrange: el dao solo responde con los coeficientes configurados
+        final List<Event> ranked = eventsWithIds(2);
+        when(eventDao.findSimilarTo(eq(10L), eq(CREATOR_ID), same(parameters))).thenReturn(ranked);
+
+        // Act
+        final List<Event> result = eventService.findSimilar(10, CREATOR_ID);
+
+        // Assert
+        assertEquals(ranked, result);
+    }
+
+    @Test
+    public void testFindSimilarForAnAnonymousVisitorHasNoViewer() {
+        // Arrange
+        final List<Event> ranked = eventsWithIds(1);
+        when(eventDao.findSimilarTo(eq(10L), isNull(), same(parameters))).thenReturn(ranked);
+
+        // Act
+        final List<Event> result = eventService.findSimilar(10, null);
+
+        // Assert
+        assertEquals(ranked, result);
     }
 
     @Test
@@ -1086,8 +1161,7 @@ public class EventServiceImplTest {
         when(eventDao.countSearch(criteria)).thenReturn(2L);
         when(eventDao.search(criteria)).thenReturn(events);
         // Si el service de similitud se usara igual, el resultado seria este otro.
-        lenient().when(eventSimilarityService.searchRecommended(criteria))
-                .thenReturn(new PageResult<>(eventsWithIds(5), 5, 1, EventServiceImpl.PAGE_SIZE));
+        lenient().when(eventDao.findRecommendedPage(criteria, parameters)).thenReturn(eventsWithIds(5));
 
         // Act
         final PageResult<Event> result = eventService.search(criteria).getPage();
@@ -1105,8 +1179,7 @@ public class EventServiceImplTest {
         when(eventDao.countSearch(criteria)).thenReturn(0L);
         when(eventDao.search(criteria)).thenReturn(Collections.emptyList());
         // Si el service de similitud se usara igual, el resultado no estaria vacio.
-        lenient().when(eventSimilarityService.searchRecommended(criteria))
-                .thenReturn(new PageResult<>(eventsWithIds(5), 5, 1, EventServiceImpl.PAGE_SIZE));
+        lenient().when(eventDao.findRecommendedPage(criteria, parameters)).thenReturn(eventsWithIds(5));
 
         // Act
         final PageResult<Event> result = eventService.search(criteria).getPage();
@@ -1128,9 +1201,10 @@ public class EventServiceImplTest {
     public void testSearchWithoutRequestedSortUsesRecommendedForAViewerWithHistory() {
         // Arrange
         final EventSearchCriteria criteria = criteriaFor(CREATOR_ID, null);
-        when(eventSimilarityService.hasAttendanceHistory(CREATOR_ID)).thenReturn(true);
-        when(eventSimilarityService.searchRecommended(criteria))
-                .thenReturn(new PageResult<>(eventsWithIds(2), 2, 1, EventServiceImpl.PAGE_SIZE));
+        when(eventDao.hasAttendanceHistory(CREATOR_ID, NOW_DATE)).thenReturn(true);
+        when(eventDao.countSearch(criteria)).thenReturn(2L);
+        when(eventDao.findRecommendedPage(criteria, parameters))
+                .thenReturn(eventsWithIds(2));
 
         // Act
         final EventSearchResult result = eventService.search(criteria);
@@ -1171,8 +1245,7 @@ public class EventServiceImplTest {
         final List<Event> byDate = eventsWithIds(2);
         when(eventDao.countSearch(criteria)).thenReturn(2L);
         when(eventDao.search(criteria)).thenReturn(byDate);
-        lenient().when(eventSimilarityService.searchRecommended(criteria))
-                .thenReturn(new PageResult<>(eventsWithIds(5), 5, 1, EventServiceImpl.PAGE_SIZE));
+        lenient().when(eventDao.findRecommendedPage(criteria, parameters)).thenReturn(eventsWithIds(5));
 
         // Act
         final EventSearchResult result = eventService.search(criteria);
@@ -1186,7 +1259,7 @@ public class EventServiceImplTest {
     public void testSearchKeepsAnExplicitSortEvenWithHistory() {
         // Arrange
         final EventSearchCriteria criteria = criteriaFor(CREATOR_ID, EventSort.PRECIO_DESC);
-        when(eventSimilarityService.hasAttendanceHistory(CREATOR_ID)).thenReturn(true);
+        when(eventDao.hasAttendanceHistory(CREATOR_ID, NOW_DATE)).thenReturn(true);
 
         // Act
         final EventSearchResult result = eventService.search(criteria);
@@ -1199,9 +1272,8 @@ public class EventServiceImplTest {
     public void testSearchOffersRecommendedOnlyToAViewerWithHistory() {
         // Arrange
         final EventSearchCriteria criteria = criteriaFor(CREATOR_ID, null);
-        when(eventSimilarityService.hasAttendanceHistory(CREATOR_ID)).thenReturn(true);
-        lenient().when(eventSimilarityService.searchRecommended(criteria))
-                .thenReturn(new PageResult<>(eventsWithIds(1), 1, 1, EventServiceImpl.PAGE_SIZE));
+        when(eventDao.hasAttendanceHistory(CREATOR_ID, NOW_DATE)).thenReturn(true);
+        lenient().when(eventDao.findRecommendedPage(criteria, parameters)).thenReturn(eventsWithIds(1));
 
         // Act
         final EventSearchResult result = eventService.search(criteria);
@@ -1250,11 +1322,10 @@ public class EventServiceImplTest {
         // Arrange: los recomendados son datos senuelo que solo aparecerian si se los usara
         final EventSearchCriteria criteria = textCriteriaFor(CREATOR_ID, "rock", null);
         final List<Event> byRelevance = eventsWithIds(2);
-        when(eventSimilarityService.hasAttendanceHistory(CREATOR_ID)).thenReturn(true);
+        when(eventDao.hasAttendanceHistory(CREATOR_ID, NOW_DATE)).thenReturn(true);
         when(eventDao.countSearch(criteria)).thenReturn(2L);
         when(eventDao.search(criteria)).thenReturn(byRelevance);
-        lenient().when(eventSimilarityService.searchRecommended(criteria))
-                .thenReturn(new PageResult<>(eventsWithIds(5), 5, 1, EventServiceImpl.PAGE_SIZE));
+        lenient().when(eventDao.findRecommendedPage(criteria, parameters)).thenReturn(eventsWithIds(5));
 
         // Act
         final EventSearchResult result = eventService.search(criteria);
@@ -1280,9 +1351,10 @@ public class EventServiceImplTest {
     public void testSearchWithTextKeepsRecommendedWhenAViewerWithHistoryAsksForIt() {
         // Arrange
         final EventSearchCriteria criteria = textCriteriaFor(CREATOR_ID, "rock", EventSort.RECOMENDADOS);
-        when(eventSimilarityService.hasAttendanceHistory(CREATOR_ID)).thenReturn(true);
-        when(eventSimilarityService.searchRecommended(criteria))
-                .thenReturn(new PageResult<>(eventsWithIds(2), 2, 1, EventServiceImpl.PAGE_SIZE));
+        when(eventDao.hasAttendanceHistory(CREATOR_ID, NOW_DATE)).thenReturn(true);
+        when(eventDao.countSearch(criteria)).thenReturn(2L);
+        when(eventDao.findRecommendedPage(criteria, parameters))
+                .thenReturn(eventsWithIds(2));
 
         // Act
         final EventSearchResult result = eventService.search(criteria);
@@ -1322,9 +1394,10 @@ public class EventServiceImplTest {
     public void testSearchWithRelevanceRequestedButNoTextFallsBackToRecommendedForAViewerWithHistory() {
         // Arrange
         final EventSearchCriteria criteria = criteriaFor(CREATOR_ID, EventSort.RELEVANCIA);
-        when(eventSimilarityService.hasAttendanceHistory(CREATOR_ID)).thenReturn(true);
-        when(eventSimilarityService.searchRecommended(criteria))
-                .thenReturn(new PageResult<>(eventsWithIds(1), 1, 1, EventServiceImpl.PAGE_SIZE));
+        when(eventDao.hasAttendanceHistory(CREATOR_ID, NOW_DATE)).thenReturn(true);
+        when(eventDao.countSearch(criteria)).thenReturn(1L);
+        when(eventDao.findRecommendedPage(criteria, parameters))
+                .thenReturn(eventsWithIds(1));
 
         // Act
         final EventSearchResult result = eventService.search(criteria);
@@ -1380,7 +1453,7 @@ public class EventServiceImplTest {
     }
 
     @Test
-    public void testFindAllEventsPagePassesTheTrimmedTitleAndTheSortToTheDao() {
+    public void testFindAllEventsPageFindsByTheTrimmedTitleInTheChosenOrder() {
         // Arrange: solo con el texto ya recortado y ese orden el dao devuelve el evento
         final Event found = eventWith(FOUND_EVENT_ID, CATEGORY_ID, CREATOR_ID);
         when(eventDao.countAll("feria")).thenReturn(1L);

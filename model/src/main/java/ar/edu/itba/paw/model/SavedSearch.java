@@ -1,5 +1,7 @@
 package ar.edu.itba.paw.model;
 
+import javax.persistence.ManyToMany;
+import javax.persistence.JoinTable;
 import javax.persistence.CollectionTable;
 import javax.persistence.Column;
 import javax.persistence.ElementCollection;
@@ -39,15 +41,15 @@ public class SavedSearch {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    // fetch = LAZY a proposito (@ElementCollection es EAGER por default si no se especifica): los
-    // dos unicos lugares que de verdad necesitan estos filtros (SavedSearchJpaDao.findByUserId y
-    // findByIdWithFilters) ya los traen con LEFT JOIN FETCH explicito; sin este fetch, cualquier
-    // otra consulta que solo necesita el id/la fecha de una SavedSearch (ej. findIdsAfter) los
-    // cargaba igual, con un SELECT aparte por fila.
-    @ElementCollection(fetch = FetchType.LAZY)
-    @CollectionTable(name = "saved_search_category", joinColumns = @JoinColumn(name = "saved_search_id"))
-    @Column(name = "category_id", nullable = false)
-    private Set<Long> categoryIds = new HashSet<>();
+    // Las categorias elegidas (relacion N:M con la tabla de union saved_search_category). fetch = LAZY: los dos
+    // unicos lugares que de verdad necesitan estos filtros (SavedSearchJpaDao.findByUserId y findByIdWithFilters)
+    // ya los traen con LEFT JOIN FETCH explicito; asi cualquier otra consulta que solo necesita el id/la fecha de
+    // una SavedSearch (ej. findIdsAfter) no los carga.
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(name = "saved_search_category",
+            joinColumns = @JoinColumn(name = "saved_search_id"),
+            inverseJoinColumns = @JoinColumn(name = "category_id"))
+    private Set<Category> categories = new HashSet<>();
 
     @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(name = "saved_search_barrio", joinColumns = @JoinColumn(name = "saved_search_id"))
@@ -90,11 +92,11 @@ public class SavedSearch {
         // Solo para Hibernate
     }
 
-    public SavedSearch(final User user, final Collection<Long> categoryIds, final Collection<Barrio> barrios,
+    public SavedSearch(final User user, final Collection<Category> categories, final Collection<Barrio> barrios,
                        final BigDecimal minPrice, final BigDecimal maxPrice, final Date fromDate, final Date toDate) {
         this.user = user;
-        if (categoryIds != null) {
-            this.categoryIds.addAll(categoryIds);
+        if (categories != null) {
+            this.categories.addAll(categories);
         }
         if (barrios != null) {
             this.barrios.addAll(barrios);
@@ -103,7 +105,7 @@ public class SavedSearch {
         this.maxPrice = maxPrice;
         this.fromDate = fromDate;
         this.toDate = toDate;
-        this.filtersKey = keyOf(categoryIds, barrios, minPrice, maxPrice, fromDate, toDate);
+        this.filtersKey = keyOf(getCategoryIds(), barrios, minPrice, maxPrice, fromDate, toDate);
         this.lastCheckedAt = new Date();
     }
 
@@ -133,7 +135,7 @@ public class SavedSearch {
     // del listado los eventos que la cumplen.
     public EventSearchCriteria toCriteria() {
         final EventSearchCriteria criteria = new EventSearchCriteria();
-        criteria.setCategoryIds(categoryIds.isEmpty() ? null : new ArrayList<>(categoryIds));
+        criteria.setCategoryIds(categories.isEmpty() ? null : new ArrayList<>(getCategoryIds()));
         criteria.setBarrios(barrios.isEmpty() ? null : new ArrayList<>(barrios));
         criteria.setMinPrice(minPrice);
         criteria.setMaxPrice(maxPrice);
@@ -145,7 +147,9 @@ public class SavedSearch {
     public Long getId() { return id; }
     public User getUser() { return user; }
     public Long getUserId() { return user == null ? null : user.getId(); }
-    public Set<Long> getCategoryIds() { return categoryIds; }
+    public Set<Category> getCategories() { return categories; }
+    // Los ids de las categorias elegidas (no consulta nada: el id de cada categoria ya esta en la relacion).
+    public Set<Long> getCategoryIds() { return categories.stream().map(Category::getId).collect(Collectors.toSet()); }
     public Set<Barrio> getBarrios() { return barrios; }
     public BigDecimal getMinPrice() { return minPrice; }
     public BigDecimal getMaxPrice() { return maxPrice; }

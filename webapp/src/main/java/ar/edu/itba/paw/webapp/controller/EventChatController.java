@@ -1,6 +1,7 @@
 package ar.edu.itba.paw.webapp.controller;
 
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import ar.edu.itba.paw.services.ChatJoinResult;
 import ar.edu.itba.paw.services.ChatRoom;
 import ar.edu.itba.paw.services.ChatSendResult;
@@ -69,7 +70,7 @@ public class EventChatController {
     @RequestMapping(value = "/eventos/{id}/chat", method = RequestMethod.GET)
     public ModelAndView chat(@PathVariable final long id,
                              @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final ChatRoom room = chatService.openRoom(id);
+        final ChatRoom room = chatService.openRoom(id).orElseThrow(() -> new EventNotFoundException(id));
         final ModelAndView mav = new ModelAndView("events/chat");
         mav.addObject("event", room.getEvent());
         mav.addObject("messages", room.getMessages());

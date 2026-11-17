@@ -4,9 +4,9 @@ import java.util.Arrays;
 import java.util.Optional;
 
 /**
- * Los unicos idiomas de la app. Antes la lista ("es", "en") vivia solo en el controller y nada impedia
- * guardar otro valor como idioma preferido de un usuario: ahora la comparten el controller (cookie) y
- * UserService.updateLocale (columna preferred_locale).
+ * Los unicos idiomas de la app ("es", "en"). Una sola lista: la comparten el controller (cookie), el
+ * resolver de idioma (Accept-Language) y UserService.updateLocale (columna preferred_locale), asi
+ * no se puede guardar ni elegir otro idioma.
  */
 public enum SupportedLocale {
     ES("es"),

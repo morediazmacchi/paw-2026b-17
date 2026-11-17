@@ -2,7 +2,6 @@ package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventApprovalStatus;
-import ar.edu.itba.paw.model.EventInvitation;
 import ar.edu.itba.paw.model.EventVisibility;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationAccess;
@@ -90,6 +89,12 @@ public class RegistrationServiceImplTest {
                 mockRegistrationDao, eventService, notificationService, invitationService, inboxService, reviewService,
                 userService, eventPublisher);
         lenient().when(userService.findById(USER_ID)).thenReturn(Optional.of(someUser()));
+        // El dao devuelve la inscripcion creada solo si el service le pasa lo que corresponde: la persona, el mail
+        // normalizado y el nombre de su cuenta, con el estado que se decidio. Si pasara otra cosa, no devuelve nada.
+        for (final RegistrationStatus status : RegistrationStatus.values()) {
+            lenient().when(mockRegistrationDao.create(EVENT_ID, USER_ID, NORMALIZED_EMAIL, NAME, status))
+                    .thenReturn(new Registration(ModelFixtures.event(EVENT_ID), someUser(), NORMALIZED_EMAIL, NAME, status));
+        }
     }
 
     private static User someUser() {
@@ -574,6 +579,11 @@ public class RegistrationServiceImplTest {
         return new Registration(ModelFixtures.event(eventId), null, NORMALIZED_EMAIL, NAME, RegistrationStatus.CONFIRMED);
     }
 
+    // Una inscripcion confirmada a ese evento (el evento viene dentro de la inscripcion, como lo trae el dao).
+    private static Registration registrationOf(final Event event) {
+        return new Registration(event, null, NORMALIZED_EMAIL, NAME, RegistrationStatus.CONFIRMED);
+    }
+
     private void givenTotals(final long upcoming, final long past) {
         when(mockRegistrationDao.countUpcomingByUserId(eq(USER_ID), any(Date.class))).thenReturn(upcoming);
         when(mockRegistrationDao.countPastByUserId(eq(USER_ID), any(Date.class))).thenReturn(past);
@@ -581,16 +591,12 @@ public class RegistrationServiceImplTest {
 
     private void givenUpcomingPage(final int page, final long eventId) {
         when(mockRegistrationDao.findUpcomingByUserId(eq(USER_ID), any(Date.class), eq(page), eq(RegistrationServiceImpl.PAGE_SIZE)))
-                .thenReturn(Collections.singletonList(registrationAt(eventId)));
-        when(eventService.findByIds(Collections.singletonList(eventId)))
-                .thenReturn(Collections.singletonList(upcomingEvent(eventId)));
+                .thenReturn(Collections.singletonList(registrationOf(upcomingEvent(eventId))));
     }
 
     private void givenPastPage(final int page, final long eventId) {
         when(mockRegistrationDao.findPastByUserId(eq(USER_ID), any(Date.class), eq(page), eq(RegistrationServiceImpl.PAGE_SIZE)))
-                .thenReturn(Collections.singletonList(registrationAt(eventId)));
-        when(eventService.findByIds(Collections.singletonList(eventId)))
-                .thenReturn(Collections.singletonList(pastEvent(eventId)));
+                .thenReturn(Collections.singletonList(registrationOf(pastEvent(eventId))));
     }
 
     @Test
@@ -715,12 +721,11 @@ public class RegistrationServiceImplTest {
     public void testFindMyRegistrationsPairsEachPastRegistrationWithItsEventAndOwnReview() {
         // Arrange: una reseña propia del evento pasado y una senuelo de otro evento
         givenTotals(0, 1);
-        final Registration registration = registrationAt(PAST_EVENT_ID);
         final Event event = pastEvent(PAST_EVENT_ID);
+        final Registration registration = registrationOf(event);
         final Review myReview = new Review(event, ModelFixtures.user(USER_ID), 4, "Muy bueno");
         when(mockRegistrationDao.findPastByUserId(eq(USER_ID), any(Date.class), eq(1), eq(RegistrationServiceImpl.PAGE_SIZE)))
                 .thenReturn(Collections.singletonList(registration));
-        when(eventService.findByIds(Collections.singletonList(PAST_EVENT_ID))).thenReturn(Collections.singletonList(event));
         when(reviewService.findByEventsAndUser(Collections.singletonList(PAST_EVENT_ID), USER_ID))
                 .thenReturn(Collections.singletonList(myReview));
 
@@ -738,9 +743,7 @@ public class RegistrationServiceImplTest {
         // Arrange
         givenTotals(0, 1);
         when(mockRegistrationDao.findPastByUserId(eq(USER_ID), any(Date.class), eq(1), eq(RegistrationServiceImpl.PAGE_SIZE)))
-                .thenReturn(Collections.singletonList(registrationAt(PAST_EVENT_ID)));
-        when(eventService.findByIds(Collections.singletonList(PAST_EVENT_ID)))
-                .thenReturn(Collections.singletonList(pastEvent(PAST_EVENT_ID)));
+                .thenReturn(Collections.singletonList(registrationOf(pastEvent(PAST_EVENT_ID))));
         when(reviewService.findByEventsAndUser(Collections.singletonList(PAST_EVENT_ID), USER_ID))
                 .thenReturn(Collections.emptyList());
 
@@ -757,8 +760,7 @@ public class RegistrationServiceImplTest {
         givenTotals(1, 0);
         final Event event = upcomingEvent(UPCOMING_EVENT_ID);
         when(mockRegistrationDao.findUpcomingByUserId(eq(USER_ID), any(Date.class), eq(1), eq(RegistrationServiceImpl.PAGE_SIZE)))
-                .thenReturn(Collections.singletonList(registrationAt(UPCOMING_EVENT_ID)));
-        when(eventService.findByIds(Collections.singletonList(UPCOMING_EVENT_ID))).thenReturn(Collections.singletonList(event));
+                .thenReturn(Collections.singletonList(registrationOf(event)));
         lenient().when(reviewService.findByEventsAndUser(Collections.singletonList(UPCOMING_EVENT_ID), USER_ID))
                 .thenReturn(Collections.singletonList(new Review(event, ModelFixtures.user(USER_ID), 5, "Senuelo")));
 
@@ -772,7 +774,7 @@ public class RegistrationServiceImplTest {
     // ---- countByUserId() ----
 
     @Test
-    public void testCountByUserIdDelegatesToTheDao() {
+    public void testCountByUserIdReturnsHowManyRegistrationsThePersonHas() {
         // Arrange
         when(mockRegistrationDao.countByUserId(USER_ID)).thenReturn(3L);
 
@@ -912,7 +914,6 @@ public class RegistrationServiceImplTest {
         final Registration registration = new Registration(ModelFixtures.event(EVENT_ID), null, NORMALIZED_EMAIL, NAME, RegistrationStatus.CONFIRMED);
         registration.setId(5L);
         registration.setUser(ModelFixtures.user(USER_ID));
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(10)));
         when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.of(registration));
         when(mockRegistrationDao.findById(5)).thenReturn(Optional.of(registration));
         when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(10)));
@@ -927,7 +928,6 @@ public class RegistrationServiceImplTest {
     @Test
     public void testCancelOwnRegistrationReturnsNotFoundWhenNotRegistered() {
         // Arrange
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(eventWithCreator(10)));
         when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
 
         // Act
@@ -935,17 +935,6 @@ public class RegistrationServiceImplTest {
 
         // Assert
         assertEquals(UnregisterResult.NOT_FOUND, result);
-    }
-
-    @Test(expected = EventNotFoundException.class)
-    public void testCancelOwnRegistrationThrowsEventNotFoundExceptionWhenTheEventDoesNotExist() {
-        // Arrange
-        when(eventService.findById(EVENT_ID)).thenReturn(Optional.empty());
-
-        // Act
-        registrationService.cancelOwnRegistration(EVENT_ID, USER_ID);
-
-        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
 
     // ---- findAccessById() / findAccessByEventAndUserId() ----
@@ -981,7 +970,7 @@ public class RegistrationServiceImplTest {
     // ---- findByEventAndUserId() ----
 
     @Test
-    public void testFindByEventAndUserIdDelegatesToTheDao() {
+    public void testFindByEventAndUserIdReturnsThePersonsRegistrationInThatEvent() {
         // Arrange
         final Registration registration = new Registration(ModelFixtures.event(EVENT_ID), null, NORMALIZED_EMAIL, NAME, RegistrationStatus.CONFIRMED);
         when(mockRegistrationDao.findByEventAndUserId(EVENT_ID, USER_ID)).thenReturn(Optional.of(registration));
@@ -1006,18 +995,20 @@ public class RegistrationServiceImplTest {
         assertFalse(result.isPresent());
     }
 
-    // ---- findPageByEventId() ----
+    // ---- findRegistrants() ----
 
     @Test
-    public void testFindPageByEventIdReturnsTheRequestedPageWithItsTotals() {
+    public void testFindRegistrantsReturnsTheRequestedPageWithItsTotals() {
         // Arrange: 25 en total, de a RegistrationServiceImpl.PAGE_SIZE por pagina -> 3 paginas
+        final Event event = eventWithCapacity(10);
         final List<Registration> pageTwo = Collections.singletonList(
-                new Registration(ModelFixtures.event(EVENT_ID), null, NORMALIZED_EMAIL, NAME, RegistrationStatus.CONFIRMED));
+                new Registration(event, null, NORMALIZED_EMAIL, NAME, RegistrationStatus.CONFIRMED));
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event));
         when(mockRegistrationDao.countByEventId(EVENT_ID)).thenReturn(25L);
         when(mockRegistrationDao.findByEventId(EVENT_ID, 2, RegistrationServiceImpl.PAGE_SIZE)).thenReturn(pageTwo);
 
         // Act
-        final PageResult<Registration> result = registrationService.findPageByEventId(EVENT_ID, 2);
+        final PageResult<Registration> result = registrationService.findRegistrants(EVENT_ID, 2).get().getRegistrations();
 
         // Assert
         assertEquals(pageTwo, result.getContent());
@@ -1027,22 +1018,22 @@ public class RegistrationServiceImplTest {
     }
 
     @Test
-    public void testFindPageByEventIdClampsAPageBeyondTheLastToTheLastOne() {
+    public void testFindRegistrantsClampsAPageBeyondTheLastToTheLastOne() {
         // Arrange: 25 en total -> la ultima pagina es la 3
+        final Event event = eventWithCapacity(10);
         final List<Registration> lastPage = Collections.singletonList(
-                new Registration(ModelFixtures.event(EVENT_ID), null, NORMALIZED_EMAIL, NAME, RegistrationStatus.CONFIRMED));
+                new Registration(event, null, NORMALIZED_EMAIL, NAME, RegistrationStatus.CONFIRMED));
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event));
         when(mockRegistrationDao.countByEventId(EVENT_ID)).thenReturn(25L);
         when(mockRegistrationDao.findByEventId(EVENT_ID, 3, RegistrationServiceImpl.PAGE_SIZE)).thenReturn(lastPage);
 
         // Act
-        final PageResult<Registration> result = registrationService.findPageByEventId(EVENT_ID, 99);
+        final PageResult<Registration> result = registrationService.findRegistrants(EVENT_ID, 99).get().getRegistrations();
 
         // Assert
         assertEquals(3, result.getPage());
         assertEquals(lastPage, result.getContent());
     }
-
-    // ---- findRegistrants() ----
 
     @Test
     public void testFindRegistrantsReturnsTheEventWithAPageOfItsRegistrations() {
@@ -1084,7 +1075,6 @@ public class RegistrationServiceImplTest {
         when(mockRegistrationDao.findPastByUserId(eq(USER_ID), any(Date.class), eq(1), eq(RegistrationServiceImpl.PAGE_SIZE)))
                 .thenReturn(Collections.singletonList(
                         new Registration(event, null, NORMALIZED_EMAIL, NAME, status)));
-        when(eventService.findByIds(Collections.singletonList(PAST_EVENT_ID))).thenReturn(Collections.singletonList(event));
         when(reviewService.findByEventsAndUser(Collections.singletonList(PAST_EVENT_ID), USER_ID))
                 .thenReturn(review == null ? Collections.<Review>emptyList() : Collections.singletonList(review));
         return registrationService.findMyRegistrations(USER_ID, 1, 1).getPast().getContent().get(0);
@@ -1152,11 +1142,9 @@ public class RegistrationServiceImplTest {
     @Test
     public void testARejectedUpcomingRegistrationCannotBeCancelled() {
         givenTotals(1, 0);
-        final Registration rejected = new Registration(ModelFixtures.event(UPCOMING_EVENT_ID), null, NORMALIZED_EMAIL, NAME, RegistrationStatus.REJECTED);
+        final Registration rejected = new Registration(upcomingEvent(UPCOMING_EVENT_ID), null, NORMALIZED_EMAIL, NAME, RegistrationStatus.REJECTED);
         when(mockRegistrationDao.findUpcomingByUserId(eq(USER_ID), any(Date.class), eq(1), eq(RegistrationServiceImpl.PAGE_SIZE)))
                 .thenReturn(Collections.singletonList(rejected));
-        when(eventService.findByIds(Collections.singletonList(UPCOMING_EVENT_ID)))
-                .thenReturn(Collections.singletonList(upcomingEvent(UPCOMING_EVENT_ID)));
 
         final RegistrationEntry entry = registrationService.findMyRegistrations(USER_ID, 1, 1).getUpcoming().getContent().get(0);
 
@@ -1170,9 +1158,7 @@ public class RegistrationServiceImplTest {
         cancelled.setEventDate(new Date(System.currentTimeMillis() + ONE_DAY_MILLIS));
         cancelled.setCancelledAt(new Date());
         when(mockRegistrationDao.findUpcomingByUserId(eq(USER_ID), any(Date.class), eq(1), eq(RegistrationServiceImpl.PAGE_SIZE)))
-                .thenReturn(Collections.singletonList(registrationAt(UPCOMING_EVENT_ID)));
-        when(eventService.findByIds(Collections.singletonList(UPCOMING_EVENT_ID)))
-                .thenReturn(Collections.singletonList(cancelled));
+                .thenReturn(Collections.singletonList(registrationOf(cancelled)));
 
         final RegistrationEntry entry = registrationService.findMyRegistrations(USER_ID, 1, 1).getUpcoming().getContent().get(0);
 

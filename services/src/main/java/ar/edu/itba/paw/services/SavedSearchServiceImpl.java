@@ -1,6 +1,7 @@
 // Implementa el contrato SavedSearchService (modulo services-contracts).
 package ar.edu.itba.paw.services;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.EventSort;
@@ -45,8 +46,20 @@ public class SavedSearchServiceImpl implements SavedSearchService {
         if (savedSearchDao.existsByKey(userId, keyOf(criteria))) {
             return SaveSearchResult.ALREADY_SAVED;
         }
-        savedSearchDao.create(userId, criteria.getCategoryIds(), criteria.getBarrios(),
-                criteria.getMinPrice(), criteria.getMaxPrice(), criteria.getFromDate(), criteria.getToDate());
+        try {
+            savedSearchDao.create(userId, criteria.getCategoryIds(), criteria.getBarrios(), criteria.getMinPrice(),
+                    criteria.getMaxPrice(), criteria.getFromDate(), criteria.getToDate());
+        } catch (final DataIntegrityViolationException e) {
+            // Solo el UNIQUE (persona + filtros) es "ya la tenia": otro "Guardar busqueda" casi simultaneo con los
+            // mismos filtros gano, su insert nos paso por delante. Cualquier otra violacion es un error de verdad.
+            if (!UniqueViolation.isUniqueViolation(e)) {
+                throw e;
+            }
+            // El insert fallido dejo esta transaccion marcada solo-rollback; no escribimos nada mas, asi que la
+            // descartamos sin quejas.
+            RollbackOnly.ifInTransaction();
+            return SaveSearchResult.ALREADY_SAVED;
+        }
         return SaveSearchResult.SAVED;
     }
 
@@ -92,6 +105,22 @@ public class SavedSearchServiceImpl implements SavedSearchService {
     @Transactional(readOnly = true)
     public List<Long> findIdsAfter(final long afterId, final int limit) {
         return savedSearchDao.findIdsAfter(afterId, limit);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean mayHaveNewEvents() {
+        final Optional<Date> oldestCheck = savedSearchDao.findOldestLastCheckedAt();
+        if (!oldestCheck.isPresent()) {
+            return false;
+        }
+        // La misma ventana que usa notifyNewEvents() (hasta un minuto antes de ahora), pero desde la marca mas vieja y
+        // sin los filtros de ninguna busqueda: son los eventos que el listado puede mostrar y se aprobaron en ese
+        // rango. Si no hay ninguno, ninguna busqueda puede tener uno nuevo.
+        final EventSearchCriteria window = new EventSearchCriteria();
+        window.setApprovedAfter(oldestCheck.get());
+        window.setApprovedUntil(new Date(System.currentTimeMillis() - COMMIT_MARGIN_MILLIS));
+        return eventService.countMatching(window) > 0;
     }
 
     @Override

@@ -24,6 +24,8 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.junit.Assert.assertThrows;
 import static org.mockito.Mockito.when;
@@ -47,14 +49,12 @@ public class ReviewServiceImplTest {
     private ReviewDao reviewDao;
     @Mock
     private EventService eventService;
-    @Mock
-    private UserService userService;
 
     private ReviewServiceImpl reviewService;
 
     @Before
     public void setUp() {
-        reviewService = new ReviewServiceImpl(reviewDao, eventService, userService);
+        reviewService = new ReviewServiceImpl(reviewDao, eventService);
     }
 
     private static User someUser() {
@@ -114,14 +114,14 @@ public class ReviewServiceImplTest {
     private void eligibleUser() {
         when(reviewDao.findByEventAndUser(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
         when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(pastEvent()));
-        when(userService.findById(USER_ID)).thenReturn(Optional.of(someUser()));
     }
 
     @Test
     public void testCreateSucceedsWhenTheEventFinishedAndTheUserWasRegistered() {
         // Arrange
         eligibleUser();
-        when(reviewDao.create(any(Review.class))).thenReturn(new Review(ModelFixtures.event(EVENT_ID), ModelFixtures.user(USER_ID), RATING, COMMENT));
+        when(reviewDao.create(EVENT_ID, USER_ID, RATING, COMMENT))
+                .thenReturn(new Review(ModelFixtures.event(EVENT_ID), ModelFixtures.user(USER_ID), RATING, COMMENT));
 
         // Act
         final ReviewResult result = reviewService.create(EVENT_ID, USER_ID, RATING, COMMENT);
@@ -150,7 +150,7 @@ public class ReviewServiceImplTest {
     public void testCreateReturnsAlreadyReviewedWhenTheDatabaseRejectsADuplicate() {
         // Arrange
         eligibleUser();
-        when(reviewDao.create(any(Review.class)))
+        when(reviewDao.create(EVENT_ID, USER_ID, RATING, COMMENT))
                 .thenThrow(new DataIntegrityViolationException("unique evento+usuario",
                         new SQLException("duplicado", "23505")));
 
@@ -165,7 +165,7 @@ public class ReviewServiceImplTest {
     public void testCreateRethrowsADatabaseViolationThatIsNotTheDuplicate() {
         // Arrange: un CHECK (SQLSTATE 23514) no es "ya la mando": no se disfraza de ALREADY_REVIEWED
         eligibleUser();
-        when(reviewDao.create(any(Review.class)))
+        when(reviewDao.create(EVENT_ID, USER_ID, RATING, COMMENT))
                 .thenThrow(new DataIntegrityViolationException("check", new SQLException("check", "23514")));
 
         // Act + Assert
@@ -178,8 +178,7 @@ public class ReviewServiceImplTest {
         // Arrange: usuario elegible; si el service guardara la resenia igual, el resultado seria CREATED
         lenient().when(reviewDao.findByEventAndUser(EVENT_ID, USER_ID)).thenReturn(Optional.empty());
         lenient().when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(pastEvent()));
-        lenient().when(userService.findById(USER_ID)).thenReturn(Optional.of(someUser()));
-        lenient().when(reviewDao.create(any(Review.class))).thenReturn(reviewOfEvent(EVENT_ID));
+        lenient().when(reviewDao.create(eq(EVENT_ID), eq(USER_ID), anyInt(), any())).thenReturn(reviewOfEvent(EVENT_ID));
 
         // Act
         final ReviewResult result = reviewService.create(EVENT_ID, USER_ID, ReviewService.MAX_RATING + 1, COMMENT);
@@ -244,7 +243,6 @@ public class ReviewServiceImplTest {
         when(eventService.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(cancelled));
         // Un evento cancelado no se puede opinar: el service corta antes de cargar la cuenta, por eso este stub
         // es lenient (no se usa a proposito).
-        lenient().when(userService.findById(USER_ID)).thenReturn(Optional.of(someUser()));
 
         // Act
         final ReviewResult result = reviewService.create(EVENT_ID, USER_ID, RATING, COMMENT);
@@ -271,7 +269,6 @@ public class ReviewServiceImplTest {
         assertFalse(result.hasReviews());
         assertEquals(0, result.getReviewCount());
         assertEquals(0.0, result.getAverageRating(), 0.0001);
-        assertTrue(result.getEventsById().isEmpty());
     }
 
     @Test
@@ -281,8 +278,6 @@ public class ReviewServiceImplTest {
         final List<Review> firstPage = Arrays.asList(reviewOfEvent(1), reviewOfEvent(2));
         when(reviewDao.findRatingSummaryByCreatorId(CREATOR_ID)).thenReturn(new RatingSummary(total, 4.5));
         when(reviewDao.findByCreatorId(CREATOR_ID, 1, ReviewServiceImpl.REVIEWS_PAGE_SIZE)).thenReturn(firstPage);
-        when(eventService.findByIds(Arrays.asList(1L, 2L)))
-                .thenReturn(Arrays.asList(ModelFixtures.event(1), ModelFixtures.event(2)));
 
         // Act
         final CreatorReputation result = reviewService.findCreatorReputation(CREATOR_ID, 1);
@@ -304,34 +299,12 @@ public class ReviewServiceImplTest {
                 .thenReturn(new RatingSummary((long) ReviewServiceImpl.REVIEWS_PAGE_SIZE + 2, 4.0));
         when(reviewDao.findByCreatorId(CREATOR_ID, 2, ReviewServiceImpl.REVIEWS_PAGE_SIZE))
                 .thenReturn(Arrays.asList(reviewOfEvent(1), reviewOfEvent(2)));
-        when(eventService.findByIds(Arrays.asList(1L, 2L)))
-                .thenReturn(Arrays.asList(ModelFixtures.event(1), ModelFixtures.event(2)));
 
         // Act
         final CreatorReputation result = reviewService.findCreatorReputation(CREATOR_ID, 9);
 
         // Assert
         assertEquals(2, result.getPage());
-    }
-
-    @Test
-    public void testFindCreatorReputationAsksOnceForEachReviewedEventAndIndexesThemById() {
-        // Arrange: dos reseñas del mismo evento y una de otro. El dao solo responde si se le piden
-        // los ids sin repetir (1 y 2), asi que si el service pidiera de mas, el mapa quedaria vacio.
-        when(reviewDao.findRatingSummaryByCreatorId(CREATOR_ID)).thenReturn(new RatingSummary(3L, 4.0));
-        when(reviewDao.findByCreatorId(CREATOR_ID, 1, ReviewServiceImpl.REVIEWS_PAGE_SIZE))
-                .thenReturn(Arrays.asList(reviewOfEvent(1), reviewOfEvent(2), reviewOfEvent(1)));
-        final Event first = ModelFixtures.event(1);
-        final Event second = ModelFixtures.event(2);
-        when(eventService.findByIds(Arrays.asList(1L, 2L))).thenReturn(Arrays.asList(first, second));
-
-        // Act
-        final CreatorReputation result = reviewService.findCreatorReputation(CREATOR_ID, 1);
-
-        // Assert
-        assertEquals(2, result.getEventsById().size());
-        assertSame(first, result.getEventsById().get(1L));
-        assertSame(second, result.getEventsById().get(2L));
     }
 
     // ---- findByEventsAndUser() / findRatingSummaryByCreator() ----

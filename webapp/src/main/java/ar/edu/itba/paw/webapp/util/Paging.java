@@ -3,27 +3,13 @@ package ar.edu.itba.paw.webapp.util;
 import java.util.ArrayList;
 import java.util.List;
 
-// Todo lo generico de paginacion que usan los controllers (parsear el numero
-// de pagina de la URL, armar los numeros a mostrar en el paginador): no es
-// logica de negocio ni depende de ningun form en particular, asi que no tiene
-// que repetirse ni vivir adentro de un controller especifico.
+// Todo lo generico de paginacion que usan los controllers (armar los numeros a mostrar en el paginador): no es
+// logica de negocio ni depende de ningun form en particular, asi que no tiene que repetirse ni vivir adentro de un
+// controller especifico. El numero de pagina de la URL llega ya como int (lo convierte Spring); una pagina fuera de
+// rango la ajusta cada service (PageResult.clampPage).
 public final class Paging {
 
     private Paging() {
-    }
-
-    // page=0, page=-1, page=abc caen a la primera pagina. Un page mas alla del
-    // total no se corrige aca (no se sabe el total todavia): lo ajusta el service.
-    public static int parsePage(final String value) {
-        if (value == null || value.isEmpty()) {
-            return 1;
-        }
-        try {
-            final int parsed = Integer.parseInt(value);
-            return parsed < 1 ? 1 : parsed;
-        } catch (final NumberFormatException e) {
-            return 1;
-        }
     }
 
     // Numeros de pagina a mostrar en el paginador. Con pocas paginas se muestran

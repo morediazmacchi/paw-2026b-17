@@ -28,6 +28,16 @@ public class AdminSecurity {
     // El admin puede suspender a ese usuario: existe, NO es el mismo admin, y si es admin o superadmin
     // solo lo suspende un superadmin.
     public boolean canSuspend(final long targetId, final Authentication authentication) {
+        return canChangeSuspension(targetId, authentication);
+    }
+
+    // Reactivar sigue la misma regla que suspender: sin ella, un admin comun podria deshacer lo que un superadmin le
+    // hizo a otro admin.
+    public boolean canReactivate(final long targetId, final Authentication authentication) {
+        return canChangeSuspension(targetId, authentication);
+    }
+
+    private boolean canChangeSuspension(final long targetId, final Authentication authentication) {
         return PlancitoUserDetails.from(authentication)
                 .flatMap(caller -> userService.findAccessById(targetId).map(target ->
                         caller.getId() != targetId && target.canBeSuspendedBy(caller.hasRole(Role.SUPERADMIN))))

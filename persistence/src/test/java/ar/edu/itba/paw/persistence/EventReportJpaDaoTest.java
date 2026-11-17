@@ -5,8 +5,6 @@ import ar.edu.itba.paw.model.ReportStatus;
 import ar.edu.itba.paw.model.ReportStatusCounts;
 import ar.edu.itba.paw.model.ReportStatusFilter;
 import ar.edu.itba.paw.model.ReportTarget;
-import ar.edu.itba.paw.model.Event;
-import ar.edu.itba.paw.model.User;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -125,6 +123,16 @@ public class EventReportJpaDaoTest {
         return jdbcTemplate.queryForObject("SELECT id FROM event_report ORDER BY id DESC LIMIT 1", Long.class);
     }
 
+    // Un reporte que un admin ya abrio (en revision): pendiente, con quien lo abrio y cuando.
+    private long insertViewedReport(final long eventId, final long reporterId, final String reason,
+                                    final long adminId) {
+        jdbcTemplate.update(
+                "INSERT INTO event_report (event_id, reporter_user_id, reason, status, viewed_at, viewed_by) "
+                        + "VALUES (?, ?, ?, 'PENDING', ?, ?)",
+                eventId, reporterId, reason, new Timestamp(System.currentTimeMillis()), adminId);
+        return jdbcTemplate.queryForObject("SELECT id FROM event_report ORDER BY id DESC LIMIT 1", Long.class);
+    }
+
     private long insertChangesRequestedReport(final long eventId, final long reporterId, final String reason,
                                                final String message, final long adminId) {
         return insertChangesRequestedReportAt(eventId, reporterId, reason, message, adminId, new Timestamp(System.currentTimeMillis()));
@@ -134,11 +142,8 @@ public class EventReportJpaDaoTest {
 
     @Test
     public void testCreateInsertsTheReportRowAndReturnsItWithItsId() {
-        // Arrange
-        final EventReport toCreate = new EventReport(em.getReference(Event.class, eventId), em.getReference(User.class, reporterId), REASON);
-
         // Act
-        final EventReport created = eventReportDao.create(toCreate);
+        final EventReport created = eventReportDao.create(eventId, reporterId, REASON);
 
         // Assert
         assertTrue(created.getId() > 0);
@@ -150,28 +155,9 @@ public class EventReportJpaDaoTest {
     }
 
     @Test
-    public void testCreateWithAReporterBuiltFromTheSessionStoresItsId() {
-        // Arrange
-        final User fromSession = new User("reporter@mail.com", "Rita");
-        fromSession.setId(reporterId);
-        final EventReport toCreate = new EventReport(em.getReference(Event.class, eventId), fromSession, REASON);
-
-        // Act
-        final EventReport created = eventReportDao.create(toCreate);
-
-        // Assert
-        final Long storedReporterId = jdbcTemplate.queryForObject(
-                "SELECT reporter_user_id FROM event_report WHERE id = ?", Long.class, created.getId());
-        assertEquals(reporterId, storedReporterId.longValue());
-    }
-
-    @Test
     public void testCreateDefaultsStatusToPending() {
-        // Arrange
-        final EventReport toCreate = new EventReport(em.getReference(Event.class, eventId), em.getReference(User.class, reporterId), REASON);
-
         // Act
-        final EventReport created = eventReportDao.create(toCreate);
+        final EventReport created = eventReportDao.create(eventId, reporterId, REASON);
 
         // Assert
         final String status = jdbcTemplate.queryForObject(
@@ -237,8 +223,8 @@ public class EventReportJpaDaoTest {
     public void testSearchWithNewFilterReturnsOnlyPendingAndUnviewedReports() {
         // Arrange
         final long newId = insertPendingReport(eventId, reporterId, "nuevo");
-        final long viewedId = insertPendingReport(eventId, insertUser("r2@mail.com"), "visto");
-        eventReportDao.markViewed(viewedId, insertUser("admin-new@mail.com"));
+        final long viewedId = insertViewedReport(eventId, insertUser("r2@mail.com"), "visto",
+                insertUser("admin-new@mail.com"));
         insertChangesRequestedReport(eventId, insertUser("r3@mail.com"), "cambios", "corregi",
                 insertUser("admin-new2@mail.com"));
 
@@ -254,8 +240,8 @@ public class EventReportJpaDaoTest {
     public void testSearchWithInReviewFilterReturnsOnlyPendingAndViewedReports() {
         // Arrange
         insertPendingReport(eventId, reporterId, "nuevo");
-        final long viewedId = insertPendingReport(eventId, insertUser("r2@mail.com"), "visto");
-        eventReportDao.markViewed(viewedId, insertUser("admin-review@mail.com"));
+        final long viewedId = insertViewedReport(eventId, insertUser("r2@mail.com"), "visto",
+                insertUser("admin-review@mail.com"));
 
         // Act
         final List<EventReport> found = eventReportDao.search(null, ReportStatusFilter.IN_REVIEW, 1, 10);
@@ -299,25 +285,45 @@ public class EventReportJpaDaoTest {
     }
 
     @Test
-    public void testSearchByTextMatchesTheEventTitleTheReporterEmailOrTheReason() {
-        // Arrange: un reporte distinto que matchea cada campo; un evento propio sin "recital" en el titulo
-        // para byReporter/byReason, para que no matcheen por accidente via el evento compartido del setUp().
-        final long concertEvent = insertEventWithTitle("Recital en el parque");
-        final long byTitle = insertPendingReport(concertEvent, reporterId, "motivo generico");
-        final long otherEvent = insertEventWithTitle("Taller de cocina");
-        final long specificReporter = insertUser("particular@mail.com");
-        final long byReporter = insertPendingReport(otherEvent, specificReporter, "motivo generico");
-        final long byReason = insertPendingReport(otherEvent, insertUser("r4@mail.com"), "ubicacion incorrecta");
+    public void testSearchByTextMatchesTheEventTitle() {
+        // Arrange: un reporte sobre un evento con "recital" en el titulo y otro sobre un evento que no
+        final long byTitle = insertPendingReport(insertEventWithTitle("Recital en el parque"), reporterId,
+                "motivo generico");
+        insertPendingReport(insertEventWithTitle("Taller de cocina"), insertUser("r2@mail.com"), "motivo generico");
 
         // Act
-        final List<Long> byTitleResult = idsOf(eventReportDao.search("recital", ReportStatusFilter.ALL, 1, 10));
-        final List<Long> byReporterResult = idsOf(eventReportDao.search("particular", ReportStatusFilter.ALL, 1, 10));
-        final List<Long> byReasonResult = idsOf(eventReportDao.search("incorrecta", ReportStatusFilter.ALL, 1, 10));
+        final List<Long> result = idsOf(eventReportDao.search("recital", ReportStatusFilter.ALL, 1, 10));
 
         // Assert
-        assertEquals(Collections.singletonList(byTitle), byTitleResult);
-        assertEquals(Collections.singletonList(byReporter), byReporterResult);
-        assertEquals(Collections.singletonList(byReason), byReasonResult);
+        assertEquals(Collections.singletonList(byTitle), result);
+    }
+
+    @Test
+    public void testSearchByTextMatchesTheReporterEmail() {
+        // Arrange: un evento propio sin "particular" en el titulo, para que no matchee por accidente via el del setUp()
+        final long event = insertEventWithTitle("Taller de cocina");
+        final long byReporter = insertPendingReport(event, insertUser("particular@mail.com"), "motivo generico");
+        insertPendingReport(event, insertUser("r4@mail.com"), "motivo generico");
+
+        // Act
+        final List<Long> result = idsOf(eventReportDao.search("particular", ReportStatusFilter.ALL, 1, 10));
+
+        // Assert
+        assertEquals(Collections.singletonList(byReporter), result);
+    }
+
+    @Test
+    public void testSearchByTextMatchesTheReason() {
+        // Arrange
+        final long event = insertEventWithTitle("Taller de cocina");
+        final long byReason = insertPendingReport(event, insertUser("r4@mail.com"), "ubicacion incorrecta");
+        insertPendingReport(event, insertUser("r5@mail.com"), "motivo generico");
+
+        // Act
+        final List<Long> result = idsOf(eventReportDao.search("incorrecta", ReportStatusFilter.ALL, 1, 10));
+
+        // Assert
+        assertEquals(Collections.singletonList(byReason), result);
     }
 
     @Test
@@ -333,37 +339,65 @@ public class EventReportJpaDaoTest {
         assertEquals(Collections.singletonList(withPercent), found);
     }
 
-    @Test
-    public void testSearchPagesTheResults() {
-        // Arrange: 3 reportes de a 2 por pagina, cada uno con su propia actividad
+    // 3 reportes, cada uno con su propia actividad: el mas nuevo es el ultimo. Devuelve los ids de mas viejo a mas nuevo.
+    private long[] insertThreeReportsOneSecondApart() {
         final long now = System.currentTimeMillis();
-        final long first = insertPendingReportAt(eventId, reporterId, "primero", new Timestamp(now - 3000));
-        final long second = insertPendingReportAt(eventId, insertUser("r2@mail.com"), "segundo", new Timestamp(now - 2000));
-        final long third = insertPendingReportAt(eventId, insertUser("r3@mail.com"), "tercero", new Timestamp(now - 1000));
-
-        // Act
-        final List<Long> pageOne = idsOf(eventReportDao.search(null, ReportStatusFilter.ALL, 1, 2));
-        final List<Long> pageTwo = idsOf(eventReportDao.search(null, ReportStatusFilter.ALL, 2, 2));
-
-        // Assert
-        assertEquals(Arrays.asList(third, second), pageOne);
-        assertEquals(Collections.singletonList(first), pageTwo);
+        return new long[] {
+                insertPendingReportAt(eventId, reporterId, "primero", new Timestamp(now - 3000)),
+                insertPendingReportAt(eventId, insertUser("r2@mail.com"), "segundo", new Timestamp(now - 2000)),
+                insertPendingReportAt(eventId, insertUser("r3@mail.com"), "tercero", new Timestamp(now - 1000))};
     }
 
     @Test
-    public void testCountSearchMatchesTheSameReportsThatSearchReturns() {
+    public void testSearchFirstPageHasTheMostRecentActivityFirst() {
+        // Arrange: 3 reportes de a 2 por pagina
+        final long[] reports = insertThreeReportsOneSecondApart();
+
+        // Act
+        final List<Long> pageOne = idsOf(eventReportDao.search(null, ReportStatusFilter.ALL, 1, 2));
+
+        // Assert
+        assertEquals(Arrays.asList(reports[2], reports[1]), pageOne);
+    }
+
+    @Test
+    public void testSearchSecondPageHasTheRest() {
+        // Arrange
+        final long[] reports = insertThreeReportsOneSecondApart();
+
+        // Act
+        final List<Long> pageTwo = idsOf(eventReportDao.search(null, ReportStatusFilter.ALL, 2, 2));
+
+        // Assert
+        assertEquals(Collections.singletonList(reports[0]), pageTwo);
+    }
+
+    @Test
+    public void testCountSearchWithoutFilterCountsEveryReport() {
         // Arrange
         insertPendingReport(eventId, reporterId, "pendiente");
         insertChangesRequestedReport(eventId, insertUser("r2@mail.com"), "cambios", "corregi",
                 insertUser("admin-count-search@mail.com"));
 
         // Act
-        final long countAll = eventReportDao.countSearch(null, ReportStatusFilter.ALL);
-        final long countChangesRequested = eventReportDao.countSearch(null, ReportStatusFilter.CHANGES_REQUESTED);
+        final long count = eventReportDao.countSearch(null, ReportStatusFilter.ALL);
 
         // Assert
-        assertEquals(2, countAll);
-        assertEquals(1, countChangesRequested);
+        assertEquals(2, count);
+    }
+
+    @Test
+    public void testCountSearchWithAFilterCountsOnlyTheReportsOfThatTab() {
+        // Arrange
+        insertPendingReport(eventId, reporterId, "pendiente");
+        insertChangesRequestedReport(eventId, insertUser("r2@mail.com"), "cambios", "corregi",
+                insertUser("admin-count-search@mail.com"));
+
+        // Act
+        final long count = eventReportDao.countSearch(null, ReportStatusFilter.CHANGES_REQUESTED);
+
+        // Assert
+        assertEquals(1, count);
     }
 
     // ---- countStatuses() ----
@@ -372,8 +406,7 @@ public class EventReportJpaDaoTest {
     public void testCountStatusesCountsEachTabSeparately() {
         // Arrange: uno nuevo, uno en revision, uno con cambios pedidos y uno resuelto
         insertPendingReport(eventId, reporterId, "nuevo");
-        final long viewedId = insertPendingReport(eventId, insertUser("r2@mail.com"), "en revision");
-        eventReportDao.markViewed(viewedId, insertUser("admin-counts@mail.com"));
+        insertViewedReport(eventId, insertUser("r2@mail.com"), "en revision", insertUser("admin-counts@mail.com"));
         insertChangesRequestedReport(eventId, insertUser("r3@mail.com"), "cambios", "corregi",
                 insertUser("admin-counts2@mail.com"));
         insertResolvedReport(eventId, insertUser("r4@mail.com"), "resuelto", ReportStatus.ACTIONED,
@@ -423,9 +456,8 @@ public class EventReportJpaDaoTest {
     @Test
     public void testMarkViewedTwiceDoesNotOverwriteTheFirstViewerAndReturnsFalseTheSecondTime() {
         // Arrange
-        final long id = insertPendingReport(eventId, reporterId, REASON);
         final long firstAdmin = insertUser("admin-first@mail.com");
-        eventReportDao.markViewed(id, firstAdmin);
+        final long id = insertViewedReport(eventId, reporterId, REASON, firstAdmin);
 
         // Act
         final boolean secondResult = eventReportDao.markViewed(id, insertUser("admin-second@mail.com"));

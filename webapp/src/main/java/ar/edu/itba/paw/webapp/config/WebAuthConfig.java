@@ -19,6 +19,7 @@ import org.springframework.security.authentication.LockedException;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.core.session.SessionRegistryImpl;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -138,7 +139,7 @@ public class WebAuthConfig {
     public AuthenticationSuccessHandler loginSuccessHandler() {
         final AuthenticationSuccessHandler defaultHandler = new SavedRequestAwareAuthenticationSuccessHandler();
         return (request, response, authentication) -> {
-            // PAW20-82: si esta cuenta ya habia elegido un idioma antes (desde
+            // Si esta cuenta ya habia elegido un idioma antes (desde
             // este navegador o desde cualquier otro), se lo reaplicamos a la
             // cookie de este navegador: sin esto, loguearse en un dispositivo
             // nuevo (o con la cookie borrada) te dejaba en el idioma que la
@@ -172,19 +173,29 @@ public class WebAuthConfig {
         return new HttpStatusRequestRejectedHandler(HttpServletResponse.SC_BAD_REQUEST);
     }
 
+    // Los archivos estaticos (css, js, icono) no pasan por la cadena de Spring Security: no hay nada que
+    // autorizar y, si pasaran, Spring Security les agregaria "Cache-Control: no-store" (el navegador
+    // volveria a bajar el CSS y los scripts en cada pagina). Asi los sirve el resource handler de MVC
+    // (WebConfig.addResourceHandlers) con su propio cache.
+    @Bean
+    public WebSecurityCustomizer staticResourcesIgnored() {
+        return web -> web.ignoring().antMatchers("/css/**", "/js/**", "/favicon.ico", "/favicon.svg");
+    }
+
     @Bean
     public SecurityFilterChain filterChain(final HttpSecurity http) throws Exception {
         http.authenticationProvider(authenticationProvider())
                 .authorizeRequests(auth -> auth
-                        .antMatchers("/css/**", "/js/**", "/image/**").permitAll()
-                        .antMatchers("/login", "/login/nueva-contrasena", "/registro").permitAll()
+                        // Las imagenes SI pasan por la cadena (cada una hereda la visibilidad de su evento, ver
+                        // ImageController): permitAll solo deja entrar a un anonimo hasta el @PreAuthorize.
+                        .antMatchers("/image/**").permitAll()
+                        .antMatchers("/login", "/registro").permitAll()
                         .antMatchers("/login/recuperar", "/login/restablecer").permitAll()
                         .antMatchers("/login/reenviar-confirmacion", "/confirmar-cuenta").permitAll()
-                        // Boton de idioma de la navbar (PAW20-75): tiene que andar
+                        // Boton de idioma de la navbar: tiene que andar
                         // tambien para un visitante anonimo.
                         .antMatchers("/idioma").permitAll()
                         .antMatchers("/error/**").permitAll()
-                        .antMatchers("/favicon.ico", "/favicon.svg").permitAll()
                         .antMatchers(HttpMethod.GET, "/", "/eventos").permitAll()
                         .antMatchers(HttpMethod.GET, "/eventos/{id:[0-9]+}").permitAll()
                         // Perfil publico de una persona: lo ve cualquiera (editar la biografia, un POST, exige sesion).

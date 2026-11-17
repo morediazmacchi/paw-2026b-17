@@ -19,9 +19,17 @@ public class EventInvitationJpaDao implements EventInvitationDao {
     private EntityManager em;
 
     @Override
-    public EventInvitation create(final EventInvitation invitation) {
+    public EventInvitation create(final long eventId, final String email, final long invitedByUserId,
+                                  final Long inviteeUserId) {
         // Con IDENTITY el INSERT corre aca mismo: si viola UNIQUE(event_id, email) la
         // excepcion sale de este metodo (traducida a DataIntegrityViolationException).
+        final User inviter = em.getReference(User.class, invitedByUserId);
+        final EventInvitation invitation = new EventInvitation(em.getReference(Event.class, eventId), email,
+                inviter.getEmail());
+        invitation.setInvitedByUser(inviter);
+        if (inviteeUserId != null) {
+            invitation.setUser(em.getReference(User.class, inviteeUserId));
+        }
         em.persist(invitation);
         return invitation;
     }

@@ -51,23 +51,8 @@ public interface EventService {
      */
     Optional<EventAccessSummary> findAccessById(long id);
 
-    /**
-     * Atajo de findById() para quien prefiere un 404 directo en vez de manejar
-     * el Optional el mismo (ver EventController.detail(),
-     * EventRegistrationController.unregister()): la decision de que "no existe"
-     * es un 404 le corresponde al service, no a cada controller armando su
-     * propio orElseThrow().
-     *
-     * @throws EventNotFoundException si el evento no existe.
-     */
-    @Transactional(readOnly = true)
-    default Event findByIdOrThrow(final long id) {
-        return findById(id).orElseThrow(() -> new EventNotFoundException(id));
-    }
-
     // Una sola consulta para varios ids, para armar un mapa id->Event sin un
-    // findById() por cada uno (ver AdminController.reportQueueView(),
-    // EventController.addCreatorReputation()).
+    // findById() por cada uno.
     @Transactional(readOnly = true)
     List<Event> findByIds(List<Long> ids);
     /**
@@ -77,12 +62,23 @@ public interface EventService {
      * pidio ninguno): RECOMENDADOS solo existe para quien tiene historial de asistencia (criteria.getViewerId()).
      * Sin pedir orden, quien tiene historial recibe RECOMENDADOS y el resto FECHA_ASC; RECOMENDADOS pedido
      * sin historial cae a FECHA_ASC. El resultado trae el orden efectivo y los ordenes a ofrecer (sin
-     * RECOMENDADOS si no tiene historial). Con RECOMENDADOS el orden lo calcula EventSimilarityService.
+     * RECOMENDADOS si no tiene historial). Con RECOMENDADOS el puntaje y el orden los calcula la base (EventDao.findRecommendedPage()).
      * Si se busco texto (criteria.getText(), ver SearchTerms), el orden por defecto es RELEVANCIA, tambien para quien
      * tiene historial; RELEVANCIA pedido sin texto se trata como "no pidio ninguno", y solo se ofrece cuando hay texto.
      */
     @Transactional(readOnly = true)
     EventSearchResult search(EventSearchCriteria criteria);
+
+    /**
+     * "Eventos que te pueden interesar": los eventos publicos futuros mas parecidos a este, del mas parecido al
+     * menos, solo los que llegan al piso de similitud y como mucho el tope configurado (SimilarityParameters). Una
+     * sola nocion de "que tan parecidos son dos eventos" (S(a, b)) que sirve tambien para ordenar el listado por
+     * RECOMENDADOS (ver search()). La cuenta entera la hace la base: nunca se traen los eventos a memoria para
+     * compararlos. Vacio si el evento no existe o no es publico y aprobado. Si viewerId no es null, sus propios
+     * eventos no entran.
+     */
+    @Transactional(readOnly = true)
+    List<Event> findSimilar(long eventId, Long viewerId);
 
     // "Mis eventos": los creados por este usuario, de a una pagina. Primero los
     // que todavia no pasaron (el mas proximo primero) y despues los pasados (el

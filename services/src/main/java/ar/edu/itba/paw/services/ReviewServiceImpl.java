@@ -4,20 +4,15 @@ package ar.edu.itba.paw.services;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.RatingSummary;
 import ar.edu.itba.paw.model.Review;
-import ar.edu.itba.paw.model.User;
-import ar.edu.itba.paw.model.exception.UserNotFoundException;
 import ar.edu.itba.paw.persistence.ReviewDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.sql.SQLException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Service
 public class ReviewServiceImpl implements ReviewService {
@@ -28,14 +23,11 @@ public class ReviewServiceImpl implements ReviewService {
     private final ReviewDao reviewDao;
     // EventService: el lock de create() (findByIdForUpdate), mismo criterio que RegistrationServiceImpl.register().
     private final EventService eventService;
-    private final UserService userService;
 
     @Autowired
-    public ReviewServiceImpl(final ReviewDao reviewDao, final EventService eventService,
-                             final UserService userService) {
+    public ReviewServiceImpl(final ReviewDao reviewDao, final EventService eventService) {
         this.reviewDao = reviewDao;
         this.eventService = eventService;
-        this.userService = userService;
     }
 
     @Override
@@ -65,16 +57,14 @@ public class ReviewServiceImpl implements ReviewService {
             return ReviewResult.NOT_ELIGIBLE;
         }
         // Que haya tenido su lugar CONFIRMADO (no lista de espera, pendiente ni rechazado) lo decide @PreAuthorize en
-        // el controller (ver EventSecurity.isConfirmedAttendee). La cuenta se lee de la base: la sesion solo lleva lo
-        // que hace falta para autorizar.
-        final User user = userService.findById(userId).orElseThrow(() -> new UserNotFoundException(userId));
+        // el controller (ver EventSecurity.isConfirmedAttendee).
         try {
-            reviewDao.create(new Review(event.get(), user, rating, comment));
+            reviewDao.create(eventId, userId, rating, comment);
         } catch (final DataIntegrityViolationException e) {
             // Solo la violacion del UNIQUE(event_id, user_id) es "ya la mando": dos envios al mismo tiempo, el SELECT
             // de arriba no vio nada pero el otro ya inserto justo antes. Cualquier otra violacion (un CHECK, un largo)
             // es un error de verdad: no se la disfraza de ALREADY_REVIEWED.
-            if (!isUniqueViolation(e)) {
+            if (!UniqueViolation.isUniqueViolation(e)) {
                 throw e;
             }
             // El contrato de create() promete que el resultado es el unico canal de salida (ver ReviewService): no
@@ -87,12 +77,6 @@ public class ReviewServiceImpl implements ReviewService {
         return ReviewResult.CREATED;
     }
 
-    // SQLSTATE 23505 = unique_violation (Postgres y HSQLDB).
-    private static boolean isUniqueViolation(final DataIntegrityViolationException e) {
-        final Throwable cause = e.getMostSpecificCause();
-        return cause instanceof SQLException && "23505".equals(((SQLException) cause).getSQLState());
-    }
-
     @Override
     @Transactional(readOnly = true)
     public CreatorReputation findCreatorReputation(final long creatorId, final int page) {
@@ -100,18 +84,13 @@ public class ReviewServiceImpl implements ReviewService {
         final RatingSummary summary = reviewDao.findRatingSummaryByCreatorId(creatorId);
         final long total = summary.getCount();
         if (total == 0) {
-            return new CreatorReputation(new PageResult<>(Collections.emptyList(), 0, 1, REVIEWS_PAGE_SIZE),
-                    0, Collections.emptyMap());
+            return new CreatorReputation(new PageResult<>(Collections.emptyList(), 0, 1, REVIEWS_PAGE_SIZE), 0);
         }
         final int effectivePage = PageResult.clampPage(page, total, REVIEWS_PAGE_SIZE);
+        // Cada reseña ya trae su evento (lo carga la misma consulta del DAO).
         final List<Review> reviews = reviewDao.findByCreatorId(creatorId, effectivePage, REVIEWS_PAGE_SIZE);
-        // Una sola consulta para los eventos de las reseñas de esta pagina (findByIds()), en vez de
-        // un findById() por cada reseña.
-        final List<Long> eventIds = reviews.stream().map(Review::getEventId).distinct().collect(Collectors.toList());
-        final Map<Long, Event> eventsById = eventService.findByIds(eventIds).stream()
-                .collect(Collectors.toMap(Event::getId, event -> event));
         return new CreatorReputation(new PageResult<>(reviews, total, effectivePage, REVIEWS_PAGE_SIZE),
-                summary.getAverage(), eventsById);
+                summary.getAverage());
     }
 
     @Override

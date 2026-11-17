@@ -1,4 +1,4 @@
-// Contrato de persistencia para EventQuestion. Implementacion: EventQuestionJdbcDao (modulo persistence).
+// Contrato de persistencia para EventQuestion. Implementacion: EventQuestionJpaDao (modulo persistence).
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.EventQuestion;
@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface EventQuestionDao {
-    EventQuestion create(EventQuestion question);
+    EventQuestion create(long eventId, long askerId, String text);
 
     Optional<EventQuestion> findById(long id);
 

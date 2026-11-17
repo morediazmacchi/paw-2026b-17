@@ -37,7 +37,7 @@
   </properties>
   <dependencyManagement>
     <dependencies>
-      <!-- JPA + Hibernate (TPE2). Hibernate ORM es el proveedor; el codigo se escribe contra
+      <!-- JPA + Hibernate. Hibernate ORM es el proveedor; el codigo se escribe contra
            la API estandar (javax.persistence). OJO: no confundir con hibernate-validator
            de mas arriba, que es Bean Validation y no tiene que ver con persistencia. -->
       <dependency>
@@ -160,21 +160,24 @@
         <artifactId>thymeleaf</artifactId>
         <version>${thymeleaf.version}</version>
       </dependency>
-      <!-- Testing (lo agrego Lucas) -->
+      <!-- Testing: el scope vive aca, asi ningun modulo los puede llevar al war por accidente. -->
       <dependency>
         <groupId>junit</groupId>
         <artifactId>junit</artifactId>
         <version>${junit.version}</version>
+        <scope>test</scope>
       </dependency>
       <dependency>
         <groupId>org.mockito</groupId>
         <artifactId>mockito-core</artifactId>
         <version>${mockito.version}</version>
+        <scope>test</scope>
       </dependency>
       <dependency>
         <groupId>org.springframework</groupId>
         <artifactId>spring-test</artifactId>
         <version>${spring.version}</version>
+        <scope>test</scope>
       </dependency>
       <!-- HSQLDB en memoria para los tests de persistence
            (sql.syntax_pgs=true permite reusar el schema.sql real de PostgreSQL) -->
@@ -182,6 +185,7 @@
         <groupId>org.hsqldb</groupId>
         <artifactId>hsqldb</artifactId>
         <version>${hsqldb.version}</version>
+        <scope>test</scope>
       </dependency>
       <!-- Autenticacion. spring-security-core (PasswordEncoder, AuthenticationException)
            va en services/services-contracts; spring-security-web/config (filtros,
@@ -218,6 +222,7 @@
         <groupId>javax.servlet</groupId>
         <artifactId>javax.servlet-api</artifactId>
         <version>${servlet-api.version}</version>
+        <scope>provided</scope>
       </dependency>
     </dependencies>
   </dependencyManagement>

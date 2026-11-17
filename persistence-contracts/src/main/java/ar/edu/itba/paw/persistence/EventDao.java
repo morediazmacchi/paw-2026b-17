@@ -1,6 +1,7 @@
 // Contrato de persistencia para Event. Implementacion: EventJpaDao (modulo persistence).
 package ar.edu.itba.paw.persistence;
 
+import ar.edu.itba.paw.dto.EventDTO;
 import ar.edu.itba.paw.model.AdminEventSort;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventAccessSummary;
@@ -12,12 +13,16 @@ import java.util.List;
 import java.util.Optional;
 
 public interface EventDao {
-    Event create(Event event);
+    // Crea el evento con los datos del DTO: el DAO arma la entidad y el service no la ve hasta que ya esta guardada.
+    // El creador es la cuenta creatorId (de ella salen el dueño y creator_email); imageIds son las fotos ya
+    // guardadas, en orden (ver ImageService). Las categorias del DTO se guardan en la misma operacion: una que no
+    // existe viola la clave foranea de event_category (DataIntegrityViolationException).
+    Event create(long creatorId, EventDTO data, List<Long> imageIds);
 
-    // event.getId() tiene que venir seteado (identifica la fila a actualizar).
-    // No toca creator_email ni created_at -- quien creo el evento y cuando no
-    // se editan. Devuelve true si la fila existia y se actualizo.
-    boolean update(Event event);
+    // Edita el evento con los datos del DTO y devuelve el evento ya actualizado; vacio si no existe. Cambia solo las
+    // columnas que se pueden editar (nunca creator_email ni created_at: quien creo el evento y cuando no se editan).
+    // La galeria queda exactamente como imageIds y las categorias como las del DTO.
+    Optional<Event> update(long eventId, EventDTO data, List<Long> imageIds);
 
     // Soft-delete: marca cancelled_at = now(). No borra la fila (ver comentario
     // en schema.sql). Idempotente a nivel SQL, pero quien llama (EventService)
@@ -57,8 +62,7 @@ public interface EventDao {
     Optional<Event> findByIdForUpdate(long id);
 
     // Una sola consulta para varios ids (WHERE id IN (...)), para armar un mapa
-    // id->Event sin un findById() por cada uno (ver AdminController.reportQueueView(),
-    // EventController.addCreatorReputation()). Mismos ids repetidos o inexistentes
+    // id->Event sin un findById() por cada uno. Mismos ids repetidos o inexistentes
     // se ignoran en silencio; el orden del resultado no esta garantizado.
     List<Event> findByIds(List<Long> ids);
 
@@ -148,7 +152,7 @@ public interface EventDao {
     /**
      * Si esa persona ya asistio a algo: tiene al menos una inscripcion CONFIRMADA a un evento que ya paso (antes de
      * "now") y que no se cancelo (uno cancelado, o dado de baja por un admin, no ocurrio). Es lo que habilita el
-     * orden RECOMENDADOS (ver EventSimilarityService).
+     * orden RECOMENDADOS (ver EventService.search() y findSimilar()).
      */
     boolean hasAttendanceHistory(long userId, Date now);
 }

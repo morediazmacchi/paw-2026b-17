@@ -9,6 +9,7 @@ import ar.edu.itba.paw.model.exception.InvalidImageException;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.UserAccess;
 import ar.edu.itba.paw.model.VerificationToken;
+import ar.edu.itba.paw.model.exception.UserNotFoundException;
 import ar.edu.itba.paw.persistence.UserDao;
 import org.junit.Before;
 import org.junit.Test;
@@ -16,6 +17,7 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.ArrayList;
@@ -220,7 +222,7 @@ public class UserServiceImplTest {
         final UserRegistrationResult result = userService.register(registrationData());
 
         // Assert
-        assertEquals(UserRegistrationResult.CREATED, result);
+        assertEquals(UserRegistrationResult.ACCEPTED, result);
     }
 
     @Test
@@ -234,7 +236,7 @@ public class UserServiceImplTest {
         final UserRegistrationResult result = userService.register(registrationData());
 
         // Assert
-        assertEquals(UserRegistrationResult.CREATED, result);
+        assertEquals(UserRegistrationResult.ACCEPTED, result);
     }
 
     @Test
@@ -247,7 +249,7 @@ public class UserServiceImplTest {
         final UserRegistrationResult result = userService.register(registrationData());
 
         // Assert
-        assertEquals(UserRegistrationResult.CREATED, result);
+        assertEquals(UserRegistrationResult.ACCEPTED, result);
     }
 
     // Cuenta nueva: no puede loguearse hasta confirmar el mail.
@@ -261,7 +263,7 @@ public class UserServiceImplTest {
         final UserRegistrationResult result = userService.register(registrationData());
 
         // Assert
-        assertEquals(UserRegistrationResult.CREATED, result);
+        assertEquals(UserRegistrationResult.ACCEPTED, result);
     }
 
     @Test
@@ -277,7 +279,7 @@ public class UserServiceImplTest {
         final UserRegistrationResult result = userService.register(registrationData());
 
         // Assert
-        assertEquals(UserRegistrationResult.CREATED, result);
+        assertEquals(UserRegistrationResult.ACCEPTED, result);
     }
 
     // El idioma con el que se estaba navegando en el momento de registrarse (cookie de
@@ -294,28 +296,41 @@ public class UserServiceImplTest {
             final UserRegistrationResult result = userService.register(registrationData());
 
             // Assert
-            assertEquals(UserRegistrationResult.CREATED, result);
+            assertEquals(UserRegistrationResult.ACCEPTED, result);
         } finally {
             LocaleContextHolder.resetLocaleContext();
         }
     }
 
     @Test
-    public void testRegisterRejectsAnEmailThatAlreadyHasAPassword() {
+    public void testRegisterAnswersTheSameWhenTheEmailAlreadyHasAPassword() {
         // Arrange
         when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.of(registeredUser()));
 
         // Act
         final UserRegistrationResult result = userService.register(registrationData());
 
+        // Assert: el mismo resultado que con un mail libre, asi quien se registra no averigua que ya hay una cuenta
+        assertEquals(UserRegistrationResult.ACCEPTED, result);
+    }
+
+    @Test
+    public void testRegisterAnswersTheSameWhenTwoRegistrationsOfTheSameNewEmailCollide() {
+        // Arrange: el email estaba libre al mirar, pero otra solicitud lo inserto justo antes
+        when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.empty());
+        when(userDao.create(NORMALIZED_EMAIL, NAME)).thenThrow(new DataIntegrityViolationException("unique"));
+
+        // Act
+        final UserRegistrationResult result = userService.register(registrationData());
+
         // Assert
-        assertEquals(UserRegistrationResult.EMAIL_TAKEN, result);
+        assertEquals(UserRegistrationResult.ACCEPTED, result);
     }
 
     @Test
     public void testRegisterRejectsAPasswordShorterThanTheMinimum() {
         // Arrange: el email esta libre y el encoder tiene un hash senuelo; si el service guardara la cuenta igual,
-        // el resultado seria CREATED
+        // el resultado seria ACCEPTED
         final UserRegistrationDTO data = registrationData();
         data.setRawPassword("1234567");
         lenient().when(userDao.findByEmail(NORMALIZED_EMAIL)).thenReturn(Optional.empty());
@@ -342,7 +357,7 @@ public class UserServiceImplTest {
         final UserRegistrationResult result = userService.register(data);
 
         // Assert
-        assertEquals(UserRegistrationResult.CREATED, result);
+        assertEquals(UserRegistrationResult.ACCEPTED, result);
     }
 
     // ---- updateProfile() ----
@@ -508,8 +523,8 @@ public class UserServiceImplTest {
         assertEquals(ChangePasswordResult.WEAK_PASSWORD, result);
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void testChangePasswordOfAUserThatDoesNotExistThrowsIllegalArgumentException() {
+    @Test(expected = UserNotFoundException.class)
+    public void testChangePasswordOfAUserThatDoesNotExistThrowsUserNotFoundException() {
         // Arrange
         when(userDao.findById(USER_ID)).thenReturn(Optional.empty());
 
@@ -788,12 +803,14 @@ public class UserServiceImplTest {
         when(tokenService.findByToken("some-token")).thenReturn(Optional.of(tokenOf(TokenPurpose.RESET_PASSWORD, inOneHour())));
         when(passwordEncoder.encode(RAW_PASSWORD)).thenReturn(NEW_HASHED_PASSWORD);
         when(userDao.setPassword(USER_ID, NEW_HASHED_PASSWORD)).thenReturn(true);
+        when(userDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
 
         // Act
-        final PasswordResetResult result = userService.resetPassword("some-token", RAW_PASSWORD);
+        final PasswordResetOutcome result = userService.resetPassword("some-token", RAW_PASSWORD);
 
         // Assert
-        assertEquals(PasswordResetResult.OK, result);
+        assertEquals(PasswordResetResult.OK, result.getResult());
+        assertEquals(USER_ID, result.getUser().getId().longValue());
     }
 
     @Test
@@ -804,10 +821,10 @@ public class UserServiceImplTest {
         lenient().when(userDao.setPassword(USER_ID, NEW_HASHED_PASSWORD)).thenReturn(true);
 
         // Act
-        final PasswordResetResult result = userService.resetPassword("some-token", "1234567");
+        final PasswordResetOutcome result = userService.resetPassword("some-token", "1234567");
 
         // Assert
-        assertEquals(PasswordResetResult.WEAK_PASSWORD, result);
+        assertEquals(PasswordResetResult.WEAK_PASSWORD, result.getResult());
     }
 
     @Test
@@ -815,12 +832,13 @@ public class UserServiceImplTest {
         // Arrange
         when(tokenService.findByToken("some-token")).thenReturn(Optional.of(tokenOf(TokenPurpose.RESET_PASSWORD, inOneHour())));
         when(tokenService.delete("some-token")).thenReturn(true);
+        when(userDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
 
         // Act
-        final PasswordResetResult result = userService.resetPassword("some-token", RAW_PASSWORD);
+        final PasswordResetOutcome result = userService.resetPassword("some-token", RAW_PASSWORD);
 
         // Assert
-        assertEquals(PasswordResetResult.OK, result);
+        assertEquals(PasswordResetResult.OK, result.getResult());
     }
 
     @Test
@@ -829,10 +847,10 @@ public class UserServiceImplTest {
         when(tokenService.findByToken("some-token")).thenReturn(Optional.of(tokenOf(TokenPurpose.RESET_PASSWORD, oneHourAgo())));
 
         // Act
-        final PasswordResetResult result = userService.resetPassword("some-token", RAW_PASSWORD);
+        final PasswordResetOutcome result = userService.resetPassword("some-token", RAW_PASSWORD);
 
         // Assert
-        assertEquals(PasswordResetResult.INVALID_TOKEN, result);
+        assertEquals(PasswordResetResult.INVALID_TOKEN, result.getResult());
     }
 
     @Test
@@ -841,10 +859,10 @@ public class UserServiceImplTest {
         when(tokenService.findByToken("some-token")).thenReturn(Optional.of(tokenOf(TokenPurpose.VERIFY_EMAIL, inOneHour())));
 
         // Act
-        final PasswordResetResult result = userService.resetPassword("some-token", RAW_PASSWORD);
+        final PasswordResetOutcome result = userService.resetPassword("some-token", RAW_PASSWORD);
 
         // Assert
-        assertEquals(PasswordResetResult.INVALID_TOKEN, result);
+        assertEquals(PasswordResetResult.INVALID_TOKEN, result.getResult());
     }
 
     // ---- suspend()/reactivate() (moderacion) ----
@@ -863,10 +881,9 @@ public class UserServiceImplTest {
     }
 
     @Test
-    public void testSuspendReturnsFalseWhenThereIsNoSuchUser() {
-        // Arrange
+    public void testSuspendReturnsFalseWhenThereIsNothingToChange() {
+        // Arrange: no existe, o ya estaba suspendida (el dao dice que no cambio nada)
         when(userDao.setSuspended(USER_ID, true)).thenReturn(false);
-        when(userDao.findById(USER_ID)).thenReturn(Optional.empty());
 
         // Act
         final boolean result = userService.suspend(USER_ID);
@@ -891,10 +908,9 @@ public class UserServiceImplTest {
     }
 
     @Test
-    public void testReactivateReturnsFalseWhenThereIsNoSuchUser() {
-        // Arrange
+    public void testReactivateReturnsFalseWhenThereIsNothingToChange() {
+        // Arrange: no existe, o no estaba suspendida (el dao dice que no cambio nada)
         when(userDao.setSuspended(USER_ID, false)).thenReturn(false);
-        when(userDao.findById(USER_ID)).thenReturn(Optional.empty());
 
         // Act
         final boolean result = userService.reactivate(USER_ID);

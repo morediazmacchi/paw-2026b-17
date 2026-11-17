@@ -131,7 +131,7 @@ final class TextSearchSql {
         final String join = " JOIN (SELECT x.id AS id, (" + total + ") AS score FROM ("
                 + "SELECT n.id AS id" + scores + " FROM ("
                 + "SELECT y.id AS id, " + normalized("y.title") + " AS t, " + normalized("y.description") + " AS d"
-                + " FROM event y WHERE " + EventJpaDao.listingRules("y") + " OFFSET 0) n) x"
+                + " FROM event y WHERE " + EventSearchSql.listingRules("y") + " OFFSET 0) n) x"
                 + " WHERE " + allMatch + ") m ON m.id = e.id";
         return new TextSearchSql(join, params);
     }

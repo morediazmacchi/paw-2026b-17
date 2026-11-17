@@ -81,7 +81,7 @@ public class UserProfileControllerTest {
         when(userProfileService.findProfile(USER_ID, VIEWER_ID, ProfileTab.PAST, 3)).thenReturn(Optional.of(profile));
 
         // Act
-        final ModelAndView result = controller.profile(USER_ID, "PAST", "3", viewer());
+        final ModelAndView result = controller.profile(USER_ID, "PAST", 3, viewer());
 
         // Assert
         assertEquals("users/profile", result.getViewName());
@@ -95,20 +95,20 @@ public class UserProfileControllerTest {
         when(userProfileService.findProfile(USER_ID, null, null, 1)).thenReturn(Optional.of(profile));
 
         // Act
-        final ModelAndView result = controller.profile(USER_ID, null, null, null);
+        final ModelAndView result = controller.profile(USER_ID, null, 1, null);
 
         // Assert
         assertSame(profile, result.getModel().get("profile"));
     }
 
     @Test
-    public void testATabThatDoesNotExistIsTreatedAsNoTabAndAMalformedPageAsTheFirst() {
-        // Arrange: el service solo responde si le llega "ninguna pestaña" y la pagina 1
+    public void testATabThatDoesNotExistIsTreatedAsNoTab() {
+        // Arrange: el service solo responde si le llega "ninguna pestaña"
         final UserProfile profile = aProfile();
         when(userProfileService.findProfile(USER_ID, null, null, 1)).thenReturn(Optional.of(profile));
 
         // Act
-        final ModelAndView result = controller.profile(USER_ID, "inventada", "abc", null);
+        final ModelAndView result = controller.profile(USER_ID, "inventada", 1, null);
 
         // Assert
         assertSame(profile, result.getModel().get("profile"));
@@ -120,7 +120,7 @@ public class UserProfileControllerTest {
         when(userProfileService.findProfile(USER_ID, null, null, 1)).thenReturn(Optional.of(aProfile()));
 
         // Act
-        final ModelAndView result = controller.profile(USER_ID, null, null, null);
+        final ModelAndView result = controller.profile(USER_ID, null, 1, null);
 
         // Assert
         assertEquals(UserService.MAX_BIO_LENGTH, result.getModel().get("maxBioLength"));
@@ -132,7 +132,7 @@ public class UserProfileControllerTest {
         when(userProfileService.findProfile(USER_ID, null, null, 1)).thenReturn(Optional.empty());
 
         // Act
-        controller.profile(USER_ID, null, null, null);
+        controller.profile(USER_ID, null, 1, null);
 
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert (ErrorAdvice la convierte en un 404).
     }

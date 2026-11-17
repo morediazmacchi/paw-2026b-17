@@ -1,6 +1,7 @@
 // Implementa el contrato EventChatService (modulo services-contracts).
 package ar.edu.itba.paw.services;
 
+import java.util.Optional;
 import ar.edu.itba.paw.model.ChatGroup;
 import ar.edu.itba.paw.model.ChatMessage;
 import ar.edu.itba.paw.model.Event;
@@ -45,7 +46,10 @@ public class EventChatServiceImpl implements EventChatService {
         // controller (ver EventSecurity.isConfirmedAttendee). La inscripcion se busca aca solo
         // porque hace falta su id para agregar al miembro: si no esta (justo se dio de baja entre
         // medio) es lo mismo que un id inexistente.
-        final Event event = eventService.findById(eventId).orElseThrow(() -> new EventNotFoundException(eventId));
+        // Con lock sobre el evento (igual que register()): dos "Unirme" a la vez de la misma persona se serializan aca,
+        // y el segundo ya ve al primero como miembro, en vez de chocar contra la clave unica al insertar.
+        final Event event = eventService.findByIdForUpdate(eventId)
+                .orElseThrow(() -> new EventNotFoundException(eventId));
         final Registration registration = registrationService.findByEventAndUserId(eventId, userId)
                 .orElseThrow(() -> new EventNotFoundException(eventId));
         if (chatDao.isMember(eventId, userId)) {
@@ -54,13 +58,9 @@ public class EventChatServiceImpl implements EventChatService {
         if (isClosed(event)) {
             return ChatJoinResult.CLOSED;
         }
-        if (chatDao.addMember(registration.getId(), eventId, userId)) {
-            return ChatJoinResult.JOINED;
-        }
-        // Otro "Unirme" casi simultaneo gano: su insert fallo y dejo esta transaccion marcada
-        // solo-rollback; no escribimos nada mas, asi que la descartamos sin quejas.
-        RollbackOnly.ifInTransaction();
-        return ChatJoinResult.ALREADY_MEMBER;
+        // false: ya tenia su fila en el grupo (por ejemplo de antes de que su lugar dejara de estar confirmado).
+        return chatDao.addMember(registration.getId(), eventId, userId)
+                ? ChatJoinResult.JOINED : ChatJoinResult.ALREADY_MEMBER;
     }
 
     @Override
@@ -104,9 +104,9 @@ public class EventChatServiceImpl implements EventChatService {
 
     @Override
     @Transactional(readOnly = true)
-    public ChatRoom openRoom(final long eventId) {
-        final Event event = eventService.findByIdOrThrow(eventId);
-        return new ChatRoom(event, findMessages(eventId, 0), isClosed(event));
+    public Optional<ChatRoom> openRoom(final long eventId) {
+        return eventService.findById(eventId)
+                .map(event -> new ChatRoom(event, findMessages(eventId, 0), isClosed(event)));
     }
 
     @Override

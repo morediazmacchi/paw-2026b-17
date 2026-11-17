@@ -778,7 +778,7 @@
         </aside>
     </div>
 
-    <%-- Eventos parecidos a este (ver EventSimilarityService.findSimilar()). Si ninguno llega al
+    <%-- Eventos parecidos a este (ver EventService.findSimilar()). Si ninguno llega al
          piso de similitud, no se muestra nada. --%>
     <c:if test="${not empty relatedEvents}">
         <section class="related-events">
@@ -861,7 +861,7 @@
             </div>
             <div class="modal-body">
                 <c:forEach var="review" items="${creatorReviews}">
-                    <c:set var="reviewedEvent" value="${reviewEventsById[review.eventId]}"/>
+                    <c:set var="reviewedEvent" value="${review.event}"/>
                     <div class="creator-review-item">
                         <c:if test="${not empty reviewedEvent}">
                             <div class="creator-review-event">

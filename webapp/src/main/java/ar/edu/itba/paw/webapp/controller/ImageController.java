@@ -4,6 +4,7 @@ import ar.edu.itba.paw.model.Image;
 import ar.edu.itba.paw.services.ImageService;
 import ar.edu.itba.paw.services.UserProfileService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Sirve las imagenes guardadas en la base.
@@ -28,6 +30,15 @@ public class ImageController {
     // Los unicos formatos que ImageServiceImpl deja guardar.
     private static final List<MediaType> SERVABLE_TYPES = Arrays.asList(
             MediaType.IMAGE_JPEG, MediaType.IMAGE_PNG, MediaType.IMAGE_GIF, MediaType.parseMediaType("image/webp"));
+
+    // Una imagen de evento nunca cambia de contenido (editar la galeria crea imagenes nuevas con otro id):
+    // el navegador la guarda una hora. "private": hereda la visibilidad de su evento, asi que ningun cache
+    // compartido (un proxy) puede entregarsela a otra persona.
+    private static final CacheControl EVENT_IMAGE_CACHE = CacheControl.maxAge(1, TimeUnit.HOURS).cachePrivate();
+    // La portada de un perfil vive en una URL fija (/usuarios/{id}/portada) pero la persona puede cambiarla:
+    // el navegador la guarda, pero pregunta en cada uso si sigue siendo la misma (ETag) y, si lo es, el
+    // servidor contesta 304 sin volver a mandar los bytes.
+    private static final CacheControl COVER_CACHE = CacheControl.noCache().cachePrivate();
 
     private final ImageService imageService;
     private final UserProfileService userProfileService;
@@ -48,7 +59,7 @@ public class ImageController {
             return ResponseEntity.notFound().build();
         }
 
-        return imageResponse(maybeImage.get());
+        return imageResponse(maybeImage.get(), EVENT_IMAGE_CACHE);
     }
 
     // La portada del perfil publico la ve cualquiera (como el perfil). Sin portada elegida, o con una cuenta que no se
@@ -56,14 +67,18 @@ public class ImageController {
     @RequestMapping(value = "/usuarios/{id:[0-9]+}/portada", method = RequestMethod.GET)
     public ResponseEntity<byte[]> getCover(@PathVariable final long id) {
         return userProfileService.findCoverImage(id)
-                .map(this::imageResponse)
+                .map(image -> imageResponse(image, COVER_CACHE))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
-    private ResponseEntity<byte[]> imageResponse(final Image image) {
+    private ResponseEntity<byte[]> imageResponse(final Image image, final CacheControl cacheControl) {
         final MediaType type = servableType(image.getContentType());
         final ResponseEntity.BodyBuilder response = ResponseEntity.ok()
                 .contentType(type)
+                // Sin esto Spring Security manda "no-store" y la pagina bajaria cada foto en cada carga.
+                // El ETag es el id: una imagen no cambia su contenido sin cambiar de id.
+                .cacheControl(cacheControl)
+                .eTag("\"" + image.getId() + "\"")
                 // El navegador no tiene que "adivinar" otro tipo mirando los bytes.
                 .header("X-Content-Type-Options", "nosniff")
                 // Aunque algo raro llegara a abrirse, sin scripts ni recursos externos.

@@ -9,7 +9,6 @@ import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.EventVisibility;
 import ar.edu.itba.paw.model.exception.EventCancelledException;
-import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import ar.edu.itba.paw.model.exception.EventRejectedException;
 import org.junit.Before;
 import org.junit.Test;
@@ -214,7 +213,7 @@ public class EventAccessServiceImplTest {
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event));
 
         // Act
-        final Event result = accessService.getEditableEvent(EVENT_ID);
+        final Event result = accessService.getEditableEvent(EVENT_ID).get();
 
         // Assert
         assertSame(event, result);
@@ -254,21 +253,22 @@ public class EventAccessServiceImplTest {
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event));
 
         // Act
-        final Event result = accessService.getEditableEvent(EVENT_ID);
+        final Event result = accessService.getEditableEvent(EVENT_ID).get();
 
         // Assert
         assertSame(event, result);
     }
 
-    @Test(expected = EventNotFoundException.class)
-    public void testGetEditableEventWhenTheEventDoesNotExistThrowsEventNotFoundException() {
+    @Test
+    public void testGetEditableEventWhenTheEventDoesNotExistIsEmpty() {
         // Arrange
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.empty());
 
         // Act
-        accessService.getEditableEvent(EVENT_ID);
+        final Optional<Event> result = accessService.getEditableEvent(EVENT_ID);
 
-        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
+        // Assert
+        assertFalse(result.isPresent());
     }
 
     // ---- canRegister() ----

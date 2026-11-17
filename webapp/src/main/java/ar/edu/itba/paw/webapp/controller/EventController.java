@@ -104,7 +104,7 @@ public class EventController {
 
     // "Guardar busqueda" (watchlist) de /eventos: guarda los filtros puestos para avisar de los eventos nuevos que
     // los cumplan. Exige sesion (WebAuthConfig: todo lo que no es publico la pide) y llama a UN solo metodo del
-    // service (correccion 06). Vuelve al listado con los mismos filtros y el resultado.
+    // service. Vuelve al listado con los mismos filtros y el resultado.
     @RequestMapping(value = "/eventos/busquedas", method = RequestMethod.POST)
     public ModelAndView saveSearch(@Valid final EventSearchForm filters, final BindingResult errors,
                                    @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
@@ -121,9 +121,9 @@ public class EventController {
         return new ModelAndView("redirect:/eventos");
     }
 
-    // Todo el parseo de filtros (listas de ids, rango de precio/fecha, orden,
-    // pagina) y las dos validaciones cruzadas (rango de precio/fecha invertido)
-    // viven en EventSearchForm.
+    // Los filtros llegan ya con su tipo (los convierte Spring al enlazar EventSearchForm); un valor que no se entiende
+    // queda como error del BindingResult y esa busqueda sigue sin ese filtro. Las dos validaciones cruzadas (rango de
+    // precio/fecha invertido) viven en EventSearchForm.
     @RequestMapping(value = "/eventos", method = RequestMethod.GET)
     public ModelAndView list(@Valid final EventSearchForm filters, final BindingResult errors,
                               @RequestParam(value = "busqueda", required = false) final String saveSearchResult,
@@ -149,12 +149,12 @@ public class EventController {
         mav.addObject("selectedCategorias", filters.getSelectedCategoryIds());
         mav.addObject("precioMin", filters.getPrecioMin());
         mav.addObject("precioMax", filters.getPrecioMax());
-        mav.addObject("fechaDesde", filters.getFechaDesde());
-        mav.addObject("fechaHasta", filters.getFechaHasta());
+        mav.addObject("fechaDesde", filters.getFechaDesdeIso());
+        mav.addObject("fechaHasta", filters.getFechaHastaIso());
         mav.addObject("selectedBarrios", filters.getSelectedBarrios());
         mav.addObject("puntajeMin", filters.getPuntajeMin());
-        mav.addObject("pocosCupos", filters.getPocosCupos());
-        mav.addObject("agotados", filters.getAgotados());
+        mav.addObject("pocosCupos", filters.isOnlyFewSpotsLeft());
+        mav.addObject("agotados", filters.isOnlySoldOut());
         mav.addObject("hasActiveFilters", filters.hasActiveFilters());
         // La barra de busqueda: el texto para volver a mostrarlo, y si de verdad hay algo que buscar.
         mav.addObject("q", filters.getSearchText());
@@ -180,11 +180,11 @@ public class EventController {
     @PreAuthorize("@eventSecurity.canView(#id, authentication)")
     @RequestMapping(value = "/eventos/{id}", method = RequestMethod.GET)
     public ModelAndView detail(@PathVariable final long id,
-                                @RequestParam(value = "preguntasPage", required = false) final String preguntasPage,
-                                @RequestParam(value = "resenasPage", required = false) final String resenasPage,
+                                @RequestParam(value = "preguntasPage", defaultValue = "1") final int preguntasPage,
+                                @RequestParam(value = "resenasPage", defaultValue = "1") final int resenasPage,
                                 @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
         final EventDetail detail = eventDetailService.getDetail(id, currentUser == null ? null : currentUser.getId(),
-                Paging.parsePage(preguntasPage), Paging.parsePage(resenasPage));
+                preguntasPage, resenasPage).orElseThrow(() -> new EventNotFoundException(id));
         final ModelAndView mav = new ModelAndView("events/detail");
         mav.addObject("event", detail.getEvent());
         mav.addObject("availableSpots", detail.getAvailableSpots());
@@ -233,7 +233,6 @@ public class EventController {
         mav.addObject("creatorReviewCount", reputation.getReviewCount());
         mav.addObject("creatorAverageRating", reputation.getAverageRating());
         mav.addObject("creatorReviews", reputation.getReviews());
-        mav.addObject("reviewEventsById", reputation.getEventsById());
         mav.addObject("creatorReviewsPage", reputation.getPage());
         mav.addObject("creatorReviewsTotalPages", reputation.getTotalPages());
     }
@@ -372,8 +371,8 @@ public class EventController {
     @PreAuthorize("@eventSecurity.isOwner(#id, authentication)")
     @RequestMapping(value = "/eventos/{id}/inscriptos", method = RequestMethod.GET)
     public ModelAndView inscriptos(@PathVariable final long id,
-                                   @RequestParam(value = "page", required = false) final String page) {
-        final EventRegistrants registrants = registrationService.findRegistrants(id, Paging.parsePage(page))
+                                   @RequestParam(value = "page", defaultValue = "1") final int page) {
+        final EventRegistrants registrants = registrationService.findRegistrants(id, page)
                 .orElseThrow(() -> new EventNotFoundException(id));
         final PageResult<Registration> result = registrants.getRegistrations();
         final ModelAndView mav = new ModelAndView("events/inscriptos");
@@ -389,7 +388,7 @@ public class EventController {
     @RequestMapping(value = "/eventos/{id}/editar", method = RequestMethod.GET)
     public ModelAndView editarForm(@PathVariable final long id,
                                    @RequestParam(value = "imageError", required = false) final String imageError) {
-        final Event event = eventAccessService.getEditableEvent(id);
+        final Event event = eventAccessService.getEditableEvent(id).orElseThrow(() -> new EventNotFoundException(id));
         final List<Category> categories = categoryService.findAll();
         final ModelAndView mav = new ModelAndView("events/editar");
         mav.addObject("eventId", id);

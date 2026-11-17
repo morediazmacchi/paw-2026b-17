@@ -1,6 +1,7 @@
 // Implementa el contrato RegistrationDao (modulo persistence-contracts) con JPA/Hibernate.
 package ar.edu.itba.paw.persistence;
 
+import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationAccess;
 import ar.edu.itba.paw.model.RegistrationStatus;
@@ -25,15 +26,14 @@ public class RegistrationJpaDao implements RegistrationDao {
     private EntityManager em;
 
     @Override
-    public Registration create(final Registration registration) {
+    public Registration create(final long eventId, final long userId, final String email, final String name,
+                               final RegistrationStatus status) {
         // Con IDENTITY el INSERT corre aca mismo: si viola UNIQUE(event_id, email) la
         // excepcion sale de este metodo (traducida a DataIntegrityViolationException).
-        // El User que llega puede ser uno armado a mano desde la sesion (solo id, email, nombre y
-        // roles): para la relacion alcanza con el id, asi que se apunta a una referencia, sin leer
-        // al usuario de la base. (user es null en una inscripcion que no tiene cuenta asociada.)
-        if (registration.getUser() != null) {
-            registration.setUser(em.getReference(User.class, registration.getUser().getId()));
-        }
+        // Para la relacion alcanza con el id: se apunta a una referencia, sin leer el evento ni la cuenta
+        // (si ya estan cargados en esta transaccion, es la misma instancia).
+        final Registration registration = new Registration(
+                em.getReference(Event.class, eventId), em.getReference(User.class, userId), email, name, status);
         em.persist(registration);
         return registration;
     }
@@ -121,7 +121,8 @@ public class RegistrationJpaDao implements RegistrationDao {
         if (ids.isEmpty()) {
             return Collections.emptyList();
         }
-        return em.createQuery("SELECT r FROM Registration r JOIN r.event e WHERE r.id IN :ids ORDER BY " + orderBy,
+        // Cada inscripcion trae su evento (la pantalla lo muestra): sin FETCH quedaria una consulta por fila.
+        return em.createQuery("SELECT r FROM Registration r JOIN FETCH r.event e WHERE r.id IN :ids ORDER BY " + orderBy,
                         Registration.class)
                 .setParameter("ids", ids)
                 .getResultList();
@@ -203,11 +204,15 @@ public class RegistrationJpaDao implements RegistrationDao {
 
     @Override
     public int updateStatusOfAll(final Collection<Long> registrationIds, final RegistrationStatus status) {
-        // Bulk JPQL a proposito (no em.find + setter por cada una): una sola sentencia para todas, sin cargarlas.
-        return em.createQuery("UPDATE Registration r SET r.status = :status WHERE r.id IN :ids")
-                .setParameter("status", status)
-                .setParameter("ids", registrationIds)
-                .executeUpdate();
+        // Bulk JPQL a proposito (no em.find + setter por cada una): una sentencia por tanda de ids, sin cargarlas.
+        int updated = 0;
+        for (final List<Long> chunk : Chunks.of(registrationIds)) {
+            updated += em.createQuery("UPDATE Registration r SET r.status = :status WHERE r.id IN :ids")
+                    .setParameter("status", status)
+                    .setParameter("ids", chunk)
+                    .executeUpdate();
+        }
+        return updated;
     }
 
     @Override

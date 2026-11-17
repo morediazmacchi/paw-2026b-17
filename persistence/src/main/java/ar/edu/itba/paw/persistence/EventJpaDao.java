@@ -1,19 +1,22 @@
 // Implementa el contrato EventDao (modulo persistence-contracts) con JPA/Hibernate.
 package ar.edu.itba.paw.persistence;
 
+import ar.edu.itba.paw.dto.EventDTO;
 import ar.edu.itba.paw.model.Barrio;
+import ar.edu.itba.paw.model.Category;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventAccessSummary;
 import ar.edu.itba.paw.model.EventApprovalStatus;
 import ar.edu.itba.paw.model.EventCategory;
+import ar.edu.itba.paw.model.EventCategoryInfo;
 import ar.edu.itba.paw.model.EventSearchCriteria;
-import ar.edu.itba.paw.model.EventSort;
 import ar.edu.itba.paw.model.EventVisibility;
 import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.SimilarityParameters;
 import org.hibernate.jpa.QueryHints;
 import org.springframework.stereotype.Repository;
 import ar.edu.itba.paw.model.AdminEventSort;
+import ar.edu.itba.paw.model.User;
 
 import javax.persistence.EntityManager;
 import javax.persistence.LockModeType;
@@ -25,7 +28,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.EnumMap;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -34,74 +36,37 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @Repository
 public class EventJpaDao implements EventDao {
 
-    // ---- SQL nativo de search()/countSearch() ----
-    // Es la UNICA consulta de este DAO que no esta en JPQL, y a proposito: el listado ordena
-    // "por cupos libres", que es una CUENTA (cupo - inscriptos confirmados - invitaciones sin usar)
-    // calculada con subconsultas, y JPQL/HQL no permite subconsultas dentro del ORDER BY. Para no
-    // duplicar la logica en dos lenguajes, TODA la busqueda (filtros + orden + paginado) se
-    // resuelve en una sola consulta SQL que trae unicamente los IDS de la pagina; despues
-    // loadPageInOrderOf() carga los Event con JPQL, ordenados POR LA POSICION de cada id en esa lista (ese orden sale
-    // del SQL de arriba y no se puede repetir en JPQL: no se reordena en Java). Las tablas y
-    // columnas que usa son las mismas que mapean las entidades (no hay SQL "paralelo" distinto).
-
-    private static final String SEARCH_IDS_BASE = "SELECT e.id FROM event e";
-
-    private static final String SEARCH_COUNT_BASE = "SELECT COUNT(*) FROM event e";
-
-    // Cupos libres de un evento, como SQL. Es la MISMA cuenta que
-    // RegistrationService.occupiedSpots()/availableSpots() (lo que ve la pantalla):
-    // cupo - confirmados - invitaciones por mail (eventos privados) que todavia no
-    // se anotaron. Ni los pendientes de aprobacion ni la lista de espera cuentan.
-    // Vive en un solo lugar porque la usan dos: el filtro "quedan pocos cupos" y
-    // el orden por cupos; si contaran distinto, un evento podria aparecer primero
-    // en "menos cupos" y al entrar decir otro numero.
-    // Lleva 1 parametro con nombre: CONFIRMED_PARAM (el estado va como parametro y
-    // no escrito en el SQL: si cambia como se guarda, se cambia en Java).
-    // NULL si el evento no tiene cupo maximo.
-    private static final String CONFIRMED_PARAM = "confirmedStatus";
-    private static final String AVAILABLE_SPOTS_SQL = "(e.max_capacity"
-            + " - (SELECT COUNT(*) FROM registration r2"
-            + "     WHERE r2.event_id = e.id AND r2.status = :" + CONFIRMED_PARAM + ")"
-            + " - (SELECT COUNT(*) FROM event_invitation i2"
-            + "     WHERE i2.event_id = e.id AND NOT EXISTS ("
-            + "         SELECT 1 FROM registration r3"
-            + "         WHERE r3.event_id = i2.event_id AND r3.email = i2.email)))";
-
-    // Sin limite de cupo = lugares "infinitos": al final de menor a mayor, al
-    // principio de mayor a menor. Va primero en el ORDER BY para que los NULL de
-    // AVAILABLE_SPOTS_SQL nunca se comparen con numeros (Postgres y HSQLDB los
-    // ordenan distinto).
-    private static final String UNLIMITED_LAST = "CASE WHEN e.max_capacity IS NULL THEN 1 ELSE 0 END";
-
-    // Whitelist: el "columna real" de cada opcion de orden vive solo aca adentro,
-    // nunca llega un string crudo del request hasta esta clase. El ultimo
-    // criterio (e.id) es el desempate: sin el, dos eventos con la misma fecha o
-    // el mismo precio podrian cambiar de pagina entre una consulta y la otra.
-    private static final Map<EventSort, String> SORT_COLUMNS = new EnumMap<>(EventSort.class);
-    static {
-        SORT_COLUMNS.put(EventSort.FECHA_ASC, "e.event_date ASC, e.id ASC");
-        SORT_COLUMNS.put(EventSort.FECHA_DESC, "e.event_date DESC, e.id ASC");
-        SORT_COLUMNS.put(EventSort.PRECIO_ASC, "e.price ASC, e.event_date ASC, e.id ASC");
-        SORT_COLUMNS.put(EventSort.PRECIO_DESC, "e.price DESC, e.event_date ASC, e.id ASC");
-        SORT_COLUMNS.put(EventSort.CUPOS_ASC,
-                UNLIMITED_LAST + " ASC, " + AVAILABLE_SPOTS_SQL + " ASC, e.event_date ASC, e.id ASC");
-        SORT_COLUMNS.put(EventSort.CUPOS_DESC,
-                UNLIMITED_LAST + " DESC, " + AVAILABLE_SPOTS_SQL + " DESC, e.event_date ASC, e.id ASC");
-    }
-
-    // Los ordenes que usan AVAILABLE_SPOTS_SQL.
-    private static final Set<EventSort> SORTS_BY_SPOTS = EnumSet.of(EventSort.CUPOS_ASC, EventSort.CUPOS_DESC);
+    // Las consultas de la busqueda del listado (filtros, orden, cupos libres) estan en EventSearchSql: es SQL nativo a
+    // proposito (el orden "por cupos libres" es una cuenta con subconsultas, y JPQL no las admite en el ORDER BY).
+    // Aca solo se corre: una consulta SQL trae unicamente los IDS de la pagina y loadPageInOrderOf() carga los Event con
+    // JPQL, ordenados POR LA POSICION de cada id en esa lista (no se reordena en Java).
 
     @PersistenceContext
     private EntityManager em;
 
     @Override
-    public Event create(final Event event) {
+    public Event create(final long creatorId, final EventDTO data, final List<Long> imageIds) {
+        // Del creador alcanza con una referencia (el service ya lo cargo en esta transaccion, asi que es esa misma
+        // instancia); de el sale creator_email.
+        final User creator = em.getReference(User.class, creatorId);
+        final Event event = new Event(data.getTitle(), data.getDescription(), data.getEventDate(), data.getAddress(),
+                data.getNeighborhood(), imageIds, data.getPrice(), data.getMaxCapacity(), creator.getEmail());
+        event.setCreator(creator);
+        event.setRequiresApproval(data.isRequiresApproval());
+        event.setVisibility(data.getVisibility());
+        event.setParking(data.isParking());
+        event.setAddressDetails(data.getAddressDetails());
+        event.setLatitude(data.getLatitude());
+        event.setLongitude(data.getLongitude());
+        event.setLocationManual(data.isLocationManual());
+        for (final EventCategoryInfo info : data.getCategories()) {
+            event.addCategory(new EventCategory(event, em.getReference(Category.class, info.getCategoryId()),
+                    info.getExtraInfo()));
+        }
         // persist() guarda el evento y, por el cascade, sus categorias; las fotos (ElementCollection)
         // tambien. Con IDENTITY el INSERT del evento sale aca mismo y deja el id en el objeto.
         em.persist(event);
@@ -112,37 +77,38 @@ public class EventJpaDao implements EventDao {
     }
 
     @Override
-    public boolean update(final Event event) {
-        final Event managed = em.find(Event.class, event.getId());
+    public Optional<Event> update(final long eventId, final EventDTO data, final List<Long> imageIds) {
+        final Event managed = em.find(Event.class, eventId);
         if (managed == null) {
-            return false;
+            return Optional.empty();
         }
         // Mismo conjunto de columnas que siempre se pudo editar: nunca creator_email,
         // created_at, cancelled_at, approved_at, etc.
         // Si cambia la fecha, el recordatorio de 24 hs vuelve a "no mandado" para que
         // salga para la fecha nueva (hay que compararla antes de pisarla).
-        if (managed.getEventDate().getTime() != event.getEventDate().getTime()) {
+        if (managed.getEventDate().getTime() != data.getEventDate().getTime()) {
             managed.setReminderSentAt(null);
         }
-        managed.setTitle(event.getTitle());
-        managed.setDescription(event.getDescription());
-        managed.setEventDate(event.getEventDate());
-        managed.setAddress(event.getAddress());
-        managed.setNeighborhood(event.getNeighborhood());
-        managed.setPrice(event.getPrice());
-        managed.setMaxCapacity(event.getMaxCapacity());
-        managed.setRequiresApproval(event.isRequiresApproval());
-        managed.setVisibility(event.getVisibility());
-        managed.setLatitude(event.getLatitude());
-        managed.setLongitude(event.getLongitude());
-        managed.setParking(event.isParking());
-        managed.setAddressDetails(event.getAddressDetails());
-        managed.setLocationManual(event.isLocationManual());
+        managed.setTitle(data.getTitle());
+        managed.setDescription(data.getDescription());
+        managed.setEventDate(data.getEventDate());
+        managed.setAddress(data.getAddress());
+        managed.setNeighborhood(data.getNeighborhood());
+        managed.setPrice(data.getPrice());
+        managed.setMaxCapacity(data.getMaxCapacity());
+        managed.setRequiresApproval(data.isRequiresApproval());
+        managed.setVisibility(data.getVisibility());
+        managed.setLatitude(data.getLatitude());
+        managed.setLongitude(data.getLongitude());
+        managed.setParking(data.isParking());
+        managed.setAddressDetails(data.getAddressDetails());
+        managed.setLocationManual(data.isLocationManual());
 
-        // Fotos: la galeria queda exactamente como llego en "event". Se modifica la lista del
+        // Fotos: la galeria queda exactamente como llego en "imageIds". Se modifica la lista del
         // evento administrado "en el lugar" y Hibernate resuelve las filas de event_image (borra
-        // las viejas y escribe las nuevas, en ese orden, por el UNIQUE(image_id)).
-        final List<Long> newImageIds = new ArrayList<>(event.getImageIds());
+        // las viejas y escribe las nuevas, en ese orden, por el UNIQUE(image_id)). Se copia antes porque
+        // quien llama puede estar pasando la propia lista del evento (cuando no se subio ninguna foto nueva).
+        final List<Long> newImageIds = new ArrayList<>(imageIds);
         managed.getImageIds().clear();
         managed.getImageIds().addAll(newImageIds);
 
@@ -155,13 +121,14 @@ public class EventJpaDao implements EventDao {
             current.put(existing.getCategoryId(), existing);
         }
         final Set<Long> wanted = new HashSet<>();
-        for (final EventCategory incoming : event.getCategories()) {
+        for (final EventCategoryInfo incoming : data.getCategories()) {
             wanted.add(incoming.getCategoryId());
             final EventCategory existing = current.get(incoming.getCategoryId());
             if (existing != null) {
                 existing.setExtraInfo(incoming.getExtraInfo());
             } else {
-                managed.addCategory(new EventCategory(managed, incoming.getCategory(), incoming.getExtraInfo()));
+                managed.addCategory(new EventCategory(managed,
+                        em.getReference(Category.class, incoming.getCategoryId()), incoming.getExtraInfo()));
             }
         }
         for (final Map.Entry<Long, EventCategory> entry : current.entrySet()) {
@@ -170,7 +137,7 @@ public class EventJpaDao implements EventDao {
             }
         }
         em.flush();
-        return true;
+        return Optional.of(managed);
     }
 
     @Override
@@ -242,7 +209,7 @@ public class EventJpaDao implements EventDao {
 
     @Override
     public List<Event> findMostRegistered(final int limit) {
-        // Mismas cuatro reglas que buildSearchFilter() para search(): publico, no cancelado, no pasado, y
+        // Mismas cuatro reglas que EventSearchSql.filterFor() para search(): publico, no cancelado, no pasado, y
         // aprobado. El JOIN con las inscripciones confirmadas deja afuera solo a los eventos sin ninguna.
         // Todo (filtro, cuenta, orden y limite) en la base: nunca se traen las inscripciones a memoria.
         // El desempate por fecha y por id fija el orden cuando dos tienen la misma cantidad.
@@ -368,7 +335,7 @@ public class EventJpaDao implements EventDao {
     }
 
     // Perfil publico: los eventos del creador que cualquiera puede ver (publicos, aprobados, no cancelados: las
-    // mismas reglas que buildSearchFilter() para search()), partidos por fecha en proximos / realizados. Los cuatro
+    // mismas reglas que EventSearchSql.filterFor() para search()), partidos por fecha en proximos / realizados. Los cuatro
     // metodos comparten el WHERE para que el total y la pagina coincidan.
     private static final String PUBLIC_BY_CREATOR_WHERE = "WHERE e.creator.id = :creatorId "
             + "AND e.visibility = :visibility AND e.approvalStatus = :approvalStatus AND e.cancelledAt IS NULL ";
@@ -484,18 +451,12 @@ public class EventJpaDao implements EventDao {
 
     @Override
     public List<Event> search(final EventSearchCriteria criteria) {
-        final SearchFilter filter = buildSearchFilter(criteria);
-        // RELEVANCIA no es una columna: es el puntaje del JOIN de texto (TextSearchSql). Sin texto no hay puntaje, asi
-        // que cae al orden por fecha, como cualquier orden que esta clase no conoce.
-        final String orderBy = criteria.getSort() == EventSort.RELEVANCIA && criteria.hasSearchTerms()
-                ? TextSearchSql.ORDER_BY
-                : SORT_COLUMNS.get(SORT_COLUMNS.containsKey(criteria.getSort()) ? criteria.getSort() : EventSort.FECHA_ASC);
-
-        // SQL nativo (ver arriba): solo los ids de la pagina, ya ordenados. Los ordenes por
-        // cupos usan en el ORDER BY el mismo parametro que el WHERE (CONFIRMED_PARAM), que
-        // buildSearchFilter() siempre carga en ese caso.
+        final EventSearchSql.Filter filter = EventSearchSql.filterFor(criteria);
+        // SQL nativo (ver EventSearchSql): solo los ids de la pagina, ya ordenados. Los ordenes por cupos usan en el
+        // ORDER BY el mismo parametro que el WHERE (CONFIRMED_PARAM), que el filtro siempre carga en ese caso.
         final Query idsQuery = em.createNativeQuery(
-                SEARCH_IDS_BASE + filter.from + filter.where + " ORDER BY " + orderBy);
+                EventSearchSql.SEARCH_IDS_BASE + filter.from + filter.where + " ORDER BY "
+                        + EventSearchSql.orderBy(criteria));
         filter.bindTo(idsQuery);
         idsQuery.setFirstResult((criteria.getPage() - 1) * criteria.getPageSize());
         idsQuery.setMaxResults(criteria.getPageSize());
@@ -510,11 +471,11 @@ public class EventJpaDao implements EventDao {
     @Override
     public List<Event> findRecommendedPage(final EventSearchCriteria criteria, final SimilarityParameters parameters) {
         Objects.requireNonNull(criteria.getViewerId(), "viewerId");
-        final SearchFilter filter = buildSearchFilter(criteria);
+        final EventSearchSql.Filter filter = EventSearchSql.filterFor(criteria);
         final Map<String, Object> extra = new LinkedHashMap<>();
         // Los parametros de la bolsa (ver RecommendationSql.attendedWhere()). El estado y "now" pueden estar ya en el
         // filtro: es el mismo valor.
-        extra.put(CONFIRMED_PARAM, RegistrationStatus.CONFIRMED.name());
+        extra.put(EventSearchSql.CONFIRMED_PARAM, RegistrationStatus.CONFIRMED.name());
         extra.put("historySize", parameters.getHistorySize());
 
         final Query idsQuery = recommendationQuery(RecommendationSql.Mode.RECOMMENDED, filter, extra, parameters);
@@ -527,7 +488,7 @@ public class EventJpaDao implements EventDao {
     public List<Event> findSimilarTo(final long eventId, final Long viewerId, final SimilarityParameters parameters) {
         final EventSearchCriteria listing = new EventSearchCriteria();
         listing.setViewerId(viewerId);
-        final SearchFilter filter = buildSearchFilter(listing).and(" AND e.id <> :targetId");
+        final EventSearchSql.Filter filter = EventSearchSql.filterFor(listing).and(" AND e.id <> :targetId");
         final Map<String, Object> extra = new LinkedHashMap<>();
         extra.put("targetId", eventId);
         extra.put("minScore", parameters.getRelatedMinScore());
@@ -538,12 +499,12 @@ public class EventJpaDao implements EventDao {
     }
 
     // Arma la consulta de RecommendationSql con sus parametros: los del filtro, los de la bolsa y los coeficientes.
-    private Query recommendationQuery(final RecommendationSql.Mode mode, final SearchFilter filter,
+    private Query recommendationQuery(final RecommendationSql.Mode mode, final EventSearchSql.Filter filter,
                                       final Map<String, Object> extra, final SimilarityParameters parameters) {
         final boolean hasIgnored = !parameters.getIgnoredCategoryNames().isEmpty();
         final Query query = em.createNativeQuery(RecommendationSql.build(mode, filter.from, filter.where, hasIgnored));
         filter.bindTo(query);
-        SearchFilter.bind(query, extra);
+        EventSearchSql.Filter.bind(query, extra);
 
         final Map<String, Object> coefficients = new LinkedHashMap<>();
         coefficients.put("weightCategory", parameters.getWeightCategory());
@@ -557,7 +518,7 @@ public class EventJpaDao implements EventDao {
         if (hasIgnored) {
             coefficients.put("ignoredCategories", new ArrayList<>(parameters.getIgnoredCategoryNames()));
         }
-        SearchFilter.bind(query, coefficients);
+        EventSearchSql.Filter.bind(query, coefficients);
         return query;
     }
 
@@ -571,9 +532,9 @@ public class EventJpaDao implements EventDao {
 
     @Override
     public long countSearch(final EventSearchCriteria criteria) {
-        final SearchFilter filter = buildSearchFilter(criteria);
+        final EventSearchSql.Filter filter = EventSearchSql.filterFor(criteria);
         // SQL nativo por el mismo motivo que search().
-        final Query countQuery = em.createNativeQuery(SEARCH_COUNT_BASE + filter.from + filter.where);
+        final Query countQuery = em.createNativeQuery(EventSearchSql.SEARCH_COUNT_BASE + filter.from + filter.where);
         filter.bindTo(countQuery);
         return ((Number) countQuery.getSingleResult()).longValue();
     }
@@ -613,173 +574,6 @@ public class EventJpaDao implements EventDao {
         }
         orderBy.append(" ELSE ").append(ids.size()).append(" END");
         return loadPage(ids, orderBy.toString(), positions);
-    }
-
-    // Arma el WHERE (y sus parametros) una sola vez, para que search() y countSearch()
-    // filtren exactamente lo mismo y nunca se desincronicen.
-    private SearchFilter buildSearchFilter(final EventSearchCriteria criteria) {
-        // Cuatro reglas del listado publico (no del criteria, no son filtros
-        // que el usuario pueda sacar): un evento ya ocurrido no aparece, uno
-        // privado tampoco, uno cancelado tampoco, y uno que un admin todavia
-        // no aprobo (o que rechazo) tampoco. findById/findByIdForUpdate no
-        // llevan ninguna de las cuatro: el detalle sigue siendo accesible (con
-        // su propio chequeo de acceso, ver EventAccessServiceImpl.canView()).
-        final StringBuilder sql = new StringBuilder(" WHERE " + listingRules("e"));
-        final Map<String, Object> params = new LinkedHashMap<>();
-        params.put("now", new Date());
-        params.put("publicVisibility", EventVisibility.PUBLIC.name());
-        params.put("approvedStatus", EventApprovalStatus.APPROVED.name());
-
-        // Texto de la barra de busqueda: un JOIN que deja solo los eventos con todas las palabras (y su puntaje, que
-        // usa el orden por relevancia). Es parte del filtro, no del orden: el total y la pagina cuentan lo mismo.
-        String from = "";
-        final List<String> searchTerms = criteria.getSearchTerms();
-        if (!searchTerms.isEmpty()) {
-            final TextSearchSql textSearch = TextSearchSql.of(searchTerms);
-            from = textSearch.join();
-            params.putAll(textSearch.params());
-        }
-
-        if (criteria.getViewerId() != null) {
-            // Los eventos propios no se listan en el home (siguen en "Mis eventos"). creator_id
-            // puede ser null en una fila vieja: esa no es de nadie, asi que entra.
-            sql.append(" AND (e.creator_id IS NULL OR e.creator_id <> :viewerId)");
-            params.put("viewerId", criteria.getViewerId());
-        }
-        if (criteria.getCategoryIds() != null && !criteria.getCategoryIds().isEmpty()) {
-            // EXISTS, no un JOIN: un evento con varias de las categorias
-            // pedidas tiene que aparecer una sola vez, no una fila por cada
-            // categoria que matchea.
-            sql.append(" AND EXISTS (SELECT 1 FROM event_category ec"
-                    + " WHERE ec.event_id = e.id AND ec.category_id IN (:categoryIds))");
-            params.put("categoryIds", criteria.getCategoryIds());
-        }
-        if (criteria.getMinPrice() != null) {
-            sql.append(" AND e.price >= :minPrice");
-            params.put("minPrice", criteria.getMinPrice());
-        }
-        if (criteria.getMaxPrice() != null) {
-            sql.append(" AND e.price <= :maxPrice");
-            params.put("maxPrice", criteria.getMaxPrice());
-        }
-        if (criteria.getFromDate() != null) {
-            sql.append(" AND e.event_date >= :fromDate");
-            params.put("fromDate", criteria.getFromDate());
-        }
-        if (criteria.getToDate() != null) {
-            sql.append(" AND e.event_date < :toDate");
-            params.put("toDate", criteria.getToDate());
-        }
-        // Solo los aprobados en una ventana de tiempo: los eventos NUEVOS para una busqueda guardada (ver
-        // SavedSearchService). Es el mismo WHERE del listado mas esta condicion, asi una busqueda guardada avisa
-        // exactamente de los eventos que la persona veria en /eventos con esos filtros.
-        if (criteria.getApprovedAfter() != null) {
-            sql.append(" AND e.approved_at > :approvedAfter");
-            params.put("approvedAfter", criteria.getApprovedAfter());
-        }
-        if (criteria.getApprovedUntil() != null) {
-            sql.append(" AND e.approved_at <= :approvedUntil");
-            params.put("approvedUntil", criteria.getApprovedUntil());
-        }
-        if (criteria.getBarrios() != null && !criteria.getBarrios().isEmpty()) {
-            sql.append(" AND e.neighborhood IN (:barrios)");
-            params.put("barrios", criteria.getBarrios().stream().map(Enum::name).collect(Collectors.toList()));
-        }
-        if (criteria.getMinOrganizerRating() != null) {
-            // El promedio es de TODAS las reseñas del creador (todos sus eventos),
-            // el mismo numero que se muestra en el detalle y en "Mis eventos"
-            // (ver ReviewDao.findRatingSummaryByCreatorId, que usa el mismo AVG):
-            // no es el promedio de este evento solo. Si uno cambia, cambiar el otro.
-            sql.append(" AND e.creator_id IN ("
-                    + "SELECT e2.creator_id FROM review r2 JOIN event e2 ON e2.id = r2.event_id "
-                    + "GROUP BY e2.creator_id HAVING AVG(CAST(r2.rating AS DOUBLE PRECISION)) >= :minRating)");
-            params.put("minRating", criteria.getMinOrganizerRating());
-        }
-
-        final boolean fewSpots = criteria.isOnlyFewSpotsLeft();
-        final boolean soldOut = criteria.isOnlySoldOut();
-        if (fewSpots || soldOut) {
-            // "Cupos libres" no es una columna: es una cuenta. Y tiene que
-            // resolverse aca adentro, en el WHERE, y no filtrando en Java lo que
-            // ya vino: search() trae UNA pagina y countSearch() cuenta el total,
-            // asi que filtrar despues dejaria paginas incompletas y un total que
-            // no coincide con lo que se ve.
-            //
-            // La cuenta es AVAILABLE_SPOTS_SQL, la misma que la pantalla y que el
-            // orden por cupos: si contaran distinto, un evento podria aparecer en
-            // "pocos cupos" y al entrar decir "0 disponibles".
-            //
-            // Con los dos tildados es un OR: "ultimos cupos" o "sold out".
-            // Sin cupo maximo nunca entra en ninguno: no se le acaban los lugares.
-            sql.append(" AND e.max_capacity IS NOT NULL AND (");
-            if (fewSpots) {
-                sql.append(AVAILABLE_SPOTS_SQL + " BETWEEN :fewSpotsMin AND :fewSpotsMax");
-                params.put("fewSpotsMin", EventSearchCriteria.FEW_SPOTS_MIN);
-                params.put("fewSpotsMax", EventSearchCriteria.FEW_SPOTS_MAX);
-            }
-            if (fewSpots && soldOut) {
-                sql.append(" OR ");
-            }
-            if (soldOut) {
-                // <= 0 y no = 0: por las dudas de un evento con mas gente que cupo.
-                sql.append(AVAILABLE_SPOTS_SQL + " <= 0");
-            }
-            sql.append(")");
-            params.put(CONFIRMED_PARAM, RegistrationStatus.CONFIRMED.name());
-        }
-
-        // Ordenar por cupos libres no muestra los agotados: a quien ordena por
-        // "menos lugares disponibles" le sirven los que todavia tienen alguno.
-        // Salvo que haya pedido justamente ver los "Sold out". Va en el WHERE (y
-        // no solo en search) para que countSearch() cuente lo mismo que se ve.
-        if (SORTS_BY_SPOTS.contains(criteria.getSort()) && !soldOut) {
-            sql.append(" AND (e.max_capacity IS NULL OR " + AVAILABLE_SPOTS_SQL + " > 0)");
-            params.put(CONFIRMED_PARAM, RegistrationStatus.CONFIRMED.name());
-        }
-
-        return new SearchFilter(from, sql.toString(), params);
-    }
-
-    // Las cuatro reglas del listado publico, para el evento con ese alias. Una sola definicion: la usan el WHERE del
-    // listado (buildSearchFilter) y la busqueda de texto (TextSearchSql), que solo mira los eventos que se pueden ver.
-    // Lleva los parametros :now, :publicVisibility y :approvedStatus, que buildSearchFilter siempre carga.
-    static String listingRules(final String alias) {
-        return alias + ".event_date >= :now AND " + alias + ".visibility = :publicVisibility AND "
-                + alias + ".cancelled_at IS NULL AND " + alias + ".approval_status = :approvedStatus";
-    }
-
-    private static final class SearchFilter {
-        // Lo que va entre "FROM event e" y el WHERE (vacio, o el JOIN de la busqueda de texto).
-        private final String from;
-        private final String where;
-        private final Map<String, Object> params;
-
-        private SearchFilter(final String from, final String where, final Map<String, Object> params) {
-            this.from = from;
-            this.where = where;
-            this.params = params;
-        }
-
-        // El mismo filtro con una condicion mas (empieza con " AND ...").
-        private SearchFilter and(final String condition) {
-            return new SearchFilter(from, where + condition, params);
-        }
-
-        private void bindTo(final Query query) {
-            bind(query, params);
-        }
-
-        // Pone cada parametro con nombre en la query. Las fechas llevan su
-        // TemporalType (java.util.Date no dice si es fecha, hora o las dos).
-        private static void bind(final Query query, final Map<String, Object> values) {
-            for (final Map.Entry<String, Object> param : values.entrySet()) {
-                if (param.getValue() instanceof Date) {
-                    query.setParameter(param.getKey(), (Date) param.getValue(), TemporalType.TIMESTAMP);
-                } else {
-                    query.setParameter(param.getKey(), param.getValue());
-                }
-            }
-        }
     }
 
     @Override

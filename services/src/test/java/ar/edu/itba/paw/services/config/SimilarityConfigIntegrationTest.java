@@ -15,9 +15,9 @@ import java.util.Collections;
 
 import static org.junit.Assert.assertEquals;
 
-// Levanta SOLO esta @Configuration (sin base ni el resto de la app) para comprobar que los
+// Test de INTEGRACION (levanta Spring): levanta SOLO esta @Configuration (sin base ni el resto de la app) para comprobar que los
 // valores salen de similarity.properties y que un archivo externo los puede pisar.
-public class SimilarityConfigTest {
+public class SimilarityConfigIntegrationTest {
 
     private static final String EXTERNAL_CONFIG_PROPERTY = "paw.similarity.config";
     private static final double DELTA = 1e-9;

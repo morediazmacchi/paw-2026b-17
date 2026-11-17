@@ -66,6 +66,11 @@ public class WebMailLinksTest {
     }
 
     @Test
+    public void testForgotPasswordLinkPointsToTheRecoveryRequestScreen() {
+        assertEquals(BASE + "/login/recuperar", links.forgotPassword());
+    }
+
+    @Test
     public void testResetPasswordLinkCarriesTheToken() {
         assertEquals(BASE + "/login/restablecer?token=xyz", links.resetPassword("xyz"));
     }

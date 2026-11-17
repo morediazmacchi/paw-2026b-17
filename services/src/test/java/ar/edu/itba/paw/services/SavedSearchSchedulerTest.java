@@ -14,6 +14,7 @@ import java.util.stream.LongStream;
 
 import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 /**
@@ -31,6 +32,24 @@ public class SavedSearchSchedulerTest {
     @Before
     public void setUp() {
         scheduler = new SavedSearchScheduler(savedSearchService);
+        // Por defecto se aprobaron eventos desde la marca mas vieja: se recorren las busquedas (cada test pisa lo que le importa).
+        lenient().when(savedSearchService.mayHaveNewEvents()).thenReturn(true);
+    }
+
+    /** Sin eventos aprobados desde la marca mas vieja no se recorre ninguna busqueda, aunque alguna avisaria. */
+    @Test
+    public void testWithoutApprovedEventsItDoesNotGoThroughTheSearches() {
+        // Arrange: si el scheduler recorriera la busqueda 1, el resultado seria 1
+        when(savedSearchService.mayHaveNewEvents()).thenReturn(false);
+        lenient().when(savedSearchService.findIdsAfter(0, SavedSearchScheduler.TANDA))
+                .thenReturn(Collections.singletonList(1L));
+        lenient().when(savedSearchService.notifyNewEvents(1L)).thenReturn(true);
+
+        // Act
+        final int result = scheduler.notifyNewEvents();
+
+        // Assert
+        assertEquals(0, result);
     }
 
     @Test

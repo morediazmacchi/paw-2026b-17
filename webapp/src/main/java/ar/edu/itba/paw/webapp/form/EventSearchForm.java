@@ -1,48 +1,52 @@
-// Filtros de /eventos (ver EventController.list()). A diferencia de EventForm,
-// un filtro invalido no rechaza nada: la busqueda sigue mostrando resultados,
-// solo se ignora ese filtro puntual y se avisa (los rangos al reves los valida
-// @ValidSearchRanges, ver isPriceRangeInvalid()/isDateRangeInvalid(); el
-// controller muestra esos errores y sigue). Se parsea a si mismo: los campos
-// son texto y lo que no se entiende se ignora.
+// Filtros de /eventos (ver EventController.list()). Los campos tienen su tipo (numero, fecha, orden...) y los
+// convierte Spring al enlazar el formulario: un valor que no se entiende (?precioMin=abc) queda como un error del
+// BindingResult en ese campo y el campo queda sin valor. A diferencia de EventForm, un filtro invalido no rechaza
+// nada: la busqueda sigue mostrando resultados sin ese filtro (el controller no corta por los errores). Los rangos
+// al reves los valida @ValidSearchRanges (ver isPriceRangeInvalid()/isDateRangeInvalid()).
 package ar.edu.itba.paw.webapp.form;
 
 import ar.edu.itba.paw.model.Barrio;
 import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.EventSort;
 import ar.edu.itba.paw.model.SearchTerms;
-import ar.edu.itba.paw.webapp.util.Paging;
 import ar.edu.itba.paw.webapp.validation.FilterRanges;
 import ar.edu.itba.paw.webapp.validation.ValidSearchRanges;
+import org.springframework.format.annotation.DateTimeFormat;
 
 import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
-import java.util.Objects;
-import java.util.stream.Collectors;
 
 @ValidSearchRanges
 public class EventSearchForm implements FilterRanges {
+
+    // El formato de las fechas en la URL y en los campos del formulario (el que manda el almanaque).
+    private static final String DATE_PATTERN = "yyyy-MM-dd";
 
     // Lo que se escribio en la barra de busqueda (?q=). No es un filtro mas: no cuenta para hasActiveFilters() (que
     // activa "Guardar busqueda": una busqueda guardada son los filtros, no el texto, asi que escribir solo texto no
     // deja nada para guardar).
     private String q;
-    private List<String> categoria;
-    private String precioMin;
-    private String precioMax;
-    private String fechaDesde;
-    private String fechaHasta;
-    private List<String> barrio;
-    private String puntajeMin;
-    private String pocosCupos;
-    private String agotados;
-    private String page;
-    private String sort;
+    private List<Long> categoria;
+    private BigDecimal precioMin;
+    private BigDecimal precioMax;
+    @DateTimeFormat(pattern = DATE_PATTERN)
+    private Date fechaDesde;
+    @DateTimeFormat(pattern = DATE_PATTERN)
+    private Date fechaHasta;
+    private List<Barrio> barrio;
+    private Integer puntajeMin;
+    // Casillas: Boolean y no boolean para que un valor vacio no sea un error.
+    private Boolean pocosCupos;
+    private Boolean agotados;
+    // Pagina pedida (desde 1). Sin pedir ninguna, o con una que no es un numero, es la primera: el service ajusta
+    // el resto (una pagina mas alla del total cae a la ultima).
+    private Integer page;
+    private EventSort sort;
 
     public String getQ() { return q; }
     public void setQ(final String q) { this.q = q; }
@@ -62,92 +66,82 @@ public class EventSearchForm implements FilterRanges {
         return !SearchTerms.parse(getSearchText()).isEmpty();
     }
 
-    public List<String> getCategoria() { return categoria; }
-    public void setCategoria(final List<String> categoria) { this.categoria = categoria; }
+    public List<Long> getCategoria() { return categoria; }
+    public void setCategoria(final List<Long> categoria) { this.categoria = categoria; }
 
-    public String getPrecioMin() { return precioMin; }
-    public void setPrecioMin(final String precioMin) { this.precioMin = precioMin; }
+    public BigDecimal getPrecioMin() { return precioMin; }
+    public void setPrecioMin(final BigDecimal precioMin) { this.precioMin = precioMin; }
 
-    public String getPrecioMax() { return precioMax; }
-    public void setPrecioMax(final String precioMax) { this.precioMax = precioMax; }
+    public BigDecimal getPrecioMax() { return precioMax; }
+    public void setPrecioMax(final BigDecimal precioMax) { this.precioMax = precioMax; }
 
-    public String getFechaDesde() { return fechaDesde; }
-    public void setFechaDesde(final String fechaDesde) { this.fechaDesde = fechaDesde; }
+    public Date getFechaDesde() { return fechaDesde; }
+    public void setFechaDesde(final Date fechaDesde) { this.fechaDesde = fechaDesde; }
 
-    public String getFechaHasta() { return fechaHasta; }
-    public void setFechaHasta(final String fechaHasta) { this.fechaHasta = fechaHasta; }
+    public Date getFechaHasta() { return fechaHasta; }
+    public void setFechaHasta(final Date fechaHasta) { this.fechaHasta = fechaHasta; }
 
-    public List<String> getBarrio() { return barrio; }
-    public void setBarrio(final List<String> barrio) { this.barrio = barrio; }
+    public List<Barrio> getBarrio() { return barrio; }
+    public void setBarrio(final List<Barrio> barrio) { this.barrio = barrio; }
 
-    public String getPuntajeMin() { return puntajeMin; }
-    public void setPuntajeMin(final String puntajeMin) { this.puntajeMin = puntajeMin; }
+    public Integer getPuntajeMin() { return puntajeMin; }
+    public void setPuntajeMin(final Integer puntajeMin) { this.puntajeMin = puntajeMin; }
 
-    public String getPocosCupos() { return pocosCupos; }
-    public void setPocosCupos(final String pocosCupos) { this.pocosCupos = pocosCupos; }
+    public Boolean getPocosCupos() { return pocosCupos; }
+    public void setPocosCupos(final Boolean pocosCupos) { this.pocosCupos = pocosCupos; }
 
-    public String getAgotados() { return agotados; }
-    public void setAgotados(final String agotados) { this.agotados = agotados; }
+    public Boolean getAgotados() { return agotados; }
+    public void setAgotados(final Boolean agotados) { this.agotados = agotados; }
 
-    public String getPage() { return page; }
-    public void setPage(final String page) { this.page = page; }
+    public Integer getPage() { return page; }
+    public void setPage(final Integer page) { this.page = page; }
 
-    public String getSort() { return sort; }
-    public void setSort(final String sort) { this.sort = sort; }
+    public EventSort getSort() { return sort; }
+    public void setSort(final EventSort sort) { this.sort = sort; }
 
-    // Ya parseados: el JSP los usa para marcar tildado (selectedCategorias.contains(cat.id),
-    // selectedBarrios.contains(b)). Cada entrada mal formada se descarta sola, no invalida las demas.
+    // Para el JSP: tildar las casillas y volver a mandar los filtros (campos ocultos) tal como estan.
+    public boolean isOnlyFewSpotsLeft() { return Boolean.TRUE.equals(pocosCupos); }
+    public boolean isOnlySoldOut() { return Boolean.TRUE.equals(agotados); }
+
+    // Las fechas como las manda el formulario ("yyyy-MM-dd"), "" si no hay: es lo que escriben los campos ocultos
+    // del almanaque. Para los precios alcanza con el BigDecimal.
+    public String getFechaDesdeIso() { return formatDate(fechaDesde); }
+    public String getFechaHastaIso() { return formatDate(fechaHasta); }
+
+    // Para marcar tildado en el JSP (selectedCategorias.contains(cat.id), selectedBarrios.contains(b)): null si no
+    // eligio ninguno.
     public List<Long> getSelectedCategoryIds() {
-        return parseLongList(categoria);
+        return categoria == null || categoria.isEmpty() ? null : categoria;
     }
 
     public List<Barrio> getSelectedBarrios() {
-        return parseBarrioList(barrio);
+        return barrio == null || barrio.isEmpty() ? null : barrio;
     }
 
-    // Siempre un valor valido (default FECHA_ASC): el JSP lo usa para marcar la
-    // opcion elegida y los links de paginacion lo repiten tal cual.
-    public EventSort getParsedSort() {
-        return parseSort(sort);
-    }
-
-    // Si la persona eligio un orden valido (en la URL). Sin esto no se sabe si FECHA_ASC es lo
-    // que pidio o solo el default de parseSort(): el controller necesita la diferencia, porque
-    // para quien tiene historial el orden por defecto es otro (RECOMENDADOS).
+    // Si la persona eligio un orden (en la URL). Sin esto no se sabe si FECHA_ASC es lo que pidio o solo el default:
+    // el controller necesita la diferencia, porque para quien tiene historial el orden por defecto es otro
+    // (RECOMENDADOS).
     public boolean isSortExplicit() {
-        if (sort == null || sort.isEmpty()) {
-            return false;
-        }
-        try {
-            EventSort.valueOf(sort);
-            return true;
-        } catch (final IllegalArgumentException e) {
-            return false;
-        }
+        return sort != null;
     }
 
     @Override
     public boolean isPriceRangeInvalid() {
-        final BigDecimal min = parseDecimal(precioMin);
-        final BigDecimal max = parseDecimal(precioMax);
-        return min != null && max != null && min.compareTo(max) > 0;
+        return precioMin != null && precioMax != null && precioMin.compareTo(precioMax) > 0;
     }
 
     @Override
     public boolean isDateRangeInvalid() {
-        final Date from = parseDate(fechaDesde);
-        final Date to = parseDate(fechaHasta);
-        return from != null && to != null && to.before(from);
+        return fechaDesde != null && fechaHasta != null && fechaHasta.before(fechaDesde);
     }
 
-    // "N eventos encontrados" / "Limpiar filtros" solo tienen sentido si el
-    // usuario realmente filtro algo. Mira lo crudo: un rango invalido (que
-    // toCriteria() resetea a null) igual cuenta como "hay algo para limpiar".
+    // "N eventos encontrados" / "Limpiar filtros" solo tienen sentido si el usuario realmente filtro algo. Un rango
+    // invalido (que toCriteria() ignora) igual cuenta como "hay algo para limpiar".
     public boolean hasActiveFilters() {
         return notEmpty(categoria) || notEmpty(barrio)
-                || notBlank(precioMin) || notBlank(precioMax)
-                || notBlank(fechaDesde) || notBlank(fechaHasta)
-                || notBlank(puntajeMin) || notBlank(pocosCupos) || notBlank(agotados);
+                || precioMin != null || precioMax != null
+                || fechaDesde != null || fechaHasta != null
+                || puntajeMin != null || isOnlyFewSpotsLeft() || isOnlySoldOut();
     }
 
     public EventSearchCriteria toCriteria() {
@@ -157,139 +151,70 @@ public class EventSearchForm implements FilterRanges {
         criteria.setBarrios(getSelectedBarrios());
 
         final boolean priceRangeInvalid = isPriceRangeInvalid();
-        criteria.setMinPrice(priceRangeInvalid ? null : parseDecimal(precioMin));
-        criteria.setMaxPrice(priceRangeInvalid ? null : parseDecimal(precioMax));
+        criteria.setMinPrice(priceRangeInvalid ? null : precioMin);
+        criteria.setMaxPrice(priceRangeInvalid ? null : precioMax);
 
         final boolean dateRangeInvalid = isDateRangeInvalid();
-        criteria.setFromDate(dateRangeInvalid ? null : parseDate(fechaDesde));
-        criteria.setToDate(dateRangeInvalid ? null : parseDateEndOfDay(fechaHasta));
+        criteria.setFromDate(dateRangeInvalid ? null : fechaDesde);
+        criteria.setToDate(dateRangeInvalid ? null : endOfDay(fechaHasta));
 
-        criteria.setMinOrganizerRating(parseInteger(puntajeMin));
+        criteria.setMinOrganizerRating(puntajeMin);
         // Un si/no, no un rango: cuantos lugares son "pocos" lo define el modelo
         // (EventSearchCriteria.FEW_SPOTS_MIN/MAX), no lo que venga en la URL.
-        criteria.setOnlyFewSpotsLeft(notBlank(pocosCupos));
-        criteria.setOnlySoldOut(notBlank(agotados));
+        criteria.setOnlyFewSpotsLeft(isOnlyFewSpotsLeft());
+        criteria.setOnlySoldOut(isOnlySoldOut());
         // null = no pidio ninguno: el service decide el orden por defecto (ver EventService.search()).
-        criteria.setSort(isSortExplicit() ? getParsedSort() : null);
-        criteria.setPage(Paging.parsePage(page));
+        criteria.setSort(sort);
+        criteria.setPage(page == null ? 1 : page);
         return criteria;
     }
 
     // Query string de los filtros para los links de paginacion (sin "page"). Solo
-    // entran los valores con contenido y el sort si no es el default, asi la URL
+    // entran los valores con contenido y el sort si se eligio uno, asi la URL
     // queda limpia en vez de llena de "precioMin=&precioMax=&...". Si hay algun
     // filtro, termina en "&" para que el JSP pueda agregar "page=N" al final.
     public String toFilterQuery() {
         final StringBuilder query = new StringBuilder();
         appendParam(query, "q", getSearchText());
         if (categoria != null) {
-            categoria.forEach(c -> appendParam(query, "categoria", c));
+            categoria.forEach(c -> appendParam(query, "categoria", String.valueOf(c)));
         }
         if (barrio != null) {
-            barrio.forEach(b -> appendParam(query, "barrio", b));
+            barrio.forEach(b -> appendParam(query, "barrio", b.name()));
         }
-        appendParam(query, "precioMin", precioMin);
-        appendParam(query, "precioMax", precioMax);
-        appendParam(query, "fechaDesde", fechaDesde);
-        appendParam(query, "fechaHasta", fechaHasta);
-        appendParam(query, "puntajeMin", puntajeMin);
-        appendParam(query, "pocosCupos", pocosCupos);
-        appendParam(query, "agotados", agotados);
+        appendParam(query, "precioMin", precioMin == null ? null : precioMin.toPlainString());
+        appendParam(query, "precioMax", precioMax == null ? null : precioMax.toPlainString());
+        appendParam(query, "fechaDesde", getFechaDesdeIso());
+        appendParam(query, "fechaHasta", getFechaHastaIso());
+        appendParam(query, "puntajeMin", puntajeMin == null ? null : String.valueOf(puntajeMin));
+        appendParam(query, "pocosCupos", isOnlyFewSpotsLeft() ? "true" : null);
+        appendParam(query, "agotados", isOnlySoldOut() ? "true" : null);
         // Solo el orden que la persona eligio de verdad (aunque sea FECHA_ASC): si se omitiera,
         // al cambiar de pagina volveria el default, que puede ser RECOMENDADOS.
-        if (isSortExplicit()) {
-            appendParam(query, "sort", getParsedSort().name());
+        if (sort != null) {
+            appendParam(query, "sort", sort.name());
         }
         return query.toString();
     }
 
     private static void appendParam(final StringBuilder query, final String name, final String value) {
-        if (notBlank(value)) {
+        if (value != null && !value.isEmpty()) {
             query.append(name).append('=')
                     .append(URLEncoder.encode(value, StandardCharsets.UTF_8)).append('&');
         }
     }
 
-    private static boolean notBlank(final String value) {
-        return value != null && !value.isEmpty();
-    }
-
-    private static boolean notEmpty(final List<String> values) {
+    private static boolean notEmpty(final List<?> values) {
         return values != null && !values.isEmpty();
     }
 
-    private static Long parseLong(final String value) {
-        if (value == null || value.isEmpty()) {
-            return null;
-        }
-        try {
-            return Long.valueOf(value);
-        } catch (final NumberFormatException e) {
-            return null;
-        }
-    }
-
-    // Multi-seleccion: cada elemento se parsea por separado, el que este mal
-    // formado se descarta solo (no invalida los demas). Lista vacia = sin filtro.
-    private static List<Long> parseLongList(final List<String> values) {
-        if (values == null || values.isEmpty()) {
-            return null;
-        }
-        final List<Long> result = values.stream()
-                .map(EventSearchForm::parseLong)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
-        return result.isEmpty() ? null : result;
-    }
-
-    private static Barrio parseBarrioFilter(final String value) {
-        if (value == null || value.isEmpty()) {
-            return null;
-        }
-        try {
-            return Barrio.valueOf(value);
-        } catch (final IllegalArgumentException e) {
-            return null;
-        }
-    }
-
-    private static List<Barrio> parseBarrioList(final List<String> values) {
-        if (values == null || values.isEmpty()) {
-            return null;
-        }
-        final List<Barrio> result = values.stream()
-                .map(EventSearchForm::parseBarrioFilter)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
-        return result.isEmpty() ? null : result;
-    }
-
-    private static BigDecimal parseDecimal(final String value) {
-        if (value == null || value.isEmpty()) {
-            return null;
-        }
-        try {
-            return new BigDecimal(value);
-        } catch (final NumberFormatException e) {
-            return null;
-        }
-    }
-
-    private static Date parseDate(final String value) {
-        if (value == null || value.isEmpty()) {
-            return null;
-        }
-        try {
-            return new SimpleDateFormat("yyyy-MM-dd").parse(value);
-        } catch (final ParseException e) {
-            return null;
-        }
+    private static String formatDate(final Date date) {
+        return date == null ? "" : new SimpleDateFormat(DATE_PATTERN).format(date);
     }
 
     // "Hasta" tiene que incluir todo ese dia: se corre al dia siguiente a las
     // 00:00 y en la query se compara con "<", no "<=".
-    private static Date parseDateEndOfDay(final String value) {
-        final Date date = parseDate(value);
+    private static Date endOfDay(final Date date) {
         if (date == null) {
             return null;
         }
@@ -297,29 +222,5 @@ public class EventSearchForm implements FilterRanges {
         calendar.setTime(date);
         calendar.add(Calendar.DAY_OF_MONTH, 1);
         return calendar.getTime();
-    }
-
-    private static Integer parseInteger(final String value) {
-        if (value == null || value.isEmpty()) {
-            return null;
-        }
-        try {
-            return Integer.valueOf(value);
-        } catch (final NumberFormatException e) {
-            return null;
-        }
-    }
-
-    private static EventSort parseSort(final String value) {
-        if (value == null || value.isEmpty()) {
-            return EventSort.FECHA_ASC;
-        }
-        try {
-            return EventSort.valueOf(value);
-        } catch (final IllegalArgumentException e) {
-            // Un valor que no existe (link viejo con "FECHA", o la URL tocada a
-            // mano) no es un error: se ordena como siempre, por fecha.
-            return EventSort.FECHA_ASC;
-        }
     }
 }

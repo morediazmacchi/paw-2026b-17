@@ -261,9 +261,9 @@
                         <div class="price-range-fill" data-price-range-fill></div>
                     </div>
                     <input type="range" class="price-range-input" min="0" max="50000" step="500"
-                           value="${empty precioMin ? 0 : precioMin}" data-price-range-min/>
+                           value="<c:out value="${empty precioMin ? 0 : precioMin}"/>" data-price-range-min/>
                     <input type="range" class="price-range-input" min="0" max="50000" step="500"
-                           value="${empty precioMax ? 50000 : precioMax}" data-price-range-max/>
+                           value="<c:out value="${empty precioMax ? 50000 : precioMax}"/>" data-price-range-max/>
                 </div>
                 <div class="price-range-labels">
                     <span><spring:message code="event.price.free"/></span>
@@ -310,9 +310,9 @@
                 <span class="filter-dropdown-label"><c:out value="${availabilityLabel}"/></span>
                 <span class="filter-dropdown-value">
                     <c:choose>
-                        <c:when test="${not empty pocosCupos and not empty agotados}"><spring:message code="event.list.selectedCount" arguments="2"/></c:when>
-                        <c:when test="${not empty pocosCupos}"><spring:message code="event.list.fewSpotsShort"/></c:when>
-                        <c:when test="${not empty agotados}"><spring:message code="event.list.soldOut"/></c:when>
+                        <c:when test="${pocosCupos and agotados}"><spring:message code="event.list.selectedCount" arguments="${2}"/></c:when>
+                        <c:when test="${pocosCupos}"><spring:message code="event.list.fewSpotsShort"/></c:when>
+                        <c:when test="${agotados}"><spring:message code="event.list.soldOut"/></c:when>
                         <c:otherwise><c:out value="${allLabel}"/></c:otherwise>
                     </c:choose>
                 </span>
@@ -322,12 +322,12 @@
                      ese filtro queda apagado. Se pueden tildar los dos. --%>
                 <label class="filter-checkbox">
                     <input type="checkbox" name="pocosCupos" value="true"
-                           ${not empty pocosCupos ? 'checked="checked"' : ''}/>
+                           ${pocosCupos ? 'checked="checked"' : ''}/>
                     <spring:message code="event.list.fewSpots"/>
                 </label>
                 <label class="filter-checkbox">
                     <input type="checkbox" name="agotados" value="true"
-                           ${not empty agotados ? 'checked="checked"' : ''}/>
+                           ${agotados ? 'checked="checked"' : ''}/>
                     <spring:message code="event.list.soldOut"/>
                 </label>
             </div>
@@ -410,8 +410,8 @@
                              busqueda no es un filtro), pero viajan para volver al listado tal como estaba. --%>
                         <input type="hidden" name="q" value="${fn:escapeXml(q)}"/>
                         <input type="hidden" name="puntajeMin" value="${fn:escapeXml(puntajeMin)}"/>
-                        <input type="hidden" name="pocosCupos" value="${fn:escapeXml(pocosCupos)}"/>
-                        <input type="hidden" name="agotados" value="${fn:escapeXml(agotados)}"/>
+                        <c:if test="${pocosCupos}"><input type="hidden" name="pocosCupos" value="true"/></c:if>
+                        <c:if test="${agotados}"><input type="hidden" name="agotados" value="true"/></c:if>
                         <button type="submit" class="btn btn-medium btn-accent save-search-btn">
                             <paw:icon name="bell"/> <spring:message code="event.list.saveSearch.button"/>
                         </button>

@@ -1,5 +1,7 @@
 package ar.edu.itba.paw.services;
 
+import java.sql.SQLException;
+import org.springframework.dao.DataIntegrityViolationException;
 import ar.edu.itba.paw.model.Barrio;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventSearchCriteria;
@@ -15,13 +17,18 @@ import org.mockito.junit.MockitoJUnitRunner;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 // Unidad 5 - Unit Testing: los DAOs y los otros services son mocks (@Mock + when) y cada test asierta sobre lo que
@@ -67,18 +74,91 @@ public class SavedSearchServiceImplTest {
         return new SavedSearch(owner, null, Collections.singletonList(Barrio.PALERMO), null, null, null, null);
     }
 
+    // ---- mayHaveNewEvents() ----
+
+    @Test
+    public void testMayHaveNewEventsIsTrueWhenAnEventWasApprovedSinceTheOldestCheck() {
+        // Arrange: solo cuenta si la ventana arranca en la marca MAS VIEJA (con otra fecha el stub no responde)
+        final Date oldest = new Date(1_000_000L);
+        when(savedSearchDao.findOldestLastCheckedAt()).thenReturn(Optional.of(oldest));
+        when(eventService.countMatching(argThat(window -> window != null && oldest.equals(window.getApprovedAfter()))))
+                .thenReturn(2L);
+
+        // Act
+        final boolean result = savedSearchService.mayHaveNewEvents();
+
+        // Assert
+        assertTrue(result);
+    }
+
+    @Test
+    public void testMayHaveNewEventsIsFalseWhenNoEventWasApprovedSinceTheOldestCheck() {
+        // Arrange
+        when(savedSearchDao.findOldestLastCheckedAt()).thenReturn(Optional.of(new Date(1_000_000L)));
+        when(eventService.countMatching(any(EventSearchCriteria.class))).thenReturn(0L);
+
+        // Act
+        final boolean result = savedSearchService.mayHaveNewEvents();
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    public void testMayHaveNewEventsIsFalseWithoutSavedSearches() {
+        // Arrange: hay eventos de sobra; si el service los contara igual, daria true
+        when(savedSearchDao.findOldestLastCheckedAt()).thenReturn(Optional.empty());
+        lenient().when(eventService.countMatching(any(EventSearchCriteria.class))).thenReturn(5L);
+
+        // Act
+        final boolean result = savedSearchService.mayHaveNewEvents();
+
+        // Assert
+        assertFalse(result);
+    }
+
     // ---- save() ----
 
     @Test
     public void testSaveStoresANewSearch() {
         // Arrange
         when(savedSearchDao.existsByKey(USER_ID, palermoKey())).thenReturn(false);
+        when(savedSearchDao.create(eq(USER_ID), any(), any(), any(), any(), any(), any()))
+                .thenReturn(savedSearchOf(USER_ID));
 
         // Act
         final SaveSearchResult result = savedSearchService.save(USER_ID, palermoCriteria());
 
         // Assert
         assertEquals(SaveSearchResult.SAVED, result);
+    }
+
+    // Dos pedidos casi simultaneos pasan los dos el chequeo y el segundo insert choca con el UNIQUE (SQLSTATE 23505).
+    @Test
+    public void testSaveLosingTheRaceAgainstAnotherSimultaneousSaveIsAlreadySaved() {
+        // Arrange
+        when(savedSearchDao.existsByKey(USER_ID, palermoKey())).thenReturn(false);
+        when(savedSearchDao.create(eq(USER_ID), any(), any(), any(), any(), any(), any()))
+                .thenThrow(new DataIntegrityViolationException("unique persona+filtros",
+                        new SQLException("duplicado", "23505")));
+
+        // Act
+        final SaveSearchResult result = savedSearchService.save(USER_ID, palermoCriteria());
+
+        // Assert
+        assertEquals(SaveSearchResult.ALREADY_SAVED, result);
+    }
+
+    @Test
+    public void testSaveRethrowsADatabaseViolationThatIsNotTheDuplicate() {
+        // Arrange: una clave foranea (SQLSTATE 23503) no es "ya la tenia": no se disfraza de ALREADY_SAVED
+        when(savedSearchDao.existsByKey(USER_ID, palermoKey())).thenReturn(false);
+        when(savedSearchDao.create(eq(USER_ID), any(), any(), any(), any(), any(), any()))
+                .thenThrow(new DataIntegrityViolationException("fk", new SQLException("fk", "23503")));
+
+        // Act + Assert
+        assertThrows(DataIntegrityViolationException.class,
+                () -> savedSearchService.save(USER_ID, palermoCriteria()));
     }
 
     @Test

@@ -1,5 +1,6 @@
 package ar.edu.itba.paw.persistence;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import ar.edu.itba.paw.model.Barrio;
 import ar.edu.itba.paw.model.SavedSearch;
 import org.junit.Before;
@@ -112,6 +113,32 @@ public class SavedSearchJpaDaoTest {
                 "id = " + created.getId() + " AND filters_key = '" + KEY + "'"));
         assertEquals(0, JdbcTestUtils.countRowsInTable(jdbcTemplate, "saved_search_category"));
         assertEquals(0, JdbcTestUtils.countRowsInTable(jdbcTemplate, "saved_search_barrio"));
+    }
+
+    @Test(expected = DataIntegrityViolationException.class)
+    public void testCreateOfFiltersThatPersonAlreadySavedThrowsDataIntegrityViolation() {
+        // Arrange: ya hay una busqueda de esa persona con esos filtros (la que gano la carrera)
+        insertSearch(userId, KEY);
+
+        // Act
+        savedSearchDao.create(userId, null, null, null, null, null, null);
+
+        // Assert: la excepcion esperada en @Test(expected=...) ES el assert (el UNIQUE de persona + filtros).
+    }
+
+    @Test
+    public void testCreateOfTheSameFiltersForAnotherPersonStoresTheirOwnSearch() {
+        // Arrange: el UNIQUE es por persona: la misma clave de otra persona no choca
+        insertSearch(otherUserId, KEY);
+
+        // Act
+        final SavedSearch created = savedSearchDao.create(userId, null, null, null, null, null, null);
+        em.flush();
+
+        // Assert
+        assertTrue(created.getId() > 0);
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "saved_search",
+                "user_id = " + userId + " AND filters_key = '" + KEY + "'"));
     }
 
     // ---- existsByKey() ----
@@ -307,6 +334,32 @@ public class SavedSearchJpaDaoTest {
 
         // Assert
         assertEquals(Arrays.asList(second, third), result);
+    }
+
+    // ---- findOldestLastCheckedAt() ----
+
+    @Test
+    public void testFindOldestLastCheckedAtIsTheEarliestMarkOfAllTheSearches() {
+        // Arrange: tres busquedas de dos personas con marcas distintas; la mas vieja no es la primera ni la ultima
+        final Timestamp oldest = new Timestamp(1_000_000_000L);
+        insertSearch(userId, "uno", new Timestamp(3_000_000_000L));
+        insertSearch(otherUserId, "dos", oldest);
+        insertSearch(userId, "tres", new Timestamp(2_000_000_000L));
+
+        // Act
+        final Optional<Date> result = savedSearchDao.findOldestLastCheckedAt();
+
+        // Assert
+        assertEquals(oldest.getTime(), result.get().getTime());
+    }
+
+    @Test
+    public void testFindOldestLastCheckedAtWithoutSavedSearchesIsEmpty() {
+        // Act
+        final Optional<Date> result = savedSearchDao.findOldestLastCheckedAt();
+
+        // Assert
+        assertFalse(result.isPresent());
     }
 
     // ---- findByIdWithFilters() ----

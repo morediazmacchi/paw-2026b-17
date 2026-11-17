@@ -4,12 +4,14 @@ package ar.edu.itba.paw.persistence;
 import ar.edu.itba.paw.model.ChatGroup;
 import ar.edu.itba.paw.model.ChatMember;
 import ar.edu.itba.paw.model.ChatMessage;
+import ar.edu.itba.paw.model.Event;
+import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationStatus;
+import ar.edu.itba.paw.model.User;
 import org.springframework.stereotype.Repository;
 
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
-import javax.persistence.PersistenceException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
@@ -23,9 +25,11 @@ public class EventChatJpaDao implements EventChatDao {
 
     @Override
     public boolean addMember(final long registrationId, final long eventId, final long userId) {
+        // Se valida ANTES de escribir. Que dos "Unirme" a la vez no se pisen lo garantiza quien llama (toma el lock del
+        // evento antes de llamar, ver EventChatServiceImpl.join()), asi que aca no hace falta atrapar ninguna excepcion.
         final Long existing = em.createQuery(
-                        "SELECT COUNT(m) FROM ChatMember m WHERE m.registrationId = :registrationId "
-                                + "OR (m.eventId = :eventId AND m.userId = :userId)", Long.class)
+                        "SELECT COUNT(m) FROM ChatMember m WHERE m.registration.id = :registrationId "
+                                + "OR (m.event.id = :eventId AND m.user.id = :userId)", Long.class)
                 .setParameter("registrationId", registrationId)
                 .setParameter("eventId", eventId)
                 .setParameter("userId", userId)
@@ -33,20 +37,16 @@ public class EventChatJpaDao implements EventChatDao {
         if (existing > 0) {
             return false;
         }
-        try {
-            em.persist(new ChatMember(registrationId, eventId, userId));
-            // flush: que el INSERT salga ahora, para enterarnos aca si otro "Unirme" casi
-            // simultaneo se nos adelanto (el UNIQUE lo frena).
-            em.flush();
-            return true;
-        } catch (final PersistenceException e) {
-            return false;
-        }
+        em.persist(new ChatMember(em.getReference(Registration.class, registrationId),
+                em.getReference(Event.class, eventId), em.getReference(User.class, userId)));
+        // flush: que el INSERT salga ahora, y si algo lo viola la excepcion sale de este metodo.
+        em.flush();
+        return true;
     }
 
     @Override
     public boolean removeMember(final long eventId, final long userId) {
-        return em.createQuery("DELETE FROM ChatMember m WHERE m.eventId = :eventId AND m.userId = :userId")
+        return em.createQuery("DELETE FROM ChatMember m WHERE m.event.id = :eventId AND m.user.id = :userId")
                 .setParameter("eventId", eventId)
                 .setParameter("userId", userId)
                 .executeUpdate() == 1;
@@ -55,8 +55,8 @@ public class EventChatJpaDao implements EventChatDao {
     @Override
     public boolean isMember(final long eventId, final long userId) {
         return em.createQuery(
-                        "SELECT COUNT(m) FROM ChatMember m, Registration r WHERE r.id = m.registrationId "
-                                + "AND m.eventId = :eventId AND m.userId = :userId AND r.status = :status",
+                        "SELECT COUNT(m) FROM ChatMember m WHERE m.event.id = :eventId AND m.user.id = :userId "
+                                + "AND m.registration.status = :status",
                         Long.class)
                 .setParameter("eventId", eventId)
                 .setParameter("userId", userId)
@@ -66,9 +66,10 @@ public class EventChatJpaDao implements EventChatDao {
 
     @Override
     public ChatMessage addMessage(final long eventId, final long userId, final String body) {
-        final ChatMessage message = new ChatMessage(eventId, userId, body);
+        final ChatMessage message = new ChatMessage(
+                em.getReference(Event.class, eventId), em.getReference(User.class, userId), body);
         em.persist(message);
-        // flush + refresh: trae lo que pone la base (fecha) y el nombre de quien escribio.
+        // flush + refresh: trae lo que pone la base (la fecha).
         em.flush();
         em.refresh(message);
         return message;
@@ -78,7 +79,7 @@ public class EventChatJpaDao implements EventChatDao {
     public List<ChatMessage> findLatest(final long eventId, final int limit) {
         // Se piden los ultimos N (id descendente) y se devuelven en orden de lectura.
         final List<ChatMessage> latest = new ArrayList<>(em.createQuery(
-                        "SELECT m FROM ChatMessage m JOIN FETCH m.sender WHERE m.eventId = :eventId "
+                        "SELECT m FROM ChatMessage m JOIN FETCH m.sender WHERE m.event.id = :eventId "
                                 + "ORDER BY m.id DESC", ChatMessage.class)
                 .setParameter("eventId", eventId)
                 .setMaxResults(limit)
@@ -90,7 +91,7 @@ public class EventChatJpaDao implements EventChatDao {
     @Override
     public List<ChatMessage> findAfter(final long eventId, final long afterId, final int limit) {
         return em.createQuery(
-                        "SELECT m FROM ChatMessage m JOIN FETCH m.sender WHERE m.eventId = :eventId "
+                        "SELECT m FROM ChatMessage m JOIN FETCH m.sender WHERE m.event.id = :eventId "
                                 + "AND m.id > :afterId ORDER BY m.id ASC", ChatMessage.class)
                 .setParameter("eventId", eventId)
                 .setParameter("afterId", afterId)
@@ -100,12 +101,12 @@ public class EventChatJpaDao implements EventChatDao {
 
     @Override
     public void markRead(final long eventId, final long userId) {
-        final Long lastId = em.createQuery("SELECT MAX(m.id) FROM ChatMessage m WHERE m.eventId = :eventId",
+        final Long lastId = em.createQuery("SELECT MAX(m.id) FROM ChatMessage m WHERE m.event.id = :eventId",
                         Long.class)
                 .setParameter("eventId", eventId)
                 .getSingleResult();
         em.createQuery("UPDATE ChatMember m SET m.lastReadId = :lastId "
-                        + "WHERE m.eventId = :eventId AND m.userId = :userId")
+                        + "WHERE m.event.id = :eventId AND m.user.id = :userId")
                 .setParameter("lastId", lastId == null ? 0L : lastId)
                 .setParameter("eventId", eventId)
                 .setParameter("userId", userId)

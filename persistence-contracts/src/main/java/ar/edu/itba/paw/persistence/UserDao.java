@@ -1,4 +1,4 @@
-// Contrato de persistencia para User. Implementacion: UserJdbcDao (modulo persistence).
+// Contrato de persistencia para User. Implementacion: UserJpaDao (modulo persistence).
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.PublicUser;
@@ -37,9 +37,8 @@ public interface UserDao {
     long count(String emailText);
 
     // Una sola consulta para varios ids (WHERE id IN (...)), para armar un mapa
-    // id->User sin un findById() por cada uno (ver AdminController.seguimiento()/
-    // reportQueueView()). Mismos ids repetidos o inexistentes se ignoran en
-    // silencio; el orden del resultado no esta garantizado.
+    // id->User sin un findById() por cada uno. Mismos ids repetidos o inexistentes se
+    // ignoran en silencio; el orden del resultado no esta garantizado.
     List<User> findByIds(List<Long> ids);
 
     // Biografia del perfil publico (null = sin biografia). false si no existe la cuenta.
@@ -64,5 +63,6 @@ public interface UserDao {
 
     // Suspension por un admin (ver UserService.suspend()/reactivate()):
     // UserDetailsServiceImpl la lee para bloquear el login mientras este en true.
+    // true solo si CAMBIO el valor: false si la cuenta no existe o ya estaba asi (no hay nada que avisar).
     boolean setSuspended(long userId, boolean suspended);
 }

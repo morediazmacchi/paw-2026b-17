@@ -43,7 +43,7 @@ UPDATE event_invitation ei SET invited_by_user_id = u.id
 FROM users u
 WHERE LOWER(u.email) = LOWER(ei.invited_by) AND ei.invited_by_user_id IS NULL;
 
--- Grupo B (ver schema.sql): backfill "optimista" para invitados/destinatarios
+-- Invitados sin cuenta (ver schema.sql): backfill "optimista" para invitados/destinatarios
 -- que YA tenian cuenta antes de este cambio. Quien todavia no tenia cuenta en
 -- ese momento sigue en NULL aca -- se completa solo, desde Java, el dia que
 -- esa persona se registre (ver UserServiceImpl.register()).
@@ -55,7 +55,7 @@ UPDATE inbox_message im SET user_id = u.id
 FROM users u
 WHERE LOWER(u.email) = LOWER(im.recipient_email) AND im.user_id IS NULL;
 
--- Roles como enum (correccion 13): en user_role se guarda el nombre del enum Role
+-- Roles como enum: en user_role se guarda el nombre del enum Role
 -- (USER / ADMIN / SUPERADMIN); el prefijo "ROLE_" lo agrega Role.getAuthority() para
 -- Spring Security. Idempotente y barato: solo toca las filas que todavia tienen el prefijo.
 UPDATE user_role SET role = SUBSTRING(role FROM 6) WHERE role LIKE 'ROLE\_%';

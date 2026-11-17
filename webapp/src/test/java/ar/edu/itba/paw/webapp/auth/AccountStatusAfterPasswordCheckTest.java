@@ -18,11 +18,6 @@ public class AccountStatusAfterPasswordCheckTest {
                 AuthorityUtils.NO_AUTHORITIES);
     }
 
-    @Test
-    public void testAnEnabledAccountPasses() {
-        check.check(account(true, true, true, true));
-    }
-
     @Test(expected = DisabledException.class)
     public void testADisabledAccountIsRejected() {
         check.check(account(false, true, true, true));

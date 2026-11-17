@@ -1,4 +1,4 @@
-// Contrato de persistencia para Registration. Implementacion: RegistrationJdbcDao (modulo persistence).
+// Contrato de persistencia para Registration. Implementacion: RegistrationJpaDao (modulo persistence).
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.Registration;
@@ -12,7 +12,9 @@ import java.util.Map;
 import java.util.Optional;
 
 public interface RegistrationDao {
-    Registration create(Registration registration);
+    // Anota a la persona en el evento: el DAO arma la fila, el service solo dice quien, donde y con que estado.
+    // email y name son los de la cuenta, copiados a la inscripcion.
+    Registration create(long eventId, long userId, String email, String name, RegistrationStatus status);
     Optional<Registration> findByEventAndUserId(long eventId, long userId);
 
     Optional<Registration> findById(long id);

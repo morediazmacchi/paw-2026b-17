@@ -1,12 +1,14 @@
 package ar.edu.itba.paw.persistence;
 
+import java.util.ArrayList;
+import ar.edu.itba.paw.dto.EventDTO;
 import ar.edu.itba.paw.model.Barrio;
 import ar.edu.itba.paw.model.AdminEventSort;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventApprovalStatus;
 import ar.edu.itba.paw.model.EventAccessSummary;
-import ar.edu.itba.paw.model.Category;
 import ar.edu.itba.paw.model.EventCategory;
+import ar.edu.itba.paw.model.EventCategoryInfo;
 import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.EventSort;
 import ar.edu.itba.paw.model.EventVisibility;
@@ -14,7 +16,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.Rollback;
 import org.springframework.test.context.ContextConfiguration;
@@ -169,29 +171,20 @@ public class EventJpaDaoTest {
 
     // ---- objetos de entrada para create()/update() (el Act en si) ----
 
-    // Un evento a punto de guardarse, ya con su categoria (la relacion con un objeto Category;
-    // getReference da un representante con solo el id, sin ir a buscarlo a la base).
-    private Event someEvent(final long categoryId) {
-        final Event event = new Event(TITLE, "Una noche a pura guitarra", new Date(), "Av. Corrientes 1234",
-                Barrio.PALERMO, null, new BigDecimal("1500"), 50, CREATOR_EMAIL);
-        addCategory(event, categoryId, null);
-        return event;
-    }
+    private static final List<Long> NO_IMAGES = Collections.emptyList();
 
-    private Event someFutureEvent(final long categoryId) {
-        final Event event = new Event(TITLE, "desc", new Date(System.currentTimeMillis() + 86_400_000L),
-                "Av. Corrientes 1234", Barrio.PALERMO, null, new BigDecimal("1500"), 50, CREATOR_EMAIL);
-        addCategory(event, categoryId, null);
-        return event;
-    }
-
-    private void addCategory(final Event event, final long categoryId, final String extraInfo) {
-        event.addCategory(new EventCategory(event, em.getReference(Category.class, categoryId), extraInfo));
-    }
-
-    // Saca las categorias que traia el evento (para los tests que arman las suyas).
-    private static void clearCategories(final Event event) {
-        event.getCategories().forEach(event::removeCategory);
+    // Los datos de un evento a guardar, ya con su categoria (el DAO arma el Event con esto).
+    private static EventDTO someData(final long categoryId) {
+        final EventDTO data = new EventDTO();
+        data.setTitle(TITLE);
+        data.setDescription("Una noche a pura guitarra");
+        data.setEventDate(new Date());
+        data.setAddress("Av. Corrientes 1234");
+        data.setNeighborhood(Barrio.PALERMO);
+        data.setPrice(new BigDecimal("1500"));
+        data.setMaxCapacity(50);
+        data.setCategories(new ArrayList<>(Collections.singletonList(new EventCategoryInfo(categoryId))));
+        return data;
     }
 
     private static EventSearchCriteria fewSpotsCriteria() {
@@ -226,10 +219,10 @@ public class EventJpaDaoTest {
     @Test
     public void testCreateInsertsTheBasicFieldsAndReturnsTheEventWithItsId() {
         // Arrange
-        final Event toCreate = someEvent(categoryId);
+        final EventDTO data = someData(categoryId);
 
         // Act
-        final Event created = eventDao.create(toCreate);
+        final Event created = eventDao.create(creatorId, data, NO_IMAGES);
 
         // Assert
         assertTrue(created.getId() > 0);
@@ -243,10 +236,10 @@ public class EventJpaDaoTest {
     @Test
     public void testCreateInsertsTheGivenCategory() {
         // Arrange
-        final Event toCreate = someEvent(categoryId);
+        final EventDTO data = someData(categoryId);
 
         // Act
-        final Event created = eventDao.create(toCreate);
+        final Event created = eventDao.create(creatorId, data, NO_IMAGES);
 
         // Assert
         assertEquals(1, JdbcTestUtils.countRowsInTableWhere(
@@ -256,10 +249,10 @@ public class EventJpaDaoTest {
     @Test
     public void testCreateDefaultsRequiresApprovalToFalse() {
         // Arrange
-        final Event toCreate = someEvent(categoryId);
+        final EventDTO data = someData(categoryId);
 
         // Act
-        final Event created = eventDao.create(toCreate);
+        final Event created = eventDao.create(creatorId, data, NO_IMAGES);
 
         // Assert
         final Boolean requiresApproval = jdbcTemplate.queryForObject(
@@ -270,11 +263,11 @@ public class EventJpaDaoTest {
     @Test
     public void testCreatePersistsRequiresApprovalWhenSetToTrue() {
         // Arrange
-        final Event toCreate = someEvent(categoryId);
-        toCreate.setRequiresApproval(true);
+        final EventDTO data = someData(categoryId);
+        data.setRequiresApproval(true);
 
         // Act
-        final Event created = eventDao.create(toCreate);
+        final Event created = eventDao.create(creatorId, data, NO_IMAGES);
 
         // Assert
         final Boolean requiresApproval = jdbcTemplate.queryForObject(
@@ -282,13 +275,13 @@ public class EventJpaDaoTest {
         assertTrue(requiresApproval);
     }
 
-    @Test(expected = DataAccessException.class)
-    public void testCreateWithNonexistentCategoryThrowsDataAccessException() {
+    @Test(expected = DataIntegrityViolationException.class)
+    public void testCreateWithNonexistentCategoryThrowsDataIntegrityViolation() {
         // Arrange
-        final Event toCreate = someEvent(categoryId + 1000);
+        final EventDTO data = someData(categoryId + 1000);
 
         // Act
-        eventDao.create(toCreate);
+        eventDao.create(creatorId, data, NO_IMAGES);
 
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
@@ -301,13 +294,13 @@ public class EventJpaDaoTest {
     public void testCreatePersistsSeveralCategories() {
         // Arrange
         final long otherCategoryId = insertCategory(OTHER_CATEGORY_NAME);
-        final Event toCreate = someEvent(categoryId);
-        clearCategories(toCreate);
-        addCategory(toCreate, categoryId, null);
-        addCategory(toCreate, otherCategoryId, null);
+        final EventDTO data = someData(categoryId);
+        data.getCategories().clear();
+        data.getCategories().add(new EventCategoryInfo(categoryId, null));
+        data.getCategories().add(new EventCategoryInfo(otherCategoryId, null));
 
         // Act
-        final Event created = eventDao.create(toCreate);
+        final Event created = eventDao.create(creatorId, data, NO_IMAGES);
 
         // Assert
         final List<Long> categoryIds = jdbcTemplate.queryForList(
@@ -320,12 +313,12 @@ public class EventJpaDaoTest {
     @Test
     public void testCreatePersistsExtraInfoPerCategory() {
         // Arrange
-        final Event toCreate = someEvent(categoryId);
-        clearCategories(toCreate);
-        addCategory(toCreate, categoryId, "Toca una banda tributo");
+        final EventDTO data = someData(categoryId);
+        data.getCategories().clear();
+        data.getCategories().add(new EventCategoryInfo(categoryId, "Toca una banda tributo"));
 
         // Act
-        final Event created = eventDao.create(toCreate);
+        final Event created = eventDao.create(creatorId, data, NO_IMAGES);
 
         // Assert
         final String extraInfo = jdbcTemplate.queryForObject(
@@ -344,13 +337,12 @@ public class EventJpaDaoTest {
         final long otherCategoryId = insertCategory(OTHER_CATEGORY_NAME);
         final long id = insertEvent();
         insertEventCategory(id, categoryId, null);
-        final Event changes = someEvent(categoryId);
-        changes.setId(id);
-        clearCategories(changes);
-        addCategory(changes, otherCategoryId, "Torneo 5 contra 5");
+        final EventDTO data = someData(categoryId);
+        data.getCategories().clear();
+        data.getCategories().add(new EventCategoryInfo(otherCategoryId, "Torneo 5 contra 5"));
 
         // Act
-        eventDao.update(changes);
+        eventDao.update(id, data, NO_IMAGES);
 
         // Assert
         final List<Map<String, Object>> rows = jdbcTemplate.queryForList(
@@ -367,10 +359,10 @@ public class EventJpaDaoTest {
     @Test
     public void testCreateWithoutImagesLeavesTheGalleryEmpty() {
         // Arrange
-        final Event toCreate = someEvent(categoryId);
+        final EventDTO data = someData(categoryId);
 
         // Act
-        final Event created = eventDao.create(toCreate);
+        final Event created = eventDao.create(creatorId, data, NO_IMAGES);
 
         // Assert
         assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "event_image", "event_id = " + created.getId()));
@@ -381,11 +373,11 @@ public class EventJpaDaoTest {
         // Arrange
         final long firstImageId = insertImage();
         final long secondImageId = insertImage();
-        final Event toCreate = someEvent(categoryId);
-        toCreate.setImageIds(Arrays.asList(firstImageId, secondImageId));
+        final EventDTO data = someData(categoryId);
+        final List<Long> galleryToSave = Arrays.asList(firstImageId, secondImageId);
 
         // Act
-        final Event created = eventDao.create(toCreate);
+        final Event created = eventDao.create(creatorId, data, galleryToSave);
 
         // Assert
         final List<Long> imageIds = jdbcTemplate.queryForList(
@@ -400,12 +392,11 @@ public class EventJpaDaoTest {
         final long id = insertEvent();
         insertEventImage(id, originalImageId);
         final long newImageId = insertImage();
-        final Event changes = someEvent(categoryId);
-        changes.setId(id);
-        changes.setImageIds(Collections.singletonList(newImageId));
+        final EventDTO data = someData(categoryId);
+        final List<Long> galleryToSave = Collections.singletonList(newImageId);
 
         // Act
-        eventDao.update(changes);
+        eventDao.update(id, data, galleryToSave);
 
         // Assert
         final List<Long> imageIds = jdbcTemplate.queryForList(
@@ -420,10 +411,10 @@ public class EventJpaDaoTest {
     @Test
     public void testCreateWithoutLocationPinLeavesLatitudeAndLongitudeNull() {
         // Arrange
-        final Event toCreate = someEvent(categoryId);
+        final EventDTO data = someData(categoryId);
 
         // Act
-        final Event created = eventDao.create(toCreate);
+        final Event created = eventDao.create(creatorId, data, NO_IMAGES);
 
         // Assert
         final Map<String, Object> row = jdbcTemplate.queryForMap(
@@ -435,12 +426,12 @@ public class EventJpaDaoTest {
     @Test
     public void testCreatePersistsTheLocationPin() {
         // Arrange
-        final Event toCreate = someEvent(categoryId);
-        toCreate.setLatitude(-34.603722);
-        toCreate.setLongitude(-58.381592);
+        final EventDTO data = someData(categoryId);
+        data.setLatitude(-34.603722);
+        data.setLongitude(-58.381592);
 
         // Act
-        final Event created = eventDao.create(toCreate);
+        final Event created = eventDao.create(creatorId, data, NO_IMAGES);
 
         // Assert
         final Map<String, Object> row = jdbcTemplate.queryForMap(
@@ -453,13 +444,12 @@ public class EventJpaDaoTest {
     public void testUpdateChangesTheLocationPin() {
         // Arrange
         final long id = insertEvent(cols("latitude", new BigDecimal("-34.603722"), "longitude", new BigDecimal("-58.381592")));
-        final Event changes = someEvent(categoryId);
-        changes.setId(id);
-        changes.setLatitude(-34.580000);
-        changes.setLongitude(-58.420000);
+        final EventDTO data = someData(categoryId);
+        data.setLatitude(-34.580000);
+        data.setLongitude(-58.420000);
 
         // Act
-        eventDao.update(changes);
+        eventDao.update(id, data, NO_IMAGES);
 
         // Assert
         final Map<String, Object> row = jdbcTemplate.queryForMap(
@@ -475,10 +465,10 @@ public class EventJpaDaoTest {
     @Test
     public void testCreateWithoutAddressDetailsLeavesItNull() {
         // Arrange
-        final Event toCreate = someEvent(categoryId);
+        final EventDTO data = someData(categoryId);
 
         // Act
-        final Event created = eventDao.create(toCreate);
+        final Event created = eventDao.create(creatorId, data, NO_IMAGES);
 
         // Assert
         final String addressDetails = jdbcTemplate.queryForObject(
@@ -489,11 +479,11 @@ public class EventJpaDaoTest {
     @Test
     public void testCreatePersistsTheAddressDetails() {
         // Arrange
-        final Event toCreate = someEvent(categoryId);
-        toCreate.setAddressDetails("Piso 3, depto B, tocar timbre 3B");
+        final EventDTO data = someData(categoryId);
+        data.setAddressDetails("Piso 3, depto B, tocar timbre 3B");
 
         // Act
-        final Event created = eventDao.create(toCreate);
+        final Event created = eventDao.create(creatorId, data, NO_IMAGES);
 
         // Assert
         final String addressDetails = jdbcTemplate.queryForObject(
@@ -505,12 +495,11 @@ public class EventJpaDaoTest {
     public void testUpdateChangesTheAddressDetails() {
         // Arrange
         final long id = insertEvent(cols("address_details", "Piso 3, depto B"));
-        final Event changes = someEvent(categoryId);
-        changes.setId(id);
-        changes.setAddressDetails("Entrada por el fondo");
+        final EventDTO data = someData(categoryId);
+        data.setAddressDetails("Entrada por el fondo");
 
         // Act
-        eventDao.update(changes);
+        eventDao.update(id, data, NO_IMAGES);
 
         // Assert
         final String addressDetails = jdbcTemplate.queryForObject(
@@ -527,10 +516,10 @@ public class EventJpaDaoTest {
         // Arrange
         // El modelo ya nace en true (Event.locationManual); esto confirma que
         // create() no lo pisa a false por accidente.
-        final Event toCreate = someEvent(categoryId);
+        final EventDTO data = someData(categoryId);
 
         // Act
-        final Event created = eventDao.create(toCreate);
+        final Event created = eventDao.create(creatorId, data, NO_IMAGES);
 
         // Assert
         final Boolean locationManual = jdbcTemplate.queryForObject(
@@ -541,11 +530,11 @@ public class EventJpaDaoTest {
     @Test
     public void testCreatePersistsLocationManualFalse() {
         // Arrange
-        final Event toCreate = someEvent(categoryId);
-        toCreate.setLocationManual(false);
+        final EventDTO data = someData(categoryId);
+        data.setLocationManual(false);
 
         // Act
-        final Event created = eventDao.create(toCreate);
+        final Event created = eventDao.create(creatorId, data, NO_IMAGES);
 
         // Assert
         final Boolean locationManual = jdbcTemplate.queryForObject(
@@ -557,12 +546,11 @@ public class EventJpaDaoTest {
     public void testUpdateChangesLocationManual() {
         // Arrange
         final long id = insertEvent(cols("location_manual", false));
-        final Event changes = someEvent(categoryId);
-        changes.setId(id);
-        changes.setLocationManual(true);
+        final EventDTO data = someData(categoryId);
+        data.setLocationManual(true);
 
         // Act
-        eventDao.update(changes);
+        eventDao.update(id, data, NO_IMAGES);
 
         // Assert
         final Boolean locationManual = jdbcTemplate.queryForObject(
@@ -575,25 +563,25 @@ public class EventJpaDaoTest {
     // ==================================================================
 
     @Test
-    public void testUpdateChangesTheStoredFieldsAndReturnsTrue() {
+    public void testUpdateChangesTheStoredFieldsAndReturnsTheUpdatedEvent() {
         // Arrange
         final long otherCategoryId = insertCategory(OTHER_CATEGORY_NAME);
         final long id = insertEvent();
         insertEventCategory(id, categoryId, null);
-        final Event changes = someEvent(otherCategoryId);
-        changes.setId(id);
-        changes.setTitle("Titulo nuevo");
-        changes.setAddress("Direccion nueva 123");
-        changes.setPrice(new BigDecimal("2500"));
-        changes.setMaxCapacity(30);
-        changes.setRequiresApproval(true);
-        changes.setVisibility(EventVisibility.PRIVATE);
+        final EventDTO data = someData(otherCategoryId);
+        data.setTitle("Titulo nuevo");
+        data.setAddress("Direccion nueva 123");
+        data.setPrice(new BigDecimal("2500"));
+        data.setMaxCapacity(30);
+        data.setRequiresApproval(true);
+        data.setVisibility(EventVisibility.PRIVATE);
 
         // Act
-        final boolean result = eventDao.update(changes);
+        final Optional<Event> result = eventDao.update(id, data, NO_IMAGES);
 
         // Assert
-        assertTrue(result);
+        assertTrue(result.isPresent());
+        assertEquals(id, result.get().getId().longValue());
         final Map<String, Object> row = jdbcTemplate.queryForMap(
                 "SELECT title, address, price, max_capacity, requires_approval, visibility FROM event WHERE id = ?", id);
         assertEquals("Titulo nuevo", row.get("title"));
@@ -610,15 +598,11 @@ public class EventJpaDaoTest {
     public void testUpdateDoesNotChangeTheCreatorEmail() {
         // Arrange
         final long id = insertEvent(cols("creator_email", CREATOR_EMAIL));
-        // A proposito le paso un creatorEmail distinto: update() no deberia
-        // tocar esa columna aunque el objeto Event lo traiga seteado (el DAO
-        // ni siquiera lo lee -- ver la query en EventJpaDao.update()).
-        final Event changes = someEvent(categoryId);
-        changes.setId(id);
-        changes.setCreatorEmail("otro@mail.com");
+        // update() no tiene que tocar esa columna: quien creo el evento no se edita.
+        final EventDTO data = someData(categoryId);
 
         // Act
-        eventDao.update(changes);
+        eventDao.update(id, data, NO_IMAGES);
 
         // Assert
         final String creatorEmail = jdbcTemplate.queryForObject(
@@ -626,15 +610,14 @@ public class EventJpaDaoTest {
         assertEquals(CREATOR_EMAIL, creatorEmail);
     }
 
-    @Test(expected = DataAccessException.class)
-    public void testUpdateWithNonexistentCategoryThrowsDataAccessException() {
+    @Test(expected = DataIntegrityViolationException.class)
+    public void testUpdateWithNonexistentCategoryThrowsDataIntegrityViolation() {
         // Arrange
         final long id = insertEvent();
-        final Event changes = someEvent(categoryId + 1000);
-        changes.setId(id);
+        final EventDTO data = someData(categoryId + 1000);
 
         // Act
-        eventDao.update(changes);
+        eventDao.update(id, data, NO_IMAGES);
 
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }
@@ -646,10 +629,10 @@ public class EventJpaDaoTest {
     @Test
     public void testCreateDefaultsCancelledAtToNull() {
         // Arrange
-        final Event toCreate = someEvent(categoryId);
+        final EventDTO data = someData(categoryId);
 
         // Act
-        final Event created = eventDao.create(toCreate);
+        final Event created = eventDao.create(creatorId, data, NO_IMAGES);
 
         // Assert
         final Timestamp cancelledAt = jdbcTemplate.queryForObject(
@@ -730,10 +713,10 @@ public class EventJpaDaoTest {
     @Test
     public void testCreateDefaultsApprovalStatusToPending() {
         // Arrange
-        final Event toCreate = someEvent(categoryId);
+        final EventDTO data = someData(categoryId);
 
         // Act
-        final Event created = eventDao.create(toCreate);
+        final Event created = eventDao.create(creatorId, data, NO_IMAGES);
 
         // Assert
         final String approvalStatus = jdbcTemplate.queryForObject(
@@ -982,19 +965,28 @@ public class EventJpaDaoTest {
     }
 
     @Test
-    public void testFindAllTreatsPercentAndUnderscoreInTheQueryAsLiteralCharacters() {
+    public void testFindAllTreatsPercentInTheQueryAsALiteralCharacter() {
         // Arrange: si el % fuera un comodin, "100%" tambien encontraria "1000 personas"
         insertEvent(cols("title", "Descuento 100% hoy"));
         insertEvent(cols("title", "1000 personas"));
+
+        // Act
+        final List<String> percent = adminTitles("100%", AdminEventSort.TITLE_ASC);
+
+        // Assert
+        assertEquals(Collections.singletonList("Descuento 100% hoy"), percent);
+    }
+
+    @Test
+    public void testFindAllTreatsUnderscoreInTheQueryAsALiteralCharacter() {
+        // Arrange: si el _ fuera un comodin, "snake_case" tambien encontraria "snakeXcase"
         insertEvent(cols("title", "snake_case party"));
         insertEvent(cols("title", "snakeXcase party"));
 
         // Act
-        final List<String> percent = adminTitles("100%", AdminEventSort.TITLE_ASC);
         final List<String> underscore = adminTitles("snake_case", AdminEventSort.TITLE_ASC);
 
         // Assert
-        assertEquals(Collections.singletonList("Descuento 100% hoy"), percent);
         assertEquals(Collections.singletonList("snake_case party"), underscore);
     }
 
@@ -1033,21 +1025,46 @@ public class EventJpaDaoTest {
         assertEquals(Arrays.asList("Pendiente nuevo", "Pendiente viejo", "Aprobado nuevo", "Aprobado viejo"), titles);
     }
 
-    @Test
-    public void testFindAllOrdersByTitleAndByEventDate() {
-        // Arrange
+    // Tres eventos con titulos y fechas que se ordenan distinto: por titulo (sin importar mayusculas) y por fecha.
+    private void insertThreeEventsWithTitleAndDateInDifferentOrder() {
         insertEvent(cols("title", "Banana", "event_date", fromNow(2 * HORA)));
         insertEvent(cols("title", "apple", "event_date", fromNow(3 * HORA)));
         insertEvent(cols("title", "Cereza", "event_date", fromNow(HORA)));
+    }
+
+    @Test
+    public void testFindAllOrdersByTitleIgnoringCase() {
+        // Arrange
+        insertThreeEventsWithTitleAndDateInDifferentOrder();
 
         // Act
         final List<String> byTitle = adminTitles(null, AdminEventSort.TITLE_ASC);
-        final List<String> nearestFirst = adminTitles(null, AdminEventSort.EVENT_DATE_ASC);
-        final List<String> furthestFirst = adminTitles(null, AdminEventSort.EVENT_DATE_DESC);
 
         // Assert
         assertEquals(Arrays.asList("apple", "Banana", "Cereza"), byTitle);
+    }
+
+    @Test
+    public void testFindAllOrdersByEventDateNearestFirst() {
+        // Arrange
+        insertThreeEventsWithTitleAndDateInDifferentOrder();
+
+        // Act
+        final List<String> nearestFirst = adminTitles(null, AdminEventSort.EVENT_DATE_ASC);
+
+        // Assert
         assertEquals(Arrays.asList("Cereza", "Banana", "apple"), nearestFirst);
+    }
+
+    @Test
+    public void testFindAllOrdersByEventDateFurthestFirst() {
+        // Arrange
+        insertThreeEventsWithTitleAndDateInDifferentOrder();
+
+        // Act
+        final List<String> furthestFirst = adminTitles(null, AdminEventSort.EVENT_DATE_DESC);
+
+        // Assert
         assertEquals(Arrays.asList("apple", "Banana", "Cereza"), furthestFirst);
     }
 
@@ -1073,10 +1090,10 @@ public class EventJpaDaoTest {
     @Test
     public void testCreateDefaultsVisibilityToPublic() {
         // Arrange
-        final Event toCreate = someEvent(categoryId);
+        final EventDTO data = someData(categoryId);
 
         // Act
-        final Event created = eventDao.create(toCreate);
+        final Event created = eventDao.create(creatorId, data, NO_IMAGES);
 
         // Assert
         final String visibility = jdbcTemplate.queryForObject(
@@ -1087,11 +1104,11 @@ public class EventJpaDaoTest {
     @Test
     public void testCreatePersistsVisibilityWhenSetToPrivate() {
         // Arrange
-        final Event toCreate = someEvent(categoryId);
-        toCreate.setVisibility(EventVisibility.PRIVATE);
+        final EventDTO data = someData(categoryId);
+        data.setVisibility(EventVisibility.PRIVATE);
 
         // Act
-        final Event created = eventDao.create(toCreate);
+        final Event created = eventDao.create(creatorId, data, NO_IMAGES);
 
         // Assert
         final String visibility = jdbcTemplate.queryForObject(
@@ -2310,13 +2327,12 @@ public class EventJpaDaoTest {
         final Timestamp eventDate = new Timestamp(System.currentTimeMillis() + 86_400_000L);
         final long id = insertEvent(cols("event_date", eventDate,
                 "reminder_sent_at", new Timestamp(System.currentTimeMillis())));
-        final Event changes = someEvent(categoryId);
-        changes.setId(id);
-        changes.setEventDate(eventDate);
-        changes.setTitle("Solo cambia el titulo");
+        final EventDTO data = someData(categoryId);
+        data.setEventDate(eventDate);
+        data.setTitle("Solo cambia el titulo");
 
         // Act
-        eventDao.update(changes);
+        eventDao.update(id, data, NO_IMAGES);
 
         // Assert
         final Timestamp reminderSentAt = jdbcTemplate.queryForObject(
@@ -2330,12 +2346,11 @@ public class EventJpaDaoTest {
         final Timestamp originalDate = new Timestamp(System.currentTimeMillis() + 86_400_000L);
         final long id = insertEvent(cols("event_date", originalDate,
                 "reminder_sent_at", new Timestamp(System.currentTimeMillis())));
-        final Event changes = someEvent(categoryId);
-        changes.setId(id);
-        changes.setEventDate(new Date(originalDate.getTime() + 7 * 24 * HORA));
+        final EventDTO data = someData(categoryId);
+        data.setEventDate(new Date(originalDate.getTime() + 7 * 24 * HORA));
 
         // Act
-        eventDao.update(changes);
+        eventDao.update(id, data, NO_IMAGES);
 
         // Assert
         final Timestamp reminderSentAt = jdbcTemplate.queryForObject(
@@ -2386,21 +2401,20 @@ public class EventJpaDaoTest {
     }
 
     @Test
-    public void testUpdateOfAnEventThatDoesNotExistWritesNothingAndReturnsFalse() {
+    public void testUpdateOfAnEventThatDoesNotExistWritesNothingAndReturnsEmpty() {
         // Arrange: otro evento, que no es el del Act. No tiene que tomar los datos nuevos.
         insertEvent();
         // Sin categorias ni imagenes: lo unico que se intenta tocar es la fila del evento, que no existe.
-        final Event changes = someEvent(categoryId);
-        clearCategories(changes);
-        changes.setId(999_999L);
-        changes.setTitle("Titulo que no se guarda");
+        final EventDTO data = someData(categoryId);
+        data.getCategories().clear();
+        data.setTitle("Titulo que no se guarda");
 
         // Act
-        final boolean result = eventDao.update(changes);
+        final Optional<Event> result = eventDao.update(999_999L, data, NO_IMAGES);
         em.flush();
 
         // Assert
-        assertFalse(result);
+        assertFalse(result.isPresent());
         assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "event", "title = 'Titulo que no se guarda'"));
     }
 

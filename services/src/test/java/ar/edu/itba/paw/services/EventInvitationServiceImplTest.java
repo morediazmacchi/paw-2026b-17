@@ -42,7 +42,7 @@ public class EventInvitationServiceImplTest {
     @Mock
     private InboxService mockInboxService;
 
-    // Enlace optimista del Grupo B (ver EventInvitationServiceImpl.invite()).
+    // Enlace optimista del invitado que ya tiene cuenta (ver EventInvitationServiceImpl.invite()).
     @Mock
     private UserService mockUserService;
 

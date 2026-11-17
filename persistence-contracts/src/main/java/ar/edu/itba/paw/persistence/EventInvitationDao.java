@@ -1,5 +1,4 @@
-// Contrato de persistencia para EventInvitation. Implementacion:
-// EventInvitationJdbcDao (modulo persistence).
+// Contrato de persistencia para EventInvitation. Implementacion: EventInvitationJpaDao (modulo persistence).
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.Event;
@@ -10,7 +9,9 @@ import java.util.Optional;
 
 public interface EventInvitationDao {
 
-    EventInvitation create(EventInvitation invitation);
+    // Invita a un mail a un evento. invitedByUserId es quien invita (el organizador). inviteeUserId es la cuenta del
+    // invitado si ya tiene una; null si todavia no (se enlaza cuando se registre, ver linkUserId()).
+    EventInvitation create(long eventId, String email, long invitedByUserId, Long inviteeUserId);
 
     /** Para no mandarle una invitacion nueva (y un mail nuevo) a quien ya esta invitado. */
     Optional<EventInvitation> findByEventAndEmail(long eventId, String email);

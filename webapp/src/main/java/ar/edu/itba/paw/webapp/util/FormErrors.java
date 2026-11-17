@@ -9,11 +9,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 // field -> mensaje ya resuelto en el idioma actual, para mostrar al lado de
-// cada campo del form (ver *FieldErrors en los JSP). Antes esto (y el
-// messageFor(FieldError) que resuelve cada uno contra el MessageSource) estaba
-// copiado en 5 controllers (RegisterController, LoginController,
-// PasswordResetController, EventController, ProfileController), 7 veces en
-// total: cada uno con su propio BindingResult de un form distinto.
+// cada campo del form (ver *FieldErrors en los JSP). Es el unico lugar que
+// resuelve cada FieldError contra el MessageSource: los controllers solo le
+// pasan el BindingResult de su form.
 public final class FormErrors {
 
     private FormErrors() {

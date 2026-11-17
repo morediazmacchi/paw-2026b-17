@@ -3,6 +3,8 @@ package ar.edu.itba.paw.services;
 
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Optional;
+
 public interface EventDetailService {
 
     /**
@@ -10,10 +12,8 @@ public interface EventDetailService {
      * el evento, si es favorito, si esta en el chat, la reputacion del organizador, los eventos
      * relacionados y una pagina de preguntas. Los eventos relacionados son solo de un evento publico y
      * aprobado. Que se pueda ver el evento NO se valida aca: lo decide @PreAuthorize en el controller (ver
-     * EventSecurity.canView).
-     *
-     * @throws EventNotFoundException si el evento no existe.
+     * EventSecurity.canView). Vacio si el evento no existe (el 404 lo da la capa web).
      */
     @Transactional(readOnly = true)
-    EventDetail getDetail(long eventId, Long viewerId, int questionsPage, int reviewsPage);
+    Optional<EventDetail> getDetail(long eventId, Long viewerId, int questionsPage, int reviewsPage);
 }

@@ -1,24 +1,25 @@
 // Implementa el contrato EventService (modulo services-contracts).
 package ar.edu.itba.paw.services;
 
+import java.time.Clock;
 import ar.edu.itba.paw.dto.EventDTO;
 import ar.edu.itba.paw.dto.NewImageData;
-import ar.edu.itba.paw.model.Category;
 import ar.edu.itba.paw.model.AdminEventSort;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventAccessSummary;
-import ar.edu.itba.paw.model.EventCategory;
 import ar.edu.itba.paw.model.EventCategoryInfo;
 import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.EventSort;
 import ar.edu.itba.paw.model.Image;
 import ar.edu.itba.paw.model.InboxMessageType;
+import ar.edu.itba.paw.model.SimilarityParameters;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.exception.EventCancelledException;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import ar.edu.itba.paw.model.exception.EventRejectedException;
 import ar.edu.itba.paw.model.exception.InvalidEventException;
 import ar.edu.itba.paw.model.exception.InvalidImageException;
+import ar.edu.itba.paw.model.exception.UserNotFoundException;
 import ar.edu.itba.paw.persistence.EventDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
@@ -30,9 +31,7 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -43,11 +42,12 @@ public class EventServiceImpl implements EventService {
 
     private final EventDao eventDao;
     private final UserService userService;
-    private final CategoryService categoryService;
     private final NotificationService notificationService;
     private final InboxService inboxService;
     private final ImageService imageService;
-    private final EventSimilarityService eventSimilarityService;
+    // Los coeficientes de S(a, b) (ver findSimilar() y search() con RECOMENDADOS): los pasa tal cual al dao.
+    private final SimilarityParameters similarityParameters;
+    private final Clock clock;
     // Para anunciar que un evento cambio, se dio de baja o se aprobo (ver EventUpdatedEvent, EventCancelledEvent y
     // EventApprovedEvent): reaccionan RegistrantsEventListener (dentro de esta transaccion: bandeja y lista de
     // espera) y MassNotifier (los mails masivos, en segundo plano y despues del commit). Asi este service no depende
@@ -56,28 +56,34 @@ public class EventServiceImpl implements EventService {
 
     @Autowired
     public EventServiceImpl(final EventDao eventDao, final UserService userService,
-                            final CategoryService categoryService,
                             final NotificationService notificationService,
                             final InboxService inboxService, final ImageService imageService,
-                            final EventSimilarityService eventSimilarityService,
+                            final SimilarityParameters similarityParameters,
                             final ApplicationEventPublisher eventPublisher) {
+        this(eventDao, userService, notificationService, inboxService, imageService, similarityParameters,
+                eventPublisher, Clock.systemUTC());
+    }
+
+    EventServiceImpl(final EventDao eventDao, final UserService userService,
+                     final NotificationService notificationService,
+                     final InboxService inboxService, final ImageService imageService,
+                     final SimilarityParameters similarityParameters,
+                     final ApplicationEventPublisher eventPublisher, final Clock clock) {
         this.eventDao = eventDao;
         this.userService = userService;
-        this.categoryService = categoryService;
         this.notificationService = notificationService;
         this.inboxService = inboxService;
         this.imageService = imageService;
-        this.eventSimilarityService = eventSimilarityService;
+        this.similarityParameters = similarityParameters;
         this.eventPublisher = eventPublisher;
+        this.clock = clock;
     }
 
     // Sube cada imagen y devuelve sus ids, en el mismo orden en que se cargaron
     // (ese orden es el de la galeria, ver Event.imageIds -- la primera es la
     // portada). A proposito DENTRO de la transaccion de quien llama (create()/
     // update()): si algo despues falla (otra imagen invalida, una categoria que
-    // no existe), Spring deshace esto tambien -- antes esto vivia en el
-    // controller, fuera de cualquier transaccion, y una imagen ya subida con
-    // exito podia quedar huerfana si el evento despues no se llegaba a crear.
+    // no existe), Spring deshace esto tambien y no queda ninguna imagen huerfana.
     private List<Long> uploadImages(final List<NewImageData> images) {
         // El form ya lo valida para dar feedback; esto es la defensa del service. Antes de subir nada.
         if (images.size() > Event.MAX_IMAGES) {
@@ -95,21 +101,18 @@ public class EventServiceImpl implements EventService {
     @Transactional
     public EventCreation create(final long creatorId, final EventDTO dto) {
         Objects.requireNonNull(dto, "dto");
-        // El dueno es un objeto User (relacion), no solo su numero; de el sale tambien el mail del creador.
-        // Dentro de la transaccion findById lo trae una vez y despues sale de la memoria.
+        // Se lee la cuenta para el aviso a quien lo crea (su nombre). Dentro de la transaccion findById la trae una
+        // vez y el DAO apunta a esa misma instancia.
         final User creator = userService.findById(creatorId)
-                .orElseThrow(() -> new IllegalArgumentException("No existe el usuario creador " + creatorId));
+                .orElseThrow(() -> new UserNotFoundException(creatorId));
         // Se validan las reglas del evento ANTES de escribir (subir imagenes incluido).
         validateEventDate(dto);
         validateHasCategories(dto);
         final List<Long> imageIds = uploadImages(dto.getNewImages());
-        final Event event = dto.toEvent(creator.getEmail(), imageIds);
-        event.setCreator(creator);
-        addCategories(event, dto.getCategories());
 
         final Event created;
         try {
-            created = eventDao.create(event);
+            created = eventDao.create(creatorId, dto, imageIds);
         } catch (final DataIntegrityViolationException e) {
             throw new InvalidEventException(categoryConstraintViolated(e)
                     ? InvalidEventException.Reason.CATEGORY_NOT_FOUND : InvalidEventException.Reason.INVALID_DATA, e);
@@ -154,7 +157,7 @@ public class EventServiceImpl implements EventService {
     @Transactional(readOnly = true)
     public EventSearchResult search(final EventSearchCriteria criteria) {
         final boolean hasHistory = criteria.getViewerId() != null
-                && eventSimilarityService.hasAttendanceHistory(criteria.getViewerId());
+                && eventDao.hasAttendanceHistory(criteria.getViewerId(), Date.from(clock.instant()));
         final boolean hasText = criteria.hasSearchTerms();
         // RECOMENDADOS solo se ofrece a quien tiene historial: sin el, el orden seria identico a "Mas
         // proximos" y la opcion no diria nada. RELEVANCIA solo si se busco texto: sin texto no hay con que comparar.
@@ -188,20 +191,23 @@ public class EventServiceImpl implements EventService {
 
     private PageResult<Event> searchPage(final EventSearchCriteria criteria) {
         criteria.setPageSize(PAGE_SIZE);
-        // RECOMENDADOS no es una columna: su puntaje lo calcula la base (EventSimilarityService pide la pagina ya
-        // ordenada a EventDao.findRecommendedPage; solo llega aca con historial, y por lo tanto con viewerId).
-        if (criteria.getSort() == EventSort.RECOMENDADOS) {
-            return eventSimilarityService.searchRecommended(criteria);
-        }
         final long totalElements = eventDao.countSearch(criteria);
-        final int totalPages = criteria.getPageSize() <= 0 ? 0
-                : (int) Math.ceil((double) totalElements / criteria.getPageSize());
         // Si pidieron una pagina que no existe, cae a la ultima con resultados (nunca vacia por eso).
-        final int effectivePage = totalPages == 0 ? 1 : Math.min(Math.max(criteria.getPage(), 1), totalPages);
+        final int effectivePage = PageResult.clampPage(criteria.getPage(), totalElements, criteria.getPageSize());
         criteria.setPage(effectivePage);
 
-        final List<Event> content = eventDao.search(criteria);
+        // RECOMENDADOS no es una columna: su puntaje lo calcula la base, que devuelve la pagina ya ordenada (solo se
+        // llega con historial, y por lo tanto con viewerId). El total es el del listado: mismo WHERE.
+        final List<Event> content = criteria.getSort() == EventSort.RECOMENDADOS
+                ? eventDao.findRecommendedPage(criteria, similarityParameters)
+                : eventDao.search(criteria);
         return new PageResult<>(content, totalElements, effectivePage, criteria.getPageSize());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Event> findSimilar(final long eventId, final Long viewerId) {
+        return eventDao.findSimilarTo(eventId, viewerId, similarityParameters);
     }
 
     @Override
@@ -238,13 +244,22 @@ public class EventServiceImpl implements EventService {
         // la galeria vieja. Subirlas aca (no en el controller) las deja dentro
         // de esta misma transaccion: si algo de abajo fallara, se deshacen
         // tambien, no quedan huerfanas.
-        final List<Long> imageIds = dto.getNewImages().isEmpty()
-                ? existing.get().getImageIds()
-                : uploadImages(dto.getNewImages());
-        final Event changes = dto.toEvent(existing.get().getCreatorEmail(), imageIds);
-        changes.setId(eventId);
-        addCategories(changes, dto.getCategories());
-        eventDao.update(changes);
+        final boolean replacesGallery = !dto.getNewImages().isEmpty();
+        // Se copian ya: la lista del evento cambia cuando el dao deja la galeria nueva.
+        final List<Long> previousImageIds = new ArrayList<>(existing.get().getImageIds());
+        final List<Long> imageIds = replacesGallery ? uploadImages(dto.getNewImages()) : previousImageIds;
+        final Event updated;
+        try {
+            updated = eventDao.update(eventId, dto, imageIds).orElseThrow(() -> new EventNotFoundException(eventId));
+        } catch (final DataIntegrityViolationException e) {
+            throw new InvalidEventException(categoryConstraintViolated(e)
+                    ? InvalidEventException.Reason.CATEGORY_NOT_FOUND : InvalidEventException.Reason.INVALID_DATA, e);
+        }
+        // Las fotos que ya no estan en la galeria se borran: si no, quedarian en la base (hasta 5 MB cada una) sin que
+        // ningun evento las muestre.
+        if (replacesGallery) {
+            previousImageIds.forEach(imageService::delete);
+        }
         // Si estaba en CHANGES_REQUESTED, este guardado ES el "reenviar a revision": vuelve solo a
         // PENDING, sin un boton aparte. No toca changes_requested_message (ver EventDao.resubmitForReview()).
         final boolean resubmitted = existing.get().isChangesRequested();
@@ -255,7 +270,7 @@ public class EventServiceImpl implements EventService {
         // confirmados y hacer avanzar la lista de espera si subio el cupo), y MassNotifier, despues del commit y en
         // segundo plano (el mail a los confirmados, de a tandas).
         eventPublisher.publishEvent(new EventUpdatedEvent(eventId));
-        return new EventUpdateOutcome(changes, resubmitted);
+        return new EventUpdateOutcome(updated, resubmitted);
     }
 
     @Override
@@ -269,6 +284,9 @@ public class EventServiceImpl implements EventService {
         final Event event = existing.get();
         if (event.isCancelled()) {
             return EventCancelResult.ALREADY_CANCELLED;
+        }
+        if (event.isFinished()) {
+            return EventCancelResult.FINISHED;
         }
         eventDao.cancel(eventId);
         // A los inscriptos les avisan quienes escuchan este anuncio: RegistrantsEventListener (la bandeja, dentro de
@@ -409,36 +427,10 @@ public class EventServiceImpl implements EventService {
         }
     }
 
-    // insertCategories()/insertImages() (ver EventJdbcDao.create()) son las dos
-    // unicas FK que puede violar este insert: category_id contra una categoria
-    // que no existe, o image_id contra una imagen que ya no esta (subida y
-    // despues borrada entre medio, caso rarisimo). Antes se asumia que
-    // CUALQUIER violacion era la categoria; esto distingue mirando el nombre
-    // de la constraint en el mensaje de la excepcion (event_category_...),
-    // que Postgres arma solo con esa convencion a partir del nombre de tabla
-    // y columna.
-    // El DTO trae las categorias elegidas como numeros (EventCategoryInfo: id + texto); el evento
-    // las guarda como relaciones con objetos Category. Se buscan todas juntas (hay pocas y fijas,
-    // ver data.sql) y se arma una EventCategory por cada una. Una que no existe es un dato
-    // invalido, igual que antes cuando fallaba la clave foranea.
-    private void addCategories(final Event event, final List<EventCategoryInfo> chosen) {
-        // (validateHasCategories() ya exigio al menos una antes de llegar aca.)
-        if (chosen == null || chosen.isEmpty()) {
-            return;
-        }
-        final Map<Long, Category> byId = new HashMap<>();
-        for (final Category category : categoryService.findAll()) {
-            byId.put(category.getId(), category);
-        }
-        for (final EventCategoryInfo info : chosen) {
-            final Category category = byId.get(info.getCategoryId());
-            if (category == null) {
-                throw new InvalidEventException(InvalidEventException.Reason.CATEGORY_NOT_FOUND, "categories");
-            }
-            event.addCategory(new EventCategory(event, category, info.getExtraInfo()));
-        }
-    }
-
+    // Las categorias elegidas viajan como ids (EventCategoryInfo) y las guarda el DAO junto con el evento. Una que
+    // no existe (o una imagen que ya no esta, caso rarisimo: subida y borrada entre medio) viola una clave foranea
+    // de event_category; para distinguirla de otra violacion se mira el nombre de la constraint en el mensaje
+    // (event_category_...), que Postgres arma solo con esa convencion a partir del nombre de tabla y columna.
     private static boolean categoryConstraintViolated(final DataIntegrityViolationException e) {
         final Throwable cause = e.getMostSpecificCause();
         final String message = cause == null ? null : cause.getMessage();

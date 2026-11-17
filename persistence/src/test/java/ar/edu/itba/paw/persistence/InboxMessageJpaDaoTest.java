@@ -463,7 +463,7 @@ public class InboxMessageJpaDaoTest {
         assertEquals(0, count);
     }
 
-    // ---- user_id (Grupo B): linkUserId() ----
+    // ---- user_id (avisos a quien todavia no tenia cuenta): linkUserId() ----
 
     @Test
     public void testLinkUserIdFillsInThePreviouslyUnresolvedMessageAndReturnsHowMany() {

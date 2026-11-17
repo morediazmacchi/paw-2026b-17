@@ -32,8 +32,10 @@ public class User implements RoleHolder {
     @Column(name = "password", length = 100)
     private String password;
 
-    // Los roles viven en la tabla user_role (PK compuesta user_id + role). EAGER: quien
-    // pide un usuario lo necesita ya cargado (autenticacion), no en un segundo paso.
+    // Los roles viven en la tabla user_role (PK compuesta user_id + role). EAGER porque son a lo sumo tres valores y
+    // las reglas del modelo (isAdmin(), isSuperadmin(), RoleHolder) se consultan sobre cualquier User ya cargado, no
+    // solo en el login. Las consultas que traen VARIOS usuarios (findByEmail, findPage, findByIds) los traen con
+    // LEFT JOIN FETCH: asi no se hace una consulta de roles por cada usuario.
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "user_role", joinColumns = @JoinColumn(name = "user_id"))
     @Enumerated(EnumType.STRING)

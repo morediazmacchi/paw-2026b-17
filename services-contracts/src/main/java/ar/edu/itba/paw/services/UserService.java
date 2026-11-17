@@ -40,7 +40,7 @@ public interface UserService {
     Optional<PublicUser> findActivePublicById(long id);
 
     // Una sola consulta para varios ids, para armar un mapa id->User sin un
-    // findById() por cada uno (ver AdminController.seguimiento()/reportQueueView()).
+    // findById() por cada uno.
     List<User> findByIds(List<Long> ids);
 
     /**
@@ -64,7 +64,8 @@ public interface UserService {
      * Registro propio (login/registro). Hashea rawPassword y asigna el rol USER.
      * Si el email ya existe pero es un usuario "fantasma" (fila sin password,
      * que nunca pudo loguearse: puede quedar de datos viejos) reclama esa misma
-     * fila en vez de rechazar el registro. Si el email ya tiene password, EMAIL_TAKEN.
+     * fila en vez de rechazar el registro. Si el email ya tiene password NO se revela: se responde ACCEPTED, igual
+     * que con una cuenta nueva, y se le avisa por mail a la persona dueña de esa cuenta.
      * La cuenta queda sin verificar (ver User.isVerified()) y se le manda un mail
      * con un link de confirmacion: no puede loguearse hasta que lo confirme.
      *
@@ -112,7 +113,7 @@ public interface UserService {
      * diferencia de changePassword(), acá no hace falta la contraseña actual:
      * el token ya demuestra que el mail es de quien dice ser). Consume el token.
      */
-    PasswordResetResult resetPassword(String token, String newPassword);
+    PasswordResetOutcome resetPassword(String token, String newPassword);
 
     /**
      * Actualiza el nombre desde "Mi perfil". El email no se puede cambiar desde

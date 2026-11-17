@@ -1,12 +1,10 @@
-// DTO de entrada para crear un evento (ver EventForm.toDTO() y EventService.create()).
-// No es parte del modelo de dominio (Event), pero vive en este modulo porque
-// tanto webapp (arma el DTO desde el form) como services (lo recibe y arma el
-// Event final) necesitan verlo, sin que webapp dependa de services-contracts
-// para esto ni al reves.
+// DTO de entrada para crear o editar un evento (ver EventForm.toDTO(), EventService.create() y update()).
+// No es parte del modelo de dominio (Event), pero vive en este modulo porque lo ven los tres: webapp lo arma
+// desde el form, services lo valida y persistence arma el Event con estos datos (EventDao.create() y update()).
+// Solo trae datos: el Event lo construye el DAO, no el service.
 package ar.edu.itba.paw.dto;
 
 import ar.edu.itba.paw.model.Barrio;
-import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventCategoryInfo;
 import ar.edu.itba.paw.model.EventVisibility;
 
@@ -23,9 +21,8 @@ public class EventDTO {
     private String address;
     private String addressDetails;
     private Barrio neighborhood;
-    // Bytes crudos, todavia sin guardar: quien arma el Event final (ver toEvent())
-    // necesita los ids ya resueltos, pero resolverlos (ImageService.create())
-    // es una accion con efecto secundario que tiene que pasar DENTRO de la misma
+    // Bytes crudos, todavia sin guardar: el DAO necesita los ids ya resueltos, pero resolverlos
+    // (ImageService.create()) es una accion con efecto secundario que tiene que pasar DENTRO de la misma
     // transaccion que crea/actualiza el evento (ver EventServiceImpl), no antes,
     // en el controller -- si no, una imagen subida con exito pero un evento que
     // despues falla quedan huerfanas en la base, sin transaccion que las una.
@@ -91,25 +88,4 @@ public class EventDTO {
 
     public boolean isParking() { return parking; }
     public void setParking(final boolean parking) { this.parking = parking; }
-
-    // Arma el Event final con estos datos. creatorEmail se pasa aparte (no
-    // this.creatorEmail) porque en una edicion no cambia quien creo el evento:
-    // EventController.editar() llama esto con el email que ya tenia el evento,
-    // no con el de quien lo esta editando. imageIds tambien se pasa aparte (no
-    // sale de newImages): lo resuelve el service, subiendolas dentro de su
-    // propia transaccion, antes de llamar a esto (ver EventServiceImpl).
-    public Event toEvent(final String creatorEmail, final List<Long> imageIds) {
-        final Event event = new Event(title, description, eventDate, address, neighborhood, imageIds, price,
-                maxCapacity, creatorEmail);
-        // Las categorias no se copian aca: "categories" solo trae ids y texto (EventCategoryInfo);
-        // armar las relaciones con objetos Category le toca al service (ver EventServiceImpl).
-        event.setRequiresApproval(requiresApproval);
-        event.setVisibility(visibility);
-        event.setParking(parking);
-        event.setAddressDetails(addressDetails);
-        event.setLatitude(latitude);
-        event.setLongitude(longitude);
-        event.setLocationManual(locationManual);
-        return event;
-    }
 }

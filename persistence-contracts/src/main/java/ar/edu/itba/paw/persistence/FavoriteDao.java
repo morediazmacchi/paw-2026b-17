@@ -1,4 +1,4 @@
-// Contrato de persistencia para favoritos. Implementacion: FavoriteJdbcDao (modulo persistence).
+// Contrato de persistencia para favoritos. Implementacion: FavoriteJpaDao (modulo persistence).
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.Event;

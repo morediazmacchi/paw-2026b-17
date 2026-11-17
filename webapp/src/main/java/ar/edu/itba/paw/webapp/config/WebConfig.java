@@ -33,11 +33,13 @@ import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.PathMatchConfigurer;
+import org.springframework.http.CacheControl;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import org.springframework.web.servlet.view.InternalResourceViewResolver;
 import org.springframework.web.servlet.view.JstlView;
 
+import java.util.concurrent.TimeUnit;
 
 // Contexto de SPRING MVC (lo carga el DispatcherServlet): solo lo que tiene que ver con la
 // web. La persistencia, los services y la seguridad estan en RootConfig (contexto raiz).
@@ -178,8 +180,12 @@ public class WebConfig implements WebMvcConfigurer {
     // Son archivos estaticos, se sirven directo, no son una ruta nuestra (@RequestMapping).
     @Override
     public void addResourceHandlers(final ResourceHandlerRegistry registry) {
-        registry.addResourceHandler("/css/**").addResourceLocations("/css/");
-        registry.addResourceHandler("/js/**").addResourceLocations("/js/");
-        registry.addResourceHandler("/favicon.svg").addResourceLocations("/");
+        // Una hora de cache en el navegador; pasado ese tiempo pregunta con el Last-Modified del archivo y,
+        // si no cambio, el servidor contesta 304 sin volver a mandarlo. Una hora y no mas: las paginas
+        // referencian los archivos sin version en el nombre, y un cambio de estilo tiene que verse pronto.
+        final CacheControl staticCache = CacheControl.maxAge(1, TimeUnit.HOURS);
+        registry.addResourceHandler("/css/**").addResourceLocations("/css/").setCacheControl(staticCache);
+        registry.addResourceHandler("/js/**").addResourceLocations("/js/").setCacheControl(staticCache);
+        registry.addResourceHandler("/favicon.svg").addResourceLocations("/").setCacheControl(staticCache);
     }
 }

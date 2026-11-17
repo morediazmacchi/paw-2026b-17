@@ -2,7 +2,6 @@ package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.EventInvitation;
 import ar.edu.itba.paw.model.Event;
-import ar.edu.itba.paw.model.User;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -78,36 +77,34 @@ public class EventInvitationJpaDaoTest {
         return jdbcTemplate.queryForObject("SELECT id FROM event_invitation ORDER BY id DESC LIMIT 1", Long.class);
     }
 
-    private EventInvitation someInvitation(final long eventId) {
-        return new EventInvitation(em.getReference(Event.class, eventId), INVITEE_EMAIL, CREATOR_EMAIL);
-    }
-
     // ---- create() ----
 
     @Test
     public void testCreateInsertsTheInvitationRowAndReturnsItWithItsId() {
         // Arrange
-        final EventInvitation toCreate = someInvitation(eventId);
+        final long creatorId = insertUser(CREATOR_EMAIL);
 
         // Act
-        final EventInvitation created = invitationDao.create(toCreate);
+        final EventInvitation created = invitationDao.create(eventId, INVITEE_EMAIL, creatorId, null);
 
         // Assert
         assertTrue(created.getId() > 0);
         final Map<String, Object> row = jdbcTemplate.queryForMap(
-                "SELECT event_id, email, invited_by FROM event_invitation WHERE id = ?", created.getId());
+                "SELECT event_id, email, invited_by, invited_by_user_id FROM event_invitation WHERE id = ?",
+                created.getId());
         assertEquals(eventId, ((Number) row.get("event_id")).longValue());
         assertEquals(INVITEE_EMAIL, row.get("email"));
         assertEquals(CREATOR_EMAIL, row.get("invited_by"));
+        assertEquals(creatorId, ((Number) row.get("invited_by_user_id")).longValue());
     }
 
     @Test
     public void testCreateSetsCreatedAtAutomatically() {
         // Arrange
-        final EventInvitation toCreate = someInvitation(eventId);
+        final long creatorId = insertUser(CREATOR_EMAIL);
 
         // Act
-        final EventInvitation created = invitationDao.create(toCreate);
+        final EventInvitation created = invitationDao.create(eventId, INVITEE_EMAIL, creatorId, null);
 
         // Assert
         final Timestamp createdAt = jdbcTemplate.queryForObject(
@@ -118,12 +115,11 @@ public class EventInvitationJpaDaoTest {
     @Test
     public void testCreatePersistsTheOptimisticallyLinkedUserId() {
         // Arrange
+        final long creatorId = insertUser(CREATOR_EMAIL);
         final long inviteeId = insertUser(INVITEE_EMAIL);
-        final EventInvitation toCreate = someInvitation(eventId);
-        toCreate.setUser(em.getReference(User.class, inviteeId));
 
         // Act
-        final EventInvitation created = invitationDao.create(toCreate);
+        final EventInvitation created = invitationDao.create(eventId, INVITEE_EMAIL, creatorId, inviteeId);
 
         // Assert
         final Long storedUserId = jdbcTemplate.queryForObject(
@@ -134,10 +130,10 @@ public class EventInvitationJpaDaoTest {
     @Test
     public void testCreateLeavesUserIdNullWhenTheInviteeHasNoAccount() {
         // Arrange
-        final EventInvitation toCreate = someInvitation(eventId);
+        final long creatorId = insertUser(CREATOR_EMAIL);
 
         // Act
-        final EventInvitation created = invitationDao.create(toCreate);
+        final EventInvitation created = invitationDao.create(eventId, INVITEE_EMAIL, creatorId, null);
 
         // Assert
         final Long storedUserId = jdbcTemplate.queryForObject(
@@ -148,10 +144,11 @@ public class EventInvitationJpaDaoTest {
     @Test(expected = DataAccessException.class)
     public void testCreateWithDuplicateEventAndEmailThrowsDataAccessException() {
         // Arrange
+        final long creatorId = insertUser(CREATOR_EMAIL);
         insertInvitation(eventId, INVITEE_EMAIL, null);
 
         // Act
-        invitationDao.create(new EventInvitation(em.getReference(Event.class, eventId), INVITEE_EMAIL, CREATOR_EMAIL));
+        invitationDao.create(eventId, INVITEE_EMAIL, creatorId, null);
 
         // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
     }

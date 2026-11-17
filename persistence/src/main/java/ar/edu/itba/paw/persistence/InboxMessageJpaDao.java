@@ -62,31 +62,39 @@ public class InboxMessageJpaDao implements InboxMessageDao {
 
     @Override
     public int createForRegistrations(final InboxMessageType type, final Collection<Long> registrationIds) {
-        return em.createNativeQuery(
-                        "INSERT INTO inbox_message (recipient_email, user_id, type, event_id) "
-                                + "SELECT LOWER(TRIM(r.email)), u.id, CAST(:type AS VARCHAR(40)), r.event_id "
-                                + "FROM registration r "
-                                + "LEFT JOIN users u ON u.email = LOWER(TRIM(r.email)) "
-                                + "WHERE r.id IN (:ids)")
-                .setParameter("type", type.name())
-                .setParameter("ids", registrationIds)
-                .executeUpdate();
+        int created = 0;
+        for (final List<Long> chunk : Chunks.of(registrationIds)) {
+            created += em.createNativeQuery(
+                            "INSERT INTO inbox_message (recipient_email, user_id, type, event_id) "
+                                    + "SELECT LOWER(TRIM(r.email)), u.id, CAST(:type AS VARCHAR(40)), r.event_id "
+                                    + "FROM registration r "
+                                    + "LEFT JOIN users u ON u.email = LOWER(TRIM(r.email)) "
+                                    + "WHERE r.id IN (:ids)")
+                    .setParameter("type", type.name())
+                    .setParameter("ids", chunk)
+                    .executeUpdate();
+        }
+        return created;
     }
 
     @Override
     public int createForOrganizerOfRegistrations(final InboxMessageType type, final Collection<Long> registrationIds) {
         // El actor replica Registration.getDisplayName(): el nombre tal cual si hay, el mail si es null o vacio.
-        return em.createNativeQuery(
-                        "INSERT INTO inbox_message (recipient_email, user_id, type, event_id, actor_name) "
-                                + "SELECT LOWER(TRIM(e.creator_email)), u.id, CAST(:type AS VARCHAR(40)), r.event_id, "
-                                + "CASE WHEN r.name IS NULL OR TRIM(r.name) = '' THEN r.email ELSE r.name END "
-                                + "FROM registration r "
-                                + "JOIN event e ON e.id = r.event_id "
-                                + "LEFT JOIN users u ON u.email = LOWER(TRIM(e.creator_email)) "
-                                + "WHERE r.id IN (:ids)")
-                .setParameter("type", type.name())
-                .setParameter("ids", registrationIds)
-                .executeUpdate();
+        int created = 0;
+        for (final List<Long> chunk : Chunks.of(registrationIds)) {
+            created += em.createNativeQuery(
+                            "INSERT INTO inbox_message (recipient_email, user_id, type, event_id, actor_name) "
+                                    + "SELECT LOWER(TRIM(e.creator_email)), u.id, CAST(:type AS VARCHAR(40)), r.event_id, "
+                                    + "CASE WHEN r.name IS NULL OR TRIM(r.name) = '' THEN r.email ELSE r.name END "
+                                    + "FROM registration r "
+                                    + "JOIN event e ON e.id = r.event_id "
+                                    + "LEFT JOIN users u ON u.email = LOWER(TRIM(e.creator_email)) "
+                                    + "WHERE r.id IN (:ids)")
+                    .setParameter("type", type.name())
+                    .setParameter("ids", chunk)
+                    .executeUpdate();
+        }
+        return created;
     }
 
     @Override

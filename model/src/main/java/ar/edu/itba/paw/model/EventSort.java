@@ -8,7 +8,7 @@ public enum EventSort {
     // TextSearchSql). No es una columna: es un puntaje que calcula la base en la misma consulta que pagina.
     // Solo tiene sentido con texto de busqueda; sin el, el service lo reemplaza por el orden por defecto.
     RELEVANCIA,
-    // Segun cuanto se parece cada evento a los que la persona ya asistio (ver EventSimilarityService).
+    // Segun cuanto se parece cada evento a los que la persona ya asistio (ver EventService.search()).
     // No es una columna: es un puntaje que calcula la base de datos en la misma consulta que pagina
     // (EventDao.findRecommendedPage()). Solo tiene sentido con EventSearchCriteria.viewerId y algun
     // evento asistido; sin eso el listado cae a FECHA_ASC.

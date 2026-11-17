@@ -107,11 +107,15 @@
                                      suspenderse ni sacarse su propio rol ADMIN. --%>
                                 <c:if test="${not targetUser.isSameAccountAs(currentUserId)}">
                                     <c:choose>
+                                        <%-- Reactivar sigue la misma regla que suspender (ver AdminSecurity.canReactivate):
+                                             a un admin suspendido solo lo reactiva un superadmin. --%>
                                         <c:when test="${targetUser.suspended}">
-                                            <form action="<c:url value='/admin/usuarios/${targetUser.id}/reactivar'/>" method="post">
-                                                <input type="hidden" name="returnTo" value="${fn:escapeXml(returnTo)}"/>
-                                                <paw:button text="${reactivateButtonLabel}"/>
-                                            </form>
+                                            <c:if test="${targetUser.canBeSuspendedBy(callerIsSuperadmin)}">
+                                                <form action="<c:url value='/admin/usuarios/${targetUser.id}/reactivar'/>" method="post">
+                                                    <input type="hidden" name="returnTo" value="${fn:escapeXml(returnTo)}"/>
+                                                    <paw:button text="${reactivateButtonLabel}"/>
+                                                </form>
+                                            </c:if>
                                         </c:when>
                                         <%-- A un admin solo lo suspende un superadmin (ver AdminController.suspender). --%>
                                         <c:when test="${targetUser.canBeSuspendedBy(callerIsSuperadmin)}">

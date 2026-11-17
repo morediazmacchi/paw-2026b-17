@@ -314,27 +314,44 @@ public class EventRecommendationJpaDaoTest {
         assertEquals(list(music, sports), recommended(onlyCategory()));
     }
 
-    @Test
-    public void testThePageIsRankedAcrossTheWholeResultAndNotWithinEachPage() {
-        // Arrange: el mejor candidato es el ULTIMO por fecha
+    // 3 candidatos: el mejor (misma categoria que lo asistido) es el ULTIMO por fecha. Devuelve [a, b, best].
+    private long[] arrangeABestCandidateThatIsLastByDate() {
         attended(cols(), musica);
         final long a = insertEvent(cols("event_date", future(1)), deportes);
         final long b = insertEvent(cols("event_date", future(2)), deportes);
         final long best = insertEvent(cols("event_date", future(9)), musica);
-        final EventSearchCriteria first = listing();
-        first.setPageSize(2);
-        first.setPage(1);
-        final EventSearchCriteria second = listing();
-        second.setPageSize(2);
-        second.setPage(2);
+        return new long[] {a, b, best};
+    }
+
+    private EventSearchCriteria pageOfTwo(final int page) {
+        final EventSearchCriteria criteria = listing();
+        criteria.setPageSize(2);
+        criteria.setPage(page);
+        return criteria;
+    }
+
+    @Test
+    public void testTheFirstPageHasTheBestCandidatesOfTheWholeResultNotJustTheNearestOnes() {
+        // Arrange: el mejor candidato es el ULTIMO por fecha
+        final long[] candidates = arrangeABestCandidateThatIsLastByDate();
 
         // Act
-        final List<Long> firstPage = recommended(first, onlyCategory());
-        final List<Long> secondPage = recommended(second, onlyCategory());
+        final List<Long> firstPage = recommended(pageOfTwo(1), onlyCategory());
 
         // Assert
-        assertEquals(list(best, a), firstPage);
-        assertEquals(list(b), secondPage);
+        assertEquals(list(candidates[2], candidates[0]), firstPage);
+    }
+
+    @Test
+    public void testTheSecondPageHasWhatIsLeftAfterRankingTheWholeResult() {
+        // Arrange
+        final long[] candidates = arrangeABestCandidateThatIsLastByDate();
+
+        // Act
+        final List<Long> secondPage = recommended(pageOfTwo(2), onlyCategory());
+
+        // Assert
+        assertEquals(list(candidates[1]), secondPage);
     }
 
     @Test

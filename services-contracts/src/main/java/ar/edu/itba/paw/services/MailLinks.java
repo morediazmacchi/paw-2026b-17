@@ -38,4 +38,7 @@ public interface MailLinks {
 
     // Restablecer la contraseña con ese token.
     String resetPassword(String token);
+
+    // Pedir el mail para restablecer la contraseña ("olvide mi contraseña").
+    String forgotPassword();
 }

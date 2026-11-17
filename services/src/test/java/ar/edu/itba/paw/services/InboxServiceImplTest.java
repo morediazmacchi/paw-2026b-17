@@ -1,6 +1,5 @@
 package ar.edu.itba.paw.services;
 
-import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.InboxMessage;
 import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.RegistrationStatus;
@@ -145,22 +144,6 @@ public class InboxServiceImplTest {
 
         // Assert
         assertEquals(messages, result.getMessages().getContent());
-    }
-
-    @Test
-    public void testFindPageWithEventsIndexesTheReferencedEventsById() {
-        // Arrange: dos avisos del mismo evento y uno sin evento (cada aviso ya trae su evento)
-        final InboxMessage first = messageAbout(7L);
-        final InboxMessage withoutEvent = new InboxMessage("ana@mail.com", InboxMessageType.NEW_PENDING, null, "Juan", null);
-        when(inboxDao.findByRecipientUserId(USER_ID, 1, InboxServiceImpl.PAGE_SIZE))
-                .thenReturn(Arrays.asList(first, messageAbout(7L), withoutEvent));
-        when(inboxDao.countByUserId(USER_ID)).thenReturn(3L);
-
-        // Act
-        final InboxPage result = inboxService.findPageWithEvents(USER_ID, 1);
-
-        // Assert
-        assertEquals(Collections.singleton(7L), result.getEventsById().keySet());
     }
 
     // ---- linkAccount() ----

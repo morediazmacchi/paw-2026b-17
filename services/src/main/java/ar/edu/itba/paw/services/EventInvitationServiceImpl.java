@@ -4,12 +4,12 @@ package ar.edu.itba.paw.services;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventInvitation;
 import ar.edu.itba.paw.model.InboxMessageType;
+import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.persistence.EventInvitationDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 
 @Service
 public class EventInvitationServiceImpl implements EventInvitationService {
@@ -82,14 +82,13 @@ public class EventInvitationServiceImpl implements EventInvitationService {
             return EventInvitationResult.FULL;
         }
 
-        final EventInvitation invitation = new EventInvitation(event, normalizedEmail, event.getCreatorEmail());
         // Quien invita es el creador del evento (lo decide @PreAuthorize en el controller).
-        invitation.setInvitedByUser(event.getCreator());
-        // Optimista (Grupo B, ver schema.sql): si el invitado ya tiene cuenta,
+        // Optimista (ver schema.sql): si el invitado ya tiene cuenta,
         // se enlaza de una. Si no, queda en null y se reconcilia solo cuando
         // se registre (ver UserServiceImpl.register()).
-        userService.findByEmail(normalizedEmail).ifPresent(invitation::setUser);
-        invitationDao.create(invitation);
+        final Long inviteeUserId = userService.findByEmail(normalizedEmail).map(User::getId).orElse(null);
+        final EventInvitation invitation =
+                invitationDao.create(eventId, normalizedEmail, event.getCreator().getId(), inviteeUserId);
         notificationService.notifyEventInvitation(event, invitation);
         inboxService.add(normalizedEmail, InboxMessageType.PRIVATE_INVITE, eventId, null, null);
         return EventInvitationResult.SENT;

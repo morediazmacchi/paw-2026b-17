@@ -1,7 +1,6 @@
 // Implementa el contrato InboxService (modulo services-contracts).
 package ar.edu.itba.paw.services;
 
-import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.InboxMessage;
 import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.RegistrationStatus;
@@ -11,9 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 @Service
@@ -83,8 +80,7 @@ public class InboxServiceImpl implements InboxService {
     @Transactional(readOnly = true)
     public PageResult<InboxMessage> findPage(final long userId, final int page) {
         final long totalElements = inboxMessageDao.countByUserId(userId);
-        final int totalPages = (int) Math.ceil((double) totalElements / PAGE_SIZE);
-        final int effectivePage = totalPages == 0 ? 1 : Math.min(Math.max(page, 1), totalPages);
+        final int effectivePage = PageResult.clampPage(page, totalElements, PAGE_SIZE);
         return new PageResult<>(inboxMessageDao.findByRecipientUserId(userId, effectivePage, PAGE_SIZE),
                 totalElements, effectivePage, PAGE_SIZE);
     }
@@ -92,15 +88,8 @@ public class InboxServiceImpl implements InboxService {
     @Override
     @Transactional(readOnly = true)
     public InboxPage findPageWithEvents(final long userId, final int page) {
-        final PageResult<InboxMessage> messages = findPage(userId, page);
         // El evento de cada aviso ya viene con la pagina (el DAO lo trae en la misma consulta): no se busca aparte.
-        final Map<Long, Event> eventsById = new HashMap<>();
-        for (final InboxMessage message : messages.getContent()) {
-            if (message.getEvent() != null) {
-                eventsById.put(message.getEventId(), message.getEvent());
-            }
-        }
-        return new InboxPage(messages, eventsById);
+        return new InboxPage(findPage(userId, page));
     }
 
     @Override

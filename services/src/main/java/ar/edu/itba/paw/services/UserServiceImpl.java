@@ -11,6 +11,7 @@ import ar.edu.itba.paw.model.Image;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.UserAccess;
 import ar.edu.itba.paw.model.VerificationToken;
+import ar.edu.itba.paw.model.exception.UserNotFoundException;
 import ar.edu.itba.paw.persistence.UserDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
@@ -93,8 +94,7 @@ public class UserServiceImpl implements UserService {
         final String text = emailText == null ? "" : emailText.trim();
         final String bounded = text.length() > MAX_EMAIL_SEARCH_LENGTH ? text.substring(0, MAX_EMAIL_SEARCH_LENGTH) : text;
         final long totalElements = userDao.count(bounded);
-        final int totalPages = (int) Math.ceil((double) totalElements / PAGE_SIZE);
-        final int effectivePage = totalPages == 0 ? 1 : Math.min(Math.max(page, 1), totalPages);
+        final int effectivePage = PageResult.clampPage(page, totalElements, PAGE_SIZE);
         final List<User> content = userDao.findPage(bounded, PAGE_SIZE, (effectivePage - 1) * PAGE_SIZE);
         return new PageResult<>(content, totalElements, effectivePage, PAGE_SIZE);
     }
@@ -121,7 +121,11 @@ public class UserServiceImpl implements UserService {
         if (existing.isPresent()) {
             final User user = existing.get();
             if (user.getPassword() != null) {
-                return UserRegistrationResult.EMAIL_TAKEN;
+                // Quien se registra no tiene que poder averiguar que este mail ya tiene cuenta (se podria
+                // recorrer una lista de mails): recibe el mismo resultado que con una cuenta nueva, y la que
+                // se entera es la dueña de la cuenta, por mail.
+                notificationService.notifyAccountAlreadyRegistered(user);
+                return UserRegistrationResult.ACCEPTED;
             }
             // Usuario fantasma (findOrCreate, nunca tuvo password ni pudo
             // loguearse): registrarse con ese email lo completa, no lo pisa.
@@ -137,17 +141,19 @@ public class UserServiceImpl implements UserService {
                 // esto hacia el controller como un 500.
                 // Con JPA, el insert fallido ya dejo la transaccion marcada para rollback: se lo
                 // decimos explicitamente, asi Spring hace rollback sin tirar UnexpectedRollbackException.
+                // La otra solicitud es la que crea la cuenta y manda el mail de confirmacion: a esta le
+                // contestamos igual que a un registro normal.
                 RollbackOnly.ifInTransaction();
-                return UserRegistrationResult.EMAIL_TAKEN;
+                return UserRegistrationResult.ACCEPTED;
             }
         }
-        // Reconciliacion del Grupo B: si esta persona ya venia con invitaciones
+        // Reconciliacion: si esta persona ya venia con invitaciones
         // o avisos de bandeja sin resolver (invitada sin cuenta, ver
         // EventInvitationServiceImpl.invite()/InboxServiceImpl.add()), ahora
         // que tiene un id se los enlazamos. Lo hace UserRegistrationListener al escuchar este anuncio (en esta misma
         // transaccion); no hace nada si no tenia ninguno.
         eventPublisher.publishEvent(new UserRegisteredEvent(normalizedEmail, userId));
-        // El hash recien aca, despues del chequeo de EMAIL_TAKEN: BCrypt es lento
+        // El hash recien aca, despues de descartar el mail que ya tiene cuenta: BCrypt es lento
         // a proposito y no tiene sentido pagarlo si el registro se rechaza.
         userDao.setPassword(userId, passwordEncoder.encode(data.getRawPassword()));
         userDao.addRole(userId, Role.USER);
@@ -162,9 +168,9 @@ public class UserServiceImpl implements UserService {
         if (!existing.map(User::getLocale).isPresent()) {
             userDao.setLocale(userId, LocaleContextHolder.getLocale().getLanguage());
         }
-        sendVerificationEmail(userDao.findById(userId).orElseThrow(IllegalStateException::new),
+        sendVerificationEmail(userDao.findById(userId).orElseThrow(() -> new UserNotFoundException(userId)),
                 data.getRedirectAfterConfirm());
-        return UserRegistrationResult.CREATED;
+        return UserRegistrationResult.ACCEPTED;
     }
 
     @Override
@@ -215,20 +221,20 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public PasswordResetResult resetPassword(final String token, final String newPassword) {
+    public PasswordResetOutcome resetPassword(final String token, final String newPassword) {
         final Optional<VerificationToken> found = validToken(token, TokenPurpose.RESET_PASSWORD);
         if (!found.isPresent()) {
-            return PasswordResetResult.INVALID_TOKEN;
+            return PasswordResetOutcome.rejected(PasswordResetResult.INVALID_TOKEN);
         }
         if (isWeak(newPassword)) {
-            return PasswordResetResult.WEAK_PASSWORD;
+            return PasswordResetOutcome.rejected(PasswordResetResult.WEAK_PASSWORD);
         }
         final long userId = found.get().getUserId();
         userDao.setPassword(userId, passwordEncoder.encode(newPassword));
         tokenService.delete(token);
         // Cualquier sesion que ya tuviera esa cuenta deja de valer (por eso se pidio restablecer la clave).
         eventPublisher.publishEvent(new UserCredentialsChangedEvent(userId, false));
-        return PasswordResetResult.OK;
+        return PasswordResetOutcome.reset(userDao.findById(userId).orElseThrow(() -> new UserNotFoundException(userId)));
     }
 
     // Una contraseña mas corta que el minimo no se guarda (ver UserService.MIN_PASSWORD_LENGTH).
@@ -315,7 +321,7 @@ public class UserServiceImpl implements UserService {
     public ChangePasswordResult changePassword(final long userId, final String currentPassword,
                                                final String newPassword) {
         final User user = userDao.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("Usuario inexistente: " + userId));
+                .orElseThrow(() -> new UserNotFoundException(userId));
 
         if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
             return ChangePasswordResult.WRONG_CURRENT_PASSWORD;
@@ -343,27 +349,31 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public boolean suspend(final long userId) {
-        final boolean changed = userDao.setSuspended(userId, true);
+        // false si no existe o ya estaba suspendida: en ese caso no se avisa otra vez (ni mail ni bandeja).
+        if (!userDao.setSuspended(userId, true)) {
+            return false;
+        }
         userDao.findById(userId).ifPresent(user -> {
             notificationService.notifyUserSuspended(user);
             addInboxMessage(user, InboxMessageType.ACCOUNT_SUSPENDED, null);
         });
-        if (changed) {
-            // Las sesiones abiertas de esa cuenta dejan de valer: la web las cierra despues del commit.
-            eventPublisher.publishEvent(new UserAccessRevokedEvent(userId));
-        }
-        return changed;
+        // Las sesiones abiertas de esa cuenta dejan de valer: la web las cierra despues del commit.
+        eventPublisher.publishEvent(new UserAccessRevokedEvent(userId));
+        return true;
     }
 
     @Override
     @Transactional
     public boolean reactivate(final long userId) {
-        final boolean changed = userDao.setSuspended(userId, false);
+        // false si no existe o no estaba suspendida: no se le avisa "te reactivamos" a quien nunca estuvo suspendida.
+        if (!userDao.setSuspended(userId, false)) {
+            return false;
+        }
         userDao.findById(userId).ifPresent(user -> {
             notificationService.notifyUserReactivated(user);
             addInboxMessage(user, InboxMessageType.ACCOUNT_REACTIVATED, null);
         });
-        return changed;
+        return true;
     }
 
     @Override

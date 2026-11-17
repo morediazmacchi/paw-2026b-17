@@ -10,7 +10,7 @@ import java.util.List;
 
 /**
  * Avisa de los eventos nuevos de las busquedas guardadas. Corre solo, en su propio hilo y fuera de cualquier request:
- * aprobar un evento no tiene que esperar a que se recorran todas las busquedas guardadas (correccion 10).
+ * aprobar un evento no tiene que esperar a que se recorran todas las busquedas guardadas.
  *
  * Recorre las busquedas de a tandas (TANDA ids por consulta), nunca todas juntas en memoria. Cada notifyNewEvents()
  * es una llamada a otro bean: pasa por el proxy de Spring y abre su propia transaccion, asi una busqueda que falla no
@@ -39,6 +39,12 @@ public class SavedSearchScheduler {
 
     @Scheduled(fixedDelay = CADA_QUINCE_MINUTOS, initialDelay = AL_ARRANCAR)
     public int notifyNewEvents() {
+        // Sin eventos aprobados desde la marca mas vieja no hay nada que avisar: se evita mirar cada busqueda (3
+        // consultas por busqueda) cuando en este rato no se aprobo nada. Las marcas no se corren: cada busqueda sigue
+        // contando desde la suya, asi que un evento aprobado despues entra igual en la proxima ventana.
+        if (!savedSearchService.mayHaveNewEvents()) {
+            return 0;
+        }
         int notified = 0;
         long lastId = 0;
         List<Long> batch;

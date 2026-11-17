@@ -15,7 +15,7 @@ import java.util.Optional;
 // @Transactional aca documenta la garantia que promete cada metodo (cual lee
 // nada mas, cual puede escribir y bajo que regla de rollback). La implementacion
 // real de esa garantia la arma el proxy de Spring sobre RegistrationServiceImpl
-// (ver @EnableTransactionManagement en WebConfig), no esta anotacion por si sola.
+// (ver @EnableTransactionManagement en RootConfig), no esta anotacion por si sola.
 public interface RegistrationService {
 
     /**
@@ -142,17 +142,10 @@ public interface RegistrationService {
     List<Registration> findByIds(List<Long> ids);
 
     /**
-     * Lo mismo que findByEventId pero de a una pagina, para las pantallas "Ver inscriptos" del
-     * organizador y del admin. Mismo requisito: quien llama verifica antes quien pregunta. Una pagina
-     * mayor a la ultima devuelve la ultima, una menor a 1 la primera; sin inscriptos, la pagina 1 vacia.
-     */
-    @Transactional(readOnly = true)
-    PageResult<Registration> findPageByEventId(long eventId, int page);
-
-    /**
      * Las pantallas "Ver inscriptos" (la del organizador y la del admin) en una sola lectura: el evento y una pagina
-     * de sus inscripciones (ver {@link #findPageByEventId}). Vacio si el evento no existe. Quien la puede ver (el
-     * organizador, o un admin) lo decide la seguridad en el controller, no este metodo.
+     * de sus inscripciones. Una pagina mayor a la ultima devuelve la ultima, una menor a 1 la primera; sin inscriptos,
+     * la pagina 1 vacia. Vacio si el evento no existe. Quien la puede ver (el organizador, o un admin) lo decide la
+     * seguridad en el controller, no este metodo.
      */
     @Transactional(readOnly = true)
     Optional<EventRegistrants> findRegistrants(long eventId, int page);

@@ -55,7 +55,7 @@ public class EventQuestionServiceImpl implements EventQuestionService {
         }
         // El nombre y el mail salen de la cuenta, no de la sesion (que solo lleva lo que hace falta para autorizar).
         final User asker = userService.findById(askerId).orElseThrow(() -> new UserNotFoundException(askerId));
-        final EventQuestion question = questionDao.create(new EventQuestion(event, asker, body));
+        final EventQuestion question = questionDao.create(eventId, askerId, body);
 
         inboxService.add(event.getCreatorEmail(), InboxMessageType.NEW_QUESTION, eventId,
                 displayName(asker.getName(), asker.getEmail()), null);
@@ -104,8 +104,7 @@ public class EventQuestionServiceImpl implements EventQuestionService {
     @Transactional(readOnly = true)
     public PageResult<EventQuestion> findPage(final long eventId, final int page) {
         final long totalElements = questionDao.countByEvent(eventId);
-        final int totalPages = (int) Math.ceil((double) totalElements / PAGE_SIZE);
-        final int effectivePage = totalPages == 0 ? 1 : Math.min(Math.max(page, 1), totalPages);
+        final int effectivePage = PageResult.clampPage(page, totalElements, PAGE_SIZE);
         return new PageResult<>(questionDao.findByEvent(eventId, effectivePage, PAGE_SIZE),
                 totalElements, effectivePage, PAGE_SIZE);
     }

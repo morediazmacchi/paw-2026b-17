@@ -157,11 +157,9 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     // Limites de fecha: nunca antes de hoy, nunca mas de 2 anios a partir de
-    // hoy (mismo tope que EventController). Antes esto se lo pasabamos al
-    // <input type="date"> nativo via min/max para que el navegador solo
-    // rechazara lo invalido; ahora que ese input es hidden (lo reemplaza el
-    // almanaque de mas abajo), los mismos limites se usan a mano para
-    // deshabilitar los dias fuera de rango en la grilla.
+    // hoy (mismo tope que EventService). El input real es hidden (lo reemplaza el
+    // almanaque de mas abajo), asi que el navegador no valida min/max: los limites
+    // se usan a mano para deshabilitar los dias fuera de rango en la grilla.
     var today = new Date();
     today.setHours(0, 0, 0, 0);
     var minDate = today;

@@ -8,18 +8,13 @@ import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.ReportStatus;
 import ar.edu.itba.paw.model.ReportStatusFilter;
 import ar.edu.itba.paw.model.ReportTarget;
-import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
-import ar.edu.itba.paw.model.exception.UserNotFoundException;
 import ar.edu.itba.paw.persistence.EventReportDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Service
 public class ModerationServiceImpl implements ModerationService {
@@ -63,9 +58,7 @@ public class ModerationServiceImpl implements ModerationService {
         if (eventReportDao.existsPendingByEventAndReporter(eventId, reporterId)) {
             return ReportResult.ALREADY_REPORTED;
         }
-        // La cuenta se lee de la base: la sesion solo lleva lo que hace falta para autorizar (ver PlancitoUserDetails).
-        final User reporter = userService.findById(reporterId).orElseThrow(() -> new UserNotFoundException(reporterId));
-        eventReportDao.create(new EventReport(event, reporter, reason));
+        eventReportDao.create(eventId, reporterId, reason);
         return ReportResult.CREATED;
     }
 
@@ -81,21 +74,8 @@ public class ModerationServiceImpl implements ModerationService {
     @Override
     @Transactional(readOnly = true)
     public ReportQueuePage searchQueue(final String query, final ReportStatusFilter filter, final int page) {
-        final PageResult<EventReport> reports = searchPage(query, filter, page);
-        // Los eventos reportados, quienes reportaron y los admins que pidieron cambios: una consulta por
-        // grupo (no una por reporte), para mostrar la pagina sin que el caller tenga que ir a buscarlos.
-        final List<Long> eventIds = reports.getContent().stream()
-                .map(EventReport::getEventId).distinct().collect(Collectors.toList());
-        final List<Long> reporterIds = reports.getContent().stream()
-                .map(EventReport::getReporterUserId).distinct().collect(Collectors.toList());
-        final List<Long> requestedByIds = reports.getContent().stream()
-                .map(EventReport::getChangesRequestedByUserId).filter(Objects::nonNull).distinct()
-                .collect(Collectors.toList());
-        return new ReportQueuePage(reports,
-                eventService.findByIds(eventIds).stream().collect(Collectors.toMap(Event::getId, e -> e)),
-                userService.findByIds(reporterIds).stream().collect(Collectors.toMap(User::getId, u -> u)),
-                userService.findByIds(requestedByIds).stream().collect(Collectors.toMap(User::getId, u -> u)),
-                eventReportDao.countStatuses());
+        // Cada reporte ya trae su evento y las cuentas involucradas (las carga la misma consulta del DAO).
+        return new ReportQueuePage(searchPage(query, filter, page), eventReportDao.countStatuses());
     }
 
     @Override

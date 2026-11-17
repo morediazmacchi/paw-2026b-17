@@ -12,5 +12,10 @@ public enum EventCancelResult {
     // Ya estaba cancelado. Se distingue de CANCELLED para no volver a mandar
     // los mails de aviso si alguien clickea "Cancelar" dos veces (dos tabs,
     // doble click, etc.).
-    ALREADY_CANCELLED
+    ALREADY_CANCELLED,
+
+    // El evento ya paso: no se cancela (a quienes fueron no se les puede avisar que "se cancelo" algo que sucedio).
+    // Solo lo devuelve cancel() (el del creador): una baja por moderacion (removeByAdmin()) si puede alcanzar a uno ya
+    // realizado.
+    FINISHED
 }

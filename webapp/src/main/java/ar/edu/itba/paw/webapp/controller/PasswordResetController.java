@@ -1,7 +1,10 @@
 package ar.edu.itba.paw.webapp.controller;
 
+import javax.servlet.http.HttpServletRequest;
+import ar.edu.itba.paw.services.PasswordResetOutcome;
 import ar.edu.itba.paw.services.PasswordResetResult;
 import ar.edu.itba.paw.services.UserService;
+import ar.edu.itba.paw.webapp.auth.AutoLogin;
 import ar.edu.itba.paw.webapp.form.ForgotPasswordForm;
 import ar.edu.itba.paw.webapp.form.ResetPasswordForm;
 import ar.edu.itba.paw.webapp.util.FormErrors;
@@ -22,11 +25,14 @@ public class PasswordResetController {
 
     private final UserService userService;
     private final MessageSource messageSource;
+    private final AutoLogin autoLogin;
 
     @Autowired
-    public PasswordResetController(final UserService userService, final MessageSource messageSource) {
+    public PasswordResetController(final UserService userService, final MessageSource messageSource,
+                                   final AutoLogin autoLogin) {
         this.userService = userService;
         this.messageSource = messageSource;
+        this.autoLogin = autoLogin;
     }
 
     @RequestMapping(value = "/login/recuperar", method = RequestMethod.GET)
@@ -65,17 +71,23 @@ public class PasswordResetController {
     }
 
     @RequestMapping(value = "/login/restablecer", method = RequestMethod.POST)
-    public ModelAndView resetPassword(@Valid final ResetPasswordForm form, final BindingResult errors) {
+    public ModelAndView resetPassword(@Valid final ResetPasswordForm form, final BindingResult errors,
+                                      final HttpServletRequest request) {
         if (errors.hasErrors()) {
             return resetPasswordFormWithErrors(form, errors);
         }
-        final PasswordResetResult result = userService.resetPassword(form.getToken(), form.getPassword());
-        if (result == PasswordResetResult.INVALID_TOKEN) {
+        final PasswordResetOutcome outcome = userService.resetPassword(form.getToken(), form.getPassword());
+        if (outcome.getResult() == PasswordResetResult.INVALID_TOKEN) {
             return new ModelAndView("redirect:/login/recuperar");
         }
-        if (result == PasswordResetResult.WEAK_PASSWORD) {
+        if (outcome.getResult() == PasswordResetResult.WEAK_PASSWORD) {
             errors.rejectValue("password", "Size.resetPasswordForm.password");
             return resetPasswordFormWithErrors(form, errors);
+        }
+        // Demostro ser dueña de la cuenta con el link del mail: queda con la sesion iniciada (la sesion que tuviera
+        // esa cuenta ya la cerro el service al cambiar la contraseña). Si la cuenta no esta activa, va al login.
+        if (autoLogin.login(outcome.getUser().getEmail(), request)) {
+            return new ModelAndView("redirect:/eventos");
         }
         return new ModelAndView("redirect:/login?passwordReset");
     }

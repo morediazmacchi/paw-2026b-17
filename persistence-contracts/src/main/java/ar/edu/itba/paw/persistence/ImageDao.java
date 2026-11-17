@@ -1,4 +1,4 @@
-// Contrato de persistencia para Image. Implementacion: ImageJdbcDao (modulo persistence).
+// Contrato de persistencia para Image. Implementacion: ImageJpaDao (modulo persistence).
 package ar.edu.itba.paw.persistence;
 
 import ar.edu.itba.paw.model.EventAccessSummary;

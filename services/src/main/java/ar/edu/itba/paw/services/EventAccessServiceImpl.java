@@ -1,11 +1,11 @@
 // Implementa el contrato EventAccessService (modulo services-contracts).
 package ar.edu.itba.paw.services;
 
+import java.util.Optional;
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventAccessData;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.exception.EventCancelledException;
-import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import ar.edu.itba.paw.model.exception.EventRejectedException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -94,14 +94,15 @@ public class EventAccessServiceImpl implements EventAccessService {
 
     @Override
     @Transactional(readOnly = true)
-    public Event getEditableEvent(final long eventId) {
-        final Event event = eventService.findById(eventId).orElseThrow(() -> new EventNotFoundException(eventId));
-        if (event.isCancelled()) {
-            throw new EventCancelledException(eventId);
-        }
-        if (event.isRejected()) {
-            throw new EventRejectedException(eventId);
-        }
-        return event;
+    public Optional<Event> getEditableEvent(final long eventId) {
+        return eventService.findById(eventId).map(event -> {
+            if (event.isCancelled()) {
+                throw new EventCancelledException(eventId);
+            }
+            if (event.isRejected()) {
+                throw new EventRejectedException(eventId);
+            }
+            return event;
+        });
     }
 }
