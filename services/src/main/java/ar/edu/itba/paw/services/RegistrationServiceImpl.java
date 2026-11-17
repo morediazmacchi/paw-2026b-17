@@ -539,21 +539,21 @@ public class RegistrationServiceImpl implements RegistrationService {
     }
 
     private void moveRemainingPendingToWaitlist(final Event event) {
-        final List<Registration> moved = new ArrayList<>();
-        for (final Registration pending : registrationDao.findPendingByEvent(event.getId())) {
-            registrationDao.updateStatus(pending.getId(), RegistrationStatus.WAITLISTED);
-            pending.setStatus(RegistrationStatus.WAITLISTED);
-            moved.add(pending);
-        }
+        final List<Registration> moved = registrationDao.findPendingByEvent(event.getId());
         if (moved.isEmpty()) {
             return;
         }
-        // Pueden ser muchos (todos los pendientes del evento): nada de un aviso ni un mail por vuelta. La bandeja,
-        // una sola sentencia con los ids exactos de los que acaban de pasar (no por estado: agarraria tambien a
-        // los que ya estaban en espera); los mails, todos en una sola tarea (en otro hilo, despues del commit).
-        inboxService.addForRegistrations(InboxMessageType.REGISTERED_WAITLISTED,
-                moved.stream().map(Registration::getId).collect(Collectors.toList()));
+        // Pueden ser muchos (todos los pendientes del evento, que esta bloqueado mientras tanto): nada de un UPDATE,
+        // un aviso ni un mail por vuelta. El estado, una sola sentencia; la bandeja, una sola sentencia con los ids
+        // exactos de los que acaban de pasar (no por estado: agarraria tambien a los que ya estaban en espera); los
+        // mails, todos en una sola tarea (en otro hilo, despues del commit).
+        registrationDao.updateStatusOfAll(moved, RegistrationStatus.WAITLISTED);
+        inboxService.addForRegistrations(InboxMessageType.REGISTERED_WAITLISTED, idsOf(moved));
         notificationService.notifyWaitlistJoined(event, moved);
+    }
+
+    private static List<Long> idsOf(final List<Registration> registrations) {
+        return registrations.stream().map(Registration::getId).collect(Collectors.toList());
     }
 
     @Override
@@ -647,23 +647,24 @@ public class RegistrationServiceImpl implements RegistrationService {
             return 0;
         }
         final List<Registration> next = registrationDao.findNextWaitlisted(eventId, (int) free);
-        for (final Registration registration : next) {
-            if (toPending) {
-                registrationDao.updateStatus(registration.getId(), RegistrationStatus.PENDING);
-                registration.setStatus(RegistrationStatus.PENDING);
-                notificationService.notifyRegistrationPending(event, registration);
-                notificationService.notifyNewPendingRegistration(event, registration);
-                inboxService.add(registration.getEmail(), InboxMessageType.REGISTERED_PENDING, eventId, null, null);
-                inboxService.add(event.getCreatorEmail(), InboxMessageType.NEW_PENDING, eventId,
-                        registration.getDisplayName(), null);
-            } else {
-                registrationDao.updateStatus(registration.getId(), RegistrationStatus.CONFIRMED);
-                registration.setStatus(RegistrationStatus.CONFIRMED);
-                notificationService.notifyWaitlistPromoted(event, registration);
-                inboxService.add(registration.getEmail(), InboxMessageType.WAITLIST_PROMOTED, eventId, null, null);
-                inboxService.add(event.getCreatorEmail(), InboxMessageType.NEW_REGISTRATION, eventId,
-                        registration.getDisplayName(), null);
-            }
+        if (next.isEmpty()) {
+            return 0;
+        }
+        // Todos juntos y no uno por vuelta: el evento esta bloqueado (FOR UPDATE) hasta el commit y, con el cupo
+        // sacado, entra toda la lista de espera. El estado, una sola sentencia; la bandeja, dos (la de cada persona y la
+        // del organizador, con el nombre de esa persona), con los ids exactos; los mails, una tarea por tipo.
+        final List<Long> ids = idsOf(next);
+        if (toPending) {
+            registrationDao.updateStatusOfAll(next, RegistrationStatus.PENDING);
+            notificationService.notifyRegistrationPending(event, next);
+            notificationService.notifyNewPendingRegistration(event, next);
+            inboxService.addForRegistrations(InboxMessageType.REGISTERED_PENDING, ids);
+            inboxService.addForOrganizerOfRegistrations(InboxMessageType.NEW_PENDING, ids);
+        } else {
+            registrationDao.updateStatusOfAll(next, RegistrationStatus.CONFIRMED);
+            notificationService.notifyWaitlistPromoted(event, next);
+            inboxService.addForRegistrations(InboxMessageType.WAITLIST_PROMOTED, ids);
+            inboxService.addForOrganizerOfRegistrations(InboxMessageType.NEW_REGISTRATION, ids);
         }
         return next.size();
     }

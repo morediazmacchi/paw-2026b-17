@@ -825,6 +825,48 @@ public class RegistrationJpaDaoTest {
                 "id = " + otherId + " AND status = 'PENDING'"));
     }
 
+    // ---- updateStatusOfAll() ----
+
+    private static Registration withId(final long id) {
+        final Registration registration = new Registration();
+        registration.setId(id);
+        return registration;
+    }
+
+    @Test
+    public void testUpdateStatusOfAllChangesTheStatusOfThoseRegistrationsAndReturnsHowManyChanged() {
+        // Arrange: tres pendientes; se mueven dos.
+        final long first = insertRegistration(eventId, EMAIL, userId, NAME, RegistrationStatus.PENDING);
+        final long second = insertRegistration(eventId, "dos@mail.com", insertUser("dos@mail.com", "Dos"), NAME,
+                RegistrationStatus.PENDING);
+        final long third = insertRegistration(eventId, "tres@mail.com", insertUser("tres@mail.com", "Tres"), NAME,
+                RegistrationStatus.PENDING);
+
+        // Act
+        final int changed = registrationDao.updateStatusOfAll(
+                Arrays.asList(withId(first), withId(second)), RegistrationStatus.WAITLISTED);
+
+        // Assert
+        assertEquals(2, changed);
+        assertEquals(2, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "registration",
+                "id IN (" + first + ", " + second + ") AND status = 'WAITLISTED'"));
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "registration",
+                "id = " + third + " AND status = 'PENDING'"));
+    }
+
+    @Test
+    public void testUpdateStatusOfAllLeavesTheNewStatusInTheGivenObjects() {
+        // Arrange
+        final long id = insertRegistration(eventId, EMAIL, userId, NAME, RegistrationStatus.WAITLISTED);
+        final Registration registration = withId(id);
+
+        // Act
+        registrationDao.updateStatusOfAll(Collections.singletonList(registration), RegistrationStatus.CONFIRMED);
+
+        // Assert
+        assertEquals(RegistrationStatus.CONFIRMED, registration.getStatus());
+    }
+
     // ---- findNextWaitlisted() ----
 
     private long insertWaitlistedAt(final long eventId, final String email, final long millisAgo) {

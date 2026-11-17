@@ -31,6 +31,16 @@ public interface RegistrationDao {
      *  CONFIRMED a REJECTED (el creador revoca). */
     boolean updateStatus(long id, RegistrationStatus status);
 
+    /**
+     * Le pone ese estado a todas esas inscripciones en UNA sola sentencia (UPDATE ... WHERE id IN), en vez de un
+     * UPDATE por inscripcion al hacer commit (dirty checking de updateStatus(id, ...)). Para los procesos que mueven
+     * a muchas de golpe (promover la lista de espera, pasar los pendientes a lista de espera) mientras el evento
+     * esta bloqueado. Como un UPDATE masivo no actualiza las entidades ya cargadas, las de la lista se sueltan del
+     * EntityManager y se les pone el estado nuevo en memoria: nada las reescribe despues con el estado viejo.
+     * La lista no puede estar vacia. Devuelve cuantas filas cambio.
+     */
+    int updateStatusOfAll(java.util.Collection<Registration> registrations, RegistrationStatus status);
+
     // "Mis inscripciones", de a una pagina (page empieza en 1), en dos listas separadas por la fecha del
     // evento respecto de "now": las de eventos que todavia no pasaron (fecha >= now, la mas proxima
     // primero) y las de eventos pasados (fecha < now, la mas reciente primero). La division, el orden

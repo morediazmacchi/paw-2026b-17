@@ -69,6 +69,9 @@ public interface NotificationService {
     /** Se libero un lugar y le tocaba a esta persona -> mail de que ya esta confirmada. */
     void notifyWaitlistPromoted(Event event, Registration registration);
 
+    /** Varios salen de la lista de espera a la vez (se libero lugar o subio el cupo) -> le avisa a cada uno que entro. Un solo envio asincronico para toda la lista (ver notifyEventCancelled()). */
+    void notifyWaitlistPromoted(Event event, List<Registration> registrations);
+
     /** El creador le saco el lugar a alguien ya confirmado -> le avisa a esa persona. */
     void notifyRegistrationRevoked(Event event, Registration registration);
 
@@ -84,8 +87,14 @@ public interface NotificationService {
     /** Se anoto a un evento con requiresApproval -> le avisa que su pedido queda esperando revision. */
     void notifyRegistrationPending(Event event, Registration registration);
 
+    /** Varios pasan de la lista de espera a "pendiente de aprobacion" a la vez (ver notifyWaitlistJoined(lista)) -> le avisa a cada uno. Un solo envio asincronico para toda la lista (ver notifyEventCancelled()). */
+    void notifyRegistrationPending(Event event, List<Registration> registrations);
+
     /** Alguien pidio anotarse a un evento con requiresApproval -> le avisa al creador que tiene que revisarlo. */
     void notifyNewPendingRegistration(Event event, Registration registration);
+
+    /** Varios pedidos nuevos le llegan al organizador a la vez (salieron de la lista de espera) -> un aviso por pedido; al organizador se lo busca una sola vez. Un solo envio asincronico para toda la lista (ver notifyEventCancelled()). */
+    void notifyNewPendingRegistration(Event event, List<Registration> registrations);
 
     /** El creador acepto una inscripcion pendiente -> le avisa a esa persona que ya tiene su lugar. */
     void notifyRegistrationApproved(Event event, Registration registration);

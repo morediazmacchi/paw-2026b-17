@@ -251,6 +251,63 @@ public class InboxMessageJpaDaoTest {
         assertNull(userId);
     }
 
+    // ---- createForOrganizerOfRegistrations() ----
+
+    @Test
+    public void testCreateForOrganizerOfRegistrationsLeavesOneMessagePerGivenRegistrationForTheOrganizer() {
+        // Arrange: dos inscripciones del evento y una tercera que no se pide.
+        insertRegistration(eventId, "uno@mail.com", null, RegistrationStatus.CONFIRMED);
+        insertRegistration(eventId, "dos@mail.com", null, RegistrationStatus.CONFIRMED);
+        insertRegistration(eventId, "tres@mail.com", null, RegistrationStatus.CONFIRMED);
+
+        // Act
+        final int created = inboxMessageDao.createForOrganizerOfRegistrations(InboxMessageType.NEW_REGISTRATION,
+                Arrays.asList(registrationIdOf("uno@mail.com"), registrationIdOf("dos@mail.com")));
+
+        // Assert: dos avisos, los dos al mail del organizador del evento.
+        assertEquals(2, created);
+        assertEquals(Arrays.asList("creador@mail.com", "creador@mail.com"),
+                recipientsOf(InboxMessageType.NEW_REGISTRATION));
+    }
+
+    @Test
+    public void testCreateForOrganizerOfRegistrationsUsesTheNameOfEachPersonAsTheActorOrTheEmailWhenThereIsNone() {
+        // Arrange: una con nombre y otra con el nombre en blanco.
+        jdbcTemplate.update("INSERT INTO registration (event_id, email, user_id, name, status) VALUES (?, ?, ?, ?, ?)",
+                eventId, "ana@mail.com", null, "Ana Gomez", RegistrationStatus.PENDING.name());
+        jdbcTemplate.update("INSERT INTO registration (event_id, email, user_id, name, status) VALUES (?, ?, ?, ?, ?)",
+                eventId, "sinnombre@mail.com", null, "  ", RegistrationStatus.PENDING.name());
+
+        // Act
+        inboxMessageDao.createForOrganizerOfRegistrations(InboxMessageType.NEW_PENDING,
+                Arrays.asList(registrationIdOf("ana@mail.com"), registrationIdOf("sinnombre@mail.com")));
+
+        // Assert
+        final List<String> actors = jdbcTemplate.queryForList(
+                "SELECT actor_name FROM inbox_message WHERE type = ? ORDER BY actor_name",
+                String.class, InboxMessageType.NEW_PENDING.name());
+        assertEquals(Arrays.asList("Ana Gomez", "sinnombre@mail.com"), actors);
+    }
+
+    @Test
+    public void testCreateForOrganizerOfRegistrationsLinksTheOrganizerAccountAndTheEvent() {
+        // Arrange
+        final long organizerId = insertUser("creador@mail.com");
+        insertRegistration(eventId, EMAIL, null, RegistrationStatus.CONFIRMED);
+
+        // Act
+        inboxMessageDao.createForOrganizerOfRegistrations(InboxMessageType.NEW_REGISTRATION,
+                Collections.singletonList(registrationIdOf(EMAIL)));
+
+        // Assert
+        final Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT user_id, event_id, read_at FROM inbox_message WHERE type = ?",
+                InboxMessageType.NEW_REGISTRATION.name());
+        assertEquals(organizerId, ((Number) row.get("user_id")).longValue());
+        assertEquals(eventId, ((Number) row.get("event_id")).longValue());
+        assertNull(row.get("read_at"));
+    }
+
     // ---- createForFollowersOfCreator() ----
 
     @Test

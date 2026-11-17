@@ -35,6 +35,13 @@ public interface InboxService {
     int addForRegistrations(InboxMessageType type, List<Long> registrationIds);
 
     /**
+     * El mismo aviso, para el organizador del evento, por cada inscripcion de la lista (por id), con el nombre de
+     * esa persona como actor (por ejemplo "Ana se anoto"). Una sola sentencia, como addForRegistrations(). Va dentro
+     * de la transaccion de quien llama. Devuelve cuantos avisos dejo (0 si la lista esta vacia).
+     */
+    int addForOrganizerOfRegistrations(InboxMessageType type, List<Long> registrationIds);
+
+    /**
      * El mismo aviso a cada persona que sigue al organizador de ese evento, con el nombre del organizador como
      * actor. Una sola sentencia, como addForRegistrants(). Devuelve cuantos avisos dejo.
      */

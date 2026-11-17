@@ -201,6 +201,61 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Async
     @Override
+    public void notifyRegistrationPending(final Event event, final List<Registration> registrations) {
+        notifyRegistrants(event, registrations, "registration-pending", "mail.registrationPending.subject",
+                variables -> variables.put("registrationsUrl", links.registrations()),
+                "Fallo la notificacion de inscripcion pendiente");
+    }
+
+    @Async
+    @Override
+    public void notifyWaitlistPromoted(final Event event, final List<Registration> registrations) {
+        notifyRegistrants(event, registrations, "waitlist-promoted", "mail.waitlistPromoted.subject",
+                variables -> variables.put("registrationsUrl", links.registrations()),
+                "Fallo el aviso de lugar de la lista de espera");
+    }
+
+    // Un mail al organizador por cada pedido de la lista, pero el organizador (nombre e idioma) se busca UNA sola
+    // vez y no una por pedido. Si el de uno falla, se sigue con los demas.
+    @Async
+    @Override
+    public void notifyNewPendingRegistration(final Event event, final List<Registration> registrations) {
+        if (registrations.isEmpty()) {
+            return;
+        }
+        final Locale locale;
+        final String creatorName;
+        try {
+            final Recipient creator = creatorOf(event);
+            locale = creator.locale();
+            creatorName = displayName(creator.name(), event.getCreatorEmail());
+        } catch (final RuntimeException e) {
+            LOGGER.error("Fallo el aviso de inscripcion pendiente al creador, evento {}", event.getId(), e);
+            return;
+        }
+        for (final Registration registration : registrations) {
+            try {
+                final Map<String, Object> variables = eventVariables(event, locale);
+                variables.put("personName", creatorName);
+                variables.put("registrantName", displayName(registration.getName(), registration.getEmail()));
+                variables.put("registrantEmail", registration.getEmail());
+                variables.put("reviewUrl", links.pendingRequests(event.getId()));
+
+                mailService.send(event.getCreatorEmail(),
+                        "new-pending-registration",
+                        "mail.newPendingRegistration.subject",
+                        new Object[]{ event.getTitle() },
+                        variables,
+                        locale);
+            } catch (final RuntimeException e) {
+                LOGGER.error("Fallo el aviso de inscripcion pendiente al creador, evento {}, inscripcion {}",
+                        event.getId(), registration.getId(), e);
+            }
+        }
+    }
+
+    @Async
+    @Override
     public void notifyEventInvitation(final Event event, final EventInvitation invitation) {
         try {
             // invitation.getUserId() es optimista (ver el modelo): si es null todavia

@@ -203,6 +203,22 @@ public class RegistrationJpaDao implements RegistrationDao {
     }
 
     @Override
+    public int updateStatusOfAll(final java.util.Collection<Registration> registrations, final RegistrationStatus status) {
+        // Bulk JPQL a proposito (no em.find + setter por cada una): una sola sentencia para todas. No actualiza las
+        // entidades ya cargadas, asi que se sueltan y se les pone el estado en memoria (ver RegistrationDao).
+        final List<Long> ids = registrations.stream().map(Registration::getId).collect(java.util.stream.Collectors.toList());
+        final int updated = em.createQuery("UPDATE Registration r SET r.status = :status WHERE r.id IN :ids")
+                .setParameter("status", status)
+                .setParameter("ids", ids)
+                .executeUpdate();
+        for (final Registration registration : registrations) {
+            em.detach(registration);
+            registration.setStatus(status);
+        }
+        return updated;
+    }
+
+    @Override
     public List<Long> findAttendedEventIds(final long userId, final Date now, final int limit) {
         // "Asistio" = inscripcion confirmada a un evento que ya paso y no se cancelo. Un evento
         // cancelado (o dado de baja por un admin, que usa el mismo cancelled_at) no ocurrio.

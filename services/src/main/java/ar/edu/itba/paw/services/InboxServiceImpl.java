@@ -79,6 +79,16 @@ public class InboxServiceImpl implements InboxService {
 
     @Override
     @Transactional
+    public int addForOrganizerOfRegistrations(final InboxMessageType type, final List<Long> registrationIds) {
+        // Sin ids no hay nada que avisar (y un "IN ()" vacio no es una consulta valida).
+        if (registrationIds == null || registrationIds.isEmpty()) {
+            return 0;
+        }
+        return inboxMessageDao.createForOrganizerOfRegistrations(type, registrationIds);
+    }
+
+    @Override
+    @Transactional
     public int addForFollowersOfCreator(final long eventId, final InboxMessageType type) {
         return inboxMessageDao.createForFollowersOfCreator(eventId, type);
     }

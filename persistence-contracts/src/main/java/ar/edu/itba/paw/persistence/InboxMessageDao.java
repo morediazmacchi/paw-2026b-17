@@ -30,6 +30,15 @@ public interface InboxMessageDao {
     int createForRegistrations(InboxMessageType type, Collection<Long> registrationIds);
 
     /**
+     * El mismo aviso, para el ORGANIZADOR del evento, por cada inscripcion de la lista (por id): una fila por
+     * inscripcion, con el nombre de esa persona como actor ("Ana se anoto"; su mail si no tiene nombre, igual que
+     * Registration.getDisplayName()). En UNA sola sentencia. El destinatario es el mail del organizador del evento
+     * de cada inscripcion, enlazado a su cuenta si la hay. registrationIds no puede estar vacio. Devuelve cuantos
+     * avisos dejo.
+     */
+    int createForOrganizerOfRegistrations(InboxMessageType type, Collection<Long> registrationIds);
+
+    /**
      * El mismo aviso a cada persona que sigue al organizador de ese evento, con el nombre del organizador como
      * actor ("Ana publico un evento nuevo"). Una sola sentencia, como createForRegistrants(). Un evento sin
      * organizador cargado (eventos viejos) no deja ninguno. Devuelve cuantos avisos dejo.

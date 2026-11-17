@@ -1426,7 +1426,6 @@ public class RegistrationServiceImplTest {
         when(mockRegistrationDao.findPendingByEvent(EVENT_ID)).thenReturn(Collections.singletonList(other));
 
         when(mockRegistrationDao.updateStatus(5, RegistrationStatus.CONFIRMED)).thenReturn(true);
-        when(mockRegistrationDao.updateStatus(6, RegistrationStatus.WAITLISTED)).thenReturn(true);
         // Act
         final ApprovalResult result = registrationService.approve(5);
 
@@ -1619,8 +1618,6 @@ public class RegistrationServiceImplTest {
         second.setId(2L);
         when(mockRegistrationDao.findNextWaitlisted(EVENT_ID, 2)).thenReturn(Arrays.asList(first, second));
 
-        when(mockRegistrationDao.updateStatus(1, RegistrationStatus.CONFIRMED)).thenReturn(true);
-        when(mockRegistrationDao.updateStatus(2, RegistrationStatus.CONFIRMED)).thenReturn(true);
         // Act
         final int promoted = registrationService.promoteFromWaitlist(EVENT_ID);
 
@@ -1642,7 +1639,6 @@ public class RegistrationServiceImplTest {
         waiting.setId(8L);
         when(mockRegistrationDao.findNextWaitlisted(EVENT_ID, 1)).thenReturn(Collections.singletonList(waiting));
 
-        when(mockRegistrationDao.updateStatus(8, RegistrationStatus.PENDING)).thenReturn(true);
         // Act
         final int promoted = registrationService.promoteFromWaitlist(EVENT_ID);
 
@@ -1725,7 +1721,6 @@ public class RegistrationServiceImplTest {
         when(mockRegistrationDao.findNextWaitlisted(EVENT_ID, Integer.MAX_VALUE))
                 .thenReturn(Collections.singletonList(only));
 
-        when(mockRegistrationDao.updateStatus(1, RegistrationStatus.CONFIRMED)).thenReturn(true);
         // Act
         final int promoted = registrationService.promoteFromWaitlist(EVENT_ID);
 
