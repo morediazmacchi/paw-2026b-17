@@ -27,6 +27,14 @@ public interface InboxService {
     int addForRegistrants(long eventId, InboxMessageType type, Set<RegistrationStatus> statuses);
 
     /**
+     * El mismo aviso a cada inscripcion de la lista (por id), en una sola sentencia, como addForRegistrants() pero
+     * con la lista exacta en vez de un estado: para cuando solo unas inscripciones puntuales acaban de cambiar de
+     * estado (por ejemplo las que pasan a lista de espera). Va dentro de la transaccion de quien llama. Devuelve
+     * cuantos avisos dejo (0 si la lista esta vacia).
+     */
+    int addForRegistrations(InboxMessageType type, List<Long> registrationIds);
+
+    /**
      * El mismo aviso a cada persona que sigue al organizador de ese evento, con el nombre del organizador como
      * actor. Una sola sentencia, como addForRegistrants(). Devuelve cuantos avisos dejo.
      */

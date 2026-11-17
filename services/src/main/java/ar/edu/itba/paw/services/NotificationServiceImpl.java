@@ -18,8 +18,12 @@ import org.springframework.stereotype.Service;
 import java.text.DateFormat;
 import java.text.NumberFormat;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 @Service
 public class NotificationServiceImpl implements NotificationService {
@@ -242,6 +246,14 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Async
     @Override
+    public void notifyWaitlistJoined(final Event event, final List<Registration> registrations) {
+        notifyRegistrants(event, registrations, "waitlist-joined", "mail.waitlistJoined.subject",
+                variables -> variables.put("registrationsUrl", links.registrations()),
+                "Fallo la notificacion de lista de espera");
+    }
+
+    @Async
+    @Override
     public void notifyNewWaitlistEntry(final Event event, final Registration registration) {
         try {
             final Recipient creator = creatorOf(event);
@@ -392,60 +404,20 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Async
     @Override
-    public void notifyEventCancelled(final Event event, final Registration registration) {
-        try {
-            final Locale locale = localeForUserId(registration.getUserId());
-            final Map<String, Object> variables = eventVariables(event, locale);
-            variables.put("personName", displayName(registration.getName(), registration.getEmail()));
-            variables.put("eventsUrl", links.events());
-
-            mailService.send(registration.getEmail(),
-                    "event-cancelled",
-                    "mail.eventCancelled.subject",
-                    new Object[]{ event.getTitle() },
-                    variables,
-                    locale);
-        } catch (final RuntimeException e) {
-            LOGGER.error("Fallo el aviso de evento cancelado, evento {}", event.getId(), e);
-        }
+    public void notifyEventCancelled(final Event event, final List<Registration> registrations) {
+        notifyRegistrants(event, registrations, "event-cancelled", "mail.eventCancelled.subject", variables -> variables.put("eventsUrl", links.events()), "Fallo el aviso de evento cancelado");
     }
 
     @Async
     @Override
-    public void notifyEventUpdated(final Event event, final Registration registration) {
-        try {
-            final Locale locale = localeForUserId(registration.getUserId());
-            final Map<String, Object> variables = eventVariables(event, locale);
-            variables.put("personName", displayName(registration.getName(), registration.getEmail()));
-
-            mailService.send(registration.getEmail(),
-                    "event-updated",
-                    "mail.eventUpdated.subject",
-                    new Object[]{ event.getTitle() },
-                    variables,
-                    locale);
-        } catch (final RuntimeException e) {
-            LOGGER.error("Fallo el aviso de evento editado, evento {}", event.getId(), e);
-        }
+    public void notifyEventUpdated(final Event event, final List<Registration> registrations) {
+        notifyRegistrants(event, registrations, "event-updated", "mail.eventUpdated.subject", variables -> { }, "Fallo el aviso de evento editado");
     }
 
     @Async
     @Override
-    public void notifyEventReminder(final Event event, final Registration registration) {
-        try {
-            final Locale locale = localeForUserId(registration.getUserId());
-            final Map<String, Object> variables = eventVariables(event, locale);
-            variables.put("personName", displayName(registration.getName(), registration.getEmail()));
-
-            mailService.send(registration.getEmail(),
-                    "event-reminder",
-                    "mail.eventReminder.subject",
-                    new Object[]{ event.getTitle() },
-                    variables,
-                    locale);
-        } catch (final RuntimeException e) {
-            LOGGER.error("Fallo el recordatorio de 24 hs, evento {}", event.getId(), e);
-        }
+    public void notifyEventReminder(final Event event, final List<Registration> registrations) {
+        notifyRegistrants(event, registrations, "event-reminder", "mail.eventReminder.subject", variables -> { }, "Fallo el recordatorio de 24 hs");
     }
 
     @Async
@@ -608,22 +580,26 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Async
     @Override
-    public void notifyFollowedUserNewEvent(final FollowerContact follower, final Event event, final String organizerName) {
-        try {
-            // El idioma ya viene en la proyeccion: no se vuelve a la base por cada seguidor.
-            final Locale locale = toLocale(follower.getLocale());
-            final Map<String, Object> variables = eventVariables(event, locale);
-            variables.put("personName", displayName(follower.getName(), follower.getEmail()));
-            variables.put("organizerName", organizerName);
+    public void notifyFollowedUserNewEvent(final List<FollowerContact> followers, final Event event,
+                                           final String organizerName) {
+        // Una sola tarea para todos los seguidores (ver notifyRegistrants()). El idioma ya viene en la
+        // proyeccion: no se vuelve a la base por cada seguidor. Si el mail de uno falla, se sigue con los demas.
+        for (final FollowerContact follower : followers) {
+            try {
+                final Locale locale = toLocale(follower.getLocale());
+                final Map<String, Object> variables = eventVariables(event, locale);
+                variables.put("personName", displayName(follower.getName(), follower.getEmail()));
+                variables.put("organizerName", organizerName);
 
-            mailService.send(follower.getEmail(),
-                    "followed-user-new-event",
-                    "mail.followedUserNewEvent.subject",
-                    new Object[]{ organizerName },
-                    variables,
-                    locale);
-        } catch (final RuntimeException e) {
-            LOGGER.error("Fallo el aviso de evento nuevo de un organizador seguido, usuario {}", follower.getId(), e);
+                mailService.send(follower.getEmail(),
+                        "followed-user-new-event",
+                        "mail.followedUserNewEvent.subject",
+                        new Object[]{ organizerName },
+                        variables,
+                        locale);
+            } catch (final RuntimeException e) {
+                LOGGER.error("Fallo el aviso de evento nuevo de un organizador seguido, usuario {}", follower.getId(), e);
+            }
         }
     }
 
@@ -687,6 +663,61 @@ public class NotificationServiceImpl implements NotificationService {
         } catch (final RuntimeException e) {
             LOGGER.error("Fallo el aviso de cuenta reactivada, usuario {}", user.getId(), e);
         }
+    }
+
+    /**
+     * Un mismo mail a cada inscripto de la lista, todo en UNA tarea asincronica (la del metodo publico que
+     * llama): el pool de mails ve una sola tarea en vez de una por persona, asi un evento con cientos de
+     * inscriptos no deja a quien cancela o edita mandando mails en su propio hilo (CallerRunsPolicy, ver
+     * MailConfig). Los idiomas de todos se buscan con UNA consulta (findByIds) en vez de una por inscripto.
+     * Si el mail de uno falla se registra y se sigue con los demas.
+     */
+    private void notifyRegistrants(final Event event, final List<Registration> registrations,
+                                   final String template, final String subjectKey,
+                                   final Consumer<Map<String, Object>> extraVariables, final String errorMessage) {
+        if (registrations.isEmpty()) {
+            return;
+        }
+        final Map<Long, User> users;
+        try {
+            users = usersById(registrations);
+        } catch (final RuntimeException e) {
+            LOGGER.error("{}: no se pudieron buscar los destinatarios, evento {}", errorMessage, event.getId(), e);
+            return;
+        }
+        for (final Registration registration : registrations) {
+            try {
+                final User user = registration.getUserId() == null ? null : users.get(registration.getUserId());
+                // Sin cuenta o sin fila: idioma por defecto, igual que localeForUserId().
+                final Locale locale = user == null ? DEFAULT_LOCALE : localeFor(user);
+                final Map<String, Object> variables = eventVariables(event, locale);
+                variables.put("personName", displayName(registration.getName(), registration.getEmail()));
+                extraVariables.accept(variables);
+
+                mailService.send(registration.getEmail(),
+                        template,
+                        subjectKey,
+                        new Object[]{ event.getTitle() },
+                        variables,
+                        locale);
+            } catch (final RuntimeException e) {
+                LOGGER.error("{}, evento {}, inscripcion {}", errorMessage, event.getId(), registration.getId(), e);
+            }
+        }
+    }
+
+    // Las cuentas de esos inscriptos, por id, con una sola consulta.
+    private Map<Long, User> usersById(final List<Registration> registrations) {
+        final List<Long> ids = registrations.stream()
+                .map(Registration::getUserId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        final Map<Long, User> byId = new HashMap<>();
+        for (final User user : userDao.findByIds(ids)) {
+            byId.put(user.getId(), user);
+        }
+        return byId;
     }
 
     /**

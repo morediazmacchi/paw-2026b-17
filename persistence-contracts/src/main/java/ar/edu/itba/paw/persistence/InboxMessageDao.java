@@ -22,6 +22,14 @@ public interface InboxMessageDao {
     int createForRegistrants(long eventId, InboxMessageType type, Collection<RegistrationStatus> statuses);
 
     /**
+     * El mismo aviso a cada inscripcion de la lista (por id), en UNA sola sentencia: la lista exacta, no un estado
+     * (ver createForRegistrants()), para cuando lo que cambia de estado son unas inscripciones puntuales y no todas
+     * las que estan en cierto estado. El evento de cada aviso es el de su inscripcion. Cada aviso queda enlazado a
+     * la cuenta con ese mail, si la hay. registrationIds no puede estar vacio. Devuelve cuantos avisos dejo.
+     */
+    int createForRegistrations(InboxMessageType type, Collection<Long> registrationIds);
+
+    /**
      * El mismo aviso a cada persona que sigue al organizador de ese evento, con el nombre del organizador como
      * actor ("Ana publico un evento nuevo"). Una sola sentencia, como createForRegistrants(). Un evento sin
      * organizador cargado (eventos viejos) no deja ninguno. Devuelve cuantos avisos dejo.

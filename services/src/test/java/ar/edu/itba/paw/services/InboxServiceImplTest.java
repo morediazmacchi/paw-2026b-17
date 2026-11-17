@@ -260,4 +260,31 @@ public class InboxServiceImplTest {
         // Assert
         assertEquals(2, result);
     }
+
+    // ---- addForRegistrations() ----
+
+    @Test
+    public void testAddForRegistrationsReturnsHowManyMessagesWereLeft() {
+        // Arrange: el stub solo responde con el tipo y los ids correctos.
+        when(inboxDao.createForRegistrations(InboxMessageType.REGISTERED_WAITLISTED, Arrays.asList(4L, 9L))).thenReturn(2);
+
+        // Act
+        final int result = inboxService.addForRegistrations(InboxMessageType.REGISTERED_WAITLISTED, Arrays.asList(4L, 9L));
+
+        // Assert
+        assertEquals(2, result);
+    }
+
+    @Test
+    public void testAddForRegistrationsWithNoIdsLeavesNothing() {
+        // Arrange: senuelo -- si el service le pidiera a la base un "IN ()" vacio, el resultado seria 5.
+        lenient().when(inboxDao.createForRegistrations(any(), any())).thenReturn(5);
+
+        // Act
+        final int result = inboxService.addForRegistrations(InboxMessageType.REGISTERED_WAITLISTED,
+                Collections.<Long>emptyList());
+
+        // Assert
+        assertEquals(0, result);
+    }
 }

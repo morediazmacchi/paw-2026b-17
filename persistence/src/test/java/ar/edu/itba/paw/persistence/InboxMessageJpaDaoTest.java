@@ -192,6 +192,65 @@ public class InboxMessageJpaDaoTest {
         assertEquals(userId, ((Number) row.get("user_id")).longValue());
     }
 
+    // ---- createForRegistrations() ----
+
+    private long registrationIdOf(final String email) {
+        return jdbcTemplate.queryForObject("SELECT id FROM registration WHERE email = ?", Long.class, email);
+    }
+
+    @Test
+    public void testCreateForRegistrationsLeavesOneMessagePerGivenRegistrationOnly() {
+        // Arrange: tres inscripciones del evento en lista de espera y una de otro evento; se piden solo dos.
+        final long otherEventId = insertEventCreatedBy(insertUser("organizadora@mail.com"));
+        insertRegistration(eventId, "uno@mail.com", null, RegistrationStatus.WAITLISTED);
+        insertRegistration(eventId, "dos@mail.com", null, RegistrationStatus.WAITLISTED);
+        insertRegistration(eventId, "tres@mail.com", null, RegistrationStatus.WAITLISTED);
+        insertRegistration(otherEventId, "cuatro@mail.com", null, RegistrationStatus.WAITLISTED);
+
+        // Act
+        final int created = inboxMessageDao.createForRegistrations(InboxMessageType.REGISTERED_WAITLISTED,
+                Arrays.asList(registrationIdOf("uno@mail.com"), registrationIdOf("dos@mail.com")));
+
+        // Assert
+        assertEquals(2, created);
+        assertEquals(Arrays.asList("dos@mail.com", "uno@mail.com"), recipientsOf(InboxMessageType.REGISTERED_WAITLISTED));
+    }
+
+    @Test
+    public void testCreateForRegistrationsLinksTheAccountAndTheEventAndNormalizesTheEmail() {
+        // Arrange
+        final long userId = insertUser(EMAIL);
+        insertRegistration(eventId, "  Ana@Mail.COM ", null, RegistrationStatus.WAITLISTED);
+
+        // Act
+        inboxMessageDao.createForRegistrations(InboxMessageType.REGISTERED_WAITLISTED,
+                Collections.singletonList(registrationIdOf("  Ana@Mail.COM ")));
+
+        // Assert
+        final Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT recipient_email, user_id, event_id, actor_name, read_at FROM inbox_message");
+        assertEquals(EMAIL, row.get("recipient_email"));
+        assertEquals(userId, ((Number) row.get("user_id")).longValue());
+        assertEquals(eventId, ((Number) row.get("event_id")).longValue());
+        assertNull(row.get("actor_name"));
+        assertNull(row.get("read_at"));
+    }
+
+    @Test
+    public void testCreateForRegistrationsLeavesTheAccountEmptyWhenThatEmailHasNone() {
+        // Arrange
+        insertRegistration(eventId, OTHER_EMAIL, null, RegistrationStatus.WAITLISTED);
+
+        // Act
+        inboxMessageDao.createForRegistrations(InboxMessageType.REGISTERED_WAITLISTED,
+                Collections.singletonList(registrationIdOf(OTHER_EMAIL)));
+
+        // Assert
+        final Long userId = jdbcTemplate.queryForObject(
+                "SELECT user_id FROM inbox_message WHERE recipient_email = ?", Long.class, OTHER_EMAIL);
+        assertNull(userId);
+    }
+
     // ---- createForFollowersOfCreator() ----
 
     @Test

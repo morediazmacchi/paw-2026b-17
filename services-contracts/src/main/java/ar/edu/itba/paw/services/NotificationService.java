@@ -7,6 +7,8 @@ import ar.edu.itba.paw.model.FollowerContact;
 import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.User;
 
+import java.util.List;
+
 /**
  * Avisos que la aplicacion manda cuando pasa algo. Hoy son mails, pero quien
  * llama a esta interfaz no lo sabe: pide "avisale al creador que su evento se
@@ -37,6 +39,12 @@ public interface NotificationService {
 
     /** Se anoto pero el evento estaba lleno -> le avisa que quedo en lista de espera. */
     void notifyWaitlistJoined(Event event, Registration registration);
+
+    /**
+     * Varios pasaron a la lista de espera a la vez (el evento se lleno y los pendientes ya no tienen lugar) ->
+     * le avisa a cada uno. Un solo envio asincronico para toda la lista (ver notifyEventCancelled()).
+     */
+    void notifyWaitlistJoined(Event event, List<Registration> registrations);
 
     /** Alguien entro a la lista de espera -> le avisa al creador del evento. */
     void notifyNewWaitlistEntry(Event event, Registration registration);
@@ -88,18 +96,26 @@ public interface NotificationService {
     /** El creador invito a alguien a un evento privado -> mail con el link para verlo y anotarse. */
     void notifyEventInvitation(Event event, EventInvitation invitation);
 
-    /** El creador cancelo el evento -> le avisa a cada inscripto confirmado. */
-    void notifyEventCancelled(Event event, Registration registration);
+    /**
+     * El creador cancelo el evento -> le avisa a cada inscripto confirmado de la lista. Es UN solo envio
+     * asincronico para toda la lista (no uno por persona): asi un evento con muchos inscriptos no llena el
+     * pool de mails ni deja a quien cancela esperando, y los idiomas se buscan todos juntos.
+     */
+    void notifyEventCancelled(Event event, List<Registration> registrations);
 
     /**
-     * El creador edito el evento -> le avisa a cada inscripto confirmado.
+     * El creador edito el evento -> le avisa a cada inscripto confirmado de la lista (un solo envio
+     * asincronico para todos, ver notifyEventCancelled()).
      * "event" son los datos YA actualizados (lo que cambio es justo lo que
      * el mail tiene que mostrar).
      */
-    void notifyEventUpdated(Event event, Registration registration);
+    void notifyEventUpdated(Event event, List<Registration> registrations);
 
-    /** El evento empieza en menos de 24 hs -> recordatorio a cada inscripto confirmado. */
-    void notifyEventReminder(Event event, Registration registration);
+    /**
+     * El evento empieza en menos de 24 hs -> recordatorio a cada inscripto confirmado de la lista (un solo
+     * envio asincronico para todos, ver notifyEventCancelled()).
+     */
+    void notifyEventReminder(Event event, List<Registration> registrations);
 
     /** El evento empieza en menos de 24 hs -> recordatorio a su organizador. */
     void notifyOrganizerEventReminder(Event event);
@@ -134,8 +150,12 @@ public interface NotificationService {
     /** Un admin le pidio al creador que corrija algo del evento -> le avisa con el mensaje. */
     void notifyEventChangesRequested(Event event, String message);
 
-    /** Un organizador que sigue (ver FollowService) publico un evento nuevo y quedo aprobado -> le avisa a quien lo sigue. */
-    void notifyFollowedUserNewEvent(FollowerContact follower, Event event, String organizerName);
+    /**
+     * Un organizador que sigue (ver FollowService) publico un evento nuevo y quedo aprobado -> le avisa a cada
+     * persona de la lista que lo sigue. Un solo envio asincronico para toda la lista (ver notifyEventCancelled()):
+     * un organizador con muchos seguidores no deja esperando al admin que aprueba.
+     */
+    void notifyFollowedUserNewEvent(List<FollowerContact> followers, Event event, String organizerName);
 
     /** Un admin suspendio la cuenta -> le avisa a esa persona. */
     void notifyUserSuspended(User user);

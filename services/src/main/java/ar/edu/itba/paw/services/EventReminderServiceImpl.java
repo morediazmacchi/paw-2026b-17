@@ -3,7 +3,6 @@ package ar.edu.itba.paw.services;
 
 import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.InboxMessageType;
-import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.persistence.EventDao;
 import org.slf4j.Logger;
@@ -65,10 +64,8 @@ public class EventReminderServiceImpl implements EventReminderService {
 
         // Solo a los confirmados: son los que tienen un lugar. Lista de espera y
         // pendientes todavia no tienen a que ir.
-        // Mails uno por persona (en otro hilo, despues del commit); la bandeja, todos juntos en una sola sentencia.
-        for (final Registration registration : registrationService.findConfirmedByEventId(eventId)) {
-            notificationService.notifyEventReminder(event, registration);
-        }
+        // Mails todos en UNA tarea (en otro hilo, despues del commit); la bandeja, todos juntos en una sola sentencia.
+        notificationService.notifyEventReminder(event, registrationService.findConfirmedByEventId(eventId));
         inboxService.addForRegistrants(eventId, InboxMessageType.EVENT_REMINDER, RegistrationStatus.withConfirmedPlace());
         notificationService.notifyOrganizerEventReminder(event);
         inboxService.add(event.getCreatorEmail(), InboxMessageType.EVENT_TOMORROW, eventId, null, null);

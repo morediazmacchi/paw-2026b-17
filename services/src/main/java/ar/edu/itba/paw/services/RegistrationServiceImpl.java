@@ -539,12 +539,21 @@ public class RegistrationServiceImpl implements RegistrationService {
     }
 
     private void moveRemainingPendingToWaitlist(final Event event) {
+        final List<Registration> moved = new ArrayList<>();
         for (final Registration pending : registrationDao.findPendingByEvent(event.getId())) {
             registrationDao.updateStatus(pending.getId(), RegistrationStatus.WAITLISTED);
             pending.setStatus(RegistrationStatus.WAITLISTED);
-            notificationService.notifyWaitlistJoined(event, pending);
-            inboxService.add(pending.getEmail(), InboxMessageType.REGISTERED_WAITLISTED, event.getId(), null, null);
+            moved.add(pending);
         }
+        if (moved.isEmpty()) {
+            return;
+        }
+        // Pueden ser muchos (todos los pendientes del evento): nada de un aviso ni un mail por vuelta. La bandeja,
+        // una sola sentencia con los ids exactos de los que acaban de pasar (no por estado: agarraria tambien a
+        // los que ya estaban en espera); los mails, todos en una sola tarea (en otro hilo, despues del commit).
+        inboxService.addForRegistrations(InboxMessageType.REGISTERED_WAITLISTED,
+                moved.stream().map(Registration::getId).collect(Collectors.toList()));
+        notificationService.notifyWaitlistJoined(event, moved);
     }
 
     @Override

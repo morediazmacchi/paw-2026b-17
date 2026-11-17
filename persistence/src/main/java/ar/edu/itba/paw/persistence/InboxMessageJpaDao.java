@@ -50,6 +50,19 @@ public class InboxMessageJpaDao implements InboxMessageDao {
     }
 
     @Override
+    public int createForRegistrations(final InboxMessageType type, final Collection<Long> registrationIds) {
+        return em.createNativeQuery(
+                        "INSERT INTO inbox_message (recipient_email, user_id, type, event_id) "
+                                + "SELECT LOWER(TRIM(r.email)), u.id, CAST(:type AS VARCHAR(40)), r.event_id "
+                                + "FROM registration r "
+                                + "LEFT JOIN users u ON u.email = LOWER(TRIM(r.email)) "
+                                + "WHERE r.id IN (:ids)")
+                .setParameter("type", type.name())
+                .setParameter("ids", registrationIds)
+                .executeUpdate();
+    }
+
+    @Override
     public int createForFollowersOfCreator(final long eventId, final InboxMessageType type) {
         // El actor (o.name) sale de la cuenta del organizador en la misma consulta: no hace falta pasarlo (y un
         // parametro null en la lista del SELECT no tiene tipo para la base).

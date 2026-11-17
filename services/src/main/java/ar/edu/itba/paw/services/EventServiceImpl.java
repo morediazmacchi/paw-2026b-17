@@ -11,10 +11,8 @@ import ar.edu.itba.paw.model.EventCategory;
 import ar.edu.itba.paw.model.EventCategoryInfo;
 import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.EventSort;
-import ar.edu.itba.paw.model.FollowerContact;
 import ar.edu.itba.paw.model.Image;
 import ar.edu.itba.paw.model.InboxMessageType;
-import ar.edu.itba.paw.model.Registration;
 import ar.edu.itba.paw.model.RegistrationStatus;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.exception.EventCancelledException;
@@ -297,11 +295,9 @@ public class EventServiceImpl implements EventService {
         // Solo a los confirmados, mismo criterio que cancel(): a alguien
         // pendiente/rechazado/en lista de espera todavia no tiene un lugar
         // asegurado en base al cual le importe que cambio el evento. Los mails
-        // salen uno por persona (en otro hilo, despues del commit); los avisos
+        // salen todos en UNA tarea (en otro hilo, despues del commit); los avisos
         // de la bandeja, todos juntos en una sola sentencia.
-        for (final Registration registration : registrationService.findConfirmedByEventId(eventId)) {
-            notificationService.notifyEventUpdated(changes, registration);
-        }
+        notificationService.notifyEventUpdated(changes, registrationService.findConfirmedByEventId(eventId));
         inboxService.addForRegistrants(eventId, InboxMessageType.EVENT_UPDATED, RegistrationStatus.withConfirmedPlace());
         // Si subio el cupo (o se lo saco), los primeros de la lista de espera entran.
         // Despues del aviso de cambios: a los que entran ahora les llega ya el mail
@@ -378,11 +374,9 @@ public class EventServiceImpl implements EventService {
             return;
         }
         final String organizerName = event.getCreator().getName();
-        // La bandeja, todos juntos en una sola sentencia; el mail, uno por seguidor (en otro hilo, despues del commit).
+        // La bandeja, todos juntos en una sola sentencia; los mails, todos en UNA tarea (en otro hilo, despues del commit).
         inboxService.addForFollowersOfCreator(event.getId(), InboxMessageType.FOLLOWED_USER_NEW_EVENT);
-        for (final FollowerContact follower : followService.findFollowers(organizerId)) {
-            notificationService.notifyFollowedUserNewEvent(follower, event, organizerName);
-        }
+        notificationService.notifyFollowedUserNewEvent(followService.findFollowers(organizerId), event, organizerName);
     }
 
     @Override
@@ -501,9 +495,7 @@ public class EventServiceImpl implements EventService {
     // para quien esta anotado el motivo (el organizador o un admin) no cambia
     // el aviso que le corresponde.
     private void notifyRegistrantsOfCancellation(final Event event) {
-        for (final Registration registration : registrationService.findConfirmedByEventId(event.getId())) {
-            notificationService.notifyEventCancelled(event, registration);
-        }
+        notificationService.notifyEventCancelled(event, registrationService.findConfirmedByEventId(event.getId()));
         inboxService.addForRegistrants(event.getId(), InboxMessageType.EVENT_CANCELLED, CANCELLATION_NOTICE_STATUSES);
     }
 }
