@@ -468,6 +468,12 @@ public class RegistrationServiceImpl implements RegistrationService {
 
     @Override
     @Transactional(readOnly = true)
+    public Optional<EventRegistrants> findRegistrants(final long eventId, final int page) {
+        return eventDao.findById(eventId).map(event -> new EventRegistrants(event, findPageByEventId(eventId, page)));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<Registration> findPendingByEvent(final long eventId) {
         return registrationDao.findPendingByEvent(eventId);
     }

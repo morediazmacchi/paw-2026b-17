@@ -26,9 +26,13 @@ public interface SavedSearchDao {
     // cargados. Dos consultas: la primera trae solo los ids de la pagina y la segunda carga esas busquedas.
     List<SavedSearch> findByUserId(long userId, int page, int pageSize);
 
-    // Borra la busqueda solo si es de esa persona (junto con sus filtros). true si la borro; false si no existe o
-    // es de otra persona.
-    boolean deleteByIdAndUserId(long id, long userId);
+    // Borra la busqueda (junto con sus filtros). true si la borro; false si no existe. De quien es NO se mira aca:
+    // lo decide @PreAuthorize en el controller (ver SavedSearchSecurity).
+    boolean deleteById(long id);
+
+    // El id de la persona duenia de la busqueda (una sola columna, sin cargar la busqueda ni sus filtros), o vacio si
+    // la busqueda no existe. Lo usa la autorizacion (ver SavedSearchSecurity).
+    Optional<Long> findUserIdById(long id);
 
     // Los ids mayores a afterId, de menor a mayor, a lo sumo limit: para recorrer todas las busquedas guardadas de a
     // tandas sin traerlas juntas a memoria.

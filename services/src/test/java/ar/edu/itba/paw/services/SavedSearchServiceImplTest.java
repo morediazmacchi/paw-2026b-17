@@ -128,41 +128,52 @@ public class SavedSearchServiceImplTest {
         assertEquals(lastPage, result.getContent());
     }
 
-    // ---- findByIdForUser() ----
+    // ---- findById() / findOwnerId() ----
 
     @Test
-    public void testFindByIdForUserReturnsTheSearchWhenItBelongsToThatPerson() {
+    public void testFindByIdReturnsTheSearchWithItsFilters() {
         // Arrange
         final SavedSearch search = savedSearchOf(USER_ID);
         when(savedSearchDao.findByIdWithFilters(SEARCH_ID)).thenReturn(Optional.of(search));
 
         // Act
-        final Optional<SavedSearch> result = savedSearchService.findByIdForUser(USER_ID, SEARCH_ID);
+        final Optional<SavedSearch> result = savedSearchService.findById(SEARCH_ID);
 
         // Assert
-        assertTrue(result.isPresent());
-        assertEquals(search, result.get());
+        assertEquals(Optional.of(search), result);
     }
 
     @Test
-    public void testFindByIdForUserIsEmptyWhenTheSearchBelongsToSomeoneElse() {
+    public void testFindByIdIsEmptyWhenTheSearchDoesNotExist() {
         // Arrange
-        when(savedSearchDao.findByIdWithFilters(SEARCH_ID)).thenReturn(Optional.of(savedSearchOf(OTHER_USER_ID)));
+        when(savedSearchDao.findByIdWithFilters(SEARCH_ID)).thenReturn(Optional.empty());
 
         // Act
-        final Optional<SavedSearch> result = savedSearchService.findByIdForUser(USER_ID, SEARCH_ID);
+        final Optional<SavedSearch> result = savedSearchService.findById(SEARCH_ID);
 
         // Assert
         assertFalse(result.isPresent());
     }
 
     @Test
-    public void testFindByIdForUserIsEmptyWhenTheSearchDoesNotExist() {
+    public void testFindOwnerIdReturnsTheIdOfTheOwner() {
         // Arrange
-        when(savedSearchDao.findByIdWithFilters(SEARCH_ID)).thenReturn(Optional.empty());
+        when(savedSearchDao.findUserIdById(SEARCH_ID)).thenReturn(Optional.of(USER_ID));
 
         // Act
-        final Optional<SavedSearch> result = savedSearchService.findByIdForUser(USER_ID, SEARCH_ID);
+        final Optional<Long> result = savedSearchService.findOwnerId(SEARCH_ID);
+
+        // Assert
+        assertEquals(Optional.of(USER_ID), result);
+    }
+
+    @Test
+    public void testFindOwnerIdIsEmptyWhenTheSearchDoesNotExist() {
+        // Arrange
+        when(savedSearchDao.findUserIdById(SEARCH_ID)).thenReturn(Optional.empty());
+
+        // Act
+        final Optional<Long> result = savedSearchService.findOwnerId(SEARCH_ID);
 
         // Assert
         assertFalse(result.isPresent());
@@ -171,24 +182,24 @@ public class SavedSearchServiceImplTest {
     // ---- delete() ----
 
     @Test
-    public void testDeleteReturnsTrueWhenTheSearchWasTheirs() {
+    public void testDeleteReturnsTrueWhenTheSearchExisted() {
         // Arrange
-        when(savedSearchDao.deleteByIdAndUserId(SEARCH_ID, USER_ID)).thenReturn(true);
+        when(savedSearchDao.deleteById(SEARCH_ID)).thenReturn(true);
 
         // Act
-        final boolean result = savedSearchService.delete(USER_ID, SEARCH_ID);
+        final boolean result = savedSearchService.delete(SEARCH_ID);
 
         // Assert
         assertTrue(result);
     }
 
     @Test
-    public void testDeleteReturnsFalseWhenTheSearchDoesNotExistOrIsSomeoneElses() {
+    public void testDeleteReturnsFalseWhenTheSearchWasAlreadyGone() {
         // Arrange
-        when(savedSearchDao.deleteByIdAndUserId(SEARCH_ID, USER_ID)).thenReturn(false);
+        when(savedSearchDao.deleteById(SEARCH_ID)).thenReturn(false);
 
         // Act
-        final boolean result = savedSearchService.delete(USER_ID, SEARCH_ID);
+        final boolean result = savedSearchService.delete(SEARCH_ID);
 
         // Assert
         assertFalse(result);

@@ -279,24 +279,26 @@ public class ProfileController {
     }
 
     // Vuelve a la misma pagina de "Mis listas" (el service la ajusta si ya no existe, por ejemplo al borrar la
-    // unica lista de la ultima pagina). El resultado viaja como flash: true = se borro, false = ya no existia.
+    // unica lista de la ultima pagina). De quien es la lista lo decide @PreAuthorize antes de entrar (ver
+    // SavedSearchSecurity). El resultado viaja como flash: true = se borro, false = otra pestana la borro justo antes.
+    @PreAuthorize("@savedSearchSecurity.isOwner(#id, authentication)")
     @RequestMapping(value = "/perfil/listas/{id}/eliminar", method = RequestMethod.POST)
     public ModelAndView eliminarLista(@PathVariable final long id,
                                       @RequestParam(value = "page", required = false) final String page,
-                                      @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
                                       final RedirectAttributes redirectAttributes) {
-        redirectAttributes.addFlashAttribute("listDeleted", savedSearchService.delete(currentUser.getId(), id));
+        redirectAttributes.addFlashAttribute("listDeleted", savedSearchService.delete(id));
         return new ModelAndView("redirect:/perfil/listas?page=" + Paging.parsePage(page));
     }
 
     // A donde lleva el boton "Desuscribirme de esta lista" del mail. Pide sesion como todo /perfil (despues de
     // loguearse vuelve aca) y muestra los filtros de la lista para confirmar; no borra nada hasta el POST de abajo.
-    // Una lista que no existe o es de otra persona se trata igual: vuelve a "Mis listas" avisando que no esta.
+    // De quien es la lista lo decide @PreAuthorize antes de entrar (ver SavedSearchSecurity): una que no existe o es de
+    // otra persona da el mismo 404. Si se borra justo entre la regla y esta lectura, vuelve a "Mis listas" avisando.
+    @PreAuthorize("@savedSearchSecurity.isOwner(#id, authentication)")
     @RequestMapping(value = "/perfil/listas/{id}/desuscribirse", method = RequestMethod.GET)
     public ModelAndView confirmarDesuscripcion(@PathVariable final long id,
-                                               @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
                                                final RedirectAttributes redirectAttributes) {
-        final Optional<SavedSearchWithCategoryNames> search = myAccountService.findSavedSearch(currentUser.getId(), id);
+        final Optional<SavedSearchWithCategoryNames> search = myAccountService.findSavedSearch(id);
         if (!search.isPresent()) {
             redirectAttributes.addFlashAttribute("listDeleted", false);
             return new ModelAndView("redirect:/perfil/listas");
@@ -306,11 +308,11 @@ public class ProfileController {
         return mav;
     }
 
+    @PreAuthorize("@savedSearchSecurity.isOwner(#id, authentication)")
     @RequestMapping(value = "/perfil/listas/{id}/desuscribirse", method = RequestMethod.POST)
     public ModelAndView desuscribirse(@PathVariable final long id,
-                                      @ModelAttribute(value = "currentUser", binding = false) final User currentUser,
                                       final RedirectAttributes redirectAttributes) {
-        redirectAttributes.addFlashAttribute("listDeleted", savedSearchService.delete(currentUser.getId(), id));
+        redirectAttributes.addFlashAttribute("listDeleted", savedSearchService.delete(id));
         return new ModelAndView("redirect:/perfil/listas");
     }
 
@@ -326,7 +328,7 @@ public class ProfileController {
         return mav;
     }
 
-    // Bandeja de mensajes. Al abrirla se marcan todos como leidos. Los circulos de chat y los
+    // Bandeja de mensajes. Abrirla no marca nada como leido (eso es el POST de marcar-leidas, abajo). Los circulos de chat y los
     // mensajes son dos paginados independientes (page / gruposPage), cada uno con su indice: ver
     // pager.tag (pageParam/otherParam/otherPage), mismo patron que "Mis inscripciones".
     @RequestMapping(value = "/perfil/bandeja", method = RequestMethod.GET)

@@ -36,8 +36,8 @@ public interface MyAccountService {
     PageResult<SavedSearchWithCategoryNames> findSavedSearches(long userId, int page);
 
     /**
-     * Una busqueda guardada de esa persona con los nombres de sus categorias (la confirmacion de "desuscribirme"
-     * del mail). Vacio si no existe o es de otra persona: las dos se tratan igual.
+     * Una busqueda guardada con los nombres de sus categorias (la confirmacion de "desuscribirme" del mail). Vacio si
+     * no existe. De quien es lo decide @PreAuthorize en el controller (ver SavedSearchSecurity).
      */
-    Optional<SavedSearchWithCategoryNames> findSavedSearch(long userId, long savedSearchId);
+    Optional<SavedSearchWithCategoryNames> findSavedSearch(long savedSearchId);
 }

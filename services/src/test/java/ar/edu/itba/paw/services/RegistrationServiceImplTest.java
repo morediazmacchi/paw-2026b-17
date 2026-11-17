@@ -1052,6 +1052,38 @@ public class RegistrationServiceImplTest {
         assertEquals(lastPage, result.getContent());
     }
 
+    // ---- findRegistrants() ----
+
+    @Test
+    public void testFindRegistrantsReturnsTheEventWithAPageOfItsRegistrations() {
+        // Arrange
+        final Event event = eventWithCapacity(10);
+        final List<Registration> pageOne = Collections.singletonList(
+                new Registration(event, null, NORMALIZED_EMAIL, NAME, RegistrationStatus.CONFIRMED));
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        when(mockRegistrationDao.countByEventId(EVENT_ID)).thenReturn(1L);
+        when(mockRegistrationDao.findByEventId(EVENT_ID, 1, RegistrationServiceImpl.PAGE_SIZE)).thenReturn(pageOne);
+
+        // Act
+        final Optional<EventRegistrants> result = registrationService.findRegistrants(EVENT_ID, 1);
+
+        // Assert
+        assertEquals(EVENT_ID, result.get().getEvent().getId().longValue());
+        assertEquals(pageOne, result.get().getRegistrations().getContent());
+    }
+
+    @Test
+    public void testFindRegistrantsOfAnEventThatDoesNotExistIsEmpty() {
+        // Arrange
+        when(mockEventDao.findById(EVENT_ID)).thenReturn(Optional.empty());
+
+        // Act
+        final Optional<EventRegistrants> result = registrationService.findRegistrants(EVENT_ID, 1);
+
+        // Assert
+        assertFalse(result.isPresent());
+    }
+
     // ---- findPendingByEvent() ----
 
     @Test

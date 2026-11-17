@@ -200,23 +200,23 @@ public class MyAccountServiceImplTest {
     @Test
     public void testFindSavedSearchNamesItsCategories() {
         // Arrange
-        when(savedSearchService.findByIdForUser(USER_ID, SEARCH_ID)).thenReturn(Optional.of(searchWithCategories(1L)));
+        when(savedSearchService.findById(SEARCH_ID)).thenReturn(Optional.of(searchWithCategories(1L)));
         when(categoryService.findAll()).thenReturn(Collections.singletonList(ModelFixtures.category(1L, "Musica")));
 
         // Act
-        final List<String> result = myAccountService.findSavedSearch(USER_ID, SEARCH_ID).get().getCategoryNames();
+        final List<String> result = myAccountService.findSavedSearch(SEARCH_ID).get().getCategoryNames();
 
         // Assert
         assertEquals(Collections.singletonList("Musica"), result);
     }
 
     @Test
-    public void testFindSavedSearchThatIsNotOfThatPersonIsEmpty() {
+    public void testFindSavedSearchThatDoesNotExistIsEmpty() {
         // Arrange
-        when(savedSearchService.findByIdForUser(USER_ID, SEARCH_ID)).thenReturn(Optional.empty());
+        when(savedSearchService.findById(SEARCH_ID)).thenReturn(Optional.empty());
 
         // Act
-        final Optional<SavedSearchWithCategoryNames> result = myAccountService.findSavedSearch(USER_ID, SEARCH_ID);
+        final Optional<SavedSearchWithCategoryNames> result = myAccountService.findSavedSearch(SEARCH_ID);
 
         // Assert
         assertFalse(result.isPresent());

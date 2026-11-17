@@ -68,15 +68,20 @@ public class SavedSearchServiceImpl implements SavedSearchService {
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<SavedSearch> findByIdForUser(final long userId, final long savedSearchId) {
-        return savedSearchDao.findByIdWithFilters(savedSearchId)
-                .filter(search -> Long.valueOf(userId).equals(search.getUserId()));
+    public Optional<SavedSearch> findById(final long savedSearchId) {
+        return savedSearchDao.findByIdWithFilters(savedSearchId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<Long> findOwnerId(final long savedSearchId) {
+        return savedSearchDao.findUserIdById(savedSearchId);
     }
 
     @Override
     @Transactional
-    public boolean delete(final long userId, final long savedSearchId) {
-        return savedSearchDao.deleteByIdAndUserId(savedSearchId, userId);
+    public boolean delete(final long savedSearchId) {
+        return savedSearchDao.deleteById(savedSearchId);
     }
 
     private static String keyOf(final EventSearchCriteria criteria) {

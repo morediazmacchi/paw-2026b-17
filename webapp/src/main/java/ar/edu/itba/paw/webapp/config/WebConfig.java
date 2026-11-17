@@ -8,9 +8,11 @@ import ar.edu.itba.paw.services.ImageService;
 import ar.edu.itba.paw.services.InboxService;
 import ar.edu.itba.paw.services.ModerationService;
 import ar.edu.itba.paw.services.RegistrationService;
+import ar.edu.itba.paw.services.SavedSearchService;
 import ar.edu.itba.paw.services.UserService;
 import ar.edu.itba.paw.webapp.security.AdminSecurity;
 import ar.edu.itba.paw.webapp.security.EventSecurity;
+import ar.edu.itba.paw.webapp.security.SavedSearchSecurity;
 import ar.edu.itba.paw.webapp.interceptor.CurrentLocaleInterceptor;
 import ar.edu.itba.paw.webapp.interceptor.UnreadInboxInterceptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -58,6 +60,12 @@ public class WebConfig implements WebMvcConfigurer {
                                        final EventQuestionService eventQuestionService) {
         return new EventSecurity(eventService, registrationService, eventAccessService, imageService,
                 eventChatService, eventQuestionService);
+    }
+
+    // Ownership de las busquedas guardadas para @PreAuthorize en ProfileController (ver SavedSearchSecurity).
+    @Bean
+    public SavedSearchSecurity savedSearchSecurity(final SavedSearchService savedSearchService) {
+        return new SavedSearchSecurity(savedSearchService);
     }
 
     // Reglas de admin sobre otros usuarios para @PreAuthorize en AdminController (ver AdminSecurity).

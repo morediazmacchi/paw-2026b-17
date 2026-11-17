@@ -23,13 +23,22 @@ public interface SavedSearchService {
     PageResult<SavedSearch> findPageByUser(long userId, int page);
 
     /**
-     * La busqueda guardada con sus filtros, solo si es de esa persona: vacio si no existe o es de otra (para la
-     * pantalla de confirmar la baja que llega desde el mail).
+     * La busqueda guardada con sus filtros (para la pantalla de confirmar la baja que llega desde el mail), o vacio
+     * si no existe. De quien es NO se valida aca: lo decide @PreAuthorize en el controller (ver SavedSearchSecurity).
      */
-    Optional<SavedSearch> findByIdForUser(long userId, long savedSearchId);
+    Optional<SavedSearch> findById(long savedSearchId);
 
-    /** Borra la busqueda guardada si es de esa persona (ya no se le avisa). false si no existe o es de otra. */
-    boolean delete(long userId, long savedSearchId);
+    /**
+     * El id de la persona duenia de la busqueda, o vacio si no existe: es lo unico que necesita la autorizacion
+     * (ver SavedSearchSecurity), sin cargar la busqueda.
+     */
+    Optional<Long> findOwnerId(long savedSearchId);
+
+    /**
+     * Borra la busqueda guardada (ya no se le avisa a su duenia). false si ya no existia (por ejemplo, otra pestana
+     * la borro justo antes). Que la busqueda sea de quien la pide lo decide @PreAuthorize en el controller.
+     */
+    boolean delete(long savedSearchId);
 
     /** Si la persona ya tiene guardada una busqueda con esos mismos filtros (para el boton de /eventos). */
     boolean isSaved(long userId, EventSearchCriteria criteria);

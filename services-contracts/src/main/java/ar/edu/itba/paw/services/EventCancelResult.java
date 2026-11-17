@@ -5,8 +5,8 @@ public enum EventCancelResult {
     CANCELLED,
 
     // No existe. Solo lo devuelve removeByAdmin(): cancel() (el del creador)
-    // lanza EventNotFoundException en cambio, tanto si no existe como si
-    // quien pide no es el dueno.
+    // lanza EventNotFoundException en cambio. (Que quien pide sea el dueno lo
+    // decide @PreAuthorize en el controller, no este metodo.)
     NOT_FOUND,
 
     // Ya estaba cancelado. Se distingue de CANCELLED para no volver a mandar

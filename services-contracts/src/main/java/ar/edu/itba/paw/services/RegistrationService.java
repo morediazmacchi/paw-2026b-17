@@ -151,6 +151,14 @@ public interface RegistrationService {
     PageResult<Registration> findPageByEventId(long eventId, int page);
 
     /**
+     * Las pantallas "Ver inscriptos" (la del organizador y la del admin) en una sola lectura: el evento y una pagina
+     * de sus inscripciones (ver {@link #findPageByEventId}). Vacio si el evento no existe. Quien la puede ver (el
+     * organizador, o un admin) lo decide la seguridad en el controller, no este metodo.
+     */
+    @Transactional(readOnly = true)
+    Optional<EventRegistrants> findRegistrants(long eventId, int page);
+
+    /**
      * Pantalla de "aceptar o rechazar inscriptos" del creador: las pendientes
      * de este evento, de la que espera hace mas tiempo a la mas reciente.
      * Que quien lo pide sea el creador NO se valida aca: lo decide @PreAuthorize en el

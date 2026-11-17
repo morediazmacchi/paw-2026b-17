@@ -82,8 +82,8 @@ public class MyAccountServiceImpl implements MyAccountService {
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<SavedSearchWithCategoryNames> findSavedSearch(final long userId, final long savedSearchId) {
-        return savedSearchService.findByIdForUser(userId, savedSearchId)
+    public Optional<SavedSearchWithCategoryNames> findSavedSearch(final long savedSearchId) {
+        return savedSearchService.findById(savedSearchId)
                 .map(search -> withCategoryNames(search, categoryNames()));
     }
 

@@ -5,8 +5,10 @@ import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.ReportStatusFilter;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.Registration;
+import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import ar.edu.itba.paw.services.EventApprovalResult;
 import ar.edu.itba.paw.services.EventQuestionService;
+import ar.edu.itba.paw.services.EventRegistrants;
 import ar.edu.itba.paw.services.EventService;
 import ar.edu.itba.paw.services.EventWithRegistrationStats;
 import ar.edu.itba.paw.services.ModerationService;
@@ -225,8 +227,6 @@ public class AdminController {
         return new ModelAndView("redirect:/admin/eventos");
     }
 
-    // Tamaño de pagina para "Usuarios"
-
     @RequestMapping(value = "/usuarios", method = RequestMethod.GET)
     public ModelAndView usuarios(@RequestParam(value = "q", required = false) final String q,
                                   @RequestParam(value = "page", required = false) final String page,
@@ -338,10 +338,11 @@ public class AdminController {
     @RequestMapping(value = "/eventos/{id}/inscriptos", method = RequestMethod.GET)
     public ModelAndView inscriptos(@PathVariable final long id,
                                    @RequestParam(value = "page", required = false) final String page) {
-        final Event event = eventService.findByIdOrThrow(id);
-        final PageResult<Registration> result = registrationService.findPageByEventId(id, Paging.parsePage(page));
+        final EventRegistrants registrants = registrationService.findRegistrants(id, Paging.parsePage(page))
+                .orElseThrow(() -> new EventNotFoundException(id));
+        final PageResult<Registration> result = registrants.getRegistrations();
         final ModelAndView mav = new ModelAndView("admin/eventoInscriptos");
-        mav.addObject("event", event);
+        mav.addObject("event", registrants.getEvent());
         mav.addObject("registrations", result.getContent());
         mav.addObject("totalRegistrations", result.getTotalElements());
         mav.addObject("currentPage", result.getPage());

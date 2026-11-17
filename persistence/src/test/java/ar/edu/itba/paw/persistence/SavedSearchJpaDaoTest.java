@@ -227,10 +227,10 @@ public class SavedSearchJpaDaoTest {
         assertTrue(result.isEmpty());
     }
 
-    // ---- deleteByIdAndUserId() ----
+    // ---- deleteById() ----
 
     @Test
-    public void testDeleteByIdAndUserIdRemovesTheSearchTogetherWithItsFilters() {
+    public void testDeleteByIdRemovesTheSearchTogetherWithItsFilters() {
         // Arrange
         final long id = insertSearch(userId, KEY);
         jdbcTemplate.update("INSERT INTO saved_search_category (saved_search_id, category_id) VALUES (?, ?)",
@@ -240,7 +240,7 @@ public class SavedSearchJpaDaoTest {
         final long untouched = insertSearch(userId, "otra");
 
         // Act
-        final boolean result = savedSearchDao.deleteByIdAndUserId(id, userId);
+        final boolean result = savedSearchDao.deleteById(id);
         em.flush();
 
         // Assert
@@ -254,29 +254,42 @@ public class SavedSearchJpaDaoTest {
     }
 
     @Test
-    public void testDeleteByIdAndUserIdDoesNotRemoveASearchOfSomeoneElse() {
+    public void testDeleteByIdOfASearchThatDoesNotExistReturnsFalse() {
         // Arrange
-        final long id = insertSearch(otherUserId, KEY);
+        final long id = insertSearch(userId, KEY);
 
         // Act
-        final boolean result = savedSearchDao.deleteByIdAndUserId(id, userId);
-        em.flush();
+        final boolean result = savedSearchDao.deleteById(id + 1000);
 
         // Assert
         assertFalse(result);
         assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "saved_search", "id = " + id));
     }
 
+    // ---- findUserIdById() ----
+
     @Test
-    public void testDeleteByIdAndUserIdOfASearchThatDoesNotExistReturnsFalse() {
+    public void testFindUserIdByIdReturnsTheOwnerOfTheSearch() {
+        // Arrange
+        final long id = insertSearch(otherUserId, KEY);
+
+        // Act
+        final Optional<Long> result = savedSearchDao.findUserIdById(id);
+
+        // Assert
+        assertEquals(Optional.of(otherUserId), result);
+    }
+
+    @Test
+    public void testFindUserIdByIdOfASearchThatDoesNotExistIsEmpty() {
         // Arrange
         final long id = insertSearch(userId, KEY);
 
         // Act
-        final boolean result = savedSearchDao.deleteByIdAndUserId(id + 1000, userId);
+        final Optional<Long> result = savedSearchDao.findUserIdById(id + 1000);
 
         // Assert
-        assertFalse(result);
+        assertFalse(result.isPresent());
     }
 
     // ---- findIdsAfter() ----

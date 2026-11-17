@@ -74,14 +74,21 @@ public class SavedSearchJpaDao implements SavedSearchDao {
     }
 
     @Override
-    public boolean deleteByIdAndUserId(final long id, final long userId) {
-        final Optional<SavedSearch> found = em.createQuery(
-                        "FROM SavedSearch s WHERE s.id = :id AND s.user.id = :userId", SavedSearch.class)
+    public boolean deleteById(final long id) {
+        final SavedSearch found = em.find(SavedSearch.class, id);
+        if (found == null) {
+            return false;
+        }
+        em.remove(found);
+        return true;
+    }
+
+    @Override
+    public Optional<Long> findUserIdById(final long id) {
+        // s.user.id no hace JOIN con users: es la propia columna user_id de la busqueda.
+        return em.createQuery("SELECT s.user.id FROM SavedSearch s WHERE s.id = :id", Long.class)
                 .setParameter("id", id)
-                .setParameter("userId", userId)
                 .getResultList().stream().findFirst();
-        found.ifPresent(em::remove);
-        return found.isPresent();
     }
 
     @Override

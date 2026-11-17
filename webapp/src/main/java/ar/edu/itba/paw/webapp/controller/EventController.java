@@ -8,6 +8,7 @@ import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventQuestion;
 import ar.edu.itba.paw.model.EventSearchCriteria;
 import ar.edu.itba.paw.model.User;
+import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import ar.edu.itba.paw.services.CategoryService;
 import ar.edu.itba.paw.services.CreatorReputation;
 import ar.edu.itba.paw.services.EventAccessService;
@@ -15,6 +16,7 @@ import ar.edu.itba.paw.services.EventCreation;
 import ar.edu.itba.paw.services.EventDetail;
 import ar.edu.itba.paw.services.EventDetailService;
 import ar.edu.itba.paw.services.EventParticipation;
+import ar.edu.itba.paw.services.EventRegistrants;
 import ar.edu.itba.paw.services.EventListing;
 import ar.edu.itba.paw.services.EventListingService;
 import ar.edu.itba.paw.services.EventService;
@@ -375,12 +377,12 @@ public class EventController {
     @PreAuthorize("@eventSecurity.isOwner(#id, authentication)")
     @RequestMapping(value = "/eventos/{id}/inscriptos", method = RequestMethod.GET)
     public ModelAndView inscriptos(@PathVariable final long id,
-                                   @RequestParam(value = "page", required = false) final String page,
-                                   @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
-        final Event event = eventService.findByIdOrThrow(id);
-        final PageResult<Registration> result = registrationService.findPageByEventId(id, Paging.parsePage(page));
+                                   @RequestParam(value = "page", required = false) final String page) {
+        final EventRegistrants registrants = registrationService.findRegistrants(id, Paging.parsePage(page))
+                .orElseThrow(() -> new EventNotFoundException(id));
+        final PageResult<Registration> result = registrants.getRegistrations();
         final ModelAndView mav = new ModelAndView("events/inscriptos");
-        mav.addObject("event", event);
+        mav.addObject("event", registrants.getEvent());
         mav.addObject("registrations", result.getContent());
         mav.addObject("totalRegistrations", result.getTotalElements());
         mav.addObject("currentPage", result.getPage());
