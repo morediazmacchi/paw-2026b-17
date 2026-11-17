@@ -27,7 +27,6 @@ public class NotificationServiceImpl implements NotificationService {
 
     // Fallback cuando el destinatario todavia no eligio idioma a mano
     private static final Locale DEFAULT_LOCALE = new Locale("es");
-    private static final Locale MONEY_LOCALE = new Locale("es", "AR");
 
     private final MailService mailService;
     private final MessageSource messageSource;
@@ -92,9 +91,10 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public void notifyNewRegistration(final Event event, final Registration registration) {
         try {
-            final Locale locale = localeForUserId(event.getCreatorId());
+            final Recipient creator = creatorOf(event);
+            final Locale locale = creator.locale();
             final Map<String, Object> variables = eventVariables(event, locale);
-            variables.put("personName", displayName(null, event.getCreatorEmail()));
+            variables.put("personName", displayName(creator.name(), event.getCreatorEmail()));
             variables.put("registrantName", displayName(registration.getName(), registration.getEmail()));
             variables.put("registrantEmail", registration.getEmail());
 
@@ -133,9 +133,10 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public void notifyNewPendingRegistration(final Event event, final Registration registration) {
         try {
-            final Locale locale = localeForUserId(event.getCreatorId());
+            final Recipient creator = creatorOf(event);
+            final Locale locale = creator.locale();
             final Map<String, Object> variables = eventVariables(event, locale);
-            variables.put("personName", displayName(null, event.getCreatorEmail()));
+            variables.put("personName", displayName(creator.name(), event.getCreatorEmail()));
             variables.put("registrantName", displayName(registration.getName(), registration.getEmail()));
             variables.put("registrantEmail", registration.getEmail());
             // Manda directo al evento: ahi vive la pantalla de aceptar/rechazar
@@ -197,13 +198,13 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public void notifyEventInvitation(final Event event, final EventInvitation invitation) {
         try {
-            // invitation.getUserId() es optimista (ver el modelo): si es null
-            // (todavia no tiene cuenta) localeForUserId() cae en DEFAULT_LOCALE,
-            // que es exactamente lo correcto para alguien sin preferencia guardada.
-            final Locale locale = localeForUserId(invitation.getUserId());
+            // invitation.getUserId() es optimista (ver el modelo): si es null todavia
+            // no tiene cuenta, y entonces se usa el idioma de quien lo invita.
+            final Recipient invitee = inviteeOf(event, invitation);
+            final Locale locale = invitee.locale();
             final Map<String, Object> variables = eventVariables(event, locale);
-            // No hay nombre: a esta altura solo se conoce el mail al que se invito.
-            variables.put("personName", displayName(null, invitation.getEmail()));
+            // Si tiene cuenta, el nombre sale de la misma lectura que el idioma; si no, solo se conoce el mail.
+            variables.put("personName", displayName(invitee.name(), invitation.getEmail()));
 
             mailService.send(invitation.getEmail(),
                     "event-invitation",
@@ -242,9 +243,10 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public void notifyNewWaitlistEntry(final Event event, final Registration registration) {
         try {
-            final Locale locale = localeForUserId(event.getCreatorId());
+            final Recipient creator = creatorOf(event);
+            final Locale locale = creator.locale();
             final Map<String, Object> variables = eventVariables(event, locale);
-            variables.put("personName", displayName(null, event.getCreatorEmail()));
+            variables.put("personName", displayName(creator.name(), event.getCreatorEmail()));
             variables.put("registrantName", displayName(registration.getName(), registration.getEmail()));
             variables.put("registrantEmail", registration.getEmail());
 
@@ -303,9 +305,10 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public void notifyEventFull(final Event event) {
         try {
-            final Locale locale = localeForUserId(event.getCreatorId());
+            final Recipient creator = creatorOf(event);
+            final Locale locale = creator.locale();
             final Map<String, Object> variables = eventVariables(event, locale);
-            variables.put("personName", displayName(null, event.getCreatorEmail()));
+            variables.put("personName", displayName(creator.name(), event.getCreatorEmail()));
 
             mailService.send(event.getCreatorEmail(),
                     "event-full",
@@ -323,9 +326,10 @@ public class NotificationServiceImpl implements NotificationService {
     public void notifyRegistrationCancelled(final Event event, final Registration registration,
                                              final boolean offeredToWaitlist) {
         try {
-            final Locale locale = localeForUserId(event.getCreatorId());
+            final Recipient creator = creatorOf(event);
+            final Locale locale = creator.locale();
             final Map<String, Object> variables = eventVariables(event, locale);
-            variables.put("personName", displayName(null, event.getCreatorEmail()));
+            variables.put("personName", displayName(creator.name(), event.getCreatorEmail()));
             variables.put("registrantName", displayName(registration.getName(), registration.getEmail()));
             variables.put("registrantEmail", registration.getEmail());
             // La plantilla elige entre dos parrafos con este booleano, asi los dos
@@ -447,9 +451,10 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public void notifyOrganizerEventReminder(final Event event) {
         try {
-            final Locale locale = localeForUserId(event.getCreatorId());
+            final Recipient creator = creatorOf(event);
+            final Locale locale = creator.locale();
             final Map<String, Object> variables = eventVariables(event, locale);
-            variables.put("personName", displayName(null, event.getCreatorEmail()));
+            variables.put("personName", displayName(creator.name(), event.getCreatorEmail()));
             variables.put("attendeesUrl", links.attendees(event.getId()));
 
             mailService.send(event.getCreatorEmail(),
@@ -468,9 +473,10 @@ public class NotificationServiceImpl implements NotificationService {
     public void notifyNewQuestion(final Event event, final EventQuestion question,
                                   final String askerName, final String askerEmail) {
         try {
-            final Locale locale = localeForUserId(event.getCreatorId());
+            final Recipient creator = creatorOf(event);
+            final Locale locale = creator.locale();
             final Map<String, Object> variables = eventVariables(event, locale);
-            variables.put("personName", displayName(null, event.getCreatorEmail()));
+            variables.put("personName", displayName(creator.name(), event.getCreatorEmail()));
             variables.put("askerName", displayName(askerName, askerEmail));
             variables.put("questionText", question.getText());
             // Directo a la sección de preguntas del detalle.
@@ -492,7 +498,7 @@ public class NotificationServiceImpl implements NotificationService {
     public void notifyQuestionAnswered(final Event event, final EventQuestion question,
                                        final String askerName, final String askerEmail) {
         try {
-            final Locale locale = localeForUserId(question.getUserId());
+            final Locale locale = localeFor(question.getUser());
             final Map<String, Object> variables = eventVariables(event, locale);
             variables.put("personName", displayName(askerName, askerEmail));
             variables.put("questionText", question.getText());
@@ -514,9 +520,10 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public void notifyEventRemovedByAdmin(final Event event, final String reason) {
         try {
-            final Locale locale = localeForUserId(event.getCreatorId());
+            final Recipient creator = creatorOf(event);
+            final Locale locale = creator.locale();
             final Map<String, Object> variables = eventVariables(event, locale);
-            variables.put("personName", displayName(null, event.getCreatorEmail()));
+            variables.put("personName", displayName(creator.name(), event.getCreatorEmail()));
             variables.put("reason", reason);
             variables.put("eventsUrl", links.events());
 
@@ -535,9 +542,10 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public void notifyEventApproved(final Event event) {
         try {
-            final Locale locale = localeForUserId(event.getCreatorId());
+            final Recipient creator = creatorOf(event);
+            final Locale locale = creator.locale();
             final Map<String, Object> variables = eventVariables(event, locale);
-            variables.put("personName", displayName(null, event.getCreatorEmail()));
+            variables.put("personName", displayName(creator.name(), event.getCreatorEmail()));
 
             mailService.send(event.getCreatorEmail(),
                     "event-approved",
@@ -555,7 +563,7 @@ public class NotificationServiceImpl implements NotificationService {
     public void notifySavedSearchMatches(final User user, final long savedSearchId, final Event example,
                                          final long newEventsCount) {
         try {
-            final Locale locale = localeForUserId(user.getId());
+            final Locale locale = localeFor(user);
             final Map<String, Object> variables = eventVariables(example, locale);
             variables.put("personName", displayName(user.getName(), user.getEmail()));
             variables.put("newEventsCount", newEventsCount);
@@ -576,9 +584,10 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public void notifyEventRejected(final Event event, final String reason) {
         try {
-            final Locale locale = localeForUserId(event.getCreatorId());
+            final Recipient creator = creatorOf(event);
+            final Locale locale = creator.locale();
             final Map<String, Object> variables = eventVariables(event, locale);
-            variables.put("personName", displayName(null, event.getCreatorEmail()));
+            variables.put("personName", displayName(creator.name(), event.getCreatorEmail()));
             variables.put("reason", reason);
             // El evento rechazado nunca llega a ser accesible: el CTA va al
             // listado general, no a eventUrl (mismo criterio que
@@ -600,7 +609,7 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public void notifyFollowedUserNewEvent(final User follower, final Event event, final String organizerName) {
         try {
-            final Locale locale = localeForUserId(follower.getId());
+            final Locale locale = localeFor(follower);
             final Map<String, Object> variables = eventVariables(event, locale);
             variables.put("personName", displayName(follower.getName(), follower.getEmail()));
             variables.put("organizerName", organizerName);
@@ -620,9 +629,10 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public void notifyEventChangesRequested(final Event event, final String message) {
         try {
-            final Locale locale = localeForUserId(event.getCreatorId());
+            final Recipient creator = creatorOf(event);
+            final Locale locale = creator.locale();
             final Map<String, Object> variables = eventVariables(event, locale);
-            variables.put("personName", displayName(null, event.getCreatorEmail()));
+            variables.put("personName", displayName(creator.name(), event.getCreatorEmail()));
             variables.put("message", message);
             // Al editar directo, no al detalle: es lo que la persona tiene que hacer.
             variables.put("editEventUrl", links.editEvent(event.getId()));
@@ -716,7 +726,12 @@ public class NotificationServiceImpl implements NotificationService {
             // "Gratis" / "Free" sale del archivo de textos, como todo lo demas.
             return messageSource.getMessage("mail.event.free", null, locale);
         }
-        return NumberFormat.getCurrencyInstance(MONEY_LOCALE).format(event.getPrice());
+        // Igual que la web (paw:price): el numero lo escribe cada idioma (1.500 / 1,500),
+        // sin centavos, y donde va el simbolo lo dice el archivo de textos.
+        final NumberFormat number = NumberFormat.getNumberInstance(locale);
+        number.setMaximumFractionDigits(0);
+        return messageSource.getMessage("mail.event.priceFormat",
+                new Object[]{ number.format(event.getPrice()) }, locale);
     }
 
     /**
@@ -748,25 +763,55 @@ public class NotificationServiceImpl implements NotificationService {
      * El idioma guardado de un destinatario que YA tenemos cargado (no hace
      * falta ir a buscarlo por id).
      */
-    // protected (no private): NotificationServiceImplTest, en el mismo paquete,
-    // lo llama directo para probar la resolucion de locale sin tener que pasar
-    // por un metodo void y espiar que le llego a MailService.
-    protected Locale localeFor(final User user) {
+    private Locale localeFor(final User user) {
         return toLocale(user.getLocale());
+    }
+
+    /**
+     * Nombre e idioma de un destinatario, leidos de UNA sola vez (una sola consulta
+     * al usuario) en vez de una para el idioma y otra para el nombre.
+     */
+    private record Recipient(String name, Locale locale) {
     }
 
     /**
      * Igual que localeFor(User), pero a partir de un id que puede no
      * corresponder a nadie con cuenta todavia: userId null (invitado sin
      * cuenta, ver EventInvitation.userId) o sin fila (no deberia pasar, pero
-     * no vale la pena reventar un mail por eso) caen los dos en DEFAULT_LOCALE.
+     * no vale la pena reventar un mail por eso) caen los dos en DEFAULT_LOCALE
+     * y sin nombre (displayName() sabe armar uno a partir del mail).
      */
-    // protected, mismo motivo que localeFor(User).
-    protected Locale localeForUserId(final Long userId) {
+    private Recipient recipientOf(final Long userId) {
         if (userId == null) {
-            return DEFAULT_LOCALE;
+            return new Recipient(null, DEFAULT_LOCALE);
         }
-        return userDao.findById(userId).map(User::getLocale).map(this::toLocale).orElse(DEFAULT_LOCALE);
+        return userDao.findById(userId)
+                .map(u -> new Recipient(u.getName(), localeFor(u)))
+                .orElse(new Recipient(null, DEFAULT_LOCALE));
+    }
+
+    private Locale localeForUserId(final Long userId) {
+        return recipientOf(userId).locale();
+    }
+
+    /** El creador del evento: destinatario de los avisos sobre su evento. */
+    private Recipient creatorOf(final Event event) {
+        return recipientOf(event.getCreatorId());
+    }
+
+    /**
+     * El destinatario del mail de invitacion a un evento privado.
+     *
+     * Si el invitado ya tiene cuenta, su nombre y su idioma. Si todavia no (invitation.getUserId() es
+     * null), no hay preferencia que buscar: se usa el idioma del creador, que es la mejor
+     * pista que hay para alguien que no conocemos (y sin nombre). Si tiene cuenta pero nunca eligio
+     * idioma, queda en el default (esa persona no tiene preferencia, no le falta cuenta).
+     */
+    private Recipient inviteeOf(final Event event, final EventInvitation invitation) {
+        if (invitation.getUserId() != null) {
+            return recipientOf(invitation.getUserId());
+        }
+        return new Recipient(null, creatorOf(event).locale());
     }
 
     private Locale toLocale(final String languageTag) {
