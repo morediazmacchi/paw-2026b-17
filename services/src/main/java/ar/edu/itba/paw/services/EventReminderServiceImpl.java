@@ -7,6 +7,7 @@ import ar.edu.itba.paw.model.RegistrationStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,17 +22,18 @@ public class EventReminderServiceImpl implements EventReminderService {
     static final long ONE_DAY_MILLIS = 24L * 60 * 60 * 1000;
 
     private final EventService eventService;
-    // Los mails a los confirmados (pueden ser muchos): en segundo plano, despues del commit y de a tandas.
-    private final MassNotifier massNotifier;
+    // Para anunciar que toca el recordatorio (EventReminderDueEvent): los mails a los confirmados (pueden ser muchos)
+    // los manda MassNotifier, en segundo plano, despues del commit y de a tandas.
+    private final ApplicationEventPublisher eventPublisher;
     private final NotificationService notificationService;
     private final InboxService inboxService;
 
     @Autowired
-    public EventReminderServiceImpl(final EventService eventService, final MassNotifier massNotifier,
+    public EventReminderServiceImpl(final EventService eventService, final ApplicationEventPublisher eventPublisher,
                                     final NotificationService notificationService,
                                     final InboxService inboxService) {
         this.eventService = eventService;
-        this.massNotifier = massNotifier;
+        this.eventPublisher = eventPublisher;
         this.notificationService = notificationService;
         this.inboxService = inboxService;
     }
@@ -65,9 +67,9 @@ public class EventReminderServiceImpl implements EventReminderService {
         // Solo a los confirmados: son los que tienen un lugar. Lista de espera y
         // pendientes todavia no tienen a que ir.
         // La bandeja, todos juntos en una sola sentencia, dentro de esta transaccion. Los mails: aca no se busca a
-        // nadie; MassNotifier (@Async) los busca de a tandas y los manda en segundo plano, despues del commit.
+        // nadie; se anuncia y MassNotifier los busca de a tandas y los manda en segundo plano, despues del commit.
         inboxService.addForRegistrants(eventId, InboxMessageType.EVENT_REMINDER, RegistrationStatus.withConfirmedPlace());
-        massNotifier.sendEventReminder(eventId);
+        eventPublisher.publishEvent(new EventReminderDueEvent(eventId));
         notificationService.notifyOrganizerEventReminder(event);
         inboxService.add(event.getCreatorEmail(), InboxMessageType.EVENT_TOMORROW, eventId, null, null);
 

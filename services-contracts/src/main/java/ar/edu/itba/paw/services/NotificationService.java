@@ -42,7 +42,9 @@ public interface NotificationService {
 
     /**
      * Varios pasaron a la lista de espera a la vez (el evento se lleno y los pendientes ya no tienen lugar) ->
-     * le avisa a cada uno. Un solo envio asincronico para toda la lista (ver notifyEventCancelled()).
+     * le avisa a cada uno.
+     * SIN @Async: la llama MassNotifier, que ya corre en segundo plano y despues del commit, con una tanda por vez;
+     * el mail sale en ese mismo hilo. No llamarla desde adentro de una transaccion (saldria antes del commit).
      */
     void notifyWaitlistJoined(Event event, List<Registration> registrations);
 
@@ -69,7 +71,11 @@ public interface NotificationService {
     /** Se libero un lugar y le tocaba a esta persona -> mail de que ya esta confirmada. */
     void notifyWaitlistPromoted(Event event, Registration registration);
 
-    /** Varios salen de la lista de espera a la vez (se libero lugar o subio el cupo) -> le avisa a cada uno que entro. Un solo envio asincronico para toda la lista (ver notifyEventCancelled()). */
+    /**
+     * Varios salen de la lista de espera a la vez (se libero lugar o subio el cupo) -> le avisa a cada uno que entro.
+     * SIN @Async: la llama MassNotifier, que ya corre en segundo plano y despues del commit, con una tanda por vez;
+     * el mail sale en ese mismo hilo. No llamarla desde adentro de una transaccion (saldria antes del commit).
+     */
     void notifyWaitlistPromoted(Event event, List<Registration> registrations);
 
     /** El creador le saco el lugar a alguien ya confirmado -> le avisa a esa persona. */
@@ -79,13 +85,23 @@ public interface NotificationService {
     /** Se anoto a un evento con requiresApproval -> le avisa que su pedido queda esperando revision. */
     void notifyRegistrationPending(Event event, Registration registration);
 
-    /** Varios pasan de la lista de espera a "pendiente de aprobacion" a la vez (ver notifyWaitlistJoined(lista)) -> le avisa a cada uno. Un solo envio asincronico para toda la lista (ver notifyEventCancelled()). */
+    /**
+     * Varios pasan de la lista de espera a "pendiente de aprobacion" a la vez (ver notifyWaitlistJoined(lista)) ->
+     * le avisa a cada uno.
+     * SIN @Async: la llama MassNotifier, que ya corre en segundo plano y despues del commit, con una tanda por vez;
+     * el mail sale en ese mismo hilo. No llamarla desde adentro de una transaccion (saldria antes del commit).
+     */
     void notifyRegistrationPending(Event event, List<Registration> registrations);
 
     /** Alguien pidio anotarse a un evento con requiresApproval -> le avisa al creador que tiene que revisarlo. */
     void notifyNewPendingRegistration(Event event, Registration registration);
 
-    /** Varios pedidos nuevos le llegan al organizador a la vez (salieron de la lista de espera) -> un aviso por pedido; al organizador se lo busca una sola vez. Un solo envio asincronico para toda la lista (ver notifyEventCancelled()). */
+    /**
+     * Varios pedidos nuevos le llegan al organizador a la vez (salieron de la lista de espera) -> un aviso por
+     * pedido; al organizador se lo busca una sola vez.
+     * SIN @Async: la llama MassNotifier, que ya corre en segundo plano y despues del commit, con una tanda por vez;
+     * el mail sale en ese mismo hilo. No llamarla desde adentro de una transaccion (saldria antes del commit).
+     */
     void notifyNewPendingRegistration(Event event, List<Registration> registrations);
 
     /** El creador acepto una inscripcion pendiente -> le avisa a esa persona que ya tiene su lugar. */
@@ -98,24 +114,27 @@ public interface NotificationService {
     void notifyEventInvitation(Event event, EventInvitation invitation);
 
     /**
-     * El creador cancelo el evento -> le avisa a cada inscripto confirmado de la lista. Es UN solo envio
-     * asincronico para toda la lista (no uno por persona), y los idiomas se buscan todos juntos. La lista es UNA
-     * tanda: la arma y la recorre MassNotifier, en segundo plano y despues del commit, de a tandas (nunca todos
-     * los inscriptos de un evento de una vez, ni desde el hilo de quien cancela).
+     * El creador cancelo el evento -> le avisa a cada inscripto confirmado de la lista. Los idiomas de la
+     * tanda se buscan todos juntos. La lista es UNA tanda: las arma y las recorre MassNotifier, en segundo plano y
+     * despues del commit (nunca todos los inscriptos de un evento de una vez, ni desde el hilo de quien cancela).
+     * SIN @Async: la llama MassNotifier, que ya corre en segundo plano y despues del commit, con una tanda por vez;
+     * el mail sale en ese mismo hilo. No llamarla desde adentro de una transaccion (saldria antes del commit).
      */
     void notifyEventCancelled(Event event, List<Registration> registrations);
 
     /**
-     * El creador edito el evento -> le avisa a cada inscripto confirmado de la tanda (un solo envio
-     * asincronico para todos, ver notifyEventCancelled()).
+     * El creador edito el evento -> le avisa a cada inscripto confirmado de la tanda. Ver notifyEventCancelled().
      * "event" son los datos YA actualizados (lo que cambio es justo lo que
      * el mail tiene que mostrar).
+     * SIN @Async: la llama MassNotifier, que ya corre en segundo plano y despues del commit, con una tanda por vez;
+     * el mail sale en ese mismo hilo. No llamarla desde adentro de una transaccion (saldria antes del commit).
      */
     void notifyEventUpdated(Event event, List<Registration> registrations);
 
     /**
-     * El evento empieza en menos de 24 hs -> recordatorio a cada inscripto confirmado de la tanda (un solo
-     * envio asincronico para todos, ver notifyEventCancelled()).
+     * El evento empieza en menos de 24 hs -> recordatorio a cada inscripto confirmado de la tanda. Ver notifyEventCancelled().
+     * SIN @Async: la llama MassNotifier, que ya corre en segundo plano y despues del commit, con una tanda por vez;
+     * el mail sale en ese mismo hilo. No llamarla desde adentro de una transaccion (saldria antes del commit).
      */
     void notifyEventReminder(Event event, List<Registration> registrations);
 
@@ -154,9 +173,11 @@ public interface NotificationService {
 
     /**
      * Un organizador que sigue (ver FollowService) publico un evento nuevo y quedo aprobado -> le avisa a cada
-     * persona de la tanda que lo sigue. Un solo envio asincronico para toda la tanda (ver notifyEventCancelled()):
+     * persona de la tanda que lo sigue.:
      * los seguidores los busca de a tandas MassNotifier, en segundo plano y despues del commit, asi un organizador
      * con muchos seguidores no deja esperando al admin que aprueba.
+     * SIN @Async: la llama MassNotifier, que ya corre en segundo plano y despues del commit, con una tanda por vez;
+     * el mail sale en ese mismo hilo. No llamarla desde adentro de una transaccion (saldria antes del commit).
      */
     void notifyFollowedUserNewEvent(List<FollowerContact> followers, Event event, String organizerName);
 

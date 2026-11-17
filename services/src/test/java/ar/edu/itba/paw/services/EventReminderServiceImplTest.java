@@ -7,6 +7,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -36,8 +37,9 @@ public class EventReminderServiceImplTest {
 
     @Mock
     private EventService eventService;
+    // El anuncio del recordatorio (EventReminderDueEvent) lo escucha MassNotifier: aca no escucha nadie.
     @Mock
-    private MassNotifier massNotifier;
+    private ApplicationEventPublisher eventPublisher;
     @Mock
     private NotificationService notificationService;
     @Mock
@@ -47,7 +49,7 @@ public class EventReminderServiceImplTest {
 
     @Before
     public void setUp() {
-        reminderService = new EventReminderServiceImpl(eventService, massNotifier, notificationService, inboxService);
+        reminderService = new EventReminderServiceImpl(eventService, eventPublisher, notificationService, inboxService);
     }
 
     private static Event eventInHours(final long id, final long hours) {

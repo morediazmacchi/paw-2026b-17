@@ -198,7 +198,7 @@ public class NotificationServiceImpl implements NotificationService {
         }
     }
 
-    @Async
+    // Sin @Async a proposito: la tanda la manda MassNotifier, que ya corre en segundo plano y despues del commit.
     @Override
     public void notifyRegistrationPending(final Event event, final List<Registration> registrations) {
         notifyRegistrants(event, registrations, "registration-pending", "mail.registrationPending.subject",
@@ -206,7 +206,7 @@ public class NotificationServiceImpl implements NotificationService {
                 "Fallo la notificacion de inscripcion pendiente");
     }
 
-    @Async
+    // Sin @Async a proposito: la tanda la manda MassNotifier, que ya corre en segundo plano y despues del commit.
     @Override
     public void notifyWaitlistPromoted(final Event event, final List<Registration> registrations) {
         notifyRegistrants(event, registrations, "waitlist-promoted", "mail.waitlistPromoted.subject",
@@ -216,7 +216,7 @@ public class NotificationServiceImpl implements NotificationService {
 
     // Un mail al organizador por cada pedido de la lista, pero el organizador (nombre e idioma) se busca UNA sola
     // vez y no una por pedido. Si el de uno falla, se sigue con los demas.
-    @Async
+    // Sin @Async a proposito: la tanda la manda MassNotifier, que ya corre en segundo plano y despues del commit.
     @Override
     public void notifyNewPendingRegistration(final Event event, final List<Registration> registrations) {
         if (registrations.isEmpty()) {
@@ -298,7 +298,7 @@ public class NotificationServiceImpl implements NotificationService {
         }
     }
 
-    @Async
+    // Sin @Async a proposito: la tanda la manda MassNotifier, que ya corre en segundo plano y despues del commit.
     @Override
     public void notifyWaitlistJoined(final Event event, final List<Registration> registrations) {
         notifyRegistrants(event, registrations, "waitlist-joined", "mail.waitlistJoined.subject",
@@ -414,19 +414,19 @@ public class NotificationServiceImpl implements NotificationService {
         }
     }
 
-    @Async
+    // Sin @Async a proposito: la tanda la manda MassNotifier, que ya corre en segundo plano y despues del commit.
     @Override
     public void notifyEventCancelled(final Event event, final List<Registration> registrations) {
         notifyRegistrants(event, registrations, "event-cancelled", "mail.eventCancelled.subject", variables -> variables.put("eventsUrl", links.events()), "Fallo el aviso de evento cancelado");
     }
 
-    @Async
+    // Sin @Async a proposito: la tanda la manda MassNotifier, que ya corre en segundo plano y despues del commit.
     @Override
     public void notifyEventUpdated(final Event event, final List<Registration> registrations) {
         notifyRegistrants(event, registrations, "event-updated", "mail.eventUpdated.subject", variables -> { }, "Fallo el aviso de evento editado");
     }
 
-    @Async
+    // Sin @Async a proposito: la tanda la manda MassNotifier, que ya corre en segundo plano y despues del commit.
     @Override
     public void notifyEventReminder(final Event event, final List<Registration> registrations) {
         notifyRegistrants(event, registrations, "event-reminder", "mail.eventReminder.subject", variables -> { }, "Fallo el recordatorio de 24 hs");
@@ -590,11 +590,11 @@ public class NotificationServiceImpl implements NotificationService {
         }
     }
 
-    @Async
+    // Sin @Async a proposito: la tanda la manda MassNotifier, que ya corre en segundo plano y despues del commit.
     @Override
     public void notifyFollowedUserNewEvent(final List<FollowerContact> followers, final Event event,
                                            final String organizerName) {
-        // Una sola tarea para todos los seguidores (ver notifyRegistrants()). El idioma ya viene en la
+        // Una tanda de seguidores (ver MassNotifier, que ya corre en segundo plano). El idioma ya viene en la
         // proyeccion: no se vuelve a la base por cada seguidor. Si el mail de uno falla, se sigue con los demas.
         for (final FollowerContact follower : followers) {
             try {
@@ -639,11 +639,10 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     /**
-     * Un mismo mail a cada inscripto de la lista, todo en UNA tarea asincronica (la del metodo publico que
-     * llama): el pool de mails ve una sola tarea en vez de una por persona, asi un evento con cientos de
-     * inscriptos no deja a quien cancela o edita mandando mails en su propio hilo (CallerRunsPolicy, ver
-     * MailConfig). Los idiomas de todos se buscan con UNA consulta (findByIds) en vez de una por inscripto.
-     * Si el mail de uno falla se registra y se sigue con los demas.
+     * Un mismo mail a cada inscripto de la tanda, en el hilo de MassNotifier (que ya corre en segundo plano y
+     * despues del commit): no se abre otra tarea asincronica por tanda ni por persona. Los idiomas de toda la tanda
+     * se buscan con UNA consulta (findByIds) en vez de una por inscripto. Si el mail de uno falla se registra y se
+     * sigue con los demas.
      */
     private void notifyRegistrants(final Event event, final List<Registration> registrations,
                                    final String template, final String subjectKey,

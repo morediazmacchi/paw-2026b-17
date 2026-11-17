@@ -24,11 +24,12 @@ import java.util.function.BiConsumer;
 // 1. vuelve a leer el evento (ya guardado);
 // 2. busca a los destinatarios de a TANDAS de BATCH_SIZE (cada tanda es una consulta corta, en su propia transaccion
 //    de solo lectura; la siguiente arranca despues del ultimo id de la anterior), nunca todos de golpe;
-// 3. por cada tanda le pide a NotificationService los mails de esa tanda (una tarea por tanda).
+// 3. manda los mails de esa tanda en este mismo hilo (los notify* de listas de NotificationService no son @Async:
+//    no se abre otra tarea por tanda).
 // En el hilo de la operacion original no se busca ni se recorre a nadie.
 //
-// No es un service: nadie lo inyecta salvo EventReminderServiceImpl (que no es dependencia de nadie de aca), asi que
-// no arma ciclos aunque dependa de EventService y RegistrationService.
+// No es un service: nadie lo inyecta (todos le hablan con anuncios), asi que no arma ciclos aunque dependa de
+// EventService y RegistrationService.
 //
 // Los notify*() sin @Async (los que devuelven a cuantos se les aviso) hacen el trabajo y se pueden testear llamandolos
 // directo; los on*() son solo la entrada asincronica.
@@ -80,11 +81,12 @@ public class MassNotifier {
         notifyRegistrationsMoved(moved.getEventId(), moved.getRegistrationIds(), moved.getNewStatus());
     }
 
-    // El recordatorio de 24 hs a los confirmados. Lo pide EventReminderServiceImpl.sendReminder() desde su transaccion
-    // (que corre en el scheduler): igual que los anuncios, sale recien despues de ese commit.
+    // El recordatorio de 24 hs a los confirmados (lo anuncia EventReminderServiceImpl.sendReminder(), que corre en el
+    // scheduler).
     @Async
-    public void sendEventReminder(final long eventId) {
-        notifyEventReminder(eventId);
+    @EventListener
+    public void onEventReminderDue(final EventReminderDueEvent due) {
+        notifyEventReminder(due.getEventId());
     }
 
     // ---- El trabajo (sincronico; devuelve a cuantos se les aviso) ----
@@ -186,8 +188,9 @@ public class MassNotifier {
         return notified;
     }
 
-    // Una tanda que falla al encolarse no frena a las demas: es un hilo sin nadie esperando, si no se loguea aca no
-    // se ve. (Los mails de cada persona ya tienen su propio try/catch en NotificationServiceImpl.)
+    // Una tanda que falla (por ejemplo, no se pudieron buscar los idiomas) no frena a las demas: es un hilo sin nadie
+    // esperando, si no se loguea aca no se ve. (Los mails de cada persona ya tienen su propio try/catch en
+    // NotificationServiceImpl.)
     private static void sendSafely(final Runnable send, final String what, final long eventId) {
         try {
             send.run();
