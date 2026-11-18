@@ -97,7 +97,7 @@ public class ImageServiceImplTest {
     @Test(expected = InvalidImageException.class)
     public void testCreateWithDataTooLargeThrowsInvalidImageException() {
         // Arrange
-        // MAX_SIZE_BYTES en ImageServiceImpl es 5 * 1024 * 1024. Un byte de mas alcanza.
+        // ImageService.MAX_EVENT_IMAGE_BYTES es 5 * 1024 * 1024. Un byte de mas alcanza.
         final byte[] tooBig = new byte[5 * 1024 * 1024 + 1];
 
         // Act
@@ -134,6 +134,43 @@ public class ImageServiceImplTest {
 
         // Assert
         assertSame(saved, result);
+    }
+
+    // ---- createCover(): la portada admite hasta 100 MB ----
+
+    // Un PNG (por sus primeros bytes) de ese tamaño.
+    private static byte[] pngOfSize(final int size) {
+        final byte[] data = new byte[size];
+        System.arraycopy(PNG_DATA, 0, data, 0, PNG_DATA.length);
+        return data;
+    }
+
+    @Test
+    public void testCreateCoverAcceptsAnImageHeavierThanTheLimitOfEventPhotos() {
+        // Arrange: 6 MB, mas que lo que se le permite a una foto de evento.
+        final byte[] sixMegabytes = pngOfSize(6 * 1024 * 1024);
+        final Image saved = new Image(sixMegabytes, "image/png", "portada.png", sixMegabytes.length);
+        saved.setId(IMAGE_ID);
+        when(imageDao.create(sixMegabytes, "image/png", "portada.png")).thenReturn(saved);
+
+        // Act
+        final Image result = imageService.createCover(sixMegabytes, "image/png", "portada.png");
+
+        // Assert
+        assertSame(saved, result);
+    }
+
+    @Test
+    public void testCreateCoverAboveOneHundredMegabytesFailsWithReasonTooLarge() {
+        // Arrange: un byte mas que ImageService.MAX_COVER_BYTES.
+        final byte[] tooBig = pngOfSize(ImageService.MAX_COVER_BYTES + 1);
+
+        // Act
+        final InvalidImageException thrown = assertThrows(InvalidImageException.class,
+                () -> imageService.createCover(tooBig, "image/png", "portada.png"));
+
+        // Assert
+        assertEquals(InvalidImageException.Reason.TOO_LARGE, thrown.getReason());
     }
 
     @Test(expected = InvalidImageException.class)

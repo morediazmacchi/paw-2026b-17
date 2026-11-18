@@ -6,10 +6,13 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
+import org.springframework.dao.DataIntegrityViolationException;
 
+import java.sql.SQLException;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.when;
 
@@ -56,6 +59,31 @@ public class FollowServiceImplTest {
 
         // Assert
         assertFalse(result);
+    }
+
+    // Dos "seguir" a la vez: el segundo pasa el chequeo del DAO pero la base lo rechaza por la clave
+    // (seguidor + seguido): SQLSTATE 23505. Para quien lo pidio es "ya lo seguia", no un error.
+    @Test
+    public void testFollowOrganizerOfReturnsFalseWhenTheDatabaseRejectsADuplicate() {
+        // Arrange
+        when(followDao.followOrganizerOf(FOLLOWER_ID, EVENT_ID)).thenThrow(new DataIntegrityViolationException(
+                "clave seguidor+seguido", new SQLException("duplicado", "23505")));
+
+        // Act
+        final boolean result = followService.followOrganizerOf(EVENT_ID, FOLLOWER_ID);
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    public void testFollowOrganizerOfRethrowsADatabaseViolationThatIsNotTheDuplicate() {
+        // Arrange: una clave foranea (SQLSTATE 23503) no es "ya lo seguia": no se disfraza.
+        when(followDao.followOrganizerOf(FOLLOWER_ID, EVENT_ID)).thenThrow(new DataIntegrityViolationException("fk",
+                new SQLException("fk", "23503")));
+
+        // Act + Assert
+        assertThrows(DataIntegrityViolationException.class, () -> followService.followOrganizerOf(EVENT_ID, FOLLOWER_ID));
     }
 
     @Test

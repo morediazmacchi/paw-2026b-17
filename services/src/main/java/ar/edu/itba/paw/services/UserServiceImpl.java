@@ -292,7 +292,7 @@ public class UserServiceImpl implements UserService {
         }
         // Primero se valida y se guarda la nueva (lanza InvalidImageException sin tocar nada); recien despues se
         // cambia el puntero y se borra la anterior.
-        final Image cover = imageService.create(data, contentType, fileName);
+        final Image cover = imageService.createCover(data, contentType, fileName);
         final Long previous = user.get().getCoverImageId();
         userDao.updateCoverImage(userId, cover.getId());
         if (previous != null) {

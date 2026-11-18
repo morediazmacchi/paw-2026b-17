@@ -94,18 +94,19 @@
     </init-param>
     <load-on-startup>1</load-on-startup>
     <multipart-config>
-      <!-- Muro duro del servidor. La regla que se le muestra al usuario (5 MB
-           por foto, hasta 5 fotos, ver ImageServiceImpl y Event.
-           MAX_IMAGES) esta mas abajo: dejamos bastante margen aca (15 MB por
-           archivo, 35 MB por pedido, bien por encima del total legitimo de
-           25 MB de 5 fotos de 5 MB) para que practicamente cualquier foto
-           "de mas" caiga en esa validacion prolija (que conserva lo que el
-           usuario ya escribio en el formulario) en vez de romper el parseo
-           del multipart entero, que pierde todos los campos y en Pampero se
-           ve como un 502 crudo de Apache. ErrorAdvice atrapa el caso extremo
-           (mas de estos limites) como red de contencion. -->
-      <max-file-size>15728640</max-file-size>
-      <max-request-size>36700160</max-request-size>
+      <!-- Muro duro del servidor. Las reglas que se le muestran al usuario
+           estan en ImageService: 5 MB por foto de evento (hasta 5 fotos, ver
+           Event.MAX_IMAGES) y 100 MB la portada del perfil. Aca: 100 MB por
+           archivo (lo que admite la portada) y 110 MB por pedido (la portada
+           mas los campos del formulario; un evento legitimo son 25 MB). Asi
+           cualquier foto de evento "de mas" llega hasta la validacion prolija
+           de ImageServiceImpl (que conserva lo que el usuario ya escribio en
+           el formulario) en vez de romper el parseo del multipart entero, que
+           pierde todos los campos y en Pampero se ve como un 502 crudo de
+           Apache. ErrorAdvice atrapa el caso extremo (mas de estos limites)
+           como red de contencion. -->
+      <max-file-size>104857600</max-file-size>
+      <max-request-size>115343360</max-request-size>
       <file-size-threshold>0</file-size-threshold>
     </multipart-config>
   </servlet>

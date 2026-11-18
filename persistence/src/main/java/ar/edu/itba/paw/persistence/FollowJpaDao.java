@@ -33,8 +33,9 @@ public class FollowJpaDao implements FollowDao {
         if (!organizerId.isPresent()) {
             return false;
         }
-        // No se puede "intentar el INSERT y atrapar la violacion": una excepcion de Hibernate deja la
-        // transaccion marcada para rollback. Se mira antes (mismo criterio que FavoriteJpaDao.add()).
+        // Se mira antes para el caso comun ("ya lo seguia"). Si dos pedidos simultaneos pasan los dos este chequeo, el
+        // segundo choca contra la clave al hacer flush(): esa excepcion sale de aca y la traduce FollowServiceImpl
+        // (mismo criterio que FavoriteJpaDao.add()).
         if (em.find(Follow.class, new FollowId(followerId, organizerId.get())) != null) {
             return false;
         }

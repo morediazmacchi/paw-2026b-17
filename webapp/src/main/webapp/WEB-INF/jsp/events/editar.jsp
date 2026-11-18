@@ -4,6 +4,8 @@
 <%@ taglib prefix="paw" tagdir="/WEB-INF/tags" %>
 <paw:layout titleCode="event.edit.title">
 <jsp:attribute name="head">
+    <%-- Formulario: despues de mandarlo, "Volver" desde la pagina siguiente lo saltea (ver back-link.js). --%>
+    <meta name="paw-history-skip" content="true"/>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
           integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"

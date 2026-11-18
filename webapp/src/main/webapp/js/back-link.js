@@ -17,6 +17,12 @@
 // documento, asi que un listener armado en el click se perdia en el primer salto y "Volver"
 // terminaba en el mismo evento (con el scroll de la visita anterior). Por eso el avance se guarda
 // en sessionStorage y cada pagina que se carga (o se restaura del cache) lo retoma.
+//
+// Formularios que ya se mandaron (publicar y editar un evento): despues de "Publicar" se llega al evento con un
+// redirect, y la entrada anterior del historial es el formulario. "Volver" desde el evento no tiene que caer de nuevo
+// en el formulario lleno (que ademas se podria mandar dos veces): las paginas con
+// <meta name="paw-history-skip"> se saltean y se sigue retrocediendo. Si antes del formulario no habia nada (se abrio
+// directo o desde afuera del sitio), se va al href del link "Volver" en vez de quedarse en el formulario.
 (function () {
     "use strict";
 
@@ -27,6 +33,14 @@
     // que no dispare un "atras" por sorpresa mas tarde en la misma pestana.
     var STATE_TTL_MS = 4000;
     var STORAGE_KEY = "pawBackFrom";
+    // Cuanto se espera a que history.back() saque al navegador de un formulario salteado antes de ir al href del
+    // link "Volver" (no habia pagina anterior a la que retroceder).
+    var SKIP_FALLBACK_MS = 800;
+    var fallbackTimer = null;
+
+    function isPageToSkip() {
+        return document.querySelector('meta[name="paw-history-skip"]') !== null;
+    }
 
     function readState() {
         try {
@@ -55,16 +69,40 @@
         if (!state) {
             return;
         }
-        if (Date.now() - state.t > STATE_TTL_MS || window.location.pathname !== state.path || state.steps <= 1) {
+        var stillOnOrigin = window.location.pathname === state.path;
+        var skipThisPage = !stillOnOrigin && isPageToSkip();
+        if (Date.now() - state.t > STATE_TTL_MS || state.steps <= 1 || (!stillOnOrigin && !skipThisPage)) {
             writeState(null);
             document.documentElement.style.visibility = "";
             return;
         }
-        writeState({path: state.path, steps: state.steps - 1, t: Date.now()});
+        writeState({path: state.path, steps: state.steps - 1, t: Date.now(), fallback: state.fallback});
         // Esta pagina es de paso: se esconde para que no parpadee mientras se sigue retrocediendo.
         document.documentElement.style.visibility = "hidden";
+        if (skipThisPage && state.fallback) {
+            // Al formulario no se llego desde otra pagina del sitio (se abrio directo, o desde afuera): retroceder
+            // sacaria del sitio. Se reemplaza esta entrada por el destino del link "Volver".
+            if (document.referrer.indexOf(window.location.origin) !== 0) {
+                writeState(null);
+                window.location.replace(state.fallback);
+                return;
+            }
+            // Plan B por si history.back() igual no saca de aca: el destino del link "Volver".
+            fallbackTimer = window.setTimeout(function () {
+                writeState(null);
+                window.location.replace(state.fallback);
+            }, SKIP_FALLBACK_MS);
+        }
         window.history.back();
     }
+
+    // Si la pagina se va (o queda guardada en el cache del navegador), el plan B ya no corresponde.
+    window.addEventListener("pagehide", function () {
+        if (fallbackTimer !== null) {
+            window.clearTimeout(fallbackTimer);
+            fallbackTimer = null;
+        }
+    });
 
     window.addEventListener("pageshow", continueBack);
     window.addEventListener("popstate", continueBack);
@@ -84,7 +122,7 @@
         }
         event.preventDefault();
 
-        writeState({path: window.location.pathname, steps: MAX_STEPS, t: Date.now()});
+        writeState({path: window.location.pathname, steps: MAX_STEPS, t: Date.now(), fallback: link.href});
         // Si history.back() no tiene a donde ir (se llego al principio del historial del tab),
         // no cambia nada y la marca vence sola (STATE_TTL_MS).
         window.history.back();

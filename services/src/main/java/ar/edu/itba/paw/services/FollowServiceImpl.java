@@ -4,6 +4,7 @@ package ar.edu.itba.paw.services;
 import ar.edu.itba.paw.model.FollowerContact;
 import ar.edu.itba.paw.persistence.FollowDao;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,7 +23,19 @@ public class FollowServiceImpl implements FollowService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean followOrganizerOf(final long eventId, final long followerId) {
-        return followDao.followOrganizerOf(followerId, eventId);
+        try {
+            return followDao.followOrganizerOf(followerId, eventId);
+        } catch (final DataIntegrityViolationException e) {
+            // Dos "seguir" simultaneos de la misma persona: los dos pasaron el chequeo del DAO ("ya lo sigue?") y el
+            // segundo choco contra la clave (follower_id, followed_id) al insertar. Para quien lo pidio es lo mismo que
+            // "ya lo seguia": false. Cualquier otra violacion es un error de verdad y no se disfraza. Mismo criterio
+            // que ReviewServiceImpl.create() (ver RollbackOnly).
+            if (!UniqueViolation.isUniqueViolation(e)) {
+                throw e;
+            }
+            RollbackOnly.ifInTransaction();
+            return false;
+        }
     }
 
     @Override

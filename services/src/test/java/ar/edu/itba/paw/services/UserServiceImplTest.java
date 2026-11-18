@@ -1120,7 +1120,7 @@ public class UserServiceImplTest {
         final User user = someUser();
         user.setCoverImageId(5L);
         when(userDao.findById(USER_ID)).thenReturn(Optional.of(user));
-        when(imageService.create(COVER_BYTES, "image/png", "portada.png")).thenReturn(savedImage(9));
+        when(imageService.createCover(COVER_BYTES, "image/png", "portada.png")).thenReturn(savedImage(9));
         when(userDao.updateCoverImage(USER_ID, 9L)).thenReturn(true);
 
         // Act
@@ -1134,7 +1134,7 @@ public class UserServiceImplTest {
     public void testUpdateCoverOfAUserThatDoesNotExistIsNotFound() {
         // Arrange: la imagen se guardaria bien; si el service la guardara igual, el resultado no seria NOT_FOUND
         when(userDao.findById(USER_ID)).thenReturn(Optional.empty());
-        lenient().when(imageService.create(COVER_BYTES, "image/png", "portada.png")).thenReturn(savedImage(9));
+        lenient().when(imageService.createCover(COVER_BYTES, "image/png", "portada.png")).thenReturn(savedImage(9));
 
         // Act
         final UpdateCoverResult result = userService.updateCover(USER_ID, COVER_BYTES, "image/png", "portada.png");
@@ -1147,7 +1147,7 @@ public class UserServiceImplTest {
     public void testUpdateCoverWithAnInvalidImagePropagatesTheErrorAndChangesNothing() {
         // Arrange
         when(userDao.findById(USER_ID)).thenReturn(Optional.of(someUser()));
-        when(imageService.create(COVER_BYTES, "text/plain", "x.txt"))
+        when(imageService.createCover(COVER_BYTES, "text/plain", "x.txt"))
                 .thenThrow(new InvalidImageException(InvalidImageException.Reason.NOT_AN_IMAGE));
 
         // Act

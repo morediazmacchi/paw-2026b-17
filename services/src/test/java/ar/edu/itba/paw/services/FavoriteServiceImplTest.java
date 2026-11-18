@@ -7,7 +7,9 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
+import org.springframework.dao.DataIntegrityViolationException;
 
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -16,6 +18,7 @@ import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
@@ -60,6 +63,31 @@ public class FavoriteServiceImplTest {
 
         // Assert
         assertFalse(result);
+    }
+
+    // Dos "guardar" a la vez: el segundo pasa el chequeo del DAO pero la base lo rechaza por la clave
+    // (usuario + evento): SQLSTATE 23505. Para quien lo pidio es "ya era favorito", no un error.
+    @Test
+    public void testAddReturnsFalseWhenTheDatabaseRejectsADuplicate() {
+        // Arrange
+        when(favoriteDao.add(USER_ID, EVENT_ID)).thenThrow(new DataIntegrityViolationException("clave usuario+evento",
+                new SQLException("duplicado", "23505")));
+
+        // Act
+        final boolean result = favoriteService.add(USER_ID, EVENT_ID);
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    public void testAddRethrowsADatabaseViolationThatIsNotTheDuplicate() {
+        // Arrange: una clave foranea (SQLSTATE 23503, el evento no existe) no es "ya era favorito": no se disfraza.
+        when(favoriteDao.add(USER_ID, EVENT_ID)).thenThrow(new DataIntegrityViolationException("fk",
+                new SQLException("fk", "23503")));
+
+        // Act + Assert
+        assertThrows(DataIntegrityViolationException.class, () -> favoriteService.add(USER_ID, EVENT_ID));
     }
 
     @Test

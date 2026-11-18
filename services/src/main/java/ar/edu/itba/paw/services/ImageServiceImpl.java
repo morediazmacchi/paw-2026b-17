@@ -13,9 +13,9 @@ import java.util.Optional;
 @Service
 public class ImageServiceImpl implements ImageService {
 
-    // 5 MB. El web.xml permite hasta 15 MB por archivo a proposito: dejamos margen para que
-    // salte esta validacion (con mensaje claro) antes que el muro del servidor.
-    private static final int MAX_SIZE_BYTES = 5 * 1024 * 1024;
+    // Los limites (5 MB por foto de evento, 100 MB la portada) estan en ImageService. El web.xml deja pasar hasta
+    // 100 MB por archivo: asi una foto de evento "de mas" llega hasta aca y recibe un mensaje claro, en vez de chocar
+    // contra el muro del servidor.
 
     // Lista blanca de formatos: se reconocen por los primeros bytes del archivo,
     // no por el Content-Type que declara el cliente (que cualquiera puede
@@ -36,10 +36,21 @@ public class ImageServiceImpl implements ImageService {
     @Override
     @Transactional
     public Image create(final byte[] data, final String contentType, final String fileName) {
+        return validateAndSave(data, contentType, fileName, MAX_EVENT_IMAGE_BYTES);
+    }
+
+    @Override
+    @Transactional
+    public Image createCover(final byte[] data, final String contentType, final String fileName) {
+        return validateAndSave(data, contentType, fileName, MAX_COVER_BYTES);
+    }
+
+    private Image validateAndSave(final byte[] data, final String contentType, final String fileName,
+                                  final int maxBytes) {
         if (data == null || data.length == 0) {
             throw new InvalidImageException(InvalidImageException.Reason.EMPTY);
         }
-        if (data.length > MAX_SIZE_BYTES) {
+        if (data.length > maxBytes) {
             throw new InvalidImageException(InvalidImageException.Reason.TOO_LARGE);
         }
         if (contentType == null || !contentType.startsWith("image/")) {

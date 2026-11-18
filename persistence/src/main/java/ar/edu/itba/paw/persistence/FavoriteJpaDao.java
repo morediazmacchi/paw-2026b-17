@@ -26,8 +26,9 @@ public class FavoriteJpaDao implements FavoriteDao {
 
     @Override
     public boolean add(final long userId, final long eventId) {
-        // No se puede "intentar el INSERT y atrapar la violacion": una excepcion de
-        // Hibernate deja la transaccion marcada para rollback. Se mira antes.
+        // Se mira antes para el caso comun ("ya era favorito"). Si dos pedidos simultaneos pasan los dos este
+        // chequeo, el segundo choca contra la clave al hacer flush(): esa excepcion sale de aca y la traduce
+        // FavoriteServiceImpl.
         if (em.find(Favorite.class, new FavoriteId(userId, eventId)) != null) {
             return false;
         }
