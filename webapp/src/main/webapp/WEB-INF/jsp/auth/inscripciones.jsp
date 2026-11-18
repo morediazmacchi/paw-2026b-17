@@ -79,24 +79,27 @@
                                 <paw:eventRow id="${event.id}" nombre="${event.title}" fecha="${event.eventDate}"
                                               ubicacion="${event.neighborhood.displayName}" precio="${event.price}" gratis="${event.free}"
                                               imagenId="${event.imageId}" cancelado="${event.cancelled}">
-                                    <%-- Integrado en la misma card, a la derecha, como el resto de los
-                                         botones de accion (Cancelar en los eventos que vienen).
-                                         Solo si tuvo su lugar CONFIRMADO: en lista de espera,
-                                         pendiente o rechazada no fue, y ReviewService lo rechazaria
-                                         igual (NOT_ELIGIBLE). Mejor no ofrecer el boton. --%>
-                                    <c:if test="${entry.canReview}">
-                                        <button type="button" class="btn btn-medium btn-accent" data-open-modal="reviewModal-${event.id}">
-                                            <c:out value="${reviewButtonLabel}"/>
-                                        </button>
-                                    </c:if>
                                     <%-- Si no fue (o el evento no ocurrio), en vez del boton se
                                          explica por que: cancelado, lista de espera, pendiente o
                                          rechazada. La clave sale del propio estado (PENDING ->
-                                         auth.registrations.pastStatus.PENDING). --%>
+                                         auth.registrations.pastStatus.PENDING). Se queda atenuada junto
+                                         con el resto de la fila: es solo informativa, no hay nada para hacer. --%>
                                     <c:if test="${not empty entry.notAttendedReason}">
                                         <span class="pill"><spring:message code="auth.registrations.pastStatus.${entry.notAttendedReason}"/></span>
                                     </c:if>
                                 </paw:eventRow>
+
+                                <%-- Fuera de paw:eventRow a proposito, igual que .review-panel de aqui abajo: adentro
+                                     quedaria atenuado por .event-row-list-past .event-row (opacity 0.6), y el boton de
+                                     dejar reseña tiene que quedar legible e interactuable. Solo si tuvo su lugar
+                                     CONFIRMADO: en lista de espera, pendiente o rechazada no fue, y ReviewService lo
+                                     rechazaria igual (NOT_ELIGIBLE). Mejor no ofrecer el boton. --%>
+                                <c:if test="${entry.canReview}">
+                                    <button type="button" class="btn btn-medium btn-accent review-action-button"
+                                            data-open-modal="reviewModal-${event.id}">
+                                        <c:out value="${reviewButtonLabel}"/>
+                                    </button>
+                                </c:if>
 
                                 <c:if test="${not empty myReview}">
                                     <div class="review-panel">

@@ -9,6 +9,7 @@ import ar.edu.itba.paw.model.EventCategory;
 import ar.edu.itba.paw.model.EventCategoryInfo;
 import ar.edu.itba.paw.model.EventVisibility;
 import ar.edu.itba.paw.webapp.validation.ValidBarrio;
+import ar.edu.itba.paw.webapp.validation.ValidCapacity;
 import ar.edu.itba.paw.webapp.validation.ValidCategorias;
 import ar.edu.itba.paw.webapp.validation.ValidEventDate;
 import ar.edu.itba.paw.webapp.validation.ValidImageCount;
@@ -29,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+@ValidCapacity
 public class EventForm {
 
     @NotBlank
@@ -102,6 +104,12 @@ public class EventForm {
     @Digits(integer = 9, fraction = 0)
     private String maxCapacity;
 
+    // "true"/"false": si el "0" de arriba lo puso la persona usando el atajo "Sin limite" (ver
+    // quick-options.js) o lo escribio ella misma a mano. Mismo criterio que locationManual para el
+    // pin del mapa: un campo oculto aparte, no inferido del valor. Sin el atajo, un "0" a mano es
+    // invalido (ver ValidCapacity): la cantidad de gente tiene que ser mayor a 0.
+    private String maxCapacityUnlimited;
+
     // Checkbox comun (sin JSR-303: ausente en el request = false, no hay nada
     // que validar). Si esta en true, las inscripciones nuevas nacen 'pending'
     // en vez de 'confirmed': el creador las tiene que aceptar o rechazar el
@@ -162,6 +170,9 @@ public class EventForm {
 
     public String getMaxCapacity() { return maxCapacity; }
     public void setMaxCapacity(final String maxCapacity) { this.maxCapacity = maxCapacity; }
+
+    public String getMaxCapacityUnlimited() { return maxCapacityUnlimited; }
+    public void setMaxCapacityUnlimited(final String maxCapacityUnlimited) { this.maxCapacityUnlimited = maxCapacityUnlimited; }
 
     public boolean isRequiresApproval() { return requiresApproval; }
     public void setRequiresApproval(final boolean requiresApproval) { this.requiresApproval = requiresApproval; }
@@ -309,6 +320,7 @@ public class EventForm {
         // "0" es el valor que usa el atajo "Sin limite" (quick-options.js lo
         // detecta por igualdad exacta de string) -- mismo criterio que publish().
         form.setMaxCapacity(event.getMaxCapacity() == null ? "0" : String.valueOf(event.getMaxCapacity()));
+        form.setMaxCapacityUnlimited(event.getMaxCapacity() == null ? "true" : "false");
         form.setRequiresApproval(event.isRequiresApproval());
         form.setPrivateEvent(event.isPrivate());
         form.setParking(event.isParking());

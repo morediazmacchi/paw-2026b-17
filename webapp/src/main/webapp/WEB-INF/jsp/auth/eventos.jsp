@@ -63,31 +63,63 @@
                                       imagenId="${event.imageId}" privado="${event.inviteOnly}"
                                       cancelado="${event.cancelled}" pendiente="${event.pendingApproval}"
                                       rechazado="${event.rejected}" cambiosPedidos="${event.changesRequested}">
-                            <a class="btn btn-medium" href="<c:url value='/eventos/${event.id}/inscriptos'/>">
-                                <c:out value="${attendeesButtonLabel}"/>
-                            </a>
+                            <%-- Pendiente de aprobacion: todavia no tiene inscriptos, invitaciones ni nada que
+                                 editar tenga sentido revisar antes de que un admin lo vea -- el unico botón que
+                                 sirve es Cancelar. El resto se ve atenuado y no clickeable (.btn-disabled), sin
+                                 href: no hay a donde ir todavia. --%>
+                            <c:choose>
+                                <c:when test="${event.pendingApproval}">
+                                    <span class="btn btn-medium btn-disabled" aria-disabled="true"><c:out value="${attendeesButtonLabel}"/></span>
+                                </c:when>
+                                <c:otherwise>
+                                    <a class="btn btn-medium" href="<c:url value='/eventos/${event.id}/inscriptos'/>">
+                                        <c:out value="${attendeesButtonLabel}"/>
+                                    </a>
+                                </c:otherwise>
+                            </c:choose>
                             <%-- Solo tiene sentido en un evento privado: uno publico ya
                                  tiene un link que se puede compartir sin necesitar esto. --%>
                             <c:if test="${event.inviteOnly}">
-                                <a class="btn btn-medium btn-accent" href="<c:url value='/perfil/eventos/${event.id}/invitar'/>">
-                                    <c:out value="${inviteButtonLabel}"/>
-                                </a>
+                                <c:choose>
+                                    <c:when test="${event.pendingApproval}">
+                                        <span class="btn btn-medium btn-accent btn-disabled" aria-disabled="true"><c:out value="${inviteButtonLabel}"/></span>
+                                    </c:when>
+                                    <c:otherwise>
+                                        <a class="btn btn-medium btn-accent" href="<c:url value='/perfil/eventos/${event.id}/invitar'/>">
+                                            <c:out value="${inviteButtonLabel}"/>
+                                        </a>
+                                    </c:otherwise>
+                                </c:choose>
                             </c:if>
                             <%-- Solo tiene sentido para eventos con confirmacion manual:
                                  el resto no tiene nada pendiente que revisar. --%>
                             <c:if test="${event.requiresApproval}">
-                                <a class="btn btn-medium btn-accent" href="<c:url value='/perfil/eventos/${event.id}/inscriptos'/>">
-                                    <c:out value="${pendingButtonLabel}"/>
-                                    <c:if test="${stats.pendingCount > 0}">
-                                        (<c:out value="${stats.pendingCount}"/>)
-                                    </c:if>
-                                </a>
+                                <c:choose>
+                                    <c:when test="${event.pendingApproval}">
+                                        <span class="btn btn-medium btn-accent btn-disabled" aria-disabled="true"><c:out value="${pendingButtonLabel}"/></span>
+                                    </c:when>
+                                    <c:otherwise>
+                                        <a class="btn btn-medium btn-accent" href="<c:url value='/perfil/eventos/${event.id}/inscriptos'/>">
+                                            <c:out value="${pendingButtonLabel}"/>
+                                            <c:if test="${stats.pendingCount > 0}">
+                                                (<c:out value="${stats.pendingCount}"/>)
+                                            </c:if>
+                                        </a>
+                                    </c:otherwise>
+                                </c:choose>
                             </c:if>
                             <%-- Rechazado es definitivo, mismo criterio que detail.jsp: no se edita. --%>
                             <c:if test="${event.editable}">
-                                <a class="btn btn-medium btn-accent" href="<c:url value='/eventos/${event.id}/editar'/>">
-                                    <c:out value="${editButtonLabel}"/>
-                                </a>
+                                <c:choose>
+                                    <c:when test="${event.pendingApproval}">
+                                        <span class="btn btn-medium btn-accent btn-disabled" aria-disabled="true"><c:out value="${editButtonLabel}"/></span>
+                                    </c:when>
+                                    <c:otherwise>
+                                        <a class="btn btn-medium btn-accent" href="<c:url value='/eventos/${event.id}/editar'/>">
+                                            <c:out value="${editButtonLabel}"/>
+                                        </a>
+                                    </c:otherwise>
+                                </c:choose>
                             </c:if>
                             <%-- Un evento ya cancelado no muestra el boton de nuevo: no hay
                                  nada mas que cancelar. --%>
@@ -114,9 +146,7 @@
                                                              arguments="${stats.confirmedCount}"/>
                                         </p>
                                         <div class="modal-confirm-actions">
-                                            <button type="button" class="btn btn-medium" data-close-modal>
-                                                <c:out value="${cancelConfirmBackButtonLabel}"/>
-                                            </button>
+                                            <paw:button text="${cancelConfirmBackButtonLabel}" closeModal="${true}"/>
                                             <form action="<c:url value='/eventos/${event.id}/cancelar'/>" method="post">
                                                 <paw:button text="${cancelConfirmSubmitButtonLabel}" cssClass="btn-danger"/>
                                             </form>

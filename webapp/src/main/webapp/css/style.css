@@ -962,6 +962,20 @@ button.btn-accent {
     border-color: var(--accent);
 }
 
+/* Boton/link de accion que no tiene sentido todavia (ej. "Ver inscriptos" de un evento que
+   todavia espera aprobacion: no puede tener ninguno). Mismo criterio visual que
+   .calendar-nav:disabled (opacity 0.35); pointer-events:none porque esto se usa tambien en <a>,
+   que no tiene un atributo disabled nativo como <button>. */
+.btn-disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.btn-disabled:hover {
+    border-color: var(--border);
+}
+
 /* Imagenes de eventos (se agregan al final: no modifican las reglas de arriba) */
 
 .card-placeholder {
@@ -2663,6 +2677,15 @@ button.account-sidebar-logout {
     border-radius: 12px;
     padding: 14px 16px;
     margin-top: 8px;
+}
+
+/* "Dejar reseña" en "Eventos finalizados": mismo motivo que .review-panel de arriba (hermano de
+   paw:eventRow, no adentro, para no heredar la atenuacion de .event-row-list-past). Alineado a la
+   derecha, como antes cuando vivia dentro de .event-row-actions. */
+.review-action-button {
+    display: flex;
+    margin: 8px 0 0 auto;
+    width: fit-content;
 }
 
 .review-panel .form-group {

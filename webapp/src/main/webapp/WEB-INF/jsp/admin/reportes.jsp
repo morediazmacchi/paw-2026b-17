@@ -248,13 +248,9 @@
                                                 <paw:button text="${dismissButtonLabel}"/>
                                             </form>
                                             <c:if test="${report.status == 'PENDING'}">
-                                                <button type="button" class="btn btn-medium" data-open-modal="changesModal-${report.id}">
-                                                    <c:out value="${requestChangesButtonLabel}"/>
-                                                </button>
+                                                <paw:button text="${requestChangesButtonLabel}" openModal="changesModal-${report.id}"/>
                                             </c:if>
-                                            <button type="button" class="btn btn-medium btn-danger" data-open-modal="removeModal-${report.id}">
-                                                <c:out value="${removeButtonLabel}"/>
-                                            </button>
+                                            <paw:button text="${removeButtonLabel}" cssClass="btn-danger" openModal="removeModal-${report.id}"/>
                                         </div>
                                     </c:otherwise>
                                 </c:choose>
