@@ -23,6 +23,8 @@
 // en el formulario lleno (que ademas se podria mandar dos veces): las paginas con
 // <meta name="paw-history-skip"> se saltean y se sigue retrocediendo. Si antes del formulario no habia nada (se abrio
 // directo o desde afuera del sitio), se va al href del link "Volver" en vez de quedarse en el formulario.
+// Lo mismo con el boton "atras" del navegador: si se vuelve a un formulario que ya se mando en esta pestana, se lo
+// saltea igual (y si no habia nada antes, se va a la direccion que dice el content de ese <meta>).
 (function () {
     "use strict";
 
@@ -37,9 +39,45 @@
     // link "Volver" (no habia pagina anterior a la que retroceder).
     var SKIP_FALLBACK_MS = 800;
     var fallbackTimer = null;
+    // Formulario mandado (publicar/editar): {path, t}. Vence solo, para no saltear un formulario mucho despues.
+    var SENT_KEY = "pawSentForm";
+    var SENT_TTL_MS = 30 * 60 * 1000;
 
     function isPageToSkip() {
         return document.querySelector('meta[name="paw-history-skip"]') !== null;
+    }
+
+    // A donde ir si se saltea el formulario y no hay pagina anterior del sitio (el content del <meta>).
+    function skipFallback() {
+        var meta = document.querySelector('meta[name="paw-history-skip"]');
+        var content = meta ? meta.getAttribute("content") : null;
+        return content && content.charAt(0) === "/" ? content : "/";
+    }
+
+    function navigationType() {
+        var entries = window.performance && window.performance.getEntriesByType
+            ? window.performance.getEntriesByType("navigation") : [];
+        return entries.length > 0 ? entries[0].type : "";
+    }
+
+    function readSent() {
+        try {
+            return JSON.parse(window.sessionStorage.getItem(SENT_KEY));
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function writeSent(sent) {
+        try {
+            if (sent) {
+                window.sessionStorage.setItem(SENT_KEY, JSON.stringify(sent));
+            } else {
+                window.sessionStorage.removeItem(SENT_KEY);
+            }
+        } catch (e) {
+            // Sin sessionStorage: el "atras" del navegador vuelve al formulario, como en cualquier sitio.
+        }
     }
 
     function readState() {
@@ -104,8 +142,56 @@
         }
     });
 
-    window.addEventListener("pageshow", continueBack);
+    // Boton "atras"/"adelante" del navegador que cae en un formulario que ya se mando en esta pestana (publicar o
+    // editar un evento): no se lo muestra de nuevo lleno (se podria mandar dos veces); se sigue retrocediendo.
+    function leaveSentForm(event) {
+        if (!isPageToSkip()) {
+            return;
+        }
+        var cameBackOrForward = event.persisted || navigationType() === "back_forward";
+        if (!cameBackOrForward) {
+            // Se abrio el formulario de nuevo (o es la respuesta con errores de un envio): arranca de cero.
+            writeSent(null);
+            return;
+        }
+        var sent = readSent();
+        if (!sent || sent.path !== window.location.pathname || Date.now() - sent.t > SENT_TTL_MS) {
+            return;
+        }
+        document.documentElement.style.visibility = "hidden";
+        if (document.referrer.indexOf(window.location.origin) !== 0) {
+            // No habia una pagina del sitio antes del formulario: retroceder sacaria del sitio.
+            window.location.replace(skipFallback());
+            return;
+        }
+        fallbackTimer = window.setTimeout(function () {
+            window.location.replace(skipFallback());
+        }, SKIP_FALLBACK_MS);
+        window.history.back();
+    }
+
+    window.addEventListener("pageshow", function (event) {
+        if (readState()) {
+            continueBack();
+        } else {
+            leaveSentForm(event);
+        }
+    });
     window.addEventListener("popstate", continueBack);
+
+    // Se marca que se mando el formulario principal de la pagina (el que se manda a esta misma direccion: no el de
+    // idioma ni el de cerrar sesion), si nadie cancelo el envio (por ejemplo, una validacion del navegador).
+    document.addEventListener("submit", function (event) {
+        if (!isPageToSkip() || event.defaultPrevented) {
+            return;
+        }
+        var form = event.target;
+        var action = form && form.getAttribute ? form.getAttribute("action") : null;
+        var actionPath = action ? new URL(action, window.location.href).pathname : window.location.pathname;
+        if (actionPath === window.location.pathname) {
+            writeSent({path: window.location.pathname, t: Date.now()});
+        }
+    });
 
     document.addEventListener("click", function (event) {
         var link = event.target.closest && event.target.closest("a[data-history-back]");

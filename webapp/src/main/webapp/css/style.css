@@ -3430,6 +3430,8 @@ button.account-sidebar-logout {
 .qa-item-text {
     margin: 4px 0 0;
     font-size: 0.9rem;
+    /* Una palabra larga sin espacios (o un link) se corta en vez de salirse de la tarjeta y ensanchar la pagina. */
+    overflow-wrap: anywhere;
 }
 
 .qa-unanswered {
@@ -3449,6 +3451,8 @@ button.account-sidebar-logout {
     background: var(--bg);
     border-radius: 0 10px 10px 0;
     font-size: 0.88rem;
+    /* Una palabra larga sin espacios (o un link) se corta en vez de salirse de la tarjeta y ensanchar la pagina. */
+    overflow-wrap: anywhere;
 }
 
 .qa-answer strong {
@@ -4580,4 +4584,16 @@ button.account-sidebar-logout {
         flex-direction: column;
         align-items: stretch;
     }
+}
+
+
+.modal-body {
+    /* Texto de otra persona (una pregunta, un motivo): una palabra larga sin espacios se corta en vez de salirse. */
+    overflow-wrap: anywhere;
+}
+
+
+.tracking-timeline {
+    /* Texto de otra persona (una pregunta, un motivo): una palabra larga sin espacios se corta en vez de salirse. */
+    overflow-wrap: anywhere;
 }

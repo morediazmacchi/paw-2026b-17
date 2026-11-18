@@ -4,8 +4,9 @@
 <%@ taglib prefix="paw" tagdir="/WEB-INF/tags" %>
 <paw:layout titleCode="event.publish.title">
 <jsp:attribute name="head">
-    <%-- Formulario: despues de mandarlo, "Volver" desde la pagina siguiente lo saltea (ver back-link.js). --%>
-    <meta name="paw-history-skip" content="true"/>
+    <%-- Formulario: despues de mandarlo, "Volver" (y el "atras" del navegador) desde la pagina siguiente lo saltean
+         (ver back-link.js). El content es a donde ir si antes del formulario no habia ninguna pagina del sitio. --%>
+    <meta name="paw-history-skip" content="<c:url value='/eventos'/>"/>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
           integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"

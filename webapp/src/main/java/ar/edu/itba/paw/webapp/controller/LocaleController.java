@@ -42,6 +42,9 @@ public class LocaleController {
             PlancitoUserDetails.from(authentication)
                     .ifPresent(user -> userService.updateLocale(user.getId(), supported.getCode()));
         });
-        return new ModelAndView("redirect:" + (SafeRedirect.isSafe(redirect) ? redirect : "/eventos"));
+        // Se vuelve a la pagina desde la que se cambio. Nunca a /idioma: es solo POST, y volver ahi (por ejemplo desde
+        // una pagina de error que quedo con esa direccion) terminaria en un 405.
+        final boolean backToSamePage = SafeRedirect.isSafe(redirect) && !redirect.startsWith("/idioma");
+        return new ModelAndView("redirect:" + (backToSamePage ? redirect : "/eventos"));
     }
 }
