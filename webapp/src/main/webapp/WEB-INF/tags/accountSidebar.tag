@@ -14,6 +14,8 @@
      ProfileController en el model de las tres paginas que la usan). Cuando
      se agreguen Mis eventos/Favoritos, sus links van aca y aparecen en todas
      las pantallas de la cuenta a la vez. --%>
+<%-- Al volver con "Atras" a una pantalla de la cuenta, que no se vea una copia vieja (ver fresh-on-back.js). --%>
+<script src="<c:url value='/js/fresh-on-back.js'/>" defer></script>
 <aside class="account-sidebar">
     <div class="account-sidebar-identity">
         <span class="profile-avatar"><c:out value="${fn:toUpperCase(fn:substring(user.name, 0, 1))}"/></span>
