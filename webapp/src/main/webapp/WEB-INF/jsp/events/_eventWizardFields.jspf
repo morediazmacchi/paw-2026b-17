@@ -375,7 +375,11 @@
                    toggleText="${freeOptionLabel}" toggleBelow="${true}" />
         <paw:input name="maxCapacity" label="${capacityLabel}" digitsOnly="${true}" maxLength="9" placeholder="100"
                    value="${eventForm.maxCapacity}" errorMessage="${fieldErrors.maxCapacity}"
-                   toggleText="${noLimitOptionLabel}" toggleBelow="${true}" />
+                   toggleText="${noLimitOptionLabel}" toggleBelow="${true}" toggleFlagTarget="maxCapacityUnlimited" />
+        <%-- Prendido por el atajo "Sin limite" de arriba (ver quick-options.js): distingue ese "0" de
+             uno escrito a mano (ver ValidCapacity, EventForm.maxCapacityUnlimited). --%>
+        <input type="hidden" id="maxCapacityUnlimited" name="maxCapacityUnlimited"
+               value="<c:out value='${eventForm.maxCapacityUnlimited}'/>"/>
         <div class="form-group">
             <label class="filter-checkbox">
                 <input type="checkbox" id="requiresApproval" name="requiresApproval" value="true"

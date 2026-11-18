@@ -19,6 +19,10 @@
 <%-- true = el atajo se dibuja DEBAJO del campo en vez de al lado de la etiqueta (ej: "Sin limite"
      de "Cupo maximo"). Solo tiene efecto si hay toggleText. --%>
 <%@ attribute name="toggleBelow" required="false" type="java.lang.Boolean" %>
+<%-- id de un campo oculto aparte que el atajo prende/apaga (ej. maxCapacityUnlimited, ver
+     ValidCapacity): para atajos donde "0" no alcanza por si solo para decir "esto es un atajo, no
+     un valor real" (a diferencia de "Gratis", que no lo necesita: precio 0 nunca es ambiguo). --%>
+<%@ attribute name="toggleFlagTarget" required="false" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions" %>
 <%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
@@ -29,7 +33,8 @@
 <%-- El boton del atajo se arma una sola vez y se dibuja arriba (junto a la etiqueta) o abajo del campo. --%>
 <c:if test="${not empty toggleText}">
     <c:set var="toggleButton"><button type="button" class="chip-toggle${toggleBelow ? ' chip-toggle-below' : ''}"
-            data-target="${name}" aria-pressed="false"><c:out value="${toggleText}" /></button></c:set>
+            data-target="${name}" <c:if test="${not empty toggleFlagTarget}">data-flag-target="${toggleFlagTarget}"</c:if>
+            aria-pressed="false"><c:out value="${toggleText}" /></button></c:set>
 </c:if>
 
 <div class="form-group">

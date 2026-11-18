@@ -102,9 +102,17 @@
 
     // Se llama en cada carga/restauracion de pagina y en cada popstate: si hay un "Volver" en
     // curso y seguimos en la pagina de la que salimos, retrocede otra vez; si ya es otra, termina.
-    function continueBack() {
+    function continueBack(event) {
         var state = readState();
         if (!state) {
+            // Sin un "Volver" en curso: si el navegador restauro esta pagina de su cache (atras/adelante
+            // NATIVO del navegador, no nuestro link) y es un formulario ya mandado, no se queda mostrando
+            // los datos viejos listos para reenviar -- se sigue retrocediendo un paso mas, como si se
+            // hubiera saltado con "Volver".
+            if (event && event.persisted && isPageToSkip()) {
+                document.documentElement.style.visibility = "hidden";
+                window.history.back();
+            }
             return;
         }
         var stillOnOrigin = window.location.pathname === state.path;
