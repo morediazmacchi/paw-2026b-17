@@ -32,6 +32,19 @@ public interface FollowService {
     boolean isFollowing(long followerId, long followedId);
 
     /**
+     * Seguir a una persona desde su perfil publico.
+     *
+     * @return true si empezo a seguirla ahora; false si ya la seguia (idempotente), si es uno mismo, o si la cuenta
+     *         no se puede mostrar (no existe, esta suspendida o sin confirmar: la misma regla que su perfil publico).
+     */
+    @Transactional(rollbackFor = Exception.class)
+    boolean follow(long followerId, long followedId);
+
+    /** Dejar de seguir a una persona desde su perfil publico. true si la seguia y se saco. */
+    @Transactional(rollbackFor = Exception.class)
+    boolean unfollow(long followerId, long followedId);
+
+    /**
      * Una tanda de a quienes mandarles el mail cuando este usuario publique un evento nuevo: los de id mayor a
      * afterId, de menor a mayor id, hasta limit. La recorre MassNotifier en segundo plano y despues del commit, de
      * a una tanda por vez. Solo mail, nombre e idioma de cada uno, no la cuenta entera.

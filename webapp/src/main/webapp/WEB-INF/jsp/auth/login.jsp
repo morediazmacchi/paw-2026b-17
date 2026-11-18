@@ -72,14 +72,15 @@
             <paw:input name="password" maxLength="72" label="${passwordLabel}" type="password"/>
             <%-- "Recordarme": el nombre del parametro (remember-me) es el que espera rememberMe() de WebAuthConfig. --%>
             <spring:message code="auth.login.rememberMe" var="rememberMeLabel"/>
-            <label class="auth-remember">
-                <input type="checkbox" name="remember-me" value="true"/>
-                <span><c:out value="${rememberMeLabel}"/></span>
-            </label>
-            <p class="auth-forgot-password">
+            <%-- Una sola fila: "Mantener la sesion iniciada" a la izquierda, "¿Olvidaste tu contraseña?" a la derecha. --%>
+            <div class="auth-login-options">
+                <label class="auth-remember">
+                    <input type="checkbox" name="remember-me" value="true"/>
+                    <span><c:out value="${rememberMeLabel}"/></span>
+                </label>
                 <spring:message code="auth.login.forgotPasswordLink" var="forgotPasswordLabel"/>
-                <a href="<c:url value='/login/recuperar'/>"><c:out value="${forgotPasswordLabel}"/></a>
-            </p>
+                <a class="auth-forgot-password" href="<c:url value='/login/recuperar'/>"><c:out value="${forgotPasswordLabel}"/></a>
+            </div>
             <paw:button text="${submitButtonLabel}" cssClass="btn-accent"/>
         </form>
 

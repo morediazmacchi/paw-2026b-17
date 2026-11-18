@@ -14,10 +14,13 @@ import java.util.List;
 public class FollowServiceImpl implements FollowService {
 
     private final FollowDao followDao;
+    // Para no seguir una cuenta que no se puede mostrar (misma regla que su perfil publico).
+    private final UserService userService;
 
     @Autowired
-    public FollowServiceImpl(final FollowDao followDao) {
+    public FollowServiceImpl(final FollowDao followDao, final UserService userService) {
         this.followDao = followDao;
+        this.userService = userService;
     }
 
     @Override
@@ -36,6 +39,32 @@ public class FollowServiceImpl implements FollowService {
             RollbackOnly.ifInTransaction();
             return false;
         }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean follow(final long followerId, final long followedId) {
+        // Uno no se sigue a si mismo, y a una cuenta que no se puede mostrar (no existe, suspendida, sin confirmar)
+        // tampoco: su perfil publico da 404.
+        if (followerId == followedId || !userService.findActivePublicById(followedId).isPresent()) {
+            return false;
+        }
+        try {
+            return followDao.follow(followerId, followedId);
+        } catch (final DataIntegrityViolationException e) {
+            // Dos "seguir" simultaneos: mismo criterio que followOrganizerOf().
+            if (!UniqueViolation.isUniqueViolation(e)) {
+                throw e;
+            }
+            RollbackOnly.ifInTransaction();
+            return false;
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean unfollow(final long followerId, final long followedId) {
+        return followDao.unfollow(followerId, followedId);
     }
 
     @Override

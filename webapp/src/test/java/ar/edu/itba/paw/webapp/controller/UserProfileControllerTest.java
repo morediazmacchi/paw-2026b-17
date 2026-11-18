@@ -9,6 +9,7 @@ import ar.edu.itba.paw.services.PageResult;
 import ar.edu.itba.paw.services.UpdateBioResult;
 import ar.edu.itba.paw.services.UpdateCoverResult;
 import ar.edu.itba.paw.services.UserProfile;
+import ar.edu.itba.paw.services.FollowService;
 import ar.edu.itba.paw.services.UserProfileService;
 import ar.edu.itba.paw.services.UserService;
 import ar.edu.itba.paw.webapp.form.BioForm;
@@ -49,12 +50,14 @@ public class UserProfileControllerTest {
     private UserProfileService userProfileService;
     @Mock
     private UserService userService;
+    @Mock
+    private FollowService followService;
 
     private UserProfileController controller;
 
     @Before
     public void setUp() {
-        controller = new UserProfileController(userProfileService, userService);
+        controller = new UserProfileController(userProfileService, userService, followService);
     }
 
     private static User viewer() {
@@ -65,7 +68,7 @@ public class UserProfileControllerTest {
 
     private static UserProfile aProfile() {
         return new UserProfile(new PublicUser(USER_ID, "Tomas", null, null), false, ProfileTab.UPCOMING,
-                new PageResult<>(Collections.emptyList(), 0, 1, 12), 0, 0, 0, 0, false);
+                new PageResult<>(Collections.emptyList(), 0, 1, 12), 0, 0, 0, 0, false, false);
     }
 
     private static BioForm bio(final String text) {
@@ -231,5 +234,24 @@ public class UserProfileControllerTest {
         // Assert
         assertEquals("redirect:/usuarios/" + VIEWER_ID, result.getViewName());
         assertEquals("OK", flash.getFlashAttributes().get("coverMessage"));
+    }
+
+    // Seguir y dejar de seguir vuelven al mismo perfil (asi se ve el boton cambiado).
+    @Test
+    public void testFollowRedirectsBackToTheProfile() {
+        // Act
+        final ModelAndView mav = controller.follow(USER_ID, viewer());
+
+        // Assert
+        assertEquals("redirect:/usuarios/" + USER_ID, mav.getViewName());
+    }
+
+    @Test
+    public void testUnfollowRedirectsBackToTheProfile() {
+        // Act
+        final ModelAndView mav = controller.unfollow(USER_ID, viewer());
+
+        // Assert
+        assertEquals("redirect:/usuarios/" + USER_ID, mav.getViewName());
     }
 }

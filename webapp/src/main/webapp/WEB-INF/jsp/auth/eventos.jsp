@@ -77,9 +77,15 @@
                                     </a>
                                 </c:otherwise>
                             </c:choose>
+                            <%-- Ya paso: no queda nada por hacer (invitar, aprobar, editar ni cancelar). Se ve
+                                 "Evento finalizado" en lugar de esos botones; los inscriptos se pueden seguir viendo. --%>
+                            <c:set var="finishedEvent" value="${event.finished and not event.cancelled}"/>
+                            <c:if test="${finishedEvent}">
+                                <span class="event-row-finished-note"><spring:message code="auth.events.finishedNote"/></span>
+                            </c:if>
                             <%-- Solo tiene sentido en un evento privado: uno publico ya
                                  tiene un link que se puede compartir sin necesitar esto. --%>
-                            <c:if test="${event.inviteOnly}">
+                            <c:if test="${event.inviteOnly and not finishedEvent}">
                                 <c:choose>
                                     <c:when test="${event.pendingApproval}">
                                         <span class="btn btn-medium btn-accent btn-disabled" aria-disabled="true"><c:out value="${inviteButtonLabel}"/></span>
@@ -93,7 +99,7 @@
                             </c:if>
                             <%-- Solo tiene sentido para eventos con confirmacion manual:
                                  el resto no tiene nada pendiente que revisar. --%>
-                            <c:if test="${event.requiresApproval}">
+                            <c:if test="${event.requiresApproval and not finishedEvent}">
                                 <c:choose>
                                     <c:when test="${event.pendingApproval}">
                                         <span class="btn btn-medium btn-accent btn-disabled" aria-disabled="true"><c:out value="${pendingButtonLabel}"/></span>
@@ -108,7 +114,7 @@
                                     </c:otherwise>
                                 </c:choose>
                             </c:if>
-                            <%-- Rechazado es definitivo, mismo criterio que detail.jsp: no se edita. --%>
+                            <%-- Rechazado es definitivo y uno finalizado ya sucedio: ninguno se edita (Event.isEditable). --%>
                             <c:if test="${event.editable}">
                                 <c:choose>
                                     <c:when test="${event.pendingApproval}">
@@ -123,14 +129,14 @@
                             </c:if>
                             <%-- Un evento ya cancelado no muestra el boton de nuevo: no hay
                                  nada mas que cancelar. --%>
-                            <c:if test="${!event.cancelled}">
+                            <c:if test="${!event.cancelled and not finishedEvent}">
                                 <button type="button" class="btn btn-medium btn-danger" data-open-modal="cancelModal-${event.id}">
                                     <c:out value="${cancelButtonLabel}"/>
                                 </button>
                             </c:if>
                         </paw:eventRow>
 
-                        <c:if test="${!event.cancelled}">
+                        <c:if test="${!event.cancelled and not finishedEvent}">
                             <div class="modal-overlay" id="cancelModal-${event.id}" hidden>
                                 <div class="modal-box">
                                     <div class="modal-header">

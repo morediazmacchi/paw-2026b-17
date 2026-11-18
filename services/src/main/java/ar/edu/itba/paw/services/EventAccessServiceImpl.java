@@ -6,6 +6,7 @@ import ar.edu.itba.paw.model.Event;
 import ar.edu.itba.paw.model.EventAccessData;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.exception.EventCancelledException;
+import ar.edu.itba.paw.model.exception.EventFinishedException;
 import ar.edu.itba.paw.model.exception.EventRejectedException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -101,6 +102,9 @@ public class EventAccessServiceImpl implements EventAccessService {
             }
             if (event.isRejected()) {
                 throw new EventRejectedException(eventId);
+            }
+            if (event.isFinished()) {
+                throw new EventFinishedException(eventId);
             }
             return event;
         });

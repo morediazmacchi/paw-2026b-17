@@ -13,6 +13,12 @@ public interface FollowDao {
     boolean unfollowOrganizerOf(long followerId, long eventId);
     boolean isFollowing(long followerId, long followedId);
 
+    // Seguir a una persona directamente (desde su perfil publico). true si se agrego; false si ya la seguia.
+    boolean follow(long followerId, long followedId);
+
+    // Dejar de seguir a una persona (desde su perfil publico). true si la seguia y se saco.
+    boolean unfollow(long followerId, long followedId);
+
     // Una tanda de quienes siguen a este usuario, para mandarles el mail cuando publica un evento nuevo (ver
     // MassNotifier; el aviso de la bandeja sale aparte, con InboxMessageDao.createForFollowersOfCreator): los de id
     // mayor a "afterId", de menor a mayor id, hasta "limit". Se recorre de a tandas, en segundo plano y despues del

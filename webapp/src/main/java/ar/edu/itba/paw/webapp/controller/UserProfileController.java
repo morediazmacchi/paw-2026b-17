@@ -6,6 +6,7 @@ import ar.edu.itba.paw.model.exception.InvalidImageException;
 import ar.edu.itba.paw.model.exception.UserNotFoundException;
 import ar.edu.itba.paw.services.UpdateBioResult;
 import ar.edu.itba.paw.services.UserProfile;
+import ar.edu.itba.paw.services.FollowService;
 import ar.edu.itba.paw.services.UserProfileService;
 import ar.edu.itba.paw.services.UserService;
 import ar.edu.itba.paw.webapp.form.BioForm;
@@ -36,11 +37,30 @@ public class UserProfileController {
 
     private final UserProfileService userProfileService;
     private final UserService userService;
+    private final FollowService followService;
 
     @Autowired
-    public UserProfileController(final UserProfileService userProfileService, final UserService userService) {
+    public UserProfileController(final UserProfileService userProfileService, final UserService userService,
+                                 final FollowService followService) {
         this.userProfileService = userProfileService;
         this.userService = userService;
+        this.followService = followService;
+    }
+
+    // Seguir a esta persona desde su perfil publico (pide sesion: WebAuthConfig solo deja libre el GET del perfil).
+    // Uno mismo, o una cuenta que no se puede mostrar, no se siguen: lo decide el service (y no cambia nada).
+    @RequestMapping(value = "/usuarios/{id:[0-9]+}/seguir", method = RequestMethod.POST)
+    public ModelAndView follow(@PathVariable final long id,
+                               @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
+        followService.follow(currentUser.getId(), id);
+        return new ModelAndView("redirect:/usuarios/" + id);
+    }
+
+    @RequestMapping(value = "/usuarios/{id:[0-9]+}/dejar-de-seguir", method = RequestMethod.POST)
+    public ModelAndView unfollow(@PathVariable final long id,
+                                 @ModelAttribute(value = "currentUser", binding = false) final User currentUser) {
+        followService.unfollow(currentUser.getId(), id);
+        return new ModelAndView("redirect:/usuarios/" + id);
     }
 
     // Los eventos se ven en pestañas (?tab=): se pide y se pagina (?page=) solo la que se muestra; sin elegir ninguna

@@ -87,19 +87,19 @@
                                     <c:if test="${not empty entry.notAttendedReason}">
                                         <span class="pill"><spring:message code="auth.registrations.pastStatus.${entry.notAttendedReason}"/></span>
                                     </c:if>
+                                    <%-- Adentro de la tarjeta, a la derecha (como "Darme de baja" en los proximos). La
+                                         atenuacion de "finalizados" es solo de la parte de los datos (.event-row-link), asi
+                                         que el boton queda con su color. Solo si tuvo su lugar CONFIRMADO: en lista de
+                                         espera, pendiente o rechazada no fue, y ReviewService lo rechazaria igual
+                                         (NOT_ELIGIBLE). --%>
+                                    <c:if test="${entry.canReview}">
+                                        <button type="button" class="btn btn-medium btn-accent"
+                                                data-open-modal="reviewModal-${event.id}">
+                                            <c:out value="${reviewButtonLabel}"/>
+                                        </button>
+                                    </c:if>
                                 </paw:eventRow>
 
-                                <%-- Fuera de paw:eventRow a proposito, igual que .review-panel de aqui abajo: adentro
-                                     quedaria atenuado por .event-row-list-past .event-row (opacity 0.6), y el boton de
-                                     dejar reseña tiene que quedar legible e interactuable. Solo si tuvo su lugar
-                                     CONFIRMADO: en lista de espera, pendiente o rechazada no fue, y ReviewService lo
-                                     rechazaria igual (NOT_ELIGIBLE). Mejor no ofrecer el boton. --%>
-                                <c:if test="${entry.canReview}">
-                                    <button type="button" class="btn btn-medium btn-accent review-action-button"
-                                            data-open-modal="reviewModal-${event.id}">
-                                        <c:out value="${reviewButtonLabel}"/>
-                                    </button>
-                                </c:if>
 
                                 <c:if test="${not empty myReview}">
                                     <div class="review-panel">

@@ -23,14 +23,17 @@ public class UserProfileServiceImpl implements UserProfileService {
     private final EventService eventService;
     private final ReviewService reviewService;
     private final ImageService imageService;
+    private final FollowService followService;
 
     @Autowired
     public UserProfileServiceImpl(final UserService userService, final EventService eventService,
-                                  final ReviewService reviewService, final ImageService imageService) {
+                                  final ReviewService reviewService, final ImageService imageService,
+                                  final FollowService followService) {
         this.userService = userService;
         this.eventService = eventService;
         this.reviewService = reviewService;
         this.imageService = imageService;
+        this.followService = followService;
     }
 
     @Override
@@ -65,8 +68,12 @@ public class UserProfileServiceImpl implements UserProfileService {
         // Cuantas reseñas y el promedio salen de UNA consulta (COUNT + AVG en la base, sin traer las reseñas).
         final RatingSummary rating = reviewService.findRatingSummaryByCreator(userId);
 
-        return Optional.of(new UserProfile(user, user.isSameAccountAs(viewerId), tab, events, upcomingCount,
-                pastCount, rating.getAverage(), rating.getCount(), pastCount >= SUPER_ORGANIZER_MIN_EVENTS));
+        // Si quien mira ya la sigue (para el boton Seguir / Dejar de seguir). Sin sesion, o en el propio perfil, no.
+        final boolean own = user.isSameAccountAs(viewerId);
+        final boolean followed = viewerId != null && !own && followService.isFollowing(viewerId, userId);
+
+        return Optional.of(new UserProfile(user, own, tab, events, upcomingCount,
+                pastCount, rating.getAverage(), rating.getCount(), pastCount >= SUPER_ORGANIZER_MIN_EVENTS, followed));
     }
 
     // Sin pedir pestaña se abre la de proximos; si no tiene ninguno pero si realizados, esa (no mostrar una lista vacia

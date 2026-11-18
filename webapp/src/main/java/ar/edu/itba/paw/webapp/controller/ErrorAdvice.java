@@ -3,6 +3,7 @@ package ar.edu.itba.paw.webapp.controller;
 import ar.edu.itba.paw.webapp.auth.PlancitoUserDetails;
 import ar.edu.itba.paw.model.exception.EventCancelledException;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
+import ar.edu.itba.paw.model.exception.EventFinishedException;
 import ar.edu.itba.paw.model.exception.EventRejectedException;
 import ar.edu.itba.paw.model.exception.InvalidImageException;
 import ar.edu.itba.paw.model.exception.UserNotFoundException;
@@ -80,6 +81,12 @@ public class ErrorAdvice {
     // Un evento rechazado tampoco se edita (el rechazo es definitivo): mismo destino que el cancelado.
     @ExceptionHandler(EventRejectedException.class)
     public ModelAndView eventRejected(final EventRejectedException e) {
+        return new ModelAndView("redirect:/perfil/eventos");
+    }
+
+    // Uno que ya paso tampoco se edita: mismo destino.
+    @ExceptionHandler(EventFinishedException.class)
+    public ModelAndView eventFinished(final EventFinishedException e) {
         return new ModelAndView("redirect:/perfil/eventos");
     }
 

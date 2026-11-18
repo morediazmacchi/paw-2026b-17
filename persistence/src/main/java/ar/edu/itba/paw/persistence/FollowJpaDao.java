@@ -62,6 +62,30 @@ public class FollowJpaDao implements FollowDao {
     }
 
     @Override
+    public boolean follow(final long followerId, final long followedId) {
+        // Se mira antes para el caso comun ("ya la seguia"). Si dos pedidos simultaneos pasan los dos este chequeo, el
+        // segundo choca contra la clave al hacer flush(): esa excepcion sale de aca y la traduce FollowServiceImpl.
+        if (em.find(Follow.class, new FollowId(followerId, followedId)) != null) {
+            return false;
+        }
+        em.persist(new Follow(em.getReference(User.class, followerId), em.getReference(User.class, followedId)));
+        // PK compuesta asignada a mano: persist() no inserta enseguida. flush() para que un id inexistente (FK) falle
+        // desde este metodo y no al commit.
+        em.flush();
+        return true;
+    }
+
+    @Override
+    public boolean unfollow(final long followerId, final long followedId) {
+        final Follow follow = em.find(Follow.class, new FollowId(followerId, followedId));
+        if (follow == null) {
+            return false;
+        }
+        em.remove(follow);
+        return true;
+    }
+
+    @Override
     public boolean isFollowing(final long followerId, final long followedId) {
         return em.find(Follow.class, new FollowId(followerId, followedId)) != null;
     }

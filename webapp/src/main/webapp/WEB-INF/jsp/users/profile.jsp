@@ -56,7 +56,37 @@
 
         <div class="public-profile-body">
             <div class="public-profile-identity">
-                <h1 class="public-profile-name"><c:out value="${displayName}"/></h1>
+                <%-- Seguir a esta persona, al lado de su nombre (no en el propio perfil). Sin sesion, el boton lleva a
+                     iniciar sesion y vuelve aca. --%>
+                <div class="public-profile-name-row">
+                    <h1 class="public-profile-name"><c:out value="${displayName}"/></h1>
+                    <c:if test="${not profile.own}">
+                        <c:choose>
+                            <c:when test="${empty currentUser}">
+                                <c:url value="/login" var="loginToFollowUrl">
+                                    <c:param name="redirect" value="/usuarios/${profile.user.id}"/>
+                                </c:url>
+                                <a class="btn btn-medium btn-accent" href="${loginToFollowUrl}">
+                                    <spring:message code="profile.public.follow"/>
+                                </a>
+                            </c:when>
+                            <c:when test="${profile.followedByViewer}">
+                                <form action="<c:url value='/usuarios/${profile.user.id}/dejar-de-seguir'/>" method="post">
+                                    <button type="submit" class="btn btn-medium">
+                                        <spring:message code="profile.public.unfollow"/>
+                                    </button>
+                                </form>
+                            </c:when>
+                            <c:otherwise>
+                                <form action="<c:url value='/usuarios/${profile.user.id}/seguir'/>" method="post">
+                                    <button type="submit" class="btn btn-medium btn-accent">
+                                        <spring:message code="profile.public.follow"/>
+                                    </button>
+                                </form>
+                            </c:otherwise>
+                        </c:choose>
+                    </c:if>
+                </div>
                 <c:if test="${profile.superOrganizer}">
                     <p class="super-organizer">
                         <span class="super-organizer-tag"><spring:message code="profile.public.superOrganizer"/></span>
@@ -137,7 +167,7 @@
             </c:when>
             <c:otherwise>
                 <c:set var="eventsToShow" value="${profile.events.content}" scope="request"/>
-                <jsp:include page="/WEB-INF/jsp/users/_eventCards.jspf"/>
+                <%@ include file="_eventCards.jspf" %>
                 <paw:pager baseUrl="/usuarios/${profile.user.id}?tab=${profile.tab}"
                            currentPage="${profile.events.page}" totalPages="${profile.events.totalPages}"/>
             </c:otherwise>

@@ -1,10 +1,9 @@
-<%@ page contentType="text/html;charset=UTF-8" pageEncoding="UTF-8" %>
-<%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
-<%@ taglib prefix="spring" uri="http://www.springframework.org/tags" %>
-<%@ taglib prefix="paw" tagdir="/WEB-INF/tags" %>
 <%-- Grilla de tarjetas de eventos del perfil publico: las mismas <paw:card> que el listado de /eventos. Muestra
      la lista que le deja el perfil en el request (eventsToShow). Sin corazon (no se pasa returnTo): el perfil es
-     de lectura. --%>
+     de lectura.
+     Se incluye con include ESTATICO (<%@ include file %>, como _eventWizardFields.jspf), no con <jsp:include>:
+     Tomcat (Pampero) no procesa como JSP un .jspf incluido en tiempo de ejecucion y la grilla salia vacia (en
+     Jetty si andaba). Por eso tampoco declara page ni taglibs: usa los de profile.jsp. --%>
 <div class="card-grid">
     <c:forEach var="event" items="${eventsToShow}">
         <c:set var="cardPrecio" value="${event.free ? null : event.price}" />

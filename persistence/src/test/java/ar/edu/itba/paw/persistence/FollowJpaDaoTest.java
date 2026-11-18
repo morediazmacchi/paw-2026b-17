@@ -76,6 +76,57 @@ public class FollowJpaDaoTest {
         return "follower_id = " + followerId + " AND followed_id = " + followedId;
     }
 
+    // ---- follow() / unfollow() (desde el perfil publico) ----
+
+    @Test
+    public void testFollowPersonInsertsTheRowAndReturnsTrue() {
+        // Act
+        final boolean result = followDao.follow(followerId, followedId);
+        em.flush();
+
+        // Assert
+        assertTrue(result);
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "follow", followWhere(followerId, followedId)));
+    }
+
+    @Test
+    public void testFollowPersonAlreadyFollowedKeepsOneRowAndReturnsFalse() {
+        // Arrange
+        insertFollow(followerId, followedId);
+
+        // Act
+        final boolean result = followDao.follow(followerId, followedId);
+        em.flush();
+
+        // Assert
+        assertFalse(result);
+        assertEquals(1, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "follow", followWhere(followerId, followedId)));
+    }
+
+    @Test
+    public void testUnfollowDeletesTheRowAndReturnsTrue() {
+        // Arrange
+        insertFollow(followerId, followedId);
+
+        // Act
+        final boolean result = followDao.unfollow(followerId, followedId);
+        em.flush();
+
+        // Assert
+        assertTrue(result);
+        assertEquals(0, JdbcTestUtils.countRowsInTableWhere(jdbcTemplate, "follow", followWhere(followerId, followedId)));
+    }
+
+    @Test
+    public void testUnfollowWhenNotFollowingReturnsFalse() {
+        // Act
+        final boolean result = followDao.unfollow(followerId, followedId);
+        em.flush();
+
+        // Assert
+        assertFalse(result);
+    }
+
     // ---- followOrganizerOf() ----
 
     @Test

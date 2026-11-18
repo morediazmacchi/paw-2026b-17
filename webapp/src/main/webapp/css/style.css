@@ -1452,6 +1452,10 @@ button.btn-accent {
    margin-left:auto propio, que si no se repartirian el espacio sobrante entre los dos). */
 .filter-bar-v2 .search-bar {
     margin-left: auto;
+    /* Ancho para que se lea el texto de ayuda entero ("Busca por titulo o descripcion"). */
+    flex: 1 1 320px;
+    min-width: 280px;
+    max-width: 380px;
 }
 
 .filter-bar-v2 .search-bar ~ .btn-accent {
@@ -2127,18 +2131,35 @@ button.btn-accent {
 }
 
 /* "Mantener la sesion iniciada" del login: casilla + texto en una linea, arriba de "olvidaste tu contrasena". */
-.auth-remember {
+.auth-login-options {
     display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    margin: 4px 0 16px;
+}
+
+.auth-remember {
+    display: inline-flex;
     align-items: center;
     gap: 8px;
-    margin: 0 0 8px;
+    margin: 0;
     font-size: 0.9rem;
     cursor: pointer;
 }
 
+/* La casilla heredaba el width:100% de los inputs del form: quedaba en el medio de la fila y empujaba el texto. */
+.auth-remember input[type=checkbox] {
+    width: auto;
+    flex: 0 0 auto;
+    margin: 0;
+    accent-color: var(--accent);
+}
+
+/* Si no entra al lado de la casilla, baja a la linea de abajo pero queda a la derecha. */
 .auth-forgot-password {
-    text-align: right;
-    margin: -8px 0 16px;
+    margin-left: auto;
     font-size: 0.85rem;
 }
 
@@ -2411,7 +2432,7 @@ button.account-sidebar-logout {
 
 /* Eventos finalizados (Mis inscripciones): mismos datos, sin boton de accion
    (no hay nada para cancelar), atenuados para que se lean como "ya paso". */
-.event-row-list-past .event-row {
+.event-row-list-past .event-row-link {
     opacity: 0.6;
 }
 
@@ -2682,12 +2703,6 @@ button.account-sidebar-logout {
 /* "Dejar reseña" en "Eventos finalizados": mismo motivo que .review-panel de arriba (hermano de
    paw:eventRow, no adentro, para no heredar la atenuacion de .event-row-list-past). Alineado a la
    derecha, como antes cuando vivia dentro de .event-row-actions. */
-.review-action-button {
-    display: flex;
-    margin: 8px 0 0 auto;
-    width: fit-content;
-}
-
 .review-panel .form-group {
     margin-bottom: 10px;
 }
@@ -2859,15 +2874,38 @@ button.account-sidebar-logout {
 }
 
 /* Fila de botones de un modal de confirmacion (ej: cancelar evento). */
+/* Todos los botones del mismo ancho y alto, en una linea: los que van dentro de un <form> (los que mandan algo)
+   antes quedaban mas bajos que los sueltos (el form estiraba la fila con su linea de texto y los otros se estiraban
+   con ella). Ahora el form es una caja flex mas, y cada boton ocupa todo su lugar. */
 .modal-confirm-actions {
     display: flex;
-    justify-content: flex-end;
+    align-items: stretch;
     gap: 10px;
     margin-top: 20px;
 }
 
+.modal-confirm-actions > .btn,
+.modal-confirm-actions > form {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.modal-confirm-actions > form {
+    display: flex;
+    margin: 0;
+}
+
 .modal-confirm-actions .btn {
+    width: 100%;
     margin-top: 0;
+    white-space: normal;
+    text-align: center;
+}
+
+@media (max-width: 480px) {
+    .modal-confirm-actions {
+        flex-direction: column;
+    }
 }
 
 .creator-review-item {
@@ -2941,6 +2979,8 @@ button.account-sidebar-logout {
 
 /* Varias acciones (forms) en una misma celda de "Reportes"/"Usuarios" del
    panel de admin: en fila, no una debajo de la otra como el nowrap del td haria. */
+/* La celda sigue siendo una celda de tabla (antes tenia display:flex y se salia de la columna); los botones van en
+   un div adentro. */
 .admin-report-actions {
     display: flex;
     flex-wrap: wrap;
@@ -3047,12 +3087,43 @@ button.account-sidebar-logout {
 
 /* Panel unificado "Reportes y seguimiento" (admin/reportes.jsp): mismo .responsive-table de arriba, columnas
    propias (6: evento, reportado por, motivo, estado, ultima actualizacion, acciones). */
-.reports-table th:nth-child(1), .reports-table td:nth-child(1) { width: 22%; }
+.reports-table th:nth-child(1), .reports-table td:nth-child(1) { width: 17%; }
 .reports-table th:nth-child(2), .reports-table td:nth-child(2) { width: 16%; }
-.reports-table th:nth-child(3), .reports-table td:nth-child(3) { width: 20%; }
-.reports-table th:nth-child(4), .reports-table td:nth-child(4) { width: 14%; }
-.reports-table th:nth-child(5), .reports-table td:nth-child(5) { width: 13%; }
-.reports-table th:nth-child(6), .reports-table td:nth-child(6) { width: 15%; }
+.reports-table th:nth-child(3), .reports-table td:nth-child(3) { width: 18%; }
+.reports-table th:nth-child(4), .reports-table td:nth-child(4) { width: 17%; }
+.reports-table th:nth-child(5), .reports-table td:nth-child(5) { width: 12%; }
+.reports-table th:nth-child(6), .reports-table td:nth-child(6) { width: 20%; }
+
+/* Cada dato centrado en su fila; estado, fecha y acciones tambien centrados en su columna. */
+.reports-table th, .reports-table td {
+    vertical-align: middle;
+    padding-left: 12px;
+    padding-right: 12px;
+}
+
+.reports-table th:nth-child(n+4), .reports-table td:nth-child(n+4) {
+    text-align: center;
+}
+
+/* Un estado largo ("Modificacion solicitada") se parte en dos lineas adentro de la pastilla, sin pisar la fecha. */
+.reports-table .report-status {
+    max-width: 100%;
+    white-space: normal;
+    text-align: left;
+    line-height: 1.25;
+    border-radius: 14px;
+}
+
+/* Ver evento / Ver seguimiento: uno debajo del otro, del mismo ancho, adentro de la columna. */
+.reports-table .admin-report-actions {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.reports-table .admin-report-actions .btn {
+    width: 100%;
+    text-align: center;
+}
 
 /* Pestañas de pestaña (Todos/Nuevos/En revision/Modificacion solicitada/Resueltos), con el contador adentro
    del pill (ver ReportStatusCounts). Mismo .pill/.pill-active que el resto del sitio. */
@@ -4373,7 +4444,25 @@ button.account-sidebar-logout {
 
 .public-profile-name {
     font-size: 1.8rem;
+    margin: 0;
+}
+
+/* Nombre + boton de seguir en la misma linea (el boton baja abajo del nombre si no entra). */
+.public-profile-name-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 16px;
     margin: 0 0 6px;
+}
+
+.public-profile-name-row form {
+    margin: 0;
+}
+
+/* button.btn-accent trae margin-top (pensado para el submit al pie de un form): aca lo bajaba respecto del nombre. */
+.public-profile-name-row .btn {
+    margin-top: 0;
 }
 
 .public-profile-bio {
@@ -4619,4 +4708,17 @@ button.account-sidebar-logout {
 .tracking-timeline {
     /* Texto de otra persona (una pregunta, un motivo): una palabra larga sin espacios se corta en vez de salirse. */
     overflow-wrap: anywhere;
+}
+
+/* "Evento finalizado" en "Mis eventos": en lugar de los botones (ya no hay nada que editar ni cancelar). */
+.event-row-finished-note {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-weight: 600;
+    white-space: nowrap;
 }

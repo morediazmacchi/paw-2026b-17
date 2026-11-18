@@ -15,6 +15,7 @@ import ar.edu.itba.paw.model.InboxMessageType;
 import ar.edu.itba.paw.model.SimilarityParameters;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.exception.EventCancelledException;
+import ar.edu.itba.paw.model.exception.EventFinishedException;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
 import ar.edu.itba.paw.model.exception.EventRejectedException;
 import ar.edu.itba.paw.model.exception.InvalidEventException;
@@ -231,6 +232,10 @@ public class EventServiceImpl implements EventService {
         // EventAccessService.getEditableEvent(), que es la que usa el GET. Esto cierra el bypass por codigo.
         if (existing.get().isRejected()) {
             throw new EventRejectedException(eventId);
+        }
+        // Uno que ya paso tampoco (misma regla que getEditableEvent()).
+        if (existing.get().isFinished()) {
+            throw new EventFinishedException(eventId);
         }
         validateEventDate(dto);
         validateHasCategories(dto);

@@ -353,10 +353,10 @@ public class Event implements EventAccessData {
         return !isCancelled() && !isFinished();
     }
 
-    // Se puede editar: ni cancelado (uno cancelado no se edita) ni rechazado (el rechazo es definitivo, no
-    // hay reenvio a revision). Un evento pendiente de aprobacion si se edita.
+    // Se puede editar: ni cancelado (uno cancelado no se edita), ni rechazado (el rechazo es definitivo, no
+    // hay reenvio a revision), ni finalizado (ya sucedio). Un evento pendiente de aprobacion si se edita.
     public boolean isEditable() {
-        return !isCancelled() && !isRejected();
+        return !isCancelled() && !isRejected() && !isFinished();
     }
 
     // Se puede reseñar: ya paso y no se cancelo (uno cancelado no sucedio). Falta ademas que quien reseña haya

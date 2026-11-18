@@ -163,13 +163,15 @@
                                 </c:choose>
                             </td>
                             <td data-label="${lastUpdateLabel}"><paw:date value="${report.lastActivityAt}" format="dateTimeTable"/></td>
-                            <td class="admin-report-actions">
+                            <td class="admin-actions-cell">
+                            <div class="admin-report-actions">
                                 <c:if test="${not empty reportedEvent}">
                                     <a class="btn btn-medium" href="<c:url value='/eventos/${reportedEvent.id}'/>"><c:out value="${viewEventButtonLabel}"/></a>
                                 </c:if>
                                 <button type="button" class="btn btn-medium" data-open-modal="seguimientoModal-${report.id}">
                                     <c:out value="${viewTrackingButtonLabel}"/>
                                 </button>
+                            </div>
                             </td>
                         </tr>
                     </c:forEach>

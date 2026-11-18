@@ -102,7 +102,8 @@
                                     </c:otherwise>
                                 </c:choose>
                             </td>
-                            <td class="admin-report-actions">
+                            <td class="admin-actions-cell">
+                            <div class="admin-report-actions">
                                 <%-- Nadie actua sobre su propia fila (ver AdminController): ni
                                      suspenderse ni sacarse su propio rol ADMIN. --%>
                                 <c:if test="${not targetUser.isSameAccountAs(currentUserId)}">
@@ -151,6 +152,7 @@
                                         </c:choose>
                                     </c:if>
                                 </c:if>
+                            </div>
                             </td>
                         </tr>
                     </c:forEach>

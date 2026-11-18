@@ -1,5 +1,6 @@
 package ar.edu.itba.paw.services;
 
+import ar.edu.itba.paw.model.PublicUser;
 import ar.edu.itba.paw.persistence.FollowDao;
 import org.junit.Before;
 import org.junit.Test;
@@ -9,11 +10,13 @@ import org.mockito.junit.MockitoJUnitRunner;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import java.sql.SQLException;
+import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 // Unidad 5 - Unit Testing: el dao es un mock de Mockito (@Mock + when) y cada test asierta sobre
@@ -28,12 +31,14 @@ public class FollowServiceImplTest {
 
     @Mock
     private FollowDao followDao;
+    @Mock
+    private UserService userService;
 
     private FollowServiceImpl followService;
 
     @Before
     public void setUp() {
-        followService = new FollowServiceImpl(followDao);
+        followService = new FollowServiceImpl(followDao, userService);
     }
 
     // El dao solo responde para (seguidor, EVENTO): si el service le pasara otro id, el resultado seria false.
@@ -132,5 +137,77 @@ public class FollowServiceImplTest {
 
         // Assert
         assertEquals(3L, result);
+    }
+
+    // ---- seguir / dejar de seguir desde el perfil publico ----
+
+    @Test
+    public void testFollowAnActivePersonFollowsThem() {
+        // Arrange
+        when(userService.findActivePublicById(FOLLOWED_ID))
+                .thenReturn(Optional.of(new PublicUser(FOLLOWED_ID, "Ana", null, null)));
+        when(followDao.follow(FOLLOWER_ID, FOLLOWED_ID)).thenReturn(true);
+
+        // Act
+        final boolean result = followService.follow(FOLLOWER_ID, FOLLOWED_ID);
+
+        // Assert
+        assertTrue(result);
+    }
+
+    // Uno no se sigue a si mismo: aunque el dao lo aceptara (senuelo), el service no lo pide.
+    @Test
+    public void testFollowYourselfReturnsFalse() {
+        // Arrange
+        lenient().when(userService.findActivePublicById(FOLLOWER_ID))
+                .thenReturn(Optional.of(new PublicUser(FOLLOWER_ID, "Yo", null, null)));
+        lenient().when(followDao.follow(FOLLOWER_ID, FOLLOWER_ID)).thenReturn(true);
+
+        // Act
+        final boolean result = followService.follow(FOLLOWER_ID, FOLLOWER_ID);
+
+        // Assert
+        assertFalse(result);
+    }
+
+    // Una cuenta suspendida o que no existe no se sigue (el perfil tampoco se muestra).
+    @Test
+    public void testFollowSomeoneWhoIsNotActiveReturnsFalse() {
+        // Arrange
+        when(userService.findActivePublicById(FOLLOWED_ID)).thenReturn(Optional.empty());
+        lenient().when(followDao.follow(FOLLOWER_ID, FOLLOWED_ID)).thenReturn(true);
+
+        // Act
+        final boolean result = followService.follow(FOLLOWER_ID, FOLLOWED_ID);
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    public void testFollowReturnsFalseWhenTheDatabaseRejectsADuplicate() {
+        // Arrange
+        when(userService.findActivePublicById(FOLLOWED_ID))
+                .thenReturn(Optional.of(new PublicUser(FOLLOWED_ID, "Ana", null, null)));
+        when(followDao.follow(FOLLOWER_ID, FOLLOWED_ID)).thenThrow(new DataIntegrityViolationException(
+                "clave seguidor+seguido", new SQLException("duplicado", "23505")));
+
+        // Act
+        final boolean result = followService.follow(FOLLOWER_ID, FOLLOWED_ID);
+
+        // Assert
+        assertFalse(result);
+    }
+
+    @Test
+    public void testUnfollowSomeoneYouFollowReturnsTrue() {
+        // Arrange
+        when(followDao.unfollow(FOLLOWER_ID, FOLLOWED_ID)).thenReturn(true);
+
+        // Act
+        final boolean result = followService.unfollow(FOLLOWER_ID, FOLLOWED_ID);
+
+        // Assert
+        assertTrue(result);
     }
 }

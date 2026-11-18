@@ -14,6 +14,7 @@ import ar.edu.itba.paw.model.SimilarityParameters;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.exception.EventCancelledException;
 import ar.edu.itba.paw.model.exception.EventNotFoundException;
+import ar.edu.itba.paw.model.exception.EventFinishedException;
 import ar.edu.itba.paw.model.exception.EventRejectedException;
 import ar.edu.itba.paw.model.exception.InvalidImageException;
 import ar.edu.itba.paw.model.exception.InvalidEventException;
@@ -645,6 +646,20 @@ public class EventServiceImplTest {
         final Event rejected = someEvent();
         rejected.setApprovalStatus(EventApprovalStatus.REJECTED);
         existingForUpdate(rejected);
+
+        // Act
+        eventService.update(EVENT_ID, someDto());
+
+        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
+    }
+
+    // Un evento que ya paso no se edita (aunque el form traiga una fecha nueva valida).
+    @Test(expected = EventFinishedException.class)
+    public void testUpdateWhenTheEventAlreadyHappenedThrowsEventFinishedException() {
+        // Arrange
+        final Event finished = someEvent();
+        finished.setEventDate(new Date(System.currentTimeMillis() - 86_400_000L));
+        existingForUpdate(finished);
 
         // Act
         eventService.update(EVENT_ID, someDto());

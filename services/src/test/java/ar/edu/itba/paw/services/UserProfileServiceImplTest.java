@@ -47,12 +47,15 @@ public class UserProfileServiceImplTest {
     private ReviewService reviewService;
     @Mock
     private ImageService imageService;
+    @Mock
+    private FollowService followService;
 
     private UserProfileServiceImpl service;
 
     @Before
     public void setUp() {
-        service = new UserProfileServiceImpl(userService, eventService, reviewService, imageService);
+        service = new UserProfileServiceImpl(userService, eventService, reviewService, imageService,
+                followService);
         // Por defecto la persona no tiene eventos de ningun grupo ni reseñas (cada test pisa lo que le importa).
         lenient().when(eventService.findUpcomingPublicByCreator(eq(USER_ID), any(Date.class), anyInt(), eq(PAGE_SIZE),
                 anyLong())).thenReturn(pageOf(Collections.emptyList(), 0, 1));
@@ -403,5 +406,51 @@ public class UserProfileServiceImplTest {
 
         // Assert
         assertFalse(result.isPresent());
+    }
+
+    // ---- si quien mira ya sigue a esta persona (el boton Seguir / Dejar de seguir) ----
+
+    @Test
+    public void testAViewerWhoFollowsThePersonSeesItAsFollowed() {
+        // Arrange
+        givenAnActiveUser();
+        givenCounts(0, 0);
+        when(followService.isFollowing(OTHER_ID, USER_ID)).thenReturn(true);
+
+        // Act
+        final UserProfile profile = service.findProfile(USER_ID, OTHER_ID, null, 1).get();
+
+        // Assert
+        assertTrue(profile.isFollowedByViewer());
+    }
+
+    // Anonimo: no sigue a nadie (aunque el senuelo diga lo contrario para un id cualquiera).
+    @Test
+    public void testAnAnonymousViewerDoesNotFollow() {
+        // Arrange
+        givenAnActiveUser();
+        givenCounts(0, 0);
+        lenient().when(followService.isFollowing(anyLong(), anyLong())).thenReturn(true);
+
+        // Act
+        final UserProfile profile = service.findProfile(USER_ID, null, null, 1).get();
+
+        // Assert
+        assertFalse(profile.isFollowedByViewer());
+    }
+
+    // En el propio perfil no hay "seguir": aunque el dato dijera que si, queda en false.
+    @Test
+    public void testTheOwnProfileIsNeverFollowed() {
+        // Arrange
+        givenAnActiveUser();
+        givenCounts(0, 0);
+        lenient().when(followService.isFollowing(USER_ID, USER_ID)).thenReturn(true);
+
+        // Act
+        final UserProfile profile = service.findProfile(USER_ID, USER_ID, null, 1).get();
+
+        // Assert
+        assertFalse(profile.isFollowedByViewer());
     }
 }

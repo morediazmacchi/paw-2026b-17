@@ -19,10 +19,12 @@ public class UserProfile {
     private final double averageRating;
     private final long reviewCount;
     private final boolean superOrganizer;
+    private final boolean followedByViewer;
 
     public UserProfile(final PublicUser user, final boolean own, final ProfileTab tab,
                        final PageResult<Event> events, final long upcomingCount, final long pastCount,
-                       final double averageRating, final long reviewCount, final boolean superOrganizer) {
+                       final double averageRating, final long reviewCount, final boolean superOrganizer,
+                       final boolean followedByViewer) {
         this.user = user;
         this.own = own;
         this.tab = tab;
@@ -32,6 +34,7 @@ public class UserProfile {
         this.averageRating = averageRating;
         this.reviewCount = reviewCount;
         this.superOrganizer = superOrganizer;
+        this.followedByViewer = followedByViewer;
     }
 
     public PublicUser getUser() { return user; }
@@ -60,4 +63,6 @@ public class UserProfile {
 
     // Organizo al menos UserProfileService.SUPER_ORGANIZER_MIN_EVENTS eventos: la vista le da un cartel.
     public boolean isSuperOrganizer() { return superOrganizer; }
+    // Quien mira (con sesion) ya sigue a esta persona: el boton dice "Dejar de seguir" en vez de "Seguir".
+    public boolean isFollowedByViewer() { return followedByViewer; }
 }

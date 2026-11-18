@@ -9,6 +9,7 @@ import ar.edu.itba.paw.model.Role;
 import ar.edu.itba.paw.model.User;
 import ar.edu.itba.paw.model.EventVisibility;
 import ar.edu.itba.paw.model.exception.EventCancelledException;
+import ar.edu.itba.paw.model.exception.EventFinishedException;
 import ar.edu.itba.paw.model.exception.EventRejectedException;
 import org.junit.Before;
 import org.junit.Test;
@@ -54,6 +55,8 @@ public class EventAccessServiceImplTest {
         // aprobado, como cualquier evento publicado antes de que existiera esta
         // feature. La logica de PENDING/REJECTED tiene sus propios tests abajo.
         event.setApprovalStatus(EventApprovalStatus.APPROVED);
+        // Todavia no paso (uno pasado no se edita: tiene su propio test abajo).
+        event.setEventDate(new java.util.Date(System.currentTimeMillis() + 86_400_000L));
         return event;
     }
 
@@ -237,6 +240,19 @@ public class EventAccessServiceImplTest {
         // Arrange
         final Event event = event(EventVisibility.PUBLIC);
         event.setApprovalStatus(EventApprovalStatus.REJECTED);
+        when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event));
+
+        // Act
+        accessService.getEditableEvent(EVENT_ID);
+
+        // Assert: la excepcion esperada en @Test(expected=...) ES el assert.
+    }
+
+    @Test(expected = EventFinishedException.class)
+    public void testGetEditableEventWhenTheEventAlreadyHappenedThrowsEventFinishedException() {
+        // Arrange: fue ayer
+        final Event event = event(EventVisibility.PUBLIC);
+        event.setEventDate(new java.util.Date(System.currentTimeMillis() - 86_400_000L));
         when(eventService.findById(EVENT_ID)).thenReturn(Optional.of(event));
 
         // Act
